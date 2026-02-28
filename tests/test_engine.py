@@ -1,10 +1,18 @@
 """Tests for Parseltongue runtime engine (engine.py)."""
 
 import unittest
+import operator
 from unittest.mock import patch
 
 from lang import Symbol, Evidence
-from engine import System
+from engine import (
+    System, DEFAULT_OPERATORS,
+    ADD, SUB, MUL, DIV, MOD,
+    GT, LT, GE, LE, EQ, NE,
+    AND, OR, NOT, IMPLIES,
+    ARITHMETIC_OPS, COMPARISON_OPS, LOGIC_OPS,
+    ENGINE_DOCS,
+)
 
 
 # Reusable sample document text for evidence verification tests.
@@ -600,6 +608,161 @@ class TestRepr(unittest.TestCase):
         self.assertIn('facts', r)
         self.assertIn('diffs', r)
         self.assertIn('docs', r)
+
+
+# ==============================================================
+# Operator Constants
+# ==============================================================
+
+class TestOperatorConstants(unittest.TestCase):
+
+    def test_arithmetic_values(self):
+        self.assertEqual(ADD, '+')
+        self.assertEqual(SUB, '-')
+        self.assertEqual(MUL, '*')
+        self.assertEqual(DIV, '/')
+        self.assertEqual(MOD, 'mod')
+
+    def test_comparison_values(self):
+        self.assertEqual(GT, '>')
+        self.assertEqual(LT, '<')
+        self.assertEqual(GE, '>=')
+        self.assertEqual(LE, '<=')
+        self.assertEqual(EQ, '=')
+        self.assertEqual(NE, '!=')
+
+    def test_logic_values(self):
+        self.assertEqual(AND, 'and')
+        self.assertEqual(OR, 'or')
+        self.assertEqual(NOT, 'not')
+        self.assertEqual(IMPLIES, 'implies')
+
+    def test_all_are_symbols(self):
+        for sym in ARITHMETIC_OPS + COMPARISON_OPS + LOGIC_OPS:
+            self.assertIsInstance(sym, Symbol)
+
+    def test_category_tuples(self):
+        self.assertEqual(ARITHMETIC_OPS, (ADD, SUB, MUL, DIV, MOD))
+        self.assertEqual(COMPARISON_OPS, (GT, LT, GE, LE, EQ, NE))
+        self.assertEqual(LOGIC_OPS, (AND, OR, NOT, IMPLIES))
+
+
+# ==============================================================
+# Engine Docs
+# ==============================================================
+
+class TestEngineDocs(unittest.TestCase):
+
+    def test_all_operators_documented(self):
+        for sym in ARITHMETIC_OPS + COMPARISON_OPS + LOGIC_OPS:
+            self.assertIn(sym, ENGINE_DOCS, f"{sym} missing from ENGINE_DOCS")
+
+    def test_doc_entries_have_required_keys(self):
+        for sym, doc in ENGINE_DOCS.items():
+            self.assertIn('category', doc, f"{sym} doc missing 'category'")
+            self.assertIn('description', doc, f"{sym} doc missing 'description'")
+            self.assertIn('example', doc, f"{sym} doc missing 'example'")
+            self.assertIn('expected', doc, f"{sym} doc missing 'expected'")
+
+
+# ==============================================================
+# DEFAULT_OPERATORS & Configurable Init
+# ==============================================================
+
+class TestDefaultOperators(unittest.TestCase):
+
+    def test_default_operators_has_all_ops(self):
+        for sym in ARITHMETIC_OPS + COMPARISON_OPS + LOGIC_OPS:
+            self.assertIn(sym, DEFAULT_OPERATORS, f"{sym} missing from DEFAULT_OPERATORS")
+
+    def test_default_init_has_all_operators(self):
+        s = make_system()
+        for sym in DEFAULT_OPERATORS:
+            self.assertIn(sym, s.env, f"{sym} missing from default env")
+
+    def test_custom_initial_env_replaces(self):
+        """initial_env replaces defaults entirely — only the provided symbols exist."""
+        s = make_system(initial_env={ADD: operator.add})
+        self.assertIn(ADD, s.env)
+        self.assertNotIn(SUB, s.env)
+        self.assertNotIn(GT, s.env)
+        self.assertNotIn(AND, s.env)
+
+    def test_custom_initial_env_extend(self):
+        """Extending defaults by merging with DEFAULT_OPERATORS."""
+        custom_sym = Symbol('double')
+        custom_fn = lambda x: x * 2
+        s = make_system(initial_env={**DEFAULT_OPERATORS, custom_sym: custom_fn})
+        # Has all defaults
+        for sym in DEFAULT_OPERATORS:
+            self.assertIn(sym, s.env)
+        # Plus custom
+        self.assertIn(custom_sym, s.env)
+        self.assertEqual(s.evaluate([custom_sym, 5]), 10)
+
+    def test_custom_env_evaluation(self):
+        """System with custom env can evaluate using custom operators."""
+        s = make_system(initial_env={ADD: operator.add, SUB: operator.sub})
+        self.assertEqual(s.evaluate([ADD, 2, 3]), 5)
+        self.assertEqual(s.evaluate([SUB, 10, 4]), 6)
+        with self.assertRaises(NameError):
+            s.evaluate([MUL, 2, 3])
+
+
+# ==============================================================
+# doc() Method
+# ==============================================================
+
+class TestDoc(unittest.TestCase):
+
+    def test_doc_returns_string(self):
+        s = make_system()
+        result = s.doc()
+        self.assertIsInstance(result, str)
+
+    def test_doc_contains_category_headers(self):
+        s = make_system()
+        result = s.doc()
+        self.assertIn('Arithmetic Operators', result)
+        self.assertIn('Comparison Operators', result)
+        self.assertIn('Logic Operators', result)
+        self.assertIn('Special Forms', result)
+
+    def test_doc_contains_examples(self):
+        s = make_system()
+        result = s.doc()
+        self.assertIn('(+ 2 3)', result)
+        self.assertIn('(> 5 3)', result)
+        self.assertIn('(and true false)', result)
+
+    def test_doc_contains_expected(self):
+        s = make_system()
+        result = s.doc()
+        self.assertIn('=> 5', result)
+        self.assertIn('=> True', result)
+
+    def test_doc_includes_user_facts(self):
+        s = make_system()
+        quiet(s.set_fact, 'revenue', 15, 'test')
+        result = s.doc()
+        self.assertIn('User-Defined', result)
+        self.assertIn('revenue', result)
+
+    def test_doc_includes_user_terms(self):
+        s = make_system()
+        quiet(s.set_fact, 'a', 10, 'test')
+        quiet(s.introduce_term, 'total', [Symbol('+'), Symbol('a'), 5], 'test')
+        result = s.doc()
+        self.assertIn('total', result)
+
+    def test_doc_minimal_env(self):
+        """doc() works with a minimal custom env."""
+        s = make_system(initial_env={ADD: operator.add})
+        result = s.doc()
+        self.assertIn('Arithmetic Operators', result)
+        self.assertIn('(+ 2 3)', result)
+        # Should NOT contain logic since we didn't include it
+        self.assertNotIn('Logic Operators', result)
 
 
 if __name__ == '__main__':

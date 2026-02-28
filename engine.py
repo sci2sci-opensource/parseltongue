@@ -8,18 +8,190 @@ quote verification, derivation with fabrication propagation.
 from typing import Any
 import operator
 
+from atoms import Symbol
 from lang import (
-    Symbol, Axiom, Term, Evidence,
+    Axiom, Term, Evidence,
     parse, tokenize, read_tokens, to_sexp,
     get_keyword, parse_evidence,
+    # Special forms
+    IF, LET, QUOTE,
+    # DSL keywords
+    AXIOM, DEFTERM, FACT, DERIVE, DIFF,
+    # Keyword arguments
+    KW_ORIGIN, KW_EVIDENCE, KW_USING, KW_REPLACE, KW_WITH,
+    # Documentation
+    LANG_DOCS,
 )
 from quote_verifier import QuoteVerifier
+
+
+# ============================================================
+# Operator Constants (engine-level)
+# ============================================================
+
+# Arithmetic
+ADD = Symbol('+')
+SUB = Symbol('-')
+MUL = Symbol('*')
+DIV = Symbol('/')
+MOD = Symbol('mod')
+
+# Comparison
+GT  = Symbol('>')
+LT  = Symbol('<')
+GE  = Symbol('>=')
+LE  = Symbol('<=')
+EQ  = Symbol('=')
+NE  = Symbol('!=')
+
+# Logic
+AND     = Symbol('and')
+OR      = Symbol('or')
+NOT     = Symbol('not')
+IMPLIES = Symbol('implies')
+
+ARITHMETIC_OPS = (ADD, SUB, MUL, DIV, MOD)
+COMPARISON_OPS = (GT, LT, GE, LE, EQ, NE)
+LOGIC_OPS      = (AND, OR, NOT, IMPLIES)
+
+
+# ============================================================
+# Engine Documentation
+# ============================================================
+
+ENGINE_DOCS = {
+    # Arithmetic
+    ADD: {
+        'category': 'arithmetic',
+        'description': 'Add two numbers.',
+        'example': '(+ 2 3)',
+        'expected': 5,
+    },
+    SUB: {
+        'category': 'arithmetic',
+        'description': 'Subtract second from first.',
+        'example': '(- 10 4)',
+        'expected': 6,
+    },
+    MUL: {
+        'category': 'arithmetic',
+        'description': 'Multiply two numbers.',
+        'example': '(* 3 7)',
+        'expected': 21,
+    },
+    DIV: {
+        'category': 'arithmetic',
+        'description': 'Divide first by second (true division).',
+        'example': '(/ 10 2)',
+        'expected': 5.0,
+    },
+    MOD: {
+        'category': 'arithmetic',
+        'description': 'Remainder of first divided by second.',
+        'example': '(mod 10 3)',
+        'expected': 1,
+    },
+
+    # Comparison
+    GT: {
+        'category': 'comparison',
+        'description': 'True if first is strictly greater than second.',
+        'example': '(> 5 3)',
+        'expected': True,
+    },
+    LT: {
+        'category': 'comparison',
+        'description': 'True if first is strictly less than second.',
+        'example': '(< 2 8)',
+        'expected': True,
+    },
+    GE: {
+        'category': 'comparison',
+        'description': 'True if first is greater than or equal to second.',
+        'example': '(>= 5 5)',
+        'expected': True,
+    },
+    LE: {
+        'category': 'comparison',
+        'description': 'True if first is less than or equal to second.',
+        'example': '(<= 3 5)',
+        'expected': True,
+    },
+    EQ: {
+        'category': 'comparison',
+        'description': 'True if both values are equal.',
+        'example': '(= 5 5)',
+        'expected': True,
+    },
+    NE: {
+        'category': 'comparison',
+        'description': 'True if values are not equal.',
+        'example': '(!= 5 6)',
+        'expected': True,
+    },
+
+    # Logic
+    AND: {
+        'category': 'logic',
+        'description': 'Logical AND. True only if both operands are true.',
+        'example': '(and true false)',
+        'expected': False,
+    },
+    OR: {
+        'category': 'logic',
+        'description': 'Logical OR. True if at least one operand is true.',
+        'example': '(or false true)',
+        'expected': True,
+    },
+    NOT: {
+        'category': 'logic',
+        'description': 'Logical NOT. Negates a boolean.',
+        'example': '(not true)',
+        'expected': False,
+    },
+    IMPLIES: {
+        'category': 'logic',
+        'description': 'Logical implication. False only when antecedent '
+                       'is true and consequent is false.',
+        'example': '(implies true false)',
+        'expected': False,
+    },
+}
+
+
+# ============================================================
+# Default Operator Mapping
+# ============================================================
+
+DEFAULT_OPERATORS: dict[Symbol, Any] = {
+    # Arithmetic
+    ADD: operator.add,
+    SUB: operator.sub,
+    MUL: operator.mul,
+    DIV: operator.truediv,
+    MOD: operator.mod,
+
+    # Comparison
+    GT:  operator.gt,
+    LT:  operator.lt,
+    GE:  operator.ge,
+    LE:  operator.le,
+    EQ:  operator.eq,
+    NE:  operator.ne,
+
+    # Logic
+    AND:     lambda a, b: a and b,
+    OR:      lambda a, b: a or b,
+    NOT:     lambda a: not a,
+    IMPLIES: lambda a, b: (not a) or b,
+}
 
 
 class System:
     """The Parseltongue formal system. Grows via axiom introduction."""
 
-    def __init__(self, overridable: bool = False):
+    def __init__(self, overridable: bool = False,
+                 initial_env: dict | None = None):
         self.axioms: dict[str, Axiom] = {}
         self.terms: dict[str, Term] = {}
         self.facts: dict[str, Any] = {}
@@ -28,29 +200,11 @@ class System:
         self.overridable = overridable
         self.diffs: dict[str, dict] = {}  # name -> {replace, with} — evaluated lazily
         self._verifier = QuoteVerifier()
-        self._init_base()
 
-    def _init_base(self):
-        """Initialize the minimal base system — arithmetic, comparison, logic."""
-        self.env.update({
-            Symbol('+'): operator.add,
-            Symbol('-'): operator.sub,
-            Symbol('*'): operator.mul,
-            Symbol('/'): operator.truediv,
-            Symbol('mod'): operator.mod,
-
-            Symbol('>'): operator.gt,
-            Symbol('<'): operator.lt,
-            Symbol('>='): operator.ge,
-            Symbol('<='): operator.le,
-            Symbol('='): operator.eq,
-            Symbol('!='): operator.ne,
-
-            Symbol('and'): lambda a, b: a and b,
-            Symbol('or'): lambda a, b: a or b,
-            Symbol('not'): lambda a: not a,
-            Symbol('implies'): lambda a, b: (not a) or b,
-        })
+        if initial_env is not None:
+            self.env.update(initial_env)
+        else:
+            self.env.update(DEFAULT_OPERATORS)
 
     # ----------------------------------------------------------
     # Document Registry
@@ -275,18 +429,18 @@ class System:
 
         head = expr[0]
 
-        if head == Symbol('if'):
+        if head == IF:
             _, cond, then, else_ = expr
             return self._eval(then, env) if self._eval(cond, env) else self._eval(else_, env)
 
-        if head == Symbol('let'):
+        if head == LET:
             _, bindings, body = expr
             new_env = env.copy()
             for binding in bindings:
                 new_env[binding[0]] = self._eval(binding[1], new_env)
             return self._eval(body, new_env)
 
-        if head == Symbol('quote'):
+        if head == QUOTE:
             return expr[1]
 
         fn = self._eval(head, env)
@@ -332,7 +486,7 @@ class System:
     def _register_if_definition(self, name: str, wff):
         """If the axiom defines a value, register it."""
         if (isinstance(wff, list) and len(wff) == 3
-                and wff[0] == Symbol('=') and isinstance(wff[1], Symbol)):
+                and wff[0] == EQ and isinstance(wff[1], Symbol)):
             try:
                 val = self.evaluate(wff[2])
                 self.env[wff[1]] = val
@@ -651,6 +805,78 @@ class System:
 
         return {'consistent': consistent, 'issues': issues, 'warnings': warnings}
 
+    def doc(self) -> str:
+        """Generate documentation for the system based on its current state.
+
+        Reflects the actual symbols loaded into this system instance,
+        grouped by category with descriptions and examples.
+        """
+        all_docs = {**LANG_DOCS, **ENGINE_DOCS}
+        lines = []
+        lines.append("Parseltongue System Documentation")
+        lines.append("=" * 40)
+
+        # Group env symbols by category
+        categories: dict[str, list] = {}
+        documented = set()
+        for sym in self.env:
+            if isinstance(sym, Symbol) and sym in all_docs:
+                doc = all_docs[sym]
+                cat = doc['category']
+                categories.setdefault(cat, []).append((sym, doc))
+                documented.add(sym)
+
+        # Add special forms (not in env but part of the language)
+        for sym, doc in all_docs.items():
+            if doc['category'] == 'special' and sym not in documented:
+                categories.setdefault('special', []).append((sym, doc))
+                documented.add(sym)
+
+        # Category display order
+        order = ['special', 'arithmetic', 'comparison', 'logic',
+                 'directive', 'structural', 'keyword']
+        titles = {
+            'special': 'Special Forms',
+            'arithmetic': 'Arithmetic Operators',
+            'comparison': 'Comparison Operators',
+            'logic': 'Logic Operators',
+            'directive': 'DSL Directives',
+            'structural': 'Structural',
+            'keyword': 'Keyword Arguments',
+        }
+
+        for cat in order:
+            entries = categories.get(cat, [])
+            if not entries:
+                continue
+            lines.append("")
+            lines.append(f"  {titles.get(cat, cat)}")
+            lines.append(f"  {'-' * len(titles.get(cat, cat))}")
+            for sym, doc in entries:
+                lines.append(f"    {sym}")
+                lines.append(f"      {doc['description']}")
+                lines.append(f"      Example: {doc['example']}")
+                if 'expected' in doc:
+                    lines.append(f"      => {doc['expected']}")
+
+        # User-defined symbols (facts, terms)
+        user_symbols = []
+        for sym in self.env:
+            if isinstance(sym, Symbol) and sym not in documented:
+                user_symbols.append(sym)
+
+        if user_symbols or self.terms:
+            lines.append("")
+            lines.append("  User-Defined")
+            lines.append("  " + "-" * 12)
+            for sym in user_symbols:
+                val = self.env[sym]
+                lines.append(f"    {sym} = {val}")
+            for name, term in self.terms.items():
+                lines.append(f"    {name} := {to_sexp(term.definition)}")
+
+        return "\n".join(lines)
+
     def __repr__(self):
         return (
             f"System({len(self.axioms)} axioms, "
@@ -682,11 +908,11 @@ def load_source(system: System, source: str):
 
 def _resolve_origin(expr) -> 'str | Evidence':
     """Extract origin from an expression — either :origin string or :evidence."""
-    evidence_raw = get_keyword(expr, ':evidence', None)
+    evidence_raw = get_keyword(expr, KW_EVIDENCE, None)
     if evidence_raw is not None:
         return parse_evidence(evidence_raw)
 
-    origin = get_keyword(expr, ':origin', 'unknown')
+    origin = get_keyword(expr, KW_ORIGIN, 'unknown')
     return origin
 
 
@@ -697,34 +923,34 @@ def _execute_directive(system: System, expr):
 
     head = expr[0]
 
-    if head == Symbol('axiom'):
+    if head == AXIOM:
         name = str(expr[1])
         wff = expr[2]
         origin = _resolve_origin(expr)
         system.introduce_axiom(name, wff, origin)
 
-    elif head == Symbol('defterm'):
+    elif head == DEFTERM:
         name = str(expr[1])
         defn = expr[2]
         origin = _resolve_origin(expr)
         system.introduce_term(name, defn, origin)
 
-    elif head == Symbol('fact'):
+    elif head == FACT:
         name = str(expr[1])
         value = expr[2]
         origin = _resolve_origin(expr)
         system.set_fact(name, value, origin)
 
-    elif head == Symbol('derive'):
+    elif head == DERIVE:
         name = str(expr[1])
         wff = expr[2]
-        using = get_keyword(expr, ':using', [])
+        using = get_keyword(expr, KW_USING, [])
         if isinstance(using, list):
             using = [str(s) for s in using]
         system.derive(name, wff, using)
 
-    elif head == Symbol('diff'):
+    elif head == DIFF:
         name = str(expr[1])
-        replace = str(get_keyword(expr, ':replace'))
-        with_ = str(get_keyword(expr, ':with'))
+        replace = str(get_keyword(expr, KW_REPLACE))
+        with_ = str(get_keyword(expr, KW_WITH))
         system.register_diff(name, replace, with_)

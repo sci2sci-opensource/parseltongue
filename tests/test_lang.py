@@ -2,184 +2,160 @@
 
 import unittest
 
+from atoms import Symbol, Evidence
 from lang import (
-    Symbol, Evidence, tokenize, atom, parse, parse_all, to_sexp,
-    get_keyword, parse_evidence,
+    # Re-exported from atoms (backward compat)
+    tokenize, parse, to_sexp, get_keyword,
+    # Constants
+    IF, LET, QUOTE, AXIOM, DEFTERM, FACT, DERIVE, DIFF, EVIDENCE,
+    SPECIAL_FORMS, DSL_KEYWORDS,
+    KW_QUOTES, KW_EXPLANATION, KW_ORIGIN, KW_EVIDENCE, KW_USING,
+    KW_REPLACE, KW_WITH,
+    # Docs
+    LANG_DOCS,
+    # Functions
+    parse_evidence,
 )
 
 
-class TestTokenize(unittest.TestCase):
+# ==============================================================
+# Symbol Constants
+# ==============================================================
 
-    def test_basic_tokens(self):
-        tokens = tokenize("(+ 2 3)")
-        self.assertEqual(tokens, ['(', '+', '2', '3', ')'])
+class TestSpecialFormConstants(unittest.TestCase):
 
-    def test_nested_parens(self):
-        tokens = tokenize("(+ (* 2 3) 4)")
-        self.assertEqual(tokens, ['(', '+', '(', '*', '2', '3', ')', '4', ')'])
+    def test_if(self):
+        self.assertEqual(IF, 'if')
+        self.assertIsInstance(IF, Symbol)
 
-    def test_string_tokens(self):
-        tokens = tokenize('(fact "hello world")')
-        self.assertEqual(tokens, ['(', 'fact', '"hello world"', ')'])
+    def test_let(self):
+        self.assertEqual(LET, 'let')
+        self.assertIsInstance(LET, Symbol)
 
-    def test_comments_stripped(self):
-        tokens = tokenize(";; this is a comment\n(+ 1 2)")
-        self.assertEqual(tokens, ['(', '+', '1', '2', ')'])
+    def test_quote(self):
+        self.assertEqual(QUOTE, 'quote')
+        self.assertIsInstance(QUOTE, Symbol)
 
-    def test_inline_comment(self):
-        tokens = tokenize("(+ 1 2) ;; inline")
-        self.assertEqual(tokens, ['(', '+', '1', '2', ')'])
-
-    def test_whitespace_variants(self):
-        tokens = tokenize("(+\t2\n3)")
-        self.assertEqual(tokens, ['(', '+', '2', '3', ')'])
-
-    def test_keyword_tokens(self):
-        tokens = tokenize("(fact x 5 :origin \"test\")")
-        self.assertEqual(tokens, ['(', 'fact', 'x', '5', ':origin', '"test"', ')'])
-
-    def test_empty_string(self):
-        tokens = tokenize("")
-        self.assertEqual(tokens, [])
+    def test_special_forms_tuple(self):
+        self.assertEqual(SPECIAL_FORMS, (IF, LET, QUOTE))
 
 
-class TestAtom(unittest.TestCase):
+class TestDSLKeywordConstants(unittest.TestCase):
 
-    def test_integer(self):
-        self.assertEqual(atom("42"), 42)
-        self.assertIsInstance(atom("42"), int)
+    def test_axiom(self):
+        self.assertEqual(AXIOM, 'axiom')
+        self.assertIsInstance(AXIOM, Symbol)
 
-    def test_negative_integer(self):
-        self.assertEqual(atom("-7"), -7)
+    def test_defterm(self):
+        self.assertEqual(DEFTERM, 'defterm')
+        self.assertIsInstance(DEFTERM, Symbol)
 
-    def test_float(self):
-        self.assertAlmostEqual(atom("3.14"), 3.14)
-        self.assertIsInstance(atom("3.14"), float)
+    def test_fact(self):
+        self.assertEqual(FACT, 'fact')
+        self.assertIsInstance(FACT, Symbol)
 
-    def test_bool_true(self):
-        self.assertIs(atom("true"), True)
+    def test_derive(self):
+        self.assertEqual(DERIVE, 'derive')
+        self.assertIsInstance(DERIVE, Symbol)
 
-    def test_bool_false(self):
-        self.assertIs(atom("false"), False)
+    def test_diff(self):
+        self.assertEqual(DIFF, 'diff')
+        self.assertIsInstance(DIFF, Symbol)
 
-    def test_string(self):
-        result = atom('"hello"')
-        self.assertEqual(result, "hello")
-        self.assertNotIsInstance(result, Symbol)
+    def test_evidence(self):
+        self.assertEqual(EVIDENCE, 'evidence')
+        self.assertIsInstance(EVIDENCE, Symbol)
 
-    def test_keyword(self):
-        result = atom(":origin")
-        self.assertEqual(result, ":origin")
-
-    def test_symbol(self):
-        result = atom("foo")
-        self.assertIsInstance(result, Symbol)
-        self.assertEqual(result, "foo")
+    def test_dsl_keywords_tuple(self):
+        self.assertEqual(DSL_KEYWORDS, (AXIOM, DEFTERM, FACT, DERIVE, DIFF, EVIDENCE))
 
 
-class TestParse(unittest.TestCase):
+class TestKeywordArgConstants(unittest.TestCase):
 
-    def test_simple_expression(self):
-        result = parse("(+ 2 3)")
-        self.assertEqual(result, [Symbol('+'), 2, 3])
+    def test_kw_quotes(self):
+        self.assertEqual(KW_QUOTES, ':quotes')
 
-    def test_nested_expression(self):
-        result = parse("(+ (* 2 3) (- 10 4))")
-        self.assertEqual(result, [Symbol('+'), [Symbol('*'), 2, 3], [Symbol('-'), 10, 4]])
+    def test_kw_explanation(self):
+        self.assertEqual(KW_EXPLANATION, ':explanation')
 
-    def test_atom_only(self):
-        self.assertEqual(parse("42"), 42)
+    def test_kw_origin(self):
+        self.assertEqual(KW_ORIGIN, ':origin')
 
-    def test_symbol_only(self):
-        result = parse("foo")
-        self.assertIsInstance(result, Symbol)
-        self.assertEqual(result, "foo")
+    def test_kw_evidence(self):
+        self.assertEqual(KW_EVIDENCE, ':evidence')
 
-    def test_string_literal(self):
-        result = parse('"hello world"')
-        self.assertEqual(result, "hello world")
+    def test_kw_using(self):
+        self.assertEqual(KW_USING, ':using')
 
-    def test_bool_literal(self):
-        self.assertIs(parse("true"), True)
-        self.assertIs(parse("false"), False)
+    def test_kw_replace(self):
+        self.assertEqual(KW_REPLACE, ':replace')
 
-    def test_missing_close_paren(self):
-        with self.assertRaises(SyntaxError):
-            parse("(+ 1 2")
+    def test_kw_with(self):
+        self.assertEqual(KW_WITH, ':with')
 
-    def test_unexpected_close_paren(self):
-        with self.assertRaises(SyntaxError):
-            parse(")")
-
-    def test_empty_raises(self):
-        with self.assertRaises(SyntaxError):
-            parse("")
+    def test_keywords_are_strings_not_symbols(self):
+        """Keyword args are plain strings, not Symbol instances."""
+        for kw in (KW_QUOTES, KW_EXPLANATION, KW_ORIGIN, KW_EVIDENCE,
+                   KW_USING, KW_REPLACE, KW_WITH):
+            self.assertNotIsInstance(kw, Symbol)
+            self.assertIsInstance(kw, str)
 
 
-class TestParseAll(unittest.TestCase):
+# ==============================================================
+# Lang Docs
+# ==============================================================
 
-    def test_multiple_expressions(self):
-        result = parse_all("(+ 1 2) (- 3 4)")
-        self.assertEqual(result, [[Symbol('+'), 1, 2], [Symbol('-'), 3, 4]])
+class TestLangDocs(unittest.TestCase):
 
-    def test_single_expression(self):
-        result = parse_all("(+ 1 2)")
-        self.assertEqual(result, [[Symbol('+'), 1, 2]])
+    def test_all_special_forms_documented(self):
+        for sym in SPECIAL_FORMS:
+            self.assertIn(sym, LANG_DOCS, f"{sym} missing from LANG_DOCS")
 
-    def test_with_comments(self):
-        result = parse_all(";; comment\n(+ 1 2)\n;; another\n(* 3 4)")
-        self.assertEqual(result, [[Symbol('+'), 1, 2], [Symbol('*'), 3, 4]])
+    def test_all_dsl_keywords_documented(self):
+        for sym in DSL_KEYWORDS:
+            self.assertIn(sym, LANG_DOCS, f"{sym} missing from LANG_DOCS")
+
+    def test_all_keyword_args_documented(self):
+        for kw in (KW_QUOTES, KW_EXPLANATION, KW_ORIGIN, KW_EVIDENCE,
+                   KW_USING, KW_REPLACE, KW_WITH):
+            self.assertIn(kw, LANG_DOCS, f"{kw} missing from LANG_DOCS")
+
+    def test_doc_entries_have_required_keys(self):
+        for sym, doc in LANG_DOCS.items():
+            self.assertIn('category', doc, f"{sym} doc missing 'category'")
+            self.assertIn('description', doc, f"{sym} doc missing 'description'")
+            self.assertIn('example', doc, f"{sym} doc missing 'example'")
 
 
-class TestToSexp(unittest.TestCase):
+# ==============================================================
+# Backward Compatibility
+# ==============================================================
 
-    def test_integer(self):
+class TestBackwardCompat(unittest.TestCase):
+    """Ensure lang re-exports everything from atoms."""
+
+    def test_symbol_importable(self):
+        self.assertIs(Symbol, Symbol)
+
+    def test_tokenize_importable(self):
+        result = tokenize("(+ 1 2)")
+        self.assertEqual(result, ['(', '+', '1', '2', ')'])
+
+    def test_parse_importable(self):
+        result = parse("(+ 1 2)")
+        self.assertEqual(result, [Symbol('+'), 1, 2])
+
+    def test_to_sexp_importable(self):
         self.assertEqual(to_sexp(42), "42")
 
-    def test_float(self):
-        self.assertEqual(to_sexp(3.14), "3.14")
-
-    def test_bool(self):
-        self.assertEqual(to_sexp(True), "true")
-        self.assertEqual(to_sexp(False), "false")
-
-    def test_string(self):
-        self.assertEqual(to_sexp("hello"), '"hello"')
-
-    def test_symbol(self):
-        self.assertEqual(to_sexp(Symbol('foo')), "foo")
-
-    def test_list(self):
-        self.assertEqual(to_sexp([Symbol('+'), 2, 3]), "(+ 2 3)")
-
-    def test_nested_list(self):
-        expr = [Symbol('+'), [Symbol('*'), 2, 3], 4]
-        self.assertEqual(to_sexp(expr), "(+ (* 2 3) 4)")
-
-    def test_round_trip(self):
-        source = "(+ (* 2 3) (- 10 4))"
-        self.assertEqual(to_sexp(parse(source)), source)
-
-
-class TestGetKeyword(unittest.TestCase):
-
-    def test_found(self):
+    def test_get_keyword_importable(self):
         expr = [Symbol('fact'), Symbol('x'), 5, ':origin', 'test']
         self.assertEqual(get_keyword(expr, ':origin'), 'test')
 
-    def test_not_found(self):
-        expr = [Symbol('fact'), Symbol('x'), 5]
-        self.assertIsNone(get_keyword(expr, ':origin'))
 
-    def test_default(self):
-        expr = [Symbol('fact'), Symbol('x'), 5]
-        self.assertEqual(get_keyword(expr, ':origin', 'fallback'), 'fallback')
-
-    def test_keyword_at_end(self):
-        """Keyword at the very end without a value returns default."""
-        expr = [Symbol('fact'), Symbol('x'), ':origin']
-        self.assertIsNone(get_keyword(expr, ':origin'))
-
+# ==============================================================
+# Parse Evidence
+# ==============================================================
 
 class TestParseEvidence(unittest.TestCase):
 
@@ -214,25 +190,6 @@ class TestParseEvidence(unittest.TestCase):
         expr = parse('(wrong "Doc" :quotes ("q"))')
         with self.assertRaises(SyntaxError):
             parse_evidence(expr)
-
-
-class TestEvidenceDataclass(unittest.TestCase):
-
-    def test_is_grounded_verified(self):
-        ev = Evidence(document="d", quotes=[], verified=True)
-        self.assertTrue(ev.is_grounded)
-
-    def test_is_grounded_manual(self):
-        ev = Evidence(document="d", quotes=[], verify_manual=True)
-        self.assertTrue(ev.is_grounded)
-
-    def test_not_grounded(self):
-        ev = Evidence(document="d", quotes=[])
-        self.assertFalse(ev.is_grounded)
-
-    def test_both_grounded(self):
-        ev = Evidence(document="d", quotes=[], verified=True, verify_manual=True)
-        self.assertTrue(ev.is_grounded)
 
 
 if __name__ == '__main__':

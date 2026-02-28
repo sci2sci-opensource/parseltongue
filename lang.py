@@ -1,176 +1,152 @@
 """
 Parseltongue DSL — Language Core.
 
-Pure data structures and s-expression reader/printer.
-No side effects, no evaluation, no state.
+Language grammar symbols, keyword constants, documentation registry,
+and evidence parsing.  Imports and re-exports everything from atoms
+for backward compatibility.
 """
 
-from dataclasses import dataclass, field
-from typing import Any
-import re
+from atoms import (                          # noqa: F401 — re-export
+    Symbol, Evidence, Axiom, Term,
+    tokenize, read_tokens, atom,
+    parse, parse_all, to_sexp,
+    get_keyword,
+)
 
 
 # ============================================================
-# S-Expression Reader
+# Language-Level Symbol Constants
 # ============================================================
 
-class Symbol(str):
-    """A symbol in Parseltongue. Just a string with a distinct type."""
-    def __repr__(self):
-        return f"'{self}"
+# Special forms — evaluated directly by the interpreter, not via env
+IF    = Symbol('if')
+LET   = Symbol('let')
+QUOTE = Symbol('quote')
 
+# DSL keywords — structural symbols of the language
+AXIOM    = Symbol('axiom')
+DEFTERM  = Symbol('defterm')
+FACT     = Symbol('fact')
+DERIVE   = Symbol('derive')
+DIFF     = Symbol('diff')
+EVIDENCE = Symbol('evidence')
 
-def tokenize(source: str) -> list[str]:
-    """Tokenize s-expression source into atoms and parens."""
-    source = re.sub(r';.*$', '', source, flags=re.MULTILINE)
-    tokens = []
-    in_string = False
-    current = []
-    for char in source:
-        if char == '"' and not in_string:
-            in_string = True
-            current.append(char)
-        elif char == '"' and in_string:
-            in_string = False
-            current.append(char)
-            tokens.append(''.join(current))
-            current = []
-        elif in_string:
-            current.append(char)
-        elif char in '()':
-            if current:
-                tokens.append(''.join(current))
-                current = []
-            tokens.append(char)
-        elif char in ' \t\n\r':
-            if current:
-                tokens.append(''.join(current))
-                current = []
-        else:
-            current.append(char)
-    if current:
-        tokens.append(''.join(current))
-    return tokens
+SPECIAL_FORMS = (IF, LET, QUOTE)
+DSL_KEYWORDS  = (AXIOM, DEFTERM, FACT, DERIVE, DIFF, EVIDENCE)
 
-
-def read_tokens(tokens: list[str]) -> Any:
-    """Recursively parse token list into nested Python structures."""
-    if not tokens:
-        raise SyntaxError("Unexpected EOF")
-
-    token = tokens.pop(0)
-
-    if token == '(':
-        expr = []
-        while tokens and tokens[0] != ')':
-            expr.append(read_tokens(tokens))
-        if not tokens:
-            raise SyntaxError("Missing closing )")
-        tokens.pop(0)
-        return expr
-    elif token == ')':
-        raise SyntaxError("Unexpected )")
-    else:
-        return atom(token)
-
-
-def atom(token: str):
-    """Convert a token string to a typed value."""
-    try:
-        return int(token)
-    except ValueError:
-        pass
-    try:
-        return float(token)
-    except ValueError:
-        pass
-    if token == 'true':
-        return True
-    if token == 'false':
-        return False
-    if token.startswith('"') and token.endswith('"'):
-        return token[1:-1]
-    if token.startswith(':'):
-        return token
-    return Symbol(token)
-
-
-def parse(source: str) -> Any:
-    """Parse a source string into an s-expression."""
-    tokens = tokenize(source)
-    return read_tokens(tokens)
-
-
-def parse_all(source: str) -> list:
-    """Parse all top-level s-expressions from source."""
-    tokens = tokenize(source)
-    exprs = []
-    while tokens:
-        exprs.append(read_tokens(tokens))
-    return exprs
-
-
-def to_sexp(obj) -> str:
-    """Pretty-print a Python object back to s-expression string."""
-    if isinstance(obj, list):
-        return '(' + ' '.join(to_sexp(x) for x in obj) + ')'
-    elif isinstance(obj, bool):
-        return 'true' if obj else 'false'
-    elif isinstance(obj, str) and not isinstance(obj, Symbol):
-        return f'"{obj}"'
-    else:
-        return str(obj)
+# Keyword arguments (plain strings, not Symbols — returned by atom() as-is)
+KW_QUOTES      = ':quotes'
+KW_EXPLANATION = ':explanation'
+KW_ORIGIN      = ':origin'
+KW_EVIDENCE    = ':evidence'
+KW_USING       = ':using'
+KW_REPLACE     = ':replace'
+KW_WITH        = ':with'
 
 
 # ============================================================
-# Data Structures
+# Language Documentation
 # ============================================================
 
-@dataclass
-class Evidence:
-    """Structured evidence with verifiable quotes from a source document."""
-    document: str               # registered document name
-    quotes: list[str]           # exact quotes from the document
-    explanation: str = ""       # why these quotes support the claim
-    verification: list = field(default_factory=list)  # filled by verifier
-    verified: bool = False      # all quotes verified?
-    verify_manual: bool = False # manually verified by user?
+LANG_DOCS = {
+    # Special forms
+    IF: {
+        'category': 'special',
+        'description': 'Conditional evaluation. Evaluates the then-branch '
+                       'if condition is true, else-branch otherwise.',
+        'example': '(if (> x 0) "positive" "non-positive")',
+        'expected': '"positive" (when x > 0)',
+    },
+    LET: {
+        'category': 'special',
+        'description': 'Local bindings. Binds names to values in a local '
+                       'scope, then evaluates the body.',
+        'example': '(let ((x 10)) (+ x 5))',
+        'expected': 15,
+    },
+    QUOTE: {
+        'category': 'special',
+        'description': 'Return the s-expression without evaluating it.',
+        'example': '(quote (+ 1 2))',
+        'expected': '(+ 1 2)',
+    },
 
-    @property
-    def is_grounded(self) -> bool:
-        """Evidence is grounded if verified or manually verified."""
-        return self.verified or self.verify_manual
+    # DSL directives
+    AXIOM: {
+        'category': 'directive',
+        'description': 'Introduce a well-formed formula with evidence.',
+        'example': '(axiom a1 (> x 0) :origin "manual")',
+    },
+    DEFTERM: {
+        'category': 'directive',
+        'description': 'Define a named term/concept.',
+        'example': '(defterm total (+ a b) :origin "definition")',
+    },
+    FACT: {
+        'category': 'directive',
+        'description': 'Set a ground truth value with evidence.',
+        'example': '(fact revenue 15 :origin "Q3 report")',
+    },
+    DERIVE: {
+        'category': 'directive',
+        'description': 'Derive a statement from existing axioms/facts.',
+        'example': '(derive d1 (> x 0) :using (x))',
+    },
+    DIFF: {
+        'category': 'directive',
+        'description': 'Register a lazy comparison between two symbols.',
+        'example': '(diff d1 :replace a :with b)',
+    },
+    EVIDENCE: {
+        'category': 'structural',
+        'description': 'Structured evidence with verifiable quotes '
+                       'from a source document.',
+        'example': '(evidence "Doc" :quotes ("q1") :explanation "reason")',
+    },
 
-
-@dataclass
-class Axiom:
-    """An axiom: a WFF with evidence."""
-    name: str
-    wff: Any
-    origin: 'str | Evidence'
-    derived: bool = False
-    derivation: list = field(default_factory=list)
-
-
-@dataclass
-class Term:
-    """A term/concept introduced into the system."""
-    name: str
-    definition: Any
-    origin: 'str | Evidence'
+    # Keyword arguments
+    KW_QUOTES: {
+        'category': 'keyword',
+        'description': 'List of exact quotes from a source document.',
+        'example': ':quotes ("quote one" "quote two")',
+    },
+    KW_EXPLANATION: {
+        'category': 'keyword',
+        'description': 'Why the quotes support the claim.',
+        'example': ':explanation "revenue figure from Q3"',
+    },
+    KW_ORIGIN: {
+        'category': 'keyword',
+        'description': 'Plain-string origin for a fact/axiom/term.',
+        'example': ':origin "Q3 report"',
+    },
+    KW_EVIDENCE: {
+        'category': 'keyword',
+        'description': 'Structured evidence block for a directive.',
+        'example': ':evidence (evidence "Doc" :quotes ("q1") '
+                   ':explanation "x")',
+    },
+    KW_USING: {
+        'category': 'keyword',
+        'description': 'List of axioms/facts used in derivation.',
+        'example': ':using (ax1 fact2)',
+    },
+    KW_REPLACE: {
+        'category': 'keyword',
+        'description': 'Symbol to substitute in a diff.',
+        'example': ':replace growth',
+    },
+    KW_WITH: {
+        'category': 'keyword',
+        'description': 'Replacement symbol in a diff.',
+        'example': ':with alt_growth',
+    },
+}
 
 
 # ============================================================
-# DSL Helpers
+# Evidence Parsing
 # ============================================================
-
-def get_keyword(expr, keyword, default=None):
-    """Extract a keyword argument from an expression."""
-    for i, item in enumerate(expr):
-        if item == keyword and i + 1 < len(expr):
-            return expr[i + 1]
-    return default
-
 
 def parse_evidence(expr) -> Evidence:
     """Parse an evidence s-expression into an Evidence object.
@@ -183,13 +159,13 @@ def parse_evidence(expr) -> Evidence:
     if not isinstance(expr, list) or not expr:
         raise SyntaxError(f"Invalid evidence expression: {expr}")
 
-    if expr[0] != Symbol('evidence'):
+    if expr[0] != EVIDENCE:
         raise SyntaxError(
             f"Evidence expression must start with 'evidence', got: {expr[0]}")
 
     document = str(expr[1])
-    quotes_raw = get_keyword(expr, ':quotes', [])
-    explanation = get_keyword(expr, ':explanation', '')
+    quotes_raw = get_keyword(expr, KW_QUOTES, [])
+    explanation = get_keyword(expr, KW_EXPLANATION, '')
 
     quotes = quotes_raw if isinstance(quotes_raw, list) else [str(quotes_raw)]
     quotes = [str(q) for q in quotes]
