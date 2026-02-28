@@ -12,8 +12,7 @@ import sys
 import json
 import logging
 
-from engine import System, load_source
-from lang import Symbol
+from core import System, load_source
 
 
 def _print_list(items):

@@ -4,8 +4,8 @@ import unittest
 import operator
 from unittest.mock import patch
 
-from lang import Symbol, Evidence
-from engine import (
+from core import (
+    Symbol, Evidence,
     System, DEFAULT_OPERATORS,
     ADD, SUB, MUL, DIV, MOD,
     GT, LT, GE, LE, EQ, NE,
@@ -834,7 +834,7 @@ class TestDoc(unittest.TestCase):
         s = make_system()
         quiet(s.set_fact, 'revenue', 15, 'test')
         result = s.doc()
-        self.assertIn('User-Defined', result)
+        self.assertIn('Facts', result)
         self.assertIn('revenue', result)
 
     def test_doc_includes_user_terms(self):

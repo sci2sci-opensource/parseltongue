@@ -1,6 +1,6 @@
 import unittest
 
-from quote_verifier import QuoteVerifier
+from core.quote_verifier import QuoteVerifier  # subpackage, not re-exported
 
 
 class TestQuoteVerifier(unittest.TestCase):

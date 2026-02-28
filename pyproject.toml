@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.backends._legacy:_Backend"
+
+[project]
+name = "parseltongue"
+version = "0.1.0"
+description = "A DSL for formal systems with evidence grounding"
+requires-python = ">=3.11"
+license = "MIT"
+
+[project.optional-dependencies]
+dev = ["pytest>=7.0"]
+
+[tool.setuptools.packages.find]
+include = ["parseltongue*"]
+
+[tool.pytest.ini_options]
+testpaths = ["core/tests"]

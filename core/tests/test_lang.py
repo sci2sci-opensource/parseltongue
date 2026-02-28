@@ -2,8 +2,8 @@
 
 import unittest
 
-from atoms import Symbol, Evidence
-from lang import (
+from core import (
+    Symbol,
     # Re-exported from atoms (backward compat)
     tokenize, parse, to_sexp, get_keyword,
     # Constants

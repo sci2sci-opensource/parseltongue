@@ -3,8 +3,8 @@
 import time
 import unittest
 
-from quote_verifier import QuoteVerifier as NewVerifier
-from tests.quote_verifier_v2_old import QuoteVerifier as OldVerifier
+from core.quote_verifier import QuoteVerifier as NewVerifier
+from core.tests.quote_verifier_v2_old import QuoteVerifier as OldVerifier  # legacy
 
 
 # ---------------------------------------------------------------------------

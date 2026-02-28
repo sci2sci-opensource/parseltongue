@@ -3,8 +3,7 @@
 import unittest
 from unittest.mock import patch
 
-from lang import Symbol, Evidence
-from engine import System, load_source
+from core import Symbol, Evidence, System, load_source
 
 
 SAMPLE_DOC = "Revenue growth target for FY2024: 10%. Q3 revenue was $15M."

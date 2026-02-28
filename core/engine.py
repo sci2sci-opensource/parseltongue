@@ -3,6 +3,96 @@ Parseltongue DSL — Runtime Engine.
 
 Stateful system: evaluation, axiom store, document registry,
 quote verification, derivation with fabrication propagation.
+
+Building a System — Step by Step
+---------------------------------
+
+1. Create a System::
+
+    s = System()                          # default operators loaded
+    s = System(initial_env={})            # empty — introduce everything yourself
+    s = System(overridable=True)          # allow fact overwriting
+
+2. Register source documents for quote verification::
+
+    s.load_document("Q3 Report", "path/to/q3_report.txt")
+    s.register_document("Notes", "inline text...")
+
+3. Build statements via load_source() — five directives:
+
+  fact — ground truth value::
+
+    (fact revenue-q3 15.0
+        :evidence (evidence "Q3 Report"
+          :quotes ("Q3 revenue was $15M")
+          :explanation "Dollar revenue figure from Q3 report"))
+
+  defterm — named concept (forward declaration, computed, or conditional)::
+
+    ;; Forward declaration (primitive symbol)
+    (defterm zero
+        :evidence (evidence "Counting Observations"
+          :quotes ("An empty basket contains zero apples")
+          :explanation "Zero: the count of an empty collection"))
+
+    ;; Computed expression
+    (defterm morning-total (+ eve-morning adam-morning)
+        :evidence (evidence "Eden Inventory"
+          :quotes ("Combined morning harvest was 8 apples")
+          :explanation "Sum of Eve and Adam's morning picks"))
+
+    ;; Conditional
+    (defterm bonus-amount
+        (if (> revenue-q3-growth growth-target)
+            (* base-salary bonus-rate)
+            0)
+        :evidence (evidence "Bonus Policy Doc"
+          :quotes ("Bonus is 20% of base salary if growth target is exceeded")
+          :explanation "Bonus calculation formula"))
+
+  axiom — well-formed formula (may use ?-variables for parameterisation)::
+
+    (axiom add-commutative (= (+ ?a ?b) (+ ?b ?a))
+        :evidence (evidence "Counting Observations"
+          :quotes ("The order of combining does not matter")
+          :explanation "Commutativity: a + b = b + a"))
+
+  derive — theorem from existing statements; use :bind to instantiate::
+
+    ;; Direct derivation
+    (derive target-exceeded
+        (> revenue-q3-growth growth-target)
+        :using (revenue-q3-growth growth-target))
+
+    ;; Instantiate a parameterised axiom via :bind
+    (derive morning-commutes add-commutative
+        :bind ((?a eve-morning) (?b adam-morning))
+        :using (add-commutative))
+
+  diff — lazy what-if comparison::
+
+    (diff growth-check
+        :replace revenue-q3-growth
+        :with revenue-q3-growth-computed)
+
+4. Inspect the system::
+
+    s.consistency()           # full consistency report
+    s.provenance("name")      # trace evidence chain
+    s.eval_diff("name")       # evaluate a diff
+    s.doc()                   # generated documentation
+
+Key Concepts
+~~~~~~~~~~~~~
+
+- **Evidence grounding**: every statement traces back to quoted text from a
+  registered source document.  Unverified quotes are flagged, not rejected.
+- **Fabrication propagation**: if a derivation depends on unverified evidence,
+  the theorem inherits the taint as "potential fabrication".
+- **Diff divergence**: register a diff to compare what happens when one
+  symbol is swapped for another across all dependent terms.
+- **Overridable facts**: System(overridable=True) lets facts be overwritten;
+  dependent diffs are recomputed automatically.
 """
 
 from dataclasses import dataclass, field
@@ -12,8 +102,8 @@ import operator
 
 log = logging.getLogger('parseltongue')
 
-from atoms import Symbol, match, free_vars, substitute
-from lang import (
+from .atoms import Symbol, match, free_vars, substitute
+from .lang import (
     Axiom, Theorem, Term, Evidence,
     parse, tokenize, read_tokens, to_sexp,
     get_keyword, parse_evidence,
@@ -26,7 +116,7 @@ from lang import (
     # Documentation
     LANG_DOCS,
 )
-from quote_verifier import QuoteVerifier
+from .quote_verifier import QuoteVerifier
 
 
 # ============================================================
@@ -67,25 +157,29 @@ ENGINE_DOCS = {
     # Arithmetic
     ADD: {
         'category': 'arithmetic',
-        'description': 'Add two numbers.',
+        'description': 'Add two numbers.  Also used symbolically in '
+                       'formal terms: (+ eve-morning adam-morning).',
         'example': '(+ 2 3)',
         'expected': 5,
     },
     SUB: {
         'category': 'arithmetic',
-        'description': 'Subtract second from first.',
+        'description': 'Subtract second from first.  Useful for computing '
+                       'differences between terms: (- morning-total afternoon-total).',
         'example': '(- 10 4)',
         'expected': 6,
     },
     MUL: {
         'category': 'arithmetic',
-        'description': 'Multiply two numbers.',
+        'description': 'Multiply two numbers.  Used in computed terms like '
+                       'bonus calculations: (* base-salary bonus-rate).',
         'example': '(* 3 7)',
         'expected': 21,
     },
     DIV: {
         'category': 'arithmetic',
-        'description': 'Divide first by second (true division).',
+        'description': 'Divide first by second (true division).  Used for '
+                       'computing ratios: (/ (- q3 q2) q2).',
         'example': '(/ 10 2)',
         'expected': 5.0,
     },
@@ -99,7 +193,8 @@ ENGINE_DOCS = {
     # Comparison
     GT: {
         'category': 'comparison',
-        'description': 'True if first is strictly greater than second.',
+        'description': 'True if first is strictly greater than second.  '
+                       'Common in term definitions: (> sensitivity 90).',
         'example': '(> 5 3)',
         'expected': True,
     },
@@ -123,7 +218,9 @@ ENGINE_DOCS = {
     },
     EQ: {
         'category': 'comparison',
-        'description': 'True if both values are equal.',
+        'description': 'True if both values are equal.  Also the core of '
+                       'rewrite rules — axioms of the form (= LHS RHS) are '
+                       'applied as left-to-right rewrites during evaluation.',
         'example': '(= 5 5)',
         'expected': True,
     },
@@ -137,25 +234,28 @@ ENGINE_DOCS = {
     # Logic
     AND: {
         'category': 'logic',
-        'description': 'Logical AND. True only if both operands are true.',
+        'description': 'Logical AND.  True only if both operands are true.  '
+                       'Used in compound conditions: '
+                       '(and reliable-marker standalone-diagnostic).',
         'example': '(and true false)',
         'expected': False,
     },
     OR: {
         'category': 'logic',
-        'description': 'Logical OR. True if at least one operand is true.',
+        'description': 'Logical OR.  True if at least one operand is true.',
         'example': '(or false true)',
         'expected': True,
     },
     NOT: {
         'category': 'logic',
-        'description': 'Logical NOT. Negates a boolean.',
+        'description': 'Logical NOT.  Negates a boolean.  Used in derivations: '
+                       '(not (> specificity 90)).',
         'example': '(not true)',
         'expected': False,
     },
     IMPLIES: {
         'category': 'logic',
-        'description': 'Logical implication. False only when antecedent '
+        'description': 'Logical implication.  False only when antecedent '
                        'is true and consequent is false.',
         'example': '(implies true false)',
         'expected': False,
@@ -724,7 +824,7 @@ class System:
                 result_b = self.evaluate(defn, {Symbol(replace): substitute_val})
             except (NameError, TypeError):
                 # Formal terms — compare structurally via substitution
-                from atoms import substitute as subst
+                from .atoms import substitute as subst
                 result_a = defn
                 result_b = subst(defn, {Symbol(replace): substitute_val})
             if result_a != result_b:
@@ -937,7 +1037,8 @@ class System:
         """Generate documentation for the system based on its current state.
 
         Reflects the actual symbols loaded into this system instance,
-        grouped by category with descriptions and examples.
+        grouped by category with descriptions, examples, and usage
+        patterns drawn from real-world demos.
         """
         all_docs = {**LANG_DOCS, **ENGINE_DOCS}
         lines = []
@@ -954,10 +1055,10 @@ class System:
                 categories.setdefault(cat, []).append((sym, doc))
                 documented.add(sym)
 
-        # Add special forms (not in env but part of the language)
+        # Add special forms and directives (not in env but part of the language)
         for sym, doc in all_docs.items():
-            if doc['category'] == 'special' and sym not in documented:
-                categories.setdefault('special', []).append((sym, doc))
+            if sym not in documented and doc['category'] in ('special', 'directive', 'structural', 'keyword'):
+                categories.setdefault(doc['category'], []).append((sym, doc))
                 documented.add(sym)
 
         # Category display order
@@ -982,26 +1083,62 @@ class System:
             lines.append(f"  {'-' * len(titles.get(cat, cat))}")
             for sym, doc in entries:
                 lines.append(f"    {sym}")
-                lines.append(f"      {doc['description']}")
+                # First line of description only for compact display
+                desc = doc['description']
+                first_line = desc.split('\n')[0]
+                lines.append(f"      {first_line}")
                 lines.append(f"      Example: {doc['example']}")
                 if 'expected' in doc:
                     lines.append(f"      => {doc['expected']}")
+                # Show patterns if available
+                if 'patterns' in doc:
+                    lines.append(f"      Patterns:")
+                    for pattern in doc['patterns']:
+                        for pline in pattern.split('\n'):
+                            lines.append(f"        {pline}")
+                        lines.append("")
 
-        # User-defined symbols (facts, terms)
-        user_symbols = []
-        for sym in self.env:
-            if isinstance(sym, Symbol) and sym not in documented:
-                user_symbols.append(sym)
-
-        if user_symbols or self.terms:
+        # User-defined: facts
+        if self.facts:
             lines.append("")
-            lines.append("  User-Defined")
-            lines.append("  " + "-" * 12)
-            for sym in user_symbols:
-                val = self.env[sym]
-                lines.append(f"    {sym} = {val}")
+            lines.append("  Facts")
+            lines.append("  " + "-" * 5)
+            for name, info in self.facts.items():
+                lines.append(f"    {name} = {info['value']}")
+
+        # User-defined: terms
+        if self.terms:
+            lines.append("")
+            lines.append("  Terms")
+            lines.append("  " + "-" * 5)
             for name, term in self.terms.items():
-                lines.append(f"    {name} := {to_sexp(term.definition)}")
+                defn = to_sexp(term.definition) if term.definition is not None else "(forward declaration)"
+                lines.append(f"    {name} := {defn}")
+
+        # User-defined: axioms
+        if self.axioms:
+            lines.append("")
+            lines.append("  Axioms")
+            lines.append("  " + "-" * 6)
+            for name, ax in self.axioms.items():
+                lines.append(f"    {name}: {to_sexp(ax.wff)}")
+
+        # User-defined: theorems
+        if self.theorems:
+            lines.append("")
+            lines.append("  Theorems")
+            lines.append("  " + "-" * 8)
+            for name, thm in self.theorems.items():
+                sources = ', '.join(thm.derivation)
+                lines.append(f"    {name}: {to_sexp(thm.wff)}  [from: {sources}]")
+
+        # User-defined: diffs
+        if self.diffs:
+            lines.append("")
+            lines.append("  Diffs")
+            lines.append("  " + "-" * 5)
+            for name, params in self.diffs.items():
+                lines.append(f"    {name}: {params['replace']} vs {params['with']}")
 
         return "\n".join(lines)
 
@@ -1020,14 +1157,39 @@ class System:
 # ============================================================
 
 def load_source(system: System, source: str):
-    """Load a multi-expression source into the system.
+    """Load a multi-expression source string into the system.
 
-    Supports:
-      (axiom name wff :origin "..." | :evidence (...))
-      (defterm name definition :origin "..." | :evidence (...))
-      (fact name value :origin "..." | :evidence (...))
-      (derive name wff :using (ax1 ax2 ...))
-      (diff name :replace symbol :with symbol)
+    Parses and executes directives sequentially.  Comments start with ``;``.
+
+    Directive reference::
+
+      (fact name value
+          :origin "string"                        ;; plain origin
+          | :evidence (evidence "Doc"             ;; or structured evidence
+              :quotes ("exact quote" ...)
+              :explanation "why"))
+
+      (defterm name                               ;; forward declaration
+          :evidence (...))
+      (defterm name expression                    ;; computed term
+          :evidence (...))
+      (defterm name (if cond then else)           ;; conditional term
+          :origin "...")
+
+      (axiom name wff                             ;; concrete
+          :evidence (...))
+      (axiom name (= (+ ?a ?b) (+ ?b ?a))        ;; parameterised (with ?-vars)
+          :evidence (...))
+
+      (derive name wff                            ;; direct derivation
+          :using (source1 source2 ...))
+      (derive name template-name                  ;; instantiation
+          :bind ((?var value) ...)
+          :using (template-name ...))
+
+      (diff name
+          :replace symbol
+          :with symbol)
     """
     tokens = tokenize(source)
     while tokens:
