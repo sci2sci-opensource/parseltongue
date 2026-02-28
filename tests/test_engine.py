@@ -417,9 +417,9 @@ class TestDiff(unittest.TestCase):
         quiet(s.set_fact, 'b', 10, 'test')
         quiet(s.register_diff, 'd1', 'a', 'b')
         result = s.eval_diff('d1')
-        self.assertTrue(result['empty'])
-        self.assertEqual(result['value_a'], 10)
-        self.assertEqual(result['value_b'], 10)
+        self.assertTrue(result.empty)
+        self.assertEqual(result.value_a, 10)
+        self.assertEqual(result.value_b, 10)
 
     def test_eval_diff_with_divergence(self):
         s = make_system()
@@ -429,9 +429,9 @@ class TestDiff(unittest.TestCase):
               [Symbol('*'), Symbol('a'), 2], 'test')
         quiet(s.register_diff, 'd1', 'a', 'b')
         result = s.eval_diff('d1')
-        self.assertFalse(result['empty'])
-        self.assertIn('double_a', result['divergences'])
-        self.assertEqual(result['divergences']['double_a'], [20, 40])
+        self.assertFalse(result.empty)
+        self.assertIn('double_a', result.divergences)
+        self.assertEqual(result.divergences['double_a'], [20, 40])
 
     def test_eval_diff_laziness(self):
         """Changing a fact changes the diff result on next eval."""
@@ -442,12 +442,12 @@ class TestDiff(unittest.TestCase):
         quiet(s.register_diff, 'd1', 'a', 'b')
 
         r1 = s.eval_diff('d1')
-        self.assertFalse(r1['empty'])
+        self.assertFalse(r1.empty)
 
         # Now make a=b so diff should be empty
         quiet(s.set_fact, 'a', 20, 'corrected')
         r2 = s.eval_diff('d1')
-        self.assertTrue(r2['empty'])
+        self.assertTrue(r2.empty)
 
     def test_eval_diff_unknown_raises(self):
         s = make_system()
@@ -465,10 +465,10 @@ class TestDiff(unittest.TestCase):
                True, False], 'test')
         quiet(s.register_diff, 'd1', 'growth', 'alt_growth')
         result = s.eval_diff('d1')
-        self.assertFalse(result['empty'])
-        self.assertIn('beat', result['divergences'])
+        self.assertFalse(result.empty)
+        self.assertIn('beat', result.divergences)
         # growth=15 > target=10 → True; alt_growth=5 > target=10 → False
-        self.assertEqual(result['divergences']['beat'], [True, False])
+        self.assertEqual(result.divergences['beat'], [True, False])
 
 
 # ==============================================================
@@ -480,8 +480,8 @@ class TestConsistency(unittest.TestCase):
     def test_clean_system_consistent(self):
         s = make_system()
         report = quiet(s.consistency)
-        self.assertTrue(report['consistent'])
-        self.assertEqual(report['issues'], [])
+        self.assertTrue(report.consistent)
+        self.assertEqual(report.issues, [])
 
     def test_unverified_evidence_issue(self):
         s = make_system()
@@ -489,16 +489,16 @@ class TestConsistency(unittest.TestCase):
         ev = Evidence(document='Doc', quotes=['Nonexistent quote'])
         quiet(s.set_fact, 'x', 1, ev)
         report = quiet(s.consistency)
-        self.assertFalse(report['consistent'])
-        types = [i['type'] for i in report['issues']]
+        self.assertFalse(report.consistent)
+        types = [i.type for i in report.issues]
         self.assertIn('unverified_evidence', types)
 
     def test_no_evidence_issue(self):
         s = make_system()
         quiet(s.set_fact, 'x', 1, 'plain origin string')
         report = quiet(s.consistency)
-        self.assertFalse(report['consistent'])
-        types = [i['type'] for i in report['issues']]
+        self.assertFalse(report.consistent)
+        types = [i.type for i in report.issues]
         self.assertIn('no_evidence', types)
 
     def test_fabrication_issue(self):
@@ -508,7 +508,7 @@ class TestConsistency(unittest.TestCase):
         quiet(s.set_fact, 'x', 999, ev)
         quiet(s.derive, 'd1', [Symbol('>'), Symbol('x'), 0], ['x'])
         report = quiet(s.consistency)
-        types = [i['type'] for i in report['issues']]
+        types = [i.type for i in report.issues]
         self.assertIn('potential_fabrication', types)
 
     def test_diff_divergence_issue(self):
@@ -522,8 +522,8 @@ class TestConsistency(unittest.TestCase):
         quiet(s.verify_manual, 'b')
         quiet(s.verify_manual, 'ta')
         report = quiet(s.consistency)
-        self.assertFalse(report['consistent'])
-        types = [i['type'] for i in report['issues']]
+        self.assertFalse(report.consistent)
+        types = [i.type for i in report.issues]
         self.assertIn('diff_divergence', types)
 
     def test_manually_verified_is_warning(self):
@@ -533,7 +533,7 @@ class TestConsistency(unittest.TestCase):
         report = quiet(s.consistency)
         # Should be consistent (manually verified is not an issue)
         # but should have a warning
-        warning_types = [w['type'] for w in report['warnings']]
+        warning_types = [w.type for w in report.warnings]
         self.assertIn('manually_verified', warning_types)
 
     def test_fix_all_makes_consistent(self):
@@ -545,13 +545,13 @@ class TestConsistency(unittest.TestCase):
 
         # System inconsistent
         r1 = quiet(s.consistency)
-        self.assertFalse(r1['consistent'])
+        self.assertFalse(r1.consistent)
 
         # Fix: manually verify and rederive
         quiet(s.verify_manual, 'x')
         quiet(s.rederive, 'd1')
         r2 = quiet(s.consistency)
-        self.assertTrue(r2['consistent'])
+        self.assertTrue(r2.consistent)
 
 
 # ==============================================================

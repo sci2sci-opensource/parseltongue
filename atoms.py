@@ -126,6 +126,12 @@ def to_sexp(obj) -> str:
 # Data Structures
 # ============================================================
 
+def _origin_tag(origin) -> str:
+    if isinstance(origin, Evidence):
+        return str(origin)
+    return f"[origin: {origin}]"
+
+
 @dataclass
 class Evidence:
     """Structured evidence with verifiable quotes from a source document."""
@@ -141,6 +147,10 @@ class Evidence:
         """Evidence is grounded if verified or manually verified."""
         return self.verified or self.verify_manual
 
+    def __str__(self):
+        status = "grounded" if self.is_grounded else "UNVERIFIED"
+        return f"[evidence: {self.document} ({status})]"
+
 
 @dataclass
 class Axiom:
@@ -151,6 +161,13 @@ class Axiom:
     derived: bool = False
     derivation: list = field(default_factory=list)
 
+    def __str__(self):
+        if self.derived:
+            tag = f"[derived from: {', '.join(self.derivation)}]"
+        else:
+            tag = _origin_tag(self.origin)
+        return f"{self.name}: {to_sexp(self.wff)} {tag}"
+
 
 @dataclass
 class Term:
@@ -158,6 +175,9 @@ class Term:
     name: str
     definition: Any
     origin: 'str | Evidence'
+
+    def __str__(self):
+        return f"{self.name}: {to_sexp(self.definition)} {_origin_tag(self.origin)}"
 
 
 # ============================================================

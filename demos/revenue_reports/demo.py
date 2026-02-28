@@ -15,40 +15,14 @@ from engine import System, load_source
 from lang import Symbol
 
 
-def print_facts(facts):
-    for f in facts:
-        origin = f['origin']
-        if isinstance(origin, dict):
-            status = "grounded" if origin.get('grounded') else "UNVERIFIED"
-            tag = f"[evidence: {origin['document']} ({status})]"
+def _print_list(items):
+    for item in items:
+        if isinstance(item, dict):
+            origin = item.get('origin', '')
+            tag = str(origin) if hasattr(origin, 'is_grounded') else f"[origin: {origin}]"
+            print(f"  {item['name']} = {item['value']} {tag}")
         else:
-            tag = f"[origin: {origin}]"
-        print(f"  {f['name']} = {f['value']} {tag}")
-
-
-def print_terms(terms):
-    for t in terms:
-        origin = t['origin']
-        if isinstance(origin, dict):
-            status = "grounded" if origin.get('grounded') else "UNVERIFIED"
-            tag = f"[evidence: {origin['document']} ({status})]"
-        else:
-            tag = f"[origin: {origin}]"
-        print(f"  {t['name']}: {t['definition']} {tag}")
-
-
-def print_axioms(axioms):
-    for a in axioms:
-        if a['derived']:
-            tag = f"[derived from: {', '.join(a.get('derivation', []))}]"
-        else:
-            origin = a['origin']
-            if isinstance(origin, dict):
-                status = "grounded" if origin.get('grounded') else "UNVERIFIED"
-                tag = f"[evidence: {origin['document']} ({status})]"
-            else:
-                tag = f"[origin: {origin}]"
-        print(f"  {a['name']}: {a['wff']} {tag}")
+            print(f"  {item}")
 
 
 def main():
@@ -101,7 +75,7 @@ def main():
     """)
 
     print(f"  System now: {s}")
-    print_facts(s.list_facts())
+    _print_list(s.list_facts())
 
     # ----------------------------------------------------------
     # Phase 3: Ingest Targets Memo with evidence
@@ -136,7 +110,7 @@ def main():
 
     result = s.evaluate(s.terms['beat-target'].definition)
     print(f"  beat-target evaluates to: {result}")
-    print_axioms(s.list_axioms())
+    _print_list(s.list_axioms())
 
     # ----------------------------------------------------------
     # Phase 5: Provenance trace with verification details
@@ -158,7 +132,7 @@ def main():
     """)
 
     print(f"  fake-metric accepted but flagged:")
-    print_facts(s.list_facts())
+    _print_list(s.list_facts())
 
     # ----------------------------------------------------------
     # Phase 7: Fabrication propagation through derivation
@@ -172,19 +146,19 @@ def main():
     """)
 
     print("  Derivation from unverified source:")
-    print_axioms(s.list_axioms())
+    _print_list(s.list_axioms())
 
     # ----------------------------------------------------------
     # Phase 8: Manual override
     # ----------------------------------------------------------
     print("\n--- Phase 8: Manual override ---")
     print("  Before override:")
-    print_facts(s.list_facts())
+    _print_list(s.list_facts())
 
     s.verify_manual('fake-metric')
 
     print("  After override:")
-    print_facts(s.list_facts())
+    _print_list(s.list_facts())
 
     # ----------------------------------------------------------
     # Phase 9: Cross-document inference with verified evidence
@@ -255,7 +229,7 @@ def main():
     """)
 
     print(f"\n  Diff result:")
-    print(json.dumps(s.eval_diff('growth-check'), indent=2, default=str))
+    print(f"  {s.eval_diff('growth-check')}")
 
     # ----------------------------------------------------------
     # Phase 11: System consistency report
@@ -263,7 +237,7 @@ def main():
     print("\n--- Phase 11: System consistency report ---")
     report = s.consistency()
     print(f"\n  Full report:")
-    print(json.dumps(report, indent=2, default=str))
+    print(f"  {report}")
 
     # ----------------------------------------------------------
     # Phase 12: Fix consistency issues
@@ -296,7 +270,7 @@ def main():
     print("\n  Consistency after fixes:")
     report = s.consistency()
     print(f"\n  Full report:")
-    print(json.dumps(report, indent=2, default=str))
+    print(f"  {report}")
 
     # ----------------------------------------------------------
     # Summary
@@ -304,11 +278,11 @@ def main():
     print("\n" + "=" * 60)
     print(f"Final system: {s}")
     print("\nAll axioms:")
-    print_axioms(s.list_axioms())
+    _print_list(s.list_axioms())
     print("\nAll terms:")
-    print_terms(s.list_terms())
+    _print_list(s.list_terms())
     print("\nAll facts:")
-    print_facts(s.list_facts())
+    _print_list(s.list_facts())
 
 
 if __name__ == '__main__':

@@ -16,40 +16,14 @@ from engine import System, load_source
 from lang import Symbol
 
 
-def print_facts(facts):
-    for f in facts:
-        origin = f['origin']
-        if isinstance(origin, dict):
-            status = "grounded" if origin.get('grounded') else "UNVERIFIED"
-            tag = f"[evidence: {origin['document']} ({status})]"
+def _print_list(items):
+    for item in items:
+        if isinstance(item, dict):
+            origin = item.get('origin', '')
+            tag = str(origin) if hasattr(origin, 'is_grounded') else f"[origin: {origin}]"
+            print(f"  {item['name']} = {item['value']} {tag}")
         else:
-            tag = f"[origin: {origin}]"
-        print(f"  {f['name']} = {f['value']} {tag}")
-
-
-def print_terms(terms):
-    for t in terms:
-        origin = t['origin']
-        if isinstance(origin, dict):
-            status = "grounded" if origin.get('grounded') else "UNVERIFIED"
-            tag = f"[evidence: {origin['document']} ({status})]"
-        else:
-            tag = f"[origin: {origin}]"
-        print(f"  {t['name']}: {t['definition']} {tag}")
-
-
-def print_axioms(axioms):
-    for a in axioms:
-        if a['derived']:
-            tag = f"[derived from: {', '.join(a.get('derivation', []))}]"
-        else:
-            origin = a['origin']
-            if isinstance(origin, dict):
-                status = "grounded" if origin.get('grounded') else "UNVERIFIED"
-                tag = f"[evidence: {origin['document']} ({status})]"
-            else:
-                tag = f"[origin: {origin}]"
-        print(f"  {a['name']}: {a['wff']} {tag}")
+            print(f"  {item}")
 
 
 def main():
@@ -112,7 +86,7 @@ def main():
     """)
 
     print(f"  System now: {s}")
-    print_facts(s.list_facts())
+    _print_list(s.list_facts())
 
     # ----------------------------------------------------------
     # Phase 3: Ingest Paper B — specificity concerns
@@ -144,7 +118,7 @@ def main():
     """)
 
     print(f"  System now: {s}")
-    print_facts(s.list_facts())
+    _print_list(s.list_facts())
 
     # ----------------------------------------------------------
     # Phase 4: Derive contradictory conclusions
@@ -163,7 +137,7 @@ def main():
 
     print("  From Paper A: marker-is-reliable = True (sensitivity 93 > 90)")
     print("  From Paper B: marker-not-standalone = True (specificity 67 < 90)")
-    print_axioms(s.list_axioms())
+    _print_list(s.list_axioms())
 
     # ----------------------------------------------------------
     # Phase 5: Cross-paper synthesis — clinical utility
@@ -203,7 +177,7 @@ def main():
 
     diff_result = s.eval_diff('specificity-check')
     print(f"\n  Diff result:")
-    print(json.dumps(diff_result, indent=2, default=str))
+    print(f"  {diff_result}")
 
     # ----------------------------------------------------------
     # Phase 7: Provenance trace
@@ -222,7 +196,7 @@ def main():
     print("\n--- Phase 8: Consistency report ---")
     report = s.consistency()
     print(f"\n  Full report:")
-    print(json.dumps(report, indent=2, default=str))
+    print(f"  {report}")
 
     # ----------------------------------------------------------
     # Phase 9: Resolve — verify and reconcile
@@ -235,7 +209,7 @@ def main():
 
     report = s.consistency()
     print(f"\n  After verification:")
-    print(json.dumps(report, indent=2, default=str))
+    print(f"  {report}")
 
     # ----------------------------------------------------------
     # Summary
@@ -243,11 +217,11 @@ def main():
     print("\n" + "=" * 60)
     print(f"Final system: {s}")
     print("\nAll facts:")
-    print_facts(s.list_facts())
+    _print_list(s.list_facts())
     print("\nAll terms:")
-    print_terms(s.list_terms())
+    _print_list(s.list_terms())
     print("\nAll axioms:")
-    print_axioms(s.list_axioms())
+    _print_list(s.list_axioms())
 
     print("\n" + "=" * 60)
     print("Key insight: Both papers are individually verified, but the")

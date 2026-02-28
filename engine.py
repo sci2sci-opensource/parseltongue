@@ -5,6 +5,7 @@ Stateful system: evaluation, axiom store, document registry,
 quote verification, derivation with fabrication propagation.
 """
 
+from dataclasses import dataclass, field
 from typing import Any
 import logging
 import operator
@@ -188,6 +189,87 @@ DEFAULT_OPERATORS: dict[Symbol, Any] = {
     NOT:     lambda a: not a,
     IMPLIES: lambda a, b: (not a) or b,
 }
+
+
+# ============================================================
+# Result Types
+# ============================================================
+
+@dataclass
+class DiffResult:
+    """Result of evaluating a diff between two symbols."""
+    name: str
+    replace: str
+    with_: str
+    value_a: Any
+    value_b: Any
+    divergences: dict[str, list] = field(default_factory=dict)
+
+    @property
+    def empty(self) -> bool:
+        return not self.divergences
+
+    def __str__(self):
+        header = f"{self.name}: {self.replace} ({self.value_a}) vs {self.with_} ({self.value_b})"
+        if self.empty:
+            return f"{header} — no divergences"
+        lines = [header]
+        for term, (a, b) in self.divergences.items():
+            lines.append(f"  {term}: {a} → {b}")
+        return '\n'.join(lines)
+
+
+@dataclass
+class ConsistencyIssue:
+    """A single consistency issue."""
+    type: str
+    items: list
+
+    def __str__(self):
+        labels = {
+            'unverified_evidence': 'Unverified evidence',
+            'no_evidence': 'No evidence provided',
+            'potential_fabrication': 'Potential fabrication',
+            'diff_divergence': 'Diff divergence',
+        }
+        label = labels.get(self.type, self.type)
+        if self.type == 'diff_divergence':
+            return '\n'.join(f"  {d}" for d in self.items)
+        return f"{label}: {', '.join(str(i) for i in self.items)}"
+
+
+@dataclass
+class ConsistencyWarning:
+    """A single consistency warning."""
+    type: str
+    items: list[str]
+
+    def __str__(self):
+        if self.type == 'manually_verified':
+            return f"Manually verified: {', '.join(self.items)}"
+        return f"{self.type}: {', '.join(self.items)}"
+
+
+@dataclass
+class ConsistencyReport:
+    """Full consistency report for the system."""
+    consistent: bool
+    issues: list[ConsistencyIssue] = field(default_factory=list)
+    warnings: list[ConsistencyWarning] = field(default_factory=list)
+
+    def __str__(self):
+        if self.consistent and not self.warnings:
+            return "System is fully consistent"
+        lines = []
+        if self.consistent:
+            lines.append("System is consistent")
+        else:
+            lines.append(f"System inconsistent: {len(self.issues)} issue(s)")
+            for issue in self.issues:
+                lines.append(f"  {issue}")
+        for w in self.warnings:
+            lines.append(f"  [warning] {w}")
+        return '\n'.join(lines)
 
 
 class System:
@@ -532,7 +614,7 @@ class System:
         self.diffs[name] = {'replace': replace, 'with': with_}
         log.debug("Diff registered '%s': %s vs %s", name, replace, with_)
 
-    def eval_diff(self, name: str) -> dict:
+    def eval_diff(self, name: str) -> DiffResult:
         """Evaluate a registered diff against current system state."""
         if name not in self.diffs:
             raise KeyError(f"Unknown diff: {name}")
@@ -565,15 +647,11 @@ class System:
             if result_a != result_b:
                 divergences[term_name] = [result_a, result_b]
 
-        return {
-            'name': name,
-            'replace': replace,
-            'with': with_,
-            'value_a': original,
-            'value_b': substitute,
-            'divergences': divergences,
-            'empty': len(divergences) == 0,
-        }
+        return DiffResult(
+            name=name, replace=replace, with_=with_,
+            value_a=original, value_b=substitute,
+            divergences=divergences,
+        )
 
     # ----------------------------------------------------------
     # Retract / Rederive
@@ -670,70 +748,44 @@ class System:
 
         return result
 
-    def _origin_tag(self, origin) -> str:
-        """Format an origin as a short status tag."""
-        if isinstance(origin, Evidence):
-            status = "grounded" if origin.is_grounded else "UNVERIFIED"
-            return f"[evidence: {origin.document} ({status})]"
-        return f"[origin: {origin}]"
-
-    def list_axioms(self) -> list[dict]:
+    def list_axioms(self) -> list[Axiom]:
         """Return all axioms in the system."""
-        results = []
-        for name, ax in self.axioms.items():
-            entry = {
-                'name': name,
-                'wff': to_sexp(ax.wff),
-                'derived': ax.derived,
-                'origin': self._format_origin(ax.origin),
-            }
-            if ax.derived:
-                entry['derivation'] = ax.derivation
-            results.append(entry)
-            tag = (f"[derived from: {', '.join(ax.derivation)}]"
-                   if ax.derived else self._origin_tag(ax.origin))
-            log.info("%s: %s %s", name, to_sexp(ax.wff), tag)
-        return results
+        result = list(self.axioms.values())
+        for ax in result:
+            log.info("%s", ax)
+        return result
 
-    def list_terms(self) -> list[dict]:
+    def list_terms(self) -> list[Term]:
         """Return all terms in the system."""
-        results = []
-        for name, term in self.terms.items():
-            results.append({
-                'name': name,
-                'definition': to_sexp(term.definition),
-                'origin': self._format_origin(term.origin),
-            })
-            log.info("%s: %s %s", name, to_sexp(term.definition),
-                     self._origin_tag(term.origin))
-        return results
+        result = list(self.terms.values())
+        for term in result:
+            log.info("%s", term)
+        return result
 
     def list_facts(self) -> list[dict]:
         """Return all ground facts."""
-        results = []
+        result = []
         for name, info in self.facts.items():
             origin = info.get('origin', '')
-            results.append({
-                'name': name,
-                'value': info['value'],
-                'origin': self._format_origin(origin),
-            })
-            log.info("%s = %s %s", name, info['value'],
-                     self._origin_tag(origin))
-        return results
+            entry = {'name': name, 'value': info['value'], 'origin': origin}
+            if isinstance(origin, Evidence):
+                tag = str(origin)
+            else:
+                tag = f"[origin: {origin}]"
+            log.info("%s = %s %s", name, info['value'], tag)
+            result.append(entry)
+        return result
 
-    def consistency(self) -> dict:
-        """Display full consistency state of the system.
+    def consistency(self) -> ConsistencyReport:
+        """Check full consistency state of the system.
 
         Checks three layers:
           1. Evidence grounding — are all quotes verified?
           2. Fabrication propagation — any derived axioms tainted?
           3. Diff agreement — do cross-checked values agree?
-
-        Returns a summary dict with a top-level 'consistent' flag.
         """
-        issues = []
-        warnings = []
+        issues: list[ConsistencyIssue] = []
+        warnings: list[ConsistencyWarning] = []
 
         # 1. Evidence grounding
         unverified = []
@@ -751,86 +803,39 @@ class System:
                     elif not origin.is_grounded:
                         unverified.append(name)
                 elif isinstance(origin, str):
-                    # Plain :origin string = no evidence = unverified
-                    # Skip diff-generated and derived origins
                     if (origin not in ('unknown', 'derived')
                             and not origin.startswith('diff ')
                             and 'potential fabrication' not in origin):
                         no_evidence.append(name)
 
         if unverified:
-            issues.append({
-                'type': 'unverified_evidence',
-                'items': unverified,
-            })
-
+            issues.append(ConsistencyIssue('unverified_evidence', unverified))
         if no_evidence:
-            issues.append({
-                'type': 'no_evidence',
-                'items': no_evidence,
-            })
-
+            issues.append(ConsistencyIssue('no_evidence', no_evidence))
         if manually_verified:
-            warnings.append({
-                'type': 'manually_verified',
-                'items': manually_verified,
-            })
+            warnings.append(ConsistencyWarning('manually_verified', manually_verified))
 
         # 2. Fabrication propagation
-        fabrications = []
-        for name, ax in self.axioms.items():
-            if isinstance(ax.origin, str) and 'potential fabrication' in ax.origin:
-                fabrications.append(name)
-
+        fabrications = [name for name, ax in self.axioms.items()
+                        if isinstance(ax.origin, str)
+                        and 'potential fabrication' in ax.origin]
         if fabrications:
-            issues.append({
-                'type': 'potential_fabrication',
-                'items': fabrications,
-            })
+            issues.append(ConsistencyIssue('potential_fabrication', fabrications))
 
         # 3. Diff divergences — evaluated live
-        divergent_diffs = []
-        for diff_name in self.diffs:
-            result = self.eval_diff(diff_name)
-            if not result['empty']:
-                divergent_diffs.append(result)
+        divergent = [self.eval_diff(n) for n in self.diffs]
+        divergent = [d for d in divergent if not d.empty]
+        if divergent:
+            issues.append(ConsistencyIssue('diff_divergence', divergent))
 
-        if divergent_diffs:
-            issues.append({
-                'type': 'diff_divergence',
-                'items': divergent_diffs,
-            })
+        report = ConsistencyReport(
+            consistent=len(issues) == 0,
+            issues=issues,
+            warnings=warnings,
+        )
 
-        consistent = len(issues) == 0
-
-        # Log results
-        if consistent:
-            log.info("System is fully consistent")
-        else:
-            log.warning("System inconsistent: %d issue(s) found", len(issues))
-            for issue in issues:
-                if issue['type'] == 'unverified_evidence':
-                    log.warning("Unverified evidence: %s",
-                                ', '.join(issue['items']))
-                elif issue['type'] == 'no_evidence':
-                    log.warning("No evidence provided: %s",
-                                ', '.join(issue['items']))
-                elif issue['type'] == 'potential_fabrication':
-                    log.warning("Potential fabrication: %s",
-                                ', '.join(issue['items']))
-                elif issue['type'] == 'diff_divergence':
-                    for d in issue['items']:
-                        log.warning("Diff '%s': %s (%s) vs %s (%s)",
-                                    d['name'], d['replace'], d['value_a'],
-                                    d['with'], d['value_b'])
-                        for t, (a, b) in d['divergences'].items():
-                            log.warning("  %s: %s → %s", t, a, b)
-
-        for w in warnings:
-            if w['type'] == 'manually_verified':
-                log.info("Manually verified: %s", ', '.join(w['items']))
-
-        return {'consistent': consistent, 'issues': issues, 'warnings': warnings}
+        log.info("%s", report) if report.consistent else log.warning("%s", report)
+        return report
 
     def doc(self) -> str:
         """Generate documentation for the system based on its current state.
