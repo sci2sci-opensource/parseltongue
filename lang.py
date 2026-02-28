@@ -21,7 +21,6 @@ from atoms import (                          # noqa: F401 — re-export
 # Special forms — evaluated directly by the interpreter, not via env
 IF    = Symbol('if')
 LET   = Symbol('let')
-QUOTE = Symbol('quote')
 
 # DSL keywords — structural symbols of the language
 AXIOM    = Symbol('axiom')
@@ -31,7 +30,7 @@ DERIVE   = Symbol('derive')
 DIFF     = Symbol('diff')
 EVIDENCE = Symbol('evidence')
 
-SPECIAL_FORMS = (IF, LET, QUOTE)
+SPECIAL_FORMS = (IF, LET)
 DSL_KEYWORDS  = (AXIOM, DEFTERM, FACT, DERIVE, DIFF, EVIDENCE)
 
 # Keyword arguments (plain strings, not Symbols — returned by atom() as-is)
@@ -63,12 +62,6 @@ LANG_DOCS = {
                        'scope, then evaluates the body.',
         'example': '(let ((x 10)) (+ x 5))',
         'expected': 15,
-    },
-    QUOTE: {
-        'category': 'special',
-        'description': 'Return the s-expression without evaluating it.',
-        'example': '(quote (+ 1 2))',
-        'expected': '(+ 1 2)',
     },
 
     # DSL directives

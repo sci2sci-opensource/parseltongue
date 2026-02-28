@@ -7,7 +7,7 @@ from lang import (
     # Re-exported from atoms (backward compat)
     tokenize, parse, to_sexp, get_keyword,
     # Constants
-    IF, LET, QUOTE, AXIOM, DEFTERM, FACT, DERIVE, DIFF, EVIDENCE,
+    IF, LET, AXIOM, DEFTERM, FACT, DERIVE, DIFF, EVIDENCE,
     SPECIAL_FORMS, DSL_KEYWORDS,
     KW_QUOTES, KW_EXPLANATION, KW_ORIGIN, KW_EVIDENCE, KW_USING,
     KW_REPLACE, KW_WITH,
@@ -31,13 +31,6 @@ class TestSpecialFormConstants(unittest.TestCase):
     def test_let(self):
         self.assertEqual(LET, 'let')
         self.assertIsInstance(LET, Symbol)
-
-    def test_quote(self):
-        self.assertEqual(QUOTE, 'quote')
-        self.assertIsInstance(QUOTE, Symbol)
-
-    def test_special_forms_tuple(self):
-        self.assertEqual(SPECIAL_FORMS, (IF, LET, QUOTE))
 
 
 class TestDSLKeywordConstants(unittest.TestCase):

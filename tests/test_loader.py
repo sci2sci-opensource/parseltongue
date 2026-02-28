@@ -3,7 +3,7 @@
 import unittest
 from unittest.mock import patch
 
-from lang import Evidence
+from lang import Symbol, Evidence
 from engine import System, load_source
 
 
@@ -48,6 +48,52 @@ class TestFactDirective(unittest.TestCase):
         quiet(load_source, s, '(fact rate 0.15 :origin "test")')
         self.assertAlmostEqual(s.facts['rate']['value'], 0.15)
 
+    def test_fact_boolean_value(self):
+        s = make_system()
+        quiet(load_source, s, '(fact flag true :origin "test")')
+        self.assertIs(s.facts['flag']['value'], True)
+
+    def test_fact_enters_env(self):
+        s = make_system()
+        quiet(load_source, s, '(fact x 42 :origin "test")')
+        self.assertEqual(s.evaluate(Symbol('x')), 42)
+
+    def test_fact_evidence_verified(self):
+        s = make_system()
+        quiet(s.register_document, 'Doc', SAMPLE_DOC)
+        quiet(load_source, s, """
+            (fact rev 15
+              :evidence (evidence "Doc"
+                :quotes ("Q3 revenue was $15M")
+                :explanation "exact match"))
+        """)
+        self.assertTrue(s.facts['rev']['origin'].verified)
+
+    def test_fact_evidence_unverified(self):
+        s = make_system()
+        quiet(s.register_document, 'Doc', SAMPLE_DOC)
+        quiet(load_source, s, """
+            (fact bad 999
+              :evidence (evidence "Doc"
+                :quotes ("This quote is completely fabricated")
+                :explanation "no match"))
+        """)
+        self.assertFalse(s.facts['bad']['origin'].verified)
+
+    def test_fact_evidence_multiple_quotes(self):
+        s = make_system()
+        quiet(s.register_document, 'Doc', SAMPLE_DOC)
+        quiet(load_source, s, """
+            (fact x 10
+              :evidence (evidence "Doc"
+                :quotes ("Revenue growth target for FY2024: 10%"
+                         "Q3 revenue was $15M")
+                :explanation "two quotes"))
+        """)
+        origin = s.facts['x']['origin']
+        self.assertEqual(len(origin.quotes), 2)
+        self.assertTrue(origin.verified)
+
 
 class TestAxiomDirective(unittest.TestCase):
 
@@ -56,6 +102,15 @@ class TestAxiomDirective(unittest.TestCase):
         quiet(s.set_fact, 'x', 5, 'test')
         quiet(load_source, s, '(axiom a1 (> x 0) :origin "test")')
         self.assertIn('a1', s.axioms)
+
+    def test_axiom_stores_wff(self):
+        s = make_system()
+        quiet(s.set_fact, 'x', 5, 'test')
+        quiet(load_source, s, '(axiom a1 (> x 0) :origin "test")')
+        ax = s.axioms['a1']
+        self.assertEqual(ax.wff, [Symbol('>'), Symbol('x'), 0])
+        self.assertEqual(ax.origin, 'test')
+        self.assertFalse(ax.derived)
 
     def test_axiom_with_evidence(self):
         s = make_system()
@@ -68,6 +123,19 @@ class TestAxiomDirective(unittest.TestCase):
                 :explanation "test"))
         """)
         self.assertIsInstance(s.axioms['a2'].origin, Evidence)
+
+    def test_axiom_compound_wff(self):
+        s = make_system()
+        quiet(s.set_fact, 'a', 5, 'test')
+        quiet(s.set_fact, 'b', 3, 'test')
+        quiet(load_source, s, '(axiom a1 (= (+ a b) 8) :origin "test")')
+        self.assertIn('a1', s.axioms)
+
+    def test_axiom_default_origin(self):
+        s = make_system()
+        quiet(s.set_fact, 'x', 5, 'test')
+        quiet(load_source, s, '(axiom a1 (> x 0))')
+        self.assertEqual(s.axioms['a1'].origin, 'unknown')
 
 
 class TestDeftermDirective(unittest.TestCase):
@@ -93,6 +161,39 @@ class TestDeftermDirective(unittest.TestCase):
         """)
         self.assertIsInstance(s.terms['double_a'].origin, Evidence)
 
+    def test_defterm_auto_resolves_as_symbol(self):
+        s = make_system()
+        quiet(s.set_fact, 'x', 3, 'test')
+        quiet(load_source, s, '(defterm doubled (* x 2) :origin "test")')
+        self.assertEqual(s.evaluate(Symbol('doubled')), 6)
+
+    def test_defterm_with_if(self):
+        s = make_system()
+        quiet(s.set_fact, 'score', 85, 'test')
+        quiet(load_source, s, """
+            (defterm grade
+                (if (> score 90) "A" "B")
+                :origin "test")
+        """)
+        self.assertEqual(s.evaluate(s.terms['grade'].definition), 'B')
+
+    def test_defterm_nested_expression(self):
+        s = make_system()
+        quiet(s.set_fact, 'a', 2, 'test')
+        quiet(s.set_fact, 'b', 3, 'test')
+        quiet(s.set_fact, 'c', 4, 'test')
+        quiet(load_source, s, '(defterm expr (+ (* a b) c) :origin "test")')
+        self.assertEqual(s.evaluate(s.terms['expr'].definition), 10)
+
+    def test_defterm_references_other_term(self):
+        s = make_system()
+        quiet(s.set_fact, 'x', 5, 'test')
+        quiet(load_source, s, """
+            (defterm step1 (+ x 1) :origin "test")
+            (defterm step2 (* step1 2) :origin "test")
+        """)
+        self.assertEqual(s.evaluate(Symbol('step2')), 12)
+
 
 class TestDeriveDirective(unittest.TestCase):
 
@@ -105,6 +206,33 @@ class TestDeriveDirective(unittest.TestCase):
         self.assertTrue(s.axioms['d1'].derived)
         self.assertEqual(s.axioms['d1'].derivation, ['x'])
 
+    def test_derive_multiple_sources(self):
+        s = make_system()
+        quiet(s.set_fact, 'a', 5, 'test')
+        quiet(s.set_fact, 'b', 3, 'test')
+        quiet(s.verify_manual, 'a')
+        quiet(s.verify_manual, 'b')
+        quiet(load_source, s, '(derive d1 (> a b) :using (a b))')
+        self.assertEqual(s.axioms['d1'].derivation, ['a', 'b'])
+
+    def test_derive_from_fact_and_axiom(self):
+        s = make_system()
+        quiet(s.set_fact, 'x', 10, 'test')
+        quiet(s.verify_manual, 'x')
+        quiet(s.introduce_axiom, 'ax1', [Symbol('>'), Symbol('x'), 0], 'test')
+        quiet(s.verify_manual, 'ax1')
+        quiet(load_source, s, '(derive d1 (> x 0) :using (x ax1))')
+        self.assertEqual(s.axioms['d1'].derivation, ['x', 'ax1'])
+
+    def test_derive_compound_wff(self):
+        s = make_system()
+        quiet(s.set_fact, 'a', 3, 'test')
+        quiet(s.set_fact, 'b', 7, 'test')
+        quiet(s.verify_manual, 'a')
+        quiet(s.verify_manual, 'b')
+        quiet(load_source, s, '(derive d1 (= (+ a b) 10) :using (a b))')
+        self.assertIn('d1', s.axioms)
+
 
 class TestDiffDirective(unittest.TestCase):
 
@@ -116,6 +244,17 @@ class TestDiffDirective(unittest.TestCase):
         self.assertIn('d1', s.diffs)
         self.assertEqual(s.diffs['d1']['replace'], 'a')
         self.assertEqual(s.diffs['d1']['with'], 'b')
+
+    def test_diff_evaluates_correctly(self):
+        s = make_system()
+        quiet(s.set_fact, 'a', 10, 'test')
+        quiet(s.set_fact, 'b', 20, 'test')
+        quiet(s.introduce_term, 't', [Symbol('+'), Symbol('a'), 1], 'test')
+        quiet(load_source, s, '(diff d1 :replace a :with b)')
+        result = s.eval_diff('d1')
+        self.assertFalse(result.empty)
+        self.assertIn('t', result.divergences)
+        self.assertEqual(result.divergences['t'], [11, 21])
 
 
 class TestMultipleDirectives(unittest.TestCase):

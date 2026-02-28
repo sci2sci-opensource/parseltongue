@@ -1,0 +1,42 @@
+Field Notes: Observations on Counting Physical Objects
+Researcher: E. Peano, Fruit Counting Laboratory
+
+Observation 1: Sequential Counting
+
+When counting apples in a basket, we point to each apple and assign it the
+next number. The first apple makes one, the second makes two, and so on.
+Every count is reached by adding one to the previous count. An empty basket
+contains zero apples.
+
+Observation 2: Combining Collections
+
+When we pour one basket into another, the resulting count equals the sum of
+both counts. Combining 3 apples with 2 apples always gives 5 apples.
+We repeated this trial forty times with identical results.
+
+Observation 3: Order Independence
+
+The order of combining does not matter — putting basket A into basket B gives
+the same count as putting basket B into basket A. We confirmed this by
+swapping the pour direction across all forty trials.
+
+Observation 4: Adding Nothing
+
+Adding nothing to a basket does not change the count. A basket of 7 apples
+still has 7 apples after we pretend to pour an empty basket into it.
+
+Observation 5: Comparing Collections
+
+The basket with more apples is always heavier. If basket A has 5 and basket B
+has 3, then basket A has more. The difference is found by subtracting the
+smaller count from the larger.
+
+Observation 6: Swap Invariance
+
+Swapping all apples between two equal baskets does not change either count.
+If both baskets have 4 apples, after swapping they still each have 4.
+
+Observation 7: Repeated Addition
+
+Having 3 baskets of 4 apples each is the same as adding 4 three times.
+Multiplication is a shortcut for counting equal groups.

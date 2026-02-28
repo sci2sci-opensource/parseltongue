@@ -18,7 +18,7 @@ from lang import (
     parse, tokenize, read_tokens, to_sexp,
     get_keyword, parse_evidence,
     # Special forms
-    IF, LET, QUOTE,
+    IF, LET,
     # DSL keywords
     AXIOM, DEFTERM, FACT, DERIVE, DIFF,
     # Keyword arguments
@@ -526,9 +526,6 @@ class System:
             for binding in bindings:
                 new_env[binding[0]] = self._eval(binding[1], new_env)
             return self._eval(body, new_env)
-
-        if head == QUOTE:
-            return expr[1]
 
         fn = self._eval(head, env)
         args = [self._eval(arg, env) for arg in expr[1:]]

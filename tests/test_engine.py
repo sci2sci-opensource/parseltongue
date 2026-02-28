@@ -104,9 +104,66 @@ class TestEvaluation(unittest.TestCase):
         expr = [Symbol('if'), False, 42, 0]
         self.assertEqual(self.s.evaluate(expr), 0)
 
+    def test_if_computed_condition(self):
+        expr = [Symbol('if'), [Symbol('>'), 5, 3], 1, 0]
+        self.assertEqual(self.s.evaluate(expr), 1)
+
+    def test_if_nested(self):
+        expr = [Symbol('if'), True,
+                    [Symbol('if'), False, 1, 2],
+                    3]
+        self.assertEqual(self.s.evaluate(expr), 2)
+
+    def test_if_only_evaluates_taken_branch(self):
+        """The branch not taken should not be evaluated."""
+        # Symbol 'boom' doesn't exist — if evaluated it would raise NameError
+        expr = [Symbol('if'), True, 42, Symbol('boom')]
+        self.assertEqual(self.s.evaluate(expr), 42)
+        expr = [Symbol('if'), False, Symbol('boom'), 99]
+        self.assertEqual(self.s.evaluate(expr), 99)
+
+    def test_if_with_expressions_in_branches(self):
+        expr = [Symbol('if'), [Symbol('<'), 2, 8],
+                    [Symbol('+'), 10, 20],
+                    [Symbol('*'), 5, 5]]
+        self.assertEqual(self.s.evaluate(expr), 30)
+
     def test_let(self):
         expr = [Symbol('let'), [[Symbol('x'), 10]], [Symbol('+'), Symbol('x'), 5]]
         self.assertEqual(self.s.evaluate(expr), 15)
+
+    def test_let_multiple_bindings(self):
+        expr = [Symbol('let'),
+                [[Symbol('a'), 3], [Symbol('b'), 7]],
+                [Symbol('+'), Symbol('a'), Symbol('b')]]
+        self.assertEqual(self.s.evaluate(expr), 10)
+
+    def test_let_sequential_bindings(self):
+        """Later bindings can reference earlier ones."""
+        expr = [Symbol('let'),
+                [[Symbol('x'), 5], [Symbol('y'), [Symbol('+'), Symbol('x'), 1]]],
+                Symbol('y')]
+        self.assertEqual(self.s.evaluate(expr), 6)
+
+    def test_let_shadows_outer(self):
+        """Let bindings shadow the outer environment."""
+        self.s.env[Symbol('x')] = 100
+        expr = [Symbol('let'), [[Symbol('x'), 1]], Symbol('x')]
+        self.assertEqual(self.s.evaluate(expr), 1)
+        # Outer env unchanged
+        self.assertEqual(self.s.env[Symbol('x')], 100)
+
+    def test_let_nested(self):
+        expr = [Symbol('let'), [[Symbol('x'), 2]],
+                [Symbol('let'), [[Symbol('y'), 3]],
+                 [Symbol('*'), Symbol('x'), Symbol('y')]]]
+        self.assertEqual(self.s.evaluate(expr), 6)
+
+    def test_let_computed_values(self):
+        expr = [Symbol('let'),
+                [[Symbol('x'), [Symbol('*'), 3, 4]]],
+                [Symbol('+'), Symbol('x'), 1]]
+        self.assertEqual(self.s.evaluate(expr), 13)
 
     def test_nested(self):
         expr = [Symbol('+'), [Symbol('*'), 2, 3], [Symbol('-'), 10, 4]]
