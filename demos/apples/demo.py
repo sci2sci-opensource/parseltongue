@@ -45,8 +45,8 @@ def main():
     doc_dir = os.path.join(os.path.dirname(__file__), 'resources')
     s.load_document("Counting Observations",
                     os.path.join(doc_dir, "counting_observations.txt"))
-    s.load_document("Orchard Inventory",
-                    os.path.join(doc_dir, "orchard_inventory.txt"))
+    s.load_document("Eden Inventory",
+                    os.path.join(doc_dir, "eden_inventory.txt"))
     print(f"  Loaded {len(s.documents)} source documents")
 
     # ----------------------------------------------------------
@@ -174,25 +174,25 @@ def main():
     print("\n--- Phase 4: Orchard inventory ---")
 
     load_source(s, """
-        (defterm alice-morning (succ (succ (succ zero)))
-          :evidence (evidence "Orchard Inventory"
-            :quotes ("Alice picked 3 apples from the east grove")
-            :explanation "Alice's morning count: SSS0"))
+        (defterm eve-morning (succ (succ (succ zero)))
+          :evidence (evidence "Eden Inventory"
+            :quotes ("Eve picked 3 apples from the east grove")
+            :explanation "Eve's morning count: SSS0"))
 
-        (defterm bob-morning (succ (succ (succ (succ (succ zero)))))
-          :evidence (evidence "Orchard Inventory"
-            :quotes ("Bob picked 5 apples from the west grove")
-            :explanation "Bob's morning count: SSSSS0"))
+        (defterm adam-morning (succ (succ (succ (succ (succ zero)))))
+          :evidence (evidence "Eden Inventory"
+            :quotes ("Adam picked 5 apples from the west grove")
+            :explanation "Adam's morning count: SSSSS0"))
 
-        (defterm morning-total (+ alice-morning bob-morning)
-          :evidence (evidence "Orchard Inventory"
+        (defterm morning-total (+ eve-morning adam-morning)
+          :evidence (evidence "Eden Inventory"
             :quotes ("Combined morning harvest was 8 apples")
-            :explanation "Sum of Alice and Bob's morning picks"))
+            :explanation "Sum of Eve and Adam's morning picks"))
 
-        (defterm bob-picked-more (> bob-morning alice-morning)
-          :evidence (evidence "Orchard Inventory"
-            :quotes ("Bob picked more apples than Alice in the morning")
-            :explanation "Bob's count exceeds Alice's"))
+        (defterm adam-picked-more (> adam-morning eve-morning)
+          :evidence (evidence "Eden Inventory"
+            :quotes ("Adam picked more apples than Eve in the morning")
+            :explanation "Adam's count exceeds Eve's"))
     """)
 
     print("  Terms:")
@@ -205,11 +205,11 @@ def main():
 
     load_source(s, """
         (derive morning-commutes add-commutative
-            :bind ((?a alice-morning) (?b bob-morning))
+            :bind ((?a eve-morning) (?b adam-morning))
             :using (add-commutative)
-            :evidence (evidence "Orchard Inventory"
+            :evidence (evidence "Eden Inventory"
               :quotes ("Combined morning harvest was 8 apples")
-              :explanation "alice + bob = bob + alice"))
+              :explanation "eve + adam = adam + eve"))
     """)
 
     ax = s.theorems['morning-commutes']
@@ -221,55 +221,55 @@ def main():
     print("\n--- Phase 6: Afternoon harvest ---")
 
     load_source(s, """
-        (defterm carol-afternoon (succ (succ (succ (succ zero))))
-          :evidence (evidence "Orchard Inventory"
-            :quotes ("Carol picked 4 apples from the south grove")
-            :explanation "Carol's afternoon count: SSSS0"))
+        (defterm serpent-afternoon (succ (succ (succ (succ zero))))
+          :evidence (evidence "Eden Inventory"
+            :quotes ("Serpent picked 4 apples from the south grove")
+            :explanation "Serpent's afternoon count: SSSS0"))
 
-        (defterm alice-afternoon (succ (succ zero))
-          :evidence (evidence "Orchard Inventory"
-            :quotes ("Alice picked 2 more apples from the east grove")
-            :explanation "Alice's afternoon count: SS0"))
+        (defterm eve-afternoon (succ (succ zero))
+          :evidence (evidence "Eden Inventory"
+            :quotes ("Eve picked 2 more apples from the east grove")
+            :explanation "Eve's afternoon count: SS0"))
 
-        (defterm afternoon-total (+ carol-afternoon alice-afternoon)
-          :evidence (evidence "Orchard Inventory"
+        (defterm afternoon-total (+ serpent-afternoon eve-afternoon)
+          :evidence (evidence "Eden Inventory"
             :quotes ("Combined afternoon harvest was 6 apples")
-            :explanation "Sum of Carol and Alice's afternoon picks"))
+            :explanation "Sum of Serpent and Eve's afternoon picks"))
 
-        (defterm alice-daily (+ alice-morning alice-afternoon)
-          :evidence (evidence "Orchard Inventory"
-            :quotes ("Alice's daily total is 5 apples")
-            :explanation "Alice's combined morning + afternoon"))
+        (defterm eve-daily (+ eve-morning eve-afternoon)
+          :evidence (evidence "Eden Inventory"
+            :quotes ("Eve's daily total is 5 apples")
+            :explanation "Eve's combined morning + afternoon"))
 
         (defterm daily-total (+ morning-total afternoon-total)
-          :evidence (evidence "Orchard Inventory"
+          :evidence (evidence "Eden Inventory"
             :quotes ("Total harvest for the day was 14 apples")
             :explanation "Grand total = morning + afternoon"))
 
         (defterm morning-advantage (- morning-total afternoon-total)
-          :evidence (evidence "Orchard Inventory"
+          :evidence (evidence "Eden Inventory"
             :quotes ("The morning shift outproduced the afternoon by 2 apples")
             :explanation "Difference between shift totals"))
     """)
 
     print("  Terms:")
-    for name in ['carol-afternoon', 'alice-afternoon', 'afternoon-total',
-                  'alice-daily', 'daily-total', 'morning-advantage']:
+    for name in ['serpent-afternoon', 'eve-afternoon', 'afternoon-total',
+                  'eve-daily', 'daily-total', 'morning-advantage']:
         t = s.terms[name]
         print(f"    {t}")
 
     # ----------------------------------------------------------
-    # Phase 7: Diff — what if Alice picked more?
+    # Phase 7: Diff — what if Eve tried the forbidden apple?
     # ----------------------------------------------------------
-    print("\n--- Phase 7: Diff — what if Alice picked SSSS0 in the morning? ---")
+    print("\n--- Phase 7: Diff — what if Eve tried the forbidden apple? ---")
 
     load_source(s, """
-        (defterm alice-morning-alt (succ (succ (succ (succ zero))))
-          :origin "Hypothetical: Alice picks SSSS0 instead of SSS0")
+        (defterm eve-morning-alt (succ (succ zero))
+          :origin "Hypothetical: Eve tried the forbidden apple — SS0 instead of SSS0")
 
-        (diff alice-check
-            :replace alice-morning
-            :with alice-morning-alt)
+        (diff eve-check
+            :replace eve-morning
+            :with eve-morning-alt)
     """)
 
     # ----------------------------------------------------------
@@ -288,7 +288,7 @@ def main():
     print(f"  {report}")
 
     print("\n  Resolving unverified items...")
-    s.verify_manual('alice-morning-alt')
+    s.verify_manual('eve-morning-alt')
     s.verify_manual('eq-reflexive')
     s.verify_manual('=')
     report = s.consistency()
@@ -297,10 +297,10 @@ def main():
 
     print("\n  Resolving identity items...")
     load_source(s, """
-        (defterm alice-morning-alt (succ (succ (succ zero)))
-          :origin "Hypothetical: Alice picks SSSS0 instead of SSS0")
+        (defterm eve-morning-alt (succ (succ (succ zero)))
+          :origin "Hypothetical: Eve picks SSSS0 instead of SSS0")
     """)
-    s.verify_manual('alice-morning-alt')
+    s.verify_manual('eve-morning-alt')
     report = s.consistency()
     print(f"\n  After verification:")
     print(f"  {report}")

@@ -1,0 +1,22 @@
+Garden of Eden — Daily Harvest Log
+Date: October 15
+
+Morning Shift
+
+Eve picked 3 apples from the east grove.
+Adam picked 5 apples from the west grove.
+Combined morning harvest was 8 apples.
+Adam picked more apples than Eve in the morning.
+
+Afternoon Shift
+
+Serpent picked 4 apples from the south grove.
+Eve picked 2 more apples from the east grove.
+Combined afternoon harvest was 6 apples.
+
+Daily Summary
+
+Eve's daily total is 5 apples.
+Total harvest for the day was 14 apples.
+Adam had the highest individual count with 5 apples.
+The morning shift outproduced the afternoon by 2 apples.
