@@ -1,0 +1,31 @@
+Fecal Calprotectin as a Diagnostic Marker for Inflammatory Bowel Disease:
+A Prospective Cohort Study
+
+Abstract
+
+This study evaluated fecal calprotectin as a non-invasive biomarker for
+distinguishing inflammatory bowel disease (IBD) from irritable bowel
+syndrome (IBS) in patients presenting with chronic gastrointestinal symptoms.
+
+Results
+
+Sensitivity of 93% was observed in distinguishing IBD from IBS using fecal
+calprotectin measurements. The negative predictive value was 96%, making it
+highly effective for ruling out IBD in symptomatic patients.
+
+Fecal calprotectin levels above 250 µg/g strongly correlate with endoscopically
+confirmed active intestinal inflammation. Patients with levels below 50 µg/g
+had a less than 1% probability of having significant intestinal inflammation.
+
+The receiver operating characteristic (ROC) analysis demonstrated an area
+under the curve (AUC) of 0.95 for distinguishing IBD from functional
+gastrointestinal disorders.
+
+Clinical Implications
+
+Calprotectin is recommended as a first-line non-invasive test before
+colonoscopy. Implementing calprotectin screening reduced unnecessary
+colonoscopies by 67% in our cohort while maintaining diagnostic accuracy.
+
+The biomarker showed consistent performance across age groups, with no
+significant variation in sensitivity between pediatric and adult populations.
