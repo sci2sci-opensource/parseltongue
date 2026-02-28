@@ -110,7 +110,6 @@ class TestAxiomDirective(unittest.TestCase):
         ax = s.axioms['a1']
         self.assertEqual(ax.wff, [Symbol('>'), Symbol('x'), 0])
         self.assertEqual(ax.origin, 'test')
-        self.assertFalse(ax.derived)
 
     def test_axiom_with_evidence(self):
         s = make_system()
@@ -202,9 +201,8 @@ class TestDeriveDirective(unittest.TestCase):
         quiet(s.set_fact, 'x', 5, 'test')
         quiet(s.verify_manual, 'x')
         quiet(load_source, s, '(derive d1 (> x 0) :using (x))')
-        self.assertIn('d1', s.axioms)
-        self.assertTrue(s.axioms['d1'].derived)
-        self.assertEqual(s.axioms['d1'].derivation, ['x'])
+        self.assertIn('d1', s.theorems)
+        self.assertEqual(s.theorems['d1'].derivation, ['x'])
 
     def test_derive_multiple_sources(self):
         s = make_system()
@@ -213,7 +211,7 @@ class TestDeriveDirective(unittest.TestCase):
         quiet(s.verify_manual, 'a')
         quiet(s.verify_manual, 'b')
         quiet(load_source, s, '(derive d1 (> a b) :using (a b))')
-        self.assertEqual(s.axioms['d1'].derivation, ['a', 'b'])
+        self.assertEqual(s.theorems['d1'].derivation, ['a', 'b'])
 
     def test_derive_from_fact_and_axiom(self):
         s = make_system()
@@ -222,7 +220,7 @@ class TestDeriveDirective(unittest.TestCase):
         quiet(s.introduce_axiom, 'ax1', [Symbol('>'), Symbol('x'), 0], 'test')
         quiet(s.verify_manual, 'ax1')
         quiet(load_source, s, '(derive d1 (> x 0) :using (x ax1))')
-        self.assertEqual(s.axioms['d1'].derivation, ['x', 'ax1'])
+        self.assertEqual(s.theorems['d1'].derivation, ['x', 'ax1'])
 
     def test_derive_compound_wff(self):
         s = make_system()
@@ -231,7 +229,7 @@ class TestDeriveDirective(unittest.TestCase):
         quiet(s.verify_manual, 'a')
         quiet(s.verify_manual, 'b')
         quiet(load_source, s, '(derive d1 (= (+ a b) 10) :using (a b))')
-        self.assertIn('d1', s.axioms)
+        self.assertIn('d1', s.theorems)
 
 
 class TestDiffDirective(unittest.TestCase):
@@ -304,9 +302,8 @@ class TestBindDirective(unittest.TestCase):
               [Symbol('='), [Symbol('+'), Symbol('?n'), 0], Symbol('?n')], 'test')
         quiet(s.verify_manual, 'add-id')
         quiet(load_source, s, '(derive d1 add-id :bind ((?n x)) :using (x add-id))')
-        self.assertIn('d1', s.axioms)
-        self.assertTrue(s.axioms['d1'].derived)
-        self.assertEqual(s.axioms['d1'].derivation, ['x', 'add-id'])
+        self.assertIn('d1', s.theorems)
+        self.assertEqual(s.theorems['d1'].derivation, ['x', 'add-id'])
 
     def test_defterm_with_bind(self):
         s = make_system()
@@ -328,7 +325,7 @@ class TestBindDirective(unittest.TestCase):
         self.assertIn('ground-id', s.axioms)
         # The WFF should be the instantiated version
         wff = s.axioms['ground-id'].wff
-        self.assertEqual(wff, [Symbol('='), [Symbol('+'), 5, 0], 5])
+        self.assertEqual(wff, [Symbol('='), [Symbol('+'), Symbol('x'), 0], Symbol('x')])
 
     def test_derive_with_bind_and_evidence(self):
         s = make_system()
@@ -339,7 +336,7 @@ class TestBindDirective(unittest.TestCase):
               [Symbol('>'), Symbol('?x'), 0], 'test')
         quiet(s.verify_manual, 'gt-zero')
         quiet(load_source, s, '(derive d1 gt-zero :bind ((?x rev)) :using (rev gt-zero))')
-        self.assertIn('d1', s.axioms)
+        self.assertIn('d1', s.theorems)
 
 
 class TestDefaultOrigin(unittest.TestCase):

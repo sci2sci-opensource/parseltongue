@@ -291,19 +291,18 @@ class TestDerivation(unittest.TestCase):
         quiet(s.register_document, 'Doc', SAMPLE_DOC)
         ev = Evidence(document='Doc', quotes=['Q3 revenue was $15M'])
         quiet(s.set_fact, 'rev', 15.0, ev)
-        ax = quiet(s.derive, 'd1', [Symbol('>'), Symbol('rev'), 0], ['rev'])
-        self.assertEqual(ax.origin, 'derived')
-        self.assertTrue(ax.derived)
-        self.assertEqual(ax.derivation, ['rev'])
+        thm = quiet(s.derive, 'd1', [Symbol('>'), Symbol('rev'), 0], ['rev'])
+        self.assertEqual(thm.origin, 'derived')
+        self.assertEqual(thm.derivation, ['rev'])
 
     def test_derive_unverified_is_fabrication(self):
         s = make_system()
         quiet(s.register_document, 'Doc', SAMPLE_DOC)
         ev = Evidence(document='Doc', quotes=['Nonexistent quote xyz'])
         quiet(s.set_fact, 'bad', 999, ev)
-        ax = quiet(s.derive, 'd2', [Symbol('>'), Symbol('bad'), 0], ['bad'])
-        self.assertIn('potential fabrication', ax.origin)
-        self.assertIn('bad', ax.origin)
+        thm = quiet(s.derive, 'd2', [Symbol('>'), Symbol('bad'), 0], ['bad'])
+        self.assertIn('potential fabrication', thm.origin)
+        self.assertIn('bad', thm.origin)
 
     def test_derive_false_raises(self):
         s = make_system()
@@ -312,16 +311,16 @@ class TestDerivation(unittest.TestCase):
             quiet(s.derive, 'bad_d', [Symbol('<'), Symbol('x'), 0], ['x'])
 
     def test_fabrication_chain(self):
-        """Deriving from an already-fabricated axiom propagates fabrication."""
+        """Deriving from an already-fabricated theorem propagates fabrication."""
         s = make_system()
         quiet(s.register_document, 'Doc', SAMPLE_DOC)
         ev = Evidence(document='Doc', quotes=['Nonexistent quote xyz'])
         quiet(s.set_fact, 'bad', 999, ev)
         quiet(s.derive, 'tainted', [Symbol('>'), Symbol('bad'), 0], ['bad'])
         # Now derive from tainted
-        ax2 = quiet(s.derive, 'double_tainted',
-                     [Symbol('>'), Symbol('bad'), 0], ['tainted'])
-        self.assertIn('potential fabrication', ax2.origin)
+        thm2 = quiet(s.derive, 'double_tainted',
+                      [Symbol('>'), Symbol('bad'), 0], ['tainted'])
+        self.assertIn('potential fabrication', thm2.origin)
 
     def test_derive_unknown_source_raises(self):
         s = make_system()
@@ -465,19 +464,19 @@ class TestRederive(unittest.TestCase):
         quiet(s.register_document, 'Doc', SAMPLE_DOC)
         ev = Evidence(document='Doc', quotes=['Nonexistent quote'])
         quiet(s.set_fact, 'x', 999, ev)
-        ax = quiet(s.derive, 'd1', [Symbol('>'), Symbol('x'), 0], ['x'])
-        self.assertIn('potential fabrication', ax.origin)
+        thm = quiet(s.derive, 'd1', [Symbol('>'), Symbol('x'), 0], ['x'])
+        self.assertIn('potential fabrication', thm.origin)
 
         # Manually verify the source
         quiet(s.verify_manual, 'x')
         quiet(s.rederive, 'd1')
-        self.assertEqual(s.axioms['d1'].origin, 'derived')
+        self.assertEqual(s.theorems['d1'].origin, 'derived')
 
     def test_rederive_non_derived_raises(self):
         s = make_system()
         quiet(s.set_fact, 'x', 5, 'test')
         quiet(s.introduce_axiom, 'a1', [Symbol('>'), Symbol('x'), 0], 'test')
-        with self.assertRaises(ValueError):
+        with self.assertRaises(KeyError):
             quiet(s.rederive, 'a1')
 
     def test_rederive_unknown_raises(self):
@@ -664,7 +663,7 @@ class TestProvenance(unittest.TestCase):
         quiet(s.set_fact, 'y', 3, 'test')
         quiet(s.derive, 'd1', [Symbol('>'), Symbol('x'), Symbol('y')], ['x', 'y'])
         prov = s.provenance('d1')
-        self.assertTrue(prov['derived'])
+        self.assertEqual(prov['type'], 'theorem')
         self.assertEqual(len(prov['derivation_chain']), 2)
 
     def test_provenance_unknown_raises(self):
