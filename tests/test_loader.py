@@ -294,6 +294,54 @@ class TestMultipleDirectives(unittest.TestCase):
         self.assertIn('d1', s.diffs)
 
 
+class TestBindDirective(unittest.TestCase):
+
+    def test_derive_with_bind(self):
+        s = make_system()
+        quiet(s.set_fact, 'x', 5, 'test')
+        quiet(s.verify_manual, 'x')
+        quiet(s.introduce_axiom, 'add-id',
+              [Symbol('='), [Symbol('+'), Symbol('?n'), 0], Symbol('?n')], 'test')
+        quiet(s.verify_manual, 'add-id')
+        quiet(load_source, s, '(derive d1 add-id :bind ((?n x)) :using (x add-id))')
+        self.assertIn('d1', s.axioms)
+        self.assertTrue(s.axioms['d1'].derived)
+        self.assertEqual(s.axioms['d1'].derivation, ['x', 'add-id'])
+
+    def test_defterm_with_bind(self):
+        s = make_system()
+        quiet(s.introduce_term, 'sum-template',
+              [Symbol('+'), Symbol('?a'), Symbol('?b')], 'test')
+        quiet(s.set_fact, 'x', 3, 'test')
+        quiet(s.set_fact, 'y', 7, 'test')
+        quiet(load_source, s, '(defterm total sum-template :bind ((?a x) (?b y)) :origin "test")')
+        self.assertIn('total', s.terms)
+        result = s.evaluate(s.terms['total'].definition)
+        self.assertEqual(result, 10)
+
+    def test_axiom_with_bind(self):
+        s = make_system()
+        quiet(s.introduce_axiom, 'add-id',
+              [Symbol('='), [Symbol('+'), Symbol('?n'), 0], Symbol('?n')], 'test')
+        quiet(s.set_fact, 'x', 5, 'test')
+        quiet(load_source, s, '(axiom ground-id add-id :bind ((?n x)) :origin "test")')
+        self.assertIn('ground-id', s.axioms)
+        # The WFF should be the instantiated version
+        wff = s.axioms['ground-id'].wff
+        self.assertEqual(wff, [Symbol('='), [Symbol('+'), 5, 0], 5])
+
+    def test_derive_with_bind_and_evidence(self):
+        s = make_system()
+        quiet(s.register_document, 'Doc', SAMPLE_DOC)
+        quiet(s.set_fact, 'rev', 15, 'test')
+        quiet(s.verify_manual, 'rev')
+        quiet(s.introduce_axiom, 'gt-zero',
+              [Symbol('>'), Symbol('?x'), 0], 'test')
+        quiet(s.verify_manual, 'gt-zero')
+        quiet(load_source, s, '(derive d1 gt-zero :bind ((?x rev)) :using (rev gt-zero))')
+        self.assertIn('d1', s.axioms)
+
+
 class TestDefaultOrigin(unittest.TestCase):
 
     def test_fact_no_origin_defaults_to_unknown(self):

@@ -7,7 +7,7 @@ for backward compatibility.
 """
 
 from atoms import (                          # noqa: F401 — re-export
-    Symbol, Evidence, Axiom, Term,
+    Symbol, Evidence, Axiom, Theorem, Term,
     tokenize, read_tokens, atom,
     parse, parse_all, to_sexp,
     get_keyword,
@@ -41,6 +41,7 @@ KW_EVIDENCE    = ':evidence'
 KW_USING       = ':using'
 KW_REPLACE     = ':replace'
 KW_WITH        = ':with'
+KW_BIND        = ':bind'
 
 
 # ============================================================
@@ -133,6 +134,11 @@ LANG_DOCS = {
         'category': 'keyword',
         'description': 'Replacement symbol in a diff.',
         'example': ':with alt_growth',
+    },
+    KW_BIND: {
+        'category': 'keyword',
+        'description': 'Bind ?-variables when instantiating a parameterized axiom or term.',
+        'example': ':bind ((?n 5))',
     },
 }
 

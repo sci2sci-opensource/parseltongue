@@ -154,18 +154,25 @@ class Evidence:
 
 @dataclass
 class Axiom:
-    """An axiom: a WFF with evidence."""
+    """An axiom: a foundational WFF assumed true, with evidence."""
     name: str
     wff: Any
     origin: 'str | Evidence'
-    derived: bool = False
-    derivation: list = field(default_factory=list)
 
     def __str__(self):
-        if self.derived:
-            tag = f"[derived from: {', '.join(self.derivation)}]"
-        else:
-            tag = _origin_tag(self.origin)
+        return f"{self.name}: {to_sexp(self.wff)} {_origin_tag(self.origin)}"
+
+
+@dataclass
+class Theorem:
+    """A theorem: a WFF derived from axioms/terms via substitution."""
+    name: str
+    wff: Any
+    derivation: list = field(default_factory=list)
+    origin: 'str | Evidence' = 'derived'
+
+    def __str__(self):
+        tag = f"[derived from: {', '.join(self.derivation)}]"
         return f"{self.name}: {to_sexp(self.wff)} {tag}"
 
 
@@ -177,7 +184,8 @@ class Term:
     origin: 'str | Evidence'
 
     def __str__(self):
-        return f"{self.name}: {to_sexp(self.definition)} {_origin_tag(self.origin)}"
+        defn = to_sexp(self.definition) if self.definition is not None else "(primitive)"
+        return f"{self.name}: {defn} {_origin_tag(self.origin)}"
 
 
 # ============================================================
@@ -190,3 +198,45 @@ def get_keyword(expr, keyword, default=None):
         if item == keyword and i + 1 < len(expr):
             return expr[i + 1]
     return default
+
+
+def match(pattern, expr, bindings=None):
+    """Match pattern against expr. ?-prefixed symbols are pattern variables."""
+    if bindings is None:
+        bindings = {}
+    if isinstance(pattern, Symbol) and str(pattern).startswith('?'):
+        if pattern in bindings:
+            return bindings if bindings[pattern] == expr else None
+        return {**bindings, pattern: expr}
+    if isinstance(pattern, list) and isinstance(expr, list):
+        if len(pattern) != len(expr):
+            return None
+        for p, e in zip(pattern, expr):
+            bindings = match(p, e, bindings)
+            if bindings is None:
+                return None
+        return bindings
+    if pattern == expr:
+        return bindings
+    return None
+
+
+def free_vars(expr) -> set:
+    """Extract all ?-prefixed symbols from an expression."""
+    if isinstance(expr, Symbol) and str(expr).startswith('?'):
+        return {expr}
+    if isinstance(expr, list):
+        result = set()
+        for sub in expr:
+            result |= free_vars(sub)
+        return result
+    return set()
+
+
+def substitute(expr, bindings: dict):
+    """Replace symbols with their bound values in an expression tree."""
+    if isinstance(expr, Symbol) and expr in bindings:
+        return bindings[expr]
+    if isinstance(expr, list):
+        return [substitute(sub, bindings) for sub in expr]
+    return expr

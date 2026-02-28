@@ -12,9 +12,9 @@ import operator
 
 log = logging.getLogger('parseltongue')
 
-from atoms import Symbol
+from atoms import Symbol, match, free_vars, substitute
 from lang import (
-    Axiom, Term, Evidence,
+    Axiom, Theorem, Term, Evidence,
     parse, tokenize, read_tokens, to_sexp,
     get_keyword, parse_evidence,
     # Special forms
@@ -22,7 +22,7 @@ from lang import (
     # DSL keywords
     AXIOM, DEFTERM, FACT, DERIVE, DIFF,
     # Keyword arguments
-    KW_ORIGIN, KW_EVIDENCE, KW_USING, KW_REPLACE, KW_WITH,
+    KW_ORIGIN, KW_EVIDENCE, KW_USING, KW_REPLACE, KW_WITH, KW_BIND,
     # Documentation
     LANG_DOCS,
 )
@@ -210,12 +210,16 @@ class DiffResult:
         return not self.divergences
 
     def __str__(self):
-        header = f"{self.name}: {self.replace} ({self.value_a}) vs {self.with_} ({self.value_b})"
+        va = to_sexp(self.value_a) if isinstance(self.value_a, (list, Symbol)) else self.value_a
+        vb = to_sexp(self.value_b) if isinstance(self.value_b, (list, Symbol)) else self.value_b
+        header = f"{self.name}: {self.replace} ({va}) vs {self.with_} ({vb})"
         if self.empty:
             return f"{header} — no divergences"
         lines = [header]
         for term, (a, b) in self.divergences.items():
-            lines.append(f"  {term}: {a} → {b}")
+            a_s = to_sexp(a) if isinstance(a, (list, Symbol)) else a
+            b_s = to_sexp(b) if isinstance(b, (list, Symbol)) else b
+            lines.append(f"  {term}: {a_s} → {b_s}")
         return '\n'.join(lines)
 
 
@@ -278,6 +282,7 @@ class System:
     def __init__(self, overridable: bool = False,
                  initial_env: dict | None = None):
         self.axioms: dict[str, Axiom] = {}
+        self.theorems: dict[str, Theorem] = {}
         self.terms: dict[str, Term] = {}
         self.facts: dict[str, Any] = {}
         self.env: dict[str, Any] = {}
@@ -351,6 +356,8 @@ class System:
             origin = self.facts[name].get('origin')
         if name in self.axioms:
             origin = self.axioms[name].origin
+        if name in self.theorems:
+            origin = self.theorems[name].origin
         if name in self.terms:
             origin = self.terms[name].origin
 
@@ -371,6 +378,8 @@ class System:
                 self.facts[name]['origin'] = ev
             if name in self.axioms:
                 self.axioms[name].origin = ev
+            if name in self.theorems:
+                self.theorems[name].origin = ev
             if name in self.terms:
                 self.terms[name].origin = ev
 
@@ -430,6 +439,23 @@ class System:
         self.env[Symbol(name)] = value
 
     # ----------------------------------------------------------
+    # Instantiation
+    # ----------------------------------------------------------
+
+    def instantiate(self, name: str, bindings: dict):
+        """Look up a parameterized axiom or term, substitute ?-vars, return concrete expression."""
+        if name in self.axioms:
+            template = self.axioms[name].wff
+        elif name in self.theorems:
+            template = self.theorems[name].wff
+        elif name in self.terms:
+            template = self.terms[name].definition
+        else:
+            raise KeyError(f"Unknown axiom, theorem, or term: {name}")
+
+        return substitute(template, bindings)
+
+    # ----------------------------------------------------------
     # Derivation
     # ----------------------------------------------------------
 
@@ -445,6 +471,8 @@ class System:
                 origin = self.facts[src_name].get('origin')
             if src_name in self.axioms:
                 origin = self.axioms[src_name].origin
+            if src_name in self.theorems:
+                origin = self.theorems[src_name].origin
             if src_name in self.terms:
                 origin = self.terms[src_name].origin
 
@@ -456,18 +484,21 @@ class System:
 
         return ungrounded
 
-    def derive(self, name: str, wff, using: list[str]) -> Axiom:
-        """Derive a new statement from existing axioms.
+    def derive(self, name: str, wff, using: list[str]) -> Theorem:
+        """Derive a theorem from existing axioms/terms.
 
-        If any source has unverified evidence, the derived axiom is
+        If any source has unverified evidence, the theorem is
         marked as 'potential fabrication' with a trace to the unverified sources.
         """
         if isinstance(wff, str):
             wff = parse(wff)
 
         for ax_name in using:
-            if ax_name not in self.axioms and ax_name not in self.facts:
-                raise ValueError(f"Unknown axiom or fact: {ax_name}")
+            if (ax_name not in self.axioms
+                    and ax_name not in self.facts
+                    and ax_name not in self.terms
+                    and ax_name not in self.theorems):
+                raise ValueError(f"Unknown axiom, fact, term, or theorem: {ax_name}")
 
         result = self.evaluate(wff)
         if result is False:
@@ -486,9 +517,9 @@ class System:
         else:
             origin = "derived"
 
-        ax = Axiom(name=name, wff=wff, origin=origin, derived=True, derivation=using)
-        self.axioms[name] = ax
-        return ax
+        thm = Theorem(name=name, wff=wff, derivation=using, origin=origin)
+        self.theorems[name] = thm
+        return thm
 
     # ----------------------------------------------------------
     # Evaluator
@@ -499,14 +530,50 @@ class System:
         env = {**self.env, **(local_env or {})}
         return self._eval(expr, env)
 
+    def _rewrite(self, expr, depth=0):
+        """Reduce an expression by applying axioms as rewrite rules.
+
+        Axioms of the form (= LHS RHS) are used left-to-right:
+        if expr matches LHS, substitute to get RHS.
+        """
+        if depth > 100:
+            return expr
+        if not isinstance(expr, list):
+            return expr
+
+        # Reduce subexpressions first (innermost-first)
+        expr = [self._rewrite(sub, depth + 1) for sub in expr]
+
+        # Try axioms and theorems as rewrite rules
+        for rule in list(self.axioms.values()) + list(self.theorems.values()):
+            wff = rule.wff
+            if not (isinstance(wff, list) and len(wff) == 3
+                    and wff[0] == EQ):
+                continue
+            lhs, rhs = wff[1], wff[2]
+            if not isinstance(lhs, list):
+                continue
+            # Skip symmetric rules (all args are bare ?-vars → would loop)
+            if all(isinstance(a, Symbol) and str(a).startswith('?')
+                   for a in lhs[1:]):
+                continue
+            bindings = match(lhs, expr)
+            if bindings is not None:
+                result = substitute(rhs, bindings)
+                return self._rewrite(result, depth + 1)
+
+        return expr
+
     def _eval(self, expr, env) -> Any:
         if isinstance(expr, Symbol):
             if expr in env:
                 return env[expr]
-            # Auto-resolve terms: evaluate their definition inline
             name = str(expr)
             if name in self.terms:
-                return self._eval(self.terms[name].definition, env)
+                defn = self.terms[name].definition
+                if defn is not None:
+                    return self._eval(defn, env)
+                return expr  # forward-declared / primitive term
             raise NameError(f"Unresolved symbol: {expr} — not in current system")
         if not isinstance(expr, list):
             return expr
@@ -527,9 +594,19 @@ class System:
                 new_env[binding[0]] = self._eval(binding[1], new_env)
             return self._eval(body, new_env)
 
-        fn = self._eval(head, env)
+        head_val = self._eval(head, env)
         args = [self._eval(arg, env) for arg in expr[1:]]
-        return fn(*args)
+
+        if callable(head_val):
+            return head_val(*args)
+
+        # Formal: use axiom rewriting
+        formal_expr = [head_val] + args
+        if head_val == EQ:
+            left = self._rewrite(args[0])
+            right = self._rewrite(args[1])
+            return left == right
+        return self._rewrite(formal_expr)
 
     # ----------------------------------------------------------
     # Validation
@@ -611,6 +688,20 @@ class System:
         self.diffs[name] = {'replace': replace, 'with': with_}
         log.debug("Diff registered '%s': %s vs %s", name, replace, with_)
 
+    def _resolve_value(self, name: str):
+        """Resolve a symbol to its value (evaluated) or definition (formal)."""
+        if Symbol(name) in self.env:
+            return self.env[Symbol(name)]
+        if name in self.terms:
+            defn = self.terms[name].definition
+            if defn is None:
+                return Symbol(name)
+            try:
+                return self.evaluate(defn)
+            except (NameError, TypeError):
+                return defn
+        raise KeyError(f"Unknown symbol: {name}")
+
     def eval_diff(self, name: str) -> DiffResult:
         """Evaluate a registered diff against current system state."""
         if name not in self.diffs:
@@ -620,33 +711,28 @@ class System:
         replace = params['replace']
         with_ = params['with']
 
-        if Symbol(replace) in self.env:
-            original = self.env[Symbol(replace)]
-        elif replace in self.terms:
-            original = self.evaluate(self.terms[replace].definition)
-        else:
-            raise KeyError(f"Unknown symbol: {replace}")
-
-        if Symbol(with_) in self.env:
-            substitute = self.env[Symbol(with_)]
-        elif with_ in self.terms:
-            substitute = self.evaluate(self.terms[with_].definition)
-        else:
-            raise KeyError(f"Unknown symbol: {with_}")
+        original = self._resolve_value(replace)
+        substitute_val = self._resolve_value(with_)
 
         affected = self._dependents(replace)
 
         divergences = {}
         for term_name in affected:
             defn = self.terms[term_name].definition
-            result_a = self.evaluate(defn)
-            result_b = self.evaluate(defn, {Symbol(replace): substitute})
+            try:
+                result_a = self.evaluate(defn)
+                result_b = self.evaluate(defn, {Symbol(replace): substitute_val})
+            except (NameError, TypeError):
+                # Formal terms — compare structurally via substitution
+                from atoms import substitute as subst
+                result_a = defn
+                result_b = subst(defn, {Symbol(replace): substitute_val})
             if result_a != result_b:
                 divergences[term_name] = [result_a, result_b]
 
         return DiffResult(
             name=name, replace=replace, with_=with_,
-            value_a=original, value_b=substitute,
+            value_a=original, value_b=substitute_val,
             divergences=divergences,
         )
 
@@ -662,6 +748,9 @@ class System:
             removed = True
         if name in self.axioms:
             del self.axioms[name]
+            removed = True
+        if name in self.theorems:
+            del self.theorems[name]
             removed = True
         if name in self.terms:
             del self.terms[name]
@@ -679,23 +768,21 @@ class System:
         """Re-run a derivation to refresh its fabrication status.
 
         Useful after overriding evidence on a source that was previously
-        flagged, which made derived axioms stale.
+        flagged, which made derived theorems stale.
         """
-        if name not in self.axioms:
-            raise KeyError(f"Unknown axiom: {name}")
-        ax = self.axioms[name]
-        if not ax.derived:
-            raise ValueError(f"'{name}' is not a derived axiom")
+        if name not in self.theorems:
+            raise KeyError(f"Unknown theorem: {name}")
+        thm = self.theorems[name]
 
         # Re-derive: re-check sources and update origin
-        ungrounded = self._check_sources_grounded(ax.derivation)
+        ungrounded = self._check_sources_grounded(thm.derivation)
         if ungrounded:
-            ax.origin = (f"potential fabrication — derived from unverified: "
-                         f"{', '.join(ungrounded)}")
+            thm.origin = (f"potential fabrication — derived from unverified: "
+                          f"{', '.join(ungrounded)}")
             log.warning("Rederive '%s': still has unverified sources: %s",
                         name, ', '.join(ungrounded))
         else:
-            ax.origin = "derived"
+            thm.origin = "derived"
             log.info("Rederive '%s': sources now verified — cleared", name)
 
     # ----------------------------------------------------------
@@ -727,29 +814,41 @@ class System:
                 'origin': self._format_origin(self.facts[name].get('origin', '')),
             }
 
-        if name not in self.axioms:
-            raise KeyError(f"Unknown: {name}")
+        if name in self.axioms:
+            ax = self.axioms[name]
+            return {
+                'name': name,
+                'type': 'axiom',
+                'wff': to_sexp(ax.wff),
+                'origin': self._format_origin(ax.origin),
+            }
 
-        ax = self.axioms[name]
-        result = {
-            'name': name,
-            'wff': to_sexp(ax.wff),
-            'origin': self._format_origin(ax.origin),
-            'derived': ax.derived,
-        }
+        if name in self.theorems:
+            thm = self.theorems[name]
+            return {
+                'name': name,
+                'type': 'theorem',
+                'wff': to_sexp(thm.wff),
+                'origin': self._format_origin(thm.origin),
+                'derivation_chain': [
+                    self.provenance(dep) for dep in thm.derivation
+                ],
+            }
 
-        if ax.derived:
-            result['derivation_chain'] = [
-                self.provenance(dep) for dep in ax.derivation
-            ]
-
-        return result
+        raise KeyError(f"Unknown: {name}")
 
     def list_axioms(self) -> list[Axiom]:
         """Return all axioms in the system."""
         result = list(self.axioms.values())
         for ax in result:
             log.info("%s", ax)
+        return result
+
+    def list_theorems(self) -> list[Theorem]:
+        """Return all theorems in the system."""
+        result = list(self.theorems.values())
+        for thm in result:
+            log.info("%s", thm)
         return result
 
     def list_terms(self) -> list[Term]:
@@ -788,7 +887,7 @@ class System:
         unverified = []
         manually_verified = []
         no_evidence = []
-        for store in [self.facts, self.axioms, self.terms]:
+        for store in [self.facts, self.axioms, self.theorems, self.terms]:
             for name, item in store.items():
                 if isinstance(item, dict):
                     origin = item.get('origin')
@@ -813,9 +912,9 @@ class System:
             warnings.append(ConsistencyWarning('manually_verified', manually_verified))
 
         # 2. Fabrication propagation
-        fabrications = [name for name, ax in self.axioms.items()
-                        if isinstance(ax.origin, str)
-                        and 'potential fabrication' in ax.origin]
+        fabrications = [name for name, thm in self.theorems.items()
+                        if isinstance(thm.origin, str)
+                        and 'potential fabrication' in thm.origin]
         if fabrications:
             issues.append(ConsistencyIssue('potential_fabrication', fabrications))
 
@@ -909,6 +1008,7 @@ class System:
     def __repr__(self):
         return (
             f"System({len(self.axioms)} axioms, "
+            f"{len(self.theorems)} theorems, "
             f"{len(self.terms)} terms, "
             f"{len(self.facts)} facts, "
             f"{len(self.diffs)} diffs, "
@@ -945,6 +1045,15 @@ def _resolve_origin(expr) -> 'str | Evidence':
     return origin
 
 
+def _parse_bindings(system, bind_raw):
+    """Convert ((?var val) ...) into {Symbol('?var'): val}.
+
+    Substitution is symbolic — binding values are expression trees,
+    not evaluated results.
+    """
+    return {pair[0]: pair[1] for pair in bind_raw}
+
+
 def _execute_directive(system: System, expr):
     """Execute a single top-level directive."""
     if not isinstance(expr, list) or not expr:
@@ -954,13 +1063,28 @@ def _execute_directive(system: System, expr):
 
     if head == AXIOM:
         name = str(expr[1])
-        wff = expr[2]
+        bind_raw = get_keyword(expr, KW_BIND, None)
+        if bind_raw is not None:
+            ref = str(expr[2])
+            bindings = _parse_bindings(system, bind_raw)
+            wff = system.instantiate(ref, bindings)
+        else:
+            wff = expr[2]
         origin = _resolve_origin(expr)
         system.introduce_axiom(name, wff, origin)
 
     elif head == DEFTERM:
         name = str(expr[1])
-        defn = expr[2]
+        bind_raw = get_keyword(expr, KW_BIND, None)
+        if bind_raw is not None:
+            ref = str(expr[2])
+            bindings = _parse_bindings(system, bind_raw)
+            defn = system.instantiate(ref, bindings)
+        elif len(expr) < 3 or (isinstance(expr[2], str) and expr[2].startswith(':')):
+            # Forward declaration — no definition body
+            defn = None
+        else:
+            defn = expr[2]
         origin = _resolve_origin(expr)
         system.introduce_term(name, defn, origin)
 
@@ -972,10 +1096,16 @@ def _execute_directive(system: System, expr):
 
     elif head == DERIVE:
         name = str(expr[1])
-        wff = expr[2]
         using = get_keyword(expr, KW_USING, [])
         if isinstance(using, list):
             using = [str(s) for s in using]
+        bind_raw = get_keyword(expr, KW_BIND, None)
+        if bind_raw is not None:
+            ref = str(expr[2])
+            bindings = _parse_bindings(system, bind_raw)
+            wff = system.instantiate(ref, bindings)
+        else:
+            wff = expr[2]
         system.derive(name, wff, using)
 
     elif head == DIFF:

@@ -3,19 +3,17 @@ Demo: Parseltongue DSL — Counting Observations & Apple Arithmetic.
 
 Scenario: Build arithmetic from observational field notes about counting
 physical objects, then apply it to an orchard harvest inventory.
-Starts with a minimal custom system (successor, basic arithmetic — no logic
-operators), grounds counting properties in observations, then solves
-real inventory problems with full provenance.
+Starts with a completely empty system, introduces symbols as terms,
+states parameterized axioms grounded in evidence, and derives
+concrete theorems via :bind — all in successor notation.
 """
 
 import os
 import sys
 import json
 import logging
-import operator
 
 from engine import System, load_source
-from lang import Symbol
 
 
 def _print_list(items):
@@ -35,7 +33,6 @@ def main():
     handler.setFormatter(logging.Formatter('  [%(levelname)s] %(message)s'))
     plog.addHandler(handler)
 
-    # Start from nothing — all operations introduced from observations
     s = System(initial_env={}, overridable=True)
     print("=" * 60)
     print("Parseltongue DSL — Counting Observations & Apple Arithmetic")
@@ -51,256 +48,259 @@ def main():
     s.load_document("Orchard Inventory",
                     os.path.join(doc_dir, "orchard_inventory.txt"))
     print(f"  Loaded {len(s.documents)} source documents")
-    for name in s.documents:
-        print(f"    - {name}")
 
     # ----------------------------------------------------------
-    # Phase 1: Minimal system — just successor and equality
+    # Phase 1: Introduce primitive symbols
     # ----------------------------------------------------------
-    print("\n--- Phase 1: Truly minimal system ---")
-    print(f"  Starting with: {s}")
-    print(f"  Operators: succ, =  (nothing else)")
-    print(f"  (succ 0) = {s.evaluate([SUCC, 0])}")
-    print(f"  (succ (succ 0)) = {s.evaluate([SUCC, [SUCC, 0]])}")
-    print(f"  (= (succ 0) 1) = {s.evaluate([Symbol('='), [SUCC, 0], 1])}")
-
-    # ----------------------------------------------------------
-    # Phase 2: Ground zero and successor in observations
-    # ----------------------------------------------------------
-    print("\n--- Phase 2: Ground zero and successor ---")
+    print("\n--- Phase 1: Introduce primitive symbols ---")
+    print(f"  Starting with: {s}  (empty!)")
 
     load_source(s, """
-        (fact zero 0
+        (defterm zero
           :evidence (evidence "Counting Observations"
             :quotes ("An empty basket contains zero apples")
-            :explanation "Zero is the count of an empty collection"))
+            :explanation "Zero: the count of an empty collection"))
 
-        (axiom succ-closure (= (succ zero) 1)
+        (defterm succ
           :evidence (evidence "Counting Observations"
             :quotes ("Every count is reached by adding one to the previous count")
-            :explanation "Successor of any natural number is a natural number"))
-    """)
+            :explanation "Successor: produces the next natural number"))
 
-    print(f"  System now: {s}")
-    _print_list(s.list_facts())
-
-    # ----------------------------------------------------------
-    # Phase 3: Build natural numbers via successor
-    # ----------------------------------------------------------
-    print("\n--- Phase 3: Build natural numbers ---")
-
-    load_source(s, """
-        (defterm one (succ zero)
-          :evidence (evidence "Counting Observations"
-            :quotes ("The first apple makes one")
-            :explanation "1 = succ(0)"))
-
-        (defterm two (succ one)
-          :evidence (evidence "Counting Observations"
-            :quotes ("the second makes two")
-            :explanation "2 = succ(1)"))
-
-        (defterm three (succ two)
-          :evidence (evidence "Counting Observations"
-            :quotes ("Combining 3 apples with 2 apples always gives 5 apples")
-            :explanation "3 = succ(2), referenced in addition trial"))
-
-        (defterm four (succ three)
+        (defterm =
           :evidence (evidence "Counting Observations"
             :quotes ("If both baskets have 4 apples, after swapping they still each have 4")
-            :explanation "4 = succ(3), referenced in swap invariance"))
+            :explanation "Equality: comparing whether two counts are the same"))
 
-        (defterm five (succ four)
+        (defterm +
+          :evidence (evidence "Counting Observations"
+            :quotes ("Combining 3 apples with 2 apples always gives 5 apples")
+            :explanation "Addition: combining two collections"))
+
+        (defterm -
+          :evidence (evidence "Counting Observations"
+            :quotes ("The difference is found by subtracting the smaller count from the larger")
+            :explanation "Subtraction: finding the difference"))
+
+        (defterm >
           :evidence (evidence "Counting Observations"
             :quotes ("If basket A has 5 and basket B has 3, then basket A has more")
-            :explanation "5 = succ(4), referenced in comparison"))
+            :explanation "Greater-than: comparing two counts"))
+
+        (defterm *
+          :evidence (evidence "Counting Observations"
+            :quotes ("Multiplication is a shortcut for counting equal groups")
+            :explanation "Multiplication: repeated addition"))
     """)
 
-    for name in ['one', 'two', 'three', 'four', 'five']:
-        print(f"  {name} = {s.evaluate(Symbol(name))}")
+    print(f"  Introduced: zero, succ, =, +, -, >, *")
+    print(f"  System: {s}")
 
     # ----------------------------------------------------------
-    # Phase 4: Ground arithmetic properties
+    # Phase 2: Axioms of Peano arithmetic
     # ----------------------------------------------------------
-    print("\n--- Phase 4: Arithmetic properties from observations ---")
+    print("\n--- Phase 2: Axioms of Peano arithmetic ---")
 
     load_source(s, """
-        (axiom add-identity (= (+ zero zero) zero)
+        (axiom eq-reflexive (= ?x ?x)
+          :evidence (evidence "Counting Observations"
+            :quotes ("If both baskets have 4 apples, after swapping they still each have 4")
+            :explanation "Equality is reflexive: any count equals itself"))
+
+        (axiom add-identity (= (+ ?n zero) ?n)
           :evidence (evidence "Counting Observations"
             :quotes ("Adding nothing to a basket does not change the count")
             :explanation "Additive identity: n + 0 = n"))
 
-        (axiom add-commutative (= (+ three two) (+ two three))
+        (axiom add-succ (= (+ ?n (succ ?m)) (succ (+ ?n ?m)))
+          :evidence (evidence "Counting Observations"
+            :quotes ("Every count is reached by adding one to the previous count")
+            :explanation "Addition step: n + S(m) = S(n + m)"))
+
+        (axiom add-commutative (= (+ ?a ?b) (+ ?b ?a))
           :evidence (evidence "Counting Observations"
             :quotes ("The order of combining does not matter")
             :explanation "Commutativity: a + b = b + a"))
 
-        (axiom combining-gives-sum (= (+ three two) five)
+        (axiom mul-zero (= (* ?n zero) zero)
           :evidence (evidence "Counting Observations"
-            :quotes ("Combining 3 apples with 2 apples always gives 5 apples")
-            :explanation "Addition produces the sum of both counts"))
+            :quotes ("An empty basket contains zero apples")
+            :explanation "Multiplication by zero: n * 0 = 0"))
+
+        (axiom mul-succ (= (* ?n (succ ?m)) (+ (* ?n ?m) ?n))
+          :evidence (evidence "Counting Observations"
+            :quotes ("Multiplication is a shortcut for counting equal groups")
+            :explanation "Multiplication step: n * S(m) = n*m + n"))
     """)
 
+    print("  Axioms:")
     _print_list(s.list_axioms())
 
     # ----------------------------------------------------------
-    # Phase 5: Ingest morning harvest
+    # Phase 3: Derive concrete theorems via :bind
     # ----------------------------------------------------------
-    print("\n--- Phase 5: Morning harvest ---")
+    print("\n--- Phase 3: Concrete theorems via :bind ---")
+
+    # 3 + 0 = 3
+    load_source(s, """
+        (derive three-plus-zero add-identity
+            :bind ((?n (succ (succ (succ zero)))))
+            :using (add-identity))
+    """)
+
+    # commutativity: SSS0 + SS0 = SS0 + SSS0
+    load_source(s, """
+        (derive commute-3-2 add-commutative
+            :bind ((?a (succ (succ (succ zero))))
+                   (?b (succ (succ zero))))
+            :using (add-commutative))
+    """)
+
+    # addition step: SSS0 + S0 = S(SSS0 + 0)
+    load_source(s, """
+        (derive add-step-3-1 add-succ
+            :bind ((?n (succ (succ (succ zero))))
+                   (?m zero))
+            :using (add-succ))
+    """)
+
+    print("  Concrete theorems:")
+    for name in ['three-plus-zero', 'commute-3-2', 'add-step-3-1']:
+        ax = s.theorems[name]
+        print(f"    {ax}")
+
+    # ----------------------------------------------------------
+    # Phase 4: Orchard inventory — apply arithmetic to real data
+    # ----------------------------------------------------------
+    print("\n--- Phase 4: Orchard inventory ---")
 
     load_source(s, """
-        (fact alice-morning 3
+        (defterm alice-morning (succ (succ (succ zero)))
           :evidence (evidence "Orchard Inventory"
             :quotes ("Alice picked 3 apples from the east grove")
-            :explanation "Alice's morning count"))
+            :explanation "Alice's morning count: SSS0"))
 
-        (fact bob-morning 5
+        (defterm bob-morning (succ (succ (succ (succ (succ zero)))))
           :evidence (evidence "Orchard Inventory"
             :quotes ("Bob picked 5 apples from the west grove")
-            :explanation "Bob's morning count"))
+            :explanation "Bob's morning count: SSSSS0"))
 
-        (defterm morning-total
-            (+ alice-morning bob-morning)
+        (defterm morning-total (+ alice-morning bob-morning)
+          :evidence (evidence "Orchard Inventory"
+            :quotes ("Combined morning harvest was 8 apples")
+            :explanation "Sum of Alice and Bob's morning picks"))
+
+        (defterm bob-picked-more (> bob-morning alice-morning)
+          :evidence (evidence "Orchard Inventory"
+            :quotes ("Bob picked more apples than Alice in the morning")
+            :explanation "Bob's count exceeds Alice's"))
+    """)
+
+    print("  Terms:")
+    _print_list(s.list_terms())
+
+    # ----------------------------------------------------------
+    # Phase 5: Derive morning commutativity from axiom
+    # ----------------------------------------------------------
+    print("\n--- Phase 5: Morning commutativity ---")
+
+    load_source(s, """
+        (derive morning-commutes add-commutative
+            :bind ((?a alice-morning) (?b bob-morning))
+            :using (add-commutative)
             :evidence (evidence "Orchard Inventory"
               :quotes ("Combined morning harvest was 8 apples")
-              :explanation "Sum of Alice and Bob's morning picks"))
-
-        (defterm bob-picked-more
-            (> bob-morning alice-morning)
-            :evidence (evidence "Orchard Inventory"
-              :quotes ("Bob picked more apples than Alice in the morning")
-              :explanation "Bob's count exceeds Alice's"))
+              :explanation "alice + bob = bob + alice"))
     """)
 
-    print(f"  Alice morning: {s.facts['alice-morning']['value']}")
-    print(f"  Bob morning: {s.facts['bob-morning']['value']}")
-    print(f"  Morning total: {s.evaluate(s.terms['morning-total'].definition)}")
-    print(f"  Bob > Alice? {s.evaluate(s.terms['bob-picked-more'].definition)}")
+    ax = s.theorems['morning-commutes']
+    print(f"  {ax}")
 
     # ----------------------------------------------------------
-    # Phase 6: Derive morning results
+    # Phase 6: Afternoon harvest
     # ----------------------------------------------------------
-    print("\n--- Phase 6: Derive morning results ---")
+    print("\n--- Phase 6: Afternoon harvest ---")
 
     load_source(s, """
-        (derive morning-is-8
-            (= (+ alice-morning bob-morning) 8)
-            :using (alice-morning bob-morning))
-
-        (derive bob-beat-alice
-            (> bob-morning alice-morning)
-            :using (alice-morning bob-morning))
-    """)
-
-    _print_list(s.list_axioms())
-
-    # ----------------------------------------------------------
-    # Phase 7: Ingest afternoon harvest
-    # ----------------------------------------------------------
-    print("\n--- Phase 7: Afternoon harvest ---")
-
-    load_source(s, """
-        (fact carol-afternoon 4
+        (defterm carol-afternoon (succ (succ (succ (succ zero))))
           :evidence (evidence "Orchard Inventory"
             :quotes ("Carol picked 4 apples from the south grove")
-            :explanation "Carol's afternoon count"))
+            :explanation "Carol's afternoon count: SSSS0"))
 
-        (fact alice-afternoon 2
+        (defterm alice-afternoon (succ (succ zero))
           :evidence (evidence "Orchard Inventory"
             :quotes ("Alice picked 2 more apples from the east grove")
-            :explanation "Alice's afternoon count"))
+            :explanation "Alice's afternoon count: SS0"))
 
-        (defterm afternoon-total
-            (+ carol-afternoon alice-afternoon)
-            :evidence (evidence "Orchard Inventory"
-              :quotes ("Combined afternoon harvest was 6 apples")
-              :explanation "Sum of Carol and Alice's afternoon picks"))
+        (defterm afternoon-total (+ carol-afternoon alice-afternoon)
+          :evidence (evidence "Orchard Inventory"
+            :quotes ("Combined afternoon harvest was 6 apples")
+            :explanation "Sum of Carol and Alice's afternoon picks"))
 
-        (defterm alice-daily
-            (+ alice-morning alice-afternoon)
-            :evidence (evidence "Orchard Inventory"
-              :quotes ("Alice's daily total is 5 apples")
-              :explanation "Alice's combined morning + afternoon"))
+        (defterm alice-daily (+ alice-morning alice-afternoon)
+          :evidence (evidence "Orchard Inventory"
+            :quotes ("Alice's daily total is 5 apples")
+            :explanation "Alice's combined morning + afternoon"))
+
+        (defterm daily-total (+ morning-total afternoon-total)
+          :evidence (evidence "Orchard Inventory"
+            :quotes ("Total harvest for the day was 14 apples")
+            :explanation "Grand total = morning + afternoon"))
+
+        (defterm morning-advantage (- morning-total afternoon-total)
+          :evidence (evidence "Orchard Inventory"
+            :quotes ("The morning shift outproduced the afternoon by 2 apples")
+            :explanation "Difference between shift totals"))
     """)
 
-    print(f"  Carol afternoon: {s.facts['carol-afternoon']['value']}")
-    print(f"  Alice afternoon: {s.facts['alice-afternoon']['value']}")
-    print(f"  Afternoon total: {s.evaluate(s.terms['afternoon-total'].definition)}")
-    print(f"  Alice daily: {s.evaluate(s.terms['alice-daily'].definition)}")
+    print("  Terms:")
+    for name in ['carol-afternoon', 'alice-afternoon', 'afternoon-total',
+                  'alice-daily', 'daily-total', 'morning-advantage']:
+        t = s.terms[name]
+        print(f"    {t}")
 
     # ----------------------------------------------------------
-    # Phase 8: Derive daily totals
+    # Phase 7: Diff — what if Alice picked more?
     # ----------------------------------------------------------
-    print("\n--- Phase 8: Derive daily totals ---")
+    print("\n--- Phase 7: Diff — what if Alice picked SSSS0 in the morning? ---")
 
     load_source(s, """
-        (defterm daily-total
-            (+ morning-total afternoon-total)
-            :evidence (evidence "Orchard Inventory"
-              :quotes ("Total harvest for the day was 14 apples")
-              :explanation "Grand total = morning + afternoon"))
-
-        (defterm morning-advantage
-            (- morning-total afternoon-total)
-            :evidence (evidence "Orchard Inventory"
-              :quotes ("The morning shift outproduced the afternoon by 2 apples")
-              :explanation "Difference between shift totals"))
-
-        (derive total-is-14
-            (= (+ (+ alice-morning bob-morning) (+ carol-afternoon alice-afternoon)) 14)
-            :using (alice-morning bob-morning carol-afternoon alice-afternoon))
-
-        (derive alice-daily-is-5
-            (= (+ alice-morning alice-afternoon) 5)
-            :using (alice-morning alice-afternoon))
-    """)
-
-    print(f"  Daily total: {s.evaluate(s.terms['daily-total'].definition)}")
-    print(f"  Morning advantage: {s.evaluate(s.terms['morning-advantage'].definition)}")
-    _print_list(s.list_axioms())
-
-    # ----------------------------------------------------------
-    # Phase 9: Diff — what if Alice picked more?
-    # ----------------------------------------------------------
-    print("\n--- Phase 9: Diff — what if Alice picked 4 in the morning? ---")
-
-    load_source(s, """
-        (fact alice-morning-alt 4
-          :origin "Hypothetical: Alice picks 4 instead of 3")
+        (defterm alice-morning-alt (succ (succ (succ (succ zero))))
+          :origin "Hypothetical: Alice picks SSSS0 instead of SSS0")
 
         (diff alice-check
             :replace alice-morning
             :with alice-morning-alt)
     """)
 
-    print(f"  {s.eval_diff('alice-check')}")
+    # ----------------------------------------------------------
+    # Phase 8: Provenance
+    # ----------------------------------------------------------
+    print("\n--- Phase 8: Provenance ---")
+
+    print("  Provenance of morning-commutes:")
+    print(json.dumps(s.provenance('morning-commutes'), indent=2))
 
     # ----------------------------------------------------------
-    # Phase 10: Provenance
+    # Phase 9: Consistency report
     # ----------------------------------------------------------
-    print("\n--- Phase 10: Provenance --- ")
-
-    print("  Provenance of total-is-14:")
-    print(json.dumps(s.provenance('total-is-14'), indent=2))
-
-    print("\n  Provenance of alice-daily-is-5:")
-    print(json.dumps(s.provenance('alice-daily-is-5'), indent=2))
-
-    # ----------------------------------------------------------
-    # Phase 11: Consistency report
-    # ----------------------------------------------------------
-    print("\n--- Phase 11: Consistency report ---")
+    print("\n--- Phase 9: Consistency report ---")
     report = s.consistency()
     print(f"  {report}")
 
-    # Resolve plain-origin items
     print("\n  Resolving unverified items...")
-    load_source(s, """
-           (fact alice-morning-alt 3
-             :origin "Hypothetical: Alice picks 4 instead of 3")
-       """)
     s.verify_manual('alice-morning-alt')
-    s.retract('four')
+    s.verify_manual('eq-reflexive')
+    s.verify_manual('=')
+    report = s.consistency()
+    print(f"\n  After verification:")
+    print(f"  {report}")
+
+    print("\n  Resolving identity items...")
+    load_source(s, """
+        (defterm alice-morning-alt (succ (succ (succ zero)))
+          :origin "Hypothetical: Alice picks SSSS0 instead of SSS0")
+    """)
+    s.verify_manual('alice-morning-alt')
     report = s.consistency()
     print(f"\n  After verification:")
     print(f"  {report}")
@@ -310,18 +310,16 @@ def main():
     # ----------------------------------------------------------
     print("\n" + "=" * 60)
     print(f"Final system: {s}")
-    print("\nAll facts:")
-    _print_list(s.list_facts())
-    print("\nAll terms:")
-    _print_list(s.list_terms())
     print("\nAll axioms:")
     _print_list(s.list_axioms())
+    print("\nAll theorems:")
+    _print_list(s.list_theorems())
 
     print("\n" + "=" * 60)
-    print("Key insight: Arithmetic properties emerge from observational")
-    print("field notes about counting physical objects. The system then")
-    print("applies these grounded operations to a real inventory problem,")
-    print("with every derived fact traceable to source evidence.")
+    print("Peano arithmetic built from observational field notes.")
+    print("Every symbol introduced as a term, every property stated")
+    print("as a parameterized axiom, concrete theorems via :bind.")
+    print("All in successor notation — no numeric primitives.")
     print("=" * 60)
 
 

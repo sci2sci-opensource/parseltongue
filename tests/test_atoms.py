@@ -200,5 +200,59 @@ class TestEvidenceDataclass(unittest.TestCase):
         self.assertTrue(ev.is_grounded)
 
 
+class TestFreeVars(unittest.TestCase):
+
+    def test_simple(self):
+        from atoms import free_vars
+        expr = [Symbol('='), Symbol('?n'), 0]
+        self.assertEqual(free_vars(expr), {Symbol('?n')})
+
+    def test_nested(self):
+        from atoms import free_vars
+        expr = [Symbol('='), [Symbol('+'), Symbol('?a'), Symbol('?b')],
+                [Symbol('+'), Symbol('?b'), Symbol('?a')]]
+        self.assertEqual(free_vars(expr), {Symbol('?a'), Symbol('?b')})
+
+    def test_none(self):
+        from atoms import free_vars
+        expr = [Symbol('+'), 2, 3]
+        self.assertEqual(free_vars(expr), set())
+
+    def test_atom(self):
+        from atoms import free_vars
+        self.assertEqual(free_vars(42), set())
+        self.assertEqual(free_vars(Symbol('?x')), {Symbol('?x')})
+        self.assertEqual(free_vars(Symbol('x')), set())
+
+
+class TestSubstitute(unittest.TestCase):
+
+    def test_simple(self):
+        from atoms import substitute
+        expr = [Symbol('='), Symbol('?n'), 0]
+        result = substitute(expr, {Symbol('?n'): 5})
+        self.assertEqual(result, [Symbol('='), 5, 0])
+
+    def test_nested(self):
+        from atoms import substitute
+        expr = [Symbol('='), [Symbol('+'), Symbol('?a'), Symbol('?b')],
+                [Symbol('+'), Symbol('?b'), Symbol('?a')]]
+        bindings = {Symbol('?a'): 3, Symbol('?b'): 7}
+        result = substitute(expr, bindings)
+        self.assertEqual(result, [Symbol('='), [Symbol('+'), 3, 7],
+                                  [Symbol('+'), 7, 3]])
+
+    def test_no_match(self):
+        from atoms import substitute
+        expr = [Symbol('+'), Symbol('x'), 1]
+        result = substitute(expr, {Symbol('?n'): 5})
+        self.assertEqual(result, [Symbol('+'), Symbol('x'), 1])
+
+    def test_atom_passthrough(self):
+        from atoms import substitute
+        self.assertEqual(substitute(42, {Symbol('?n'): 5}), 42)
+        self.assertEqual(substitute('hello', {Symbol('?n'): 5}), 'hello')
+
+
 if __name__ == '__main__':
     unittest.main()

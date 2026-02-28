@@ -383,6 +383,39 @@ class TestVerification(unittest.TestCase):
 
 
 # ==============================================================
+# Instantiation
+# ==============================================================
+
+class TestInstantiate(unittest.TestCase):
+
+    def test_instantiate_axiom(self):
+        s = make_system()
+        quiet(s.introduce_axiom, 'add-id',
+              [Symbol('='), [Symbol('+'), Symbol('?n'), 0], Symbol('?n')], 'test')
+        result = s.instantiate('add-id', {Symbol('?n'): 5})
+        self.assertEqual(result, [Symbol('='), [Symbol('+'), 5, 0], 5])
+
+    def test_instantiate_term(self):
+        s = make_system()
+        quiet(s.introduce_term, 'sum-template',
+              [Symbol('+'), Symbol('?a'), Symbol('?b')], 'test')
+        result = s.instantiate('sum-template', {Symbol('?a'): 3, Symbol('?b'): 7})
+        self.assertEqual(result, [Symbol('+'), 3, 7])
+
+    def test_instantiate_unknown_raises(self):
+        s = make_system()
+        with self.assertRaises(KeyError):
+            s.instantiate('nonexistent', {Symbol('?n'): 5})
+
+    def test_parameterized_axiom_accepted(self):
+        """Axiom with ?-vars passes _check_wff."""
+        s = make_system()
+        ax = quiet(s.introduce_axiom, 'add-id',
+                   [Symbol('='), [Symbol('+'), Symbol('?n'), 0], Symbol('?n')], 'test')
+        self.assertIn('add-id', s.axioms)
+
+
+# ==============================================================
 # Retract & Rederive
 # ==============================================================
 
