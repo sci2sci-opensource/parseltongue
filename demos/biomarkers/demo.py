@@ -10,12 +10,55 @@ ingests both, derives contradictory conclusions, and flags the conflict.
 import os
 import sys
 import json
+import logging
 
 from engine import System, load_source
 from lang import Symbol
 
 
+def print_facts(facts):
+    for f in facts:
+        origin = f['origin']
+        if isinstance(origin, dict):
+            status = "grounded" if origin.get('grounded') else "UNVERIFIED"
+            tag = f"[evidence: {origin['document']} ({status})]"
+        else:
+            tag = f"[origin: {origin}]"
+        print(f"  {f['name']} = {f['value']} {tag}")
+
+
+def print_terms(terms):
+    for t in terms:
+        origin = t['origin']
+        if isinstance(origin, dict):
+            status = "grounded" if origin.get('grounded') else "UNVERIFIED"
+            tag = f"[evidence: {origin['document']} ({status})]"
+        else:
+            tag = f"[origin: {origin}]"
+        print(f"  {t['name']}: {t['definition']} {tag}")
+
+
+def print_axioms(axioms):
+    for a in axioms:
+        if a['derived']:
+            tag = f"[derived from: {', '.join(a.get('derivation', []))}]"
+        else:
+            origin = a['origin']
+            if isinstance(origin, dict):
+                status = "grounded" if origin.get('grounded') else "UNVERIFIED"
+                tag = f"[evidence: {origin['document']} ({status})]"
+            else:
+                tag = f"[origin: {origin}]"
+        print(f"  {a['name']}: {a['wff']} {tag}")
+
+
 def main():
+    plog = logging.getLogger('parseltongue')
+    plog.setLevel(logging.INFO)
+    handler = logging.StreamHandler(sys.stdout)
+    handler.setFormatter(logging.Formatter('  [%(levelname)s] %(message)s'))
+    plog.addHandler(handler)
+
     s = System(overridable=True)
     print("=" * 60)
     print("Parseltongue DSL — Biomarker Evidence Conflict")
@@ -69,7 +112,7 @@ def main():
     """)
 
     print(f"  System now: {s}")
-    s.list_facts()
+    print_facts(s.list_facts())
 
     # ----------------------------------------------------------
     # Phase 3: Ingest Paper B — specificity concerns
@@ -101,7 +144,7 @@ def main():
     """)
 
     print(f"  System now: {s}")
-    s.list_facts()
+    print_facts(s.list_facts())
 
     # ----------------------------------------------------------
     # Phase 4: Derive contradictory conclusions
@@ -120,7 +163,7 @@ def main():
 
     print("  From Paper A: marker-is-reliable = True (sensitivity 93 > 90)")
     print("  From Paper B: marker-not-standalone = True (specificity 67 < 90)")
-    s.list_axioms()
+    print_axioms(s.list_axioms())
 
     # ----------------------------------------------------------
     # Phase 5: Cross-paper synthesis — clinical utility
@@ -200,11 +243,11 @@ def main():
     print("\n" + "=" * 60)
     print(f"Final system: {s}")
     print("\nAll facts:")
-    s.list_facts()
+    print_facts(s.list_facts())
     print("\nAll terms:")
-    s.list_terms()
+    print_terms(s.list_terms())
     print("\nAll axioms:")
-    s.list_axioms()
+    print_axioms(s.list_axioms())
 
     print("\n" + "=" * 60)
     print("Key insight: Both papers are individually verified, but the")

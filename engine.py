@@ -6,7 +6,10 @@ quote verification, derivation with fabrication propagation.
 """
 
 from typing import Any
+import logging
 import operator
+
+log = logging.getLogger('parseltongue')
 
 from atoms import Symbol
 from lang import (
@@ -229,12 +232,12 @@ class System:
     def _verify_evidence(self, evidence: Evidence) -> Evidence:
         """Verify all quotes in an Evidence object against the registered document.
 
-        Does NOT reject on failure — flags mismatches and prints them.
+        Does NOT reject on failure — flags mismatches via logging.
         Sets evidence.verified and populates evidence.verification.
         """
         if evidence.document not in self.documents:
-            print(f"  [!] Document '{evidence.document}' not registered — "
-                  f"skipping verification")
+            log.warning("Document '%s' not registered — skipping verification",
+                        evidence.document)
             return evidence
 
         results = self._verifier.verify_indexed_quotes(
@@ -245,12 +248,13 @@ class System:
         for r in results:
             if r['verified']:
                 conf = r.get('confidence', {})
-                print(f"  [ok] \"{r['quote']}\" — verified "
-                      f"(confidence: {conf.get('level', '?')})")
+                log.info('Quote verified: "%s" (confidence: %s)',
+                         r['quote'], conf.get('level', '?'))
             else:
                 all_verified = False
                 reason = r.get('reason', 'unknown')
-                print(f"  [!!] \"{r['quote']}\" — NOT VERIFIED ({reason})")
+                log.warning('Quote NOT verified: "%s" (%s)',
+                            r['quote'], reason)
 
         evidence.verified = all_verified
         return evidence
@@ -288,7 +292,7 @@ class System:
             if name in self.terms:
                 self.terms[name].origin = ev
 
-        print(f"  [verify_manual] '{name}' manually marked as grounded")
+        log.info("'%s' manually marked as grounded", name)
 
     # ----------------------------------------------------------
     # Axiom Introduction
@@ -334,7 +338,8 @@ class System:
                 raise ValueError(
                     f"Fact '{name}' already exists. Use retract() first, "
                     f"or create System(overridable=True)")
-            print(f"  [overwrite] '{name}': {self.facts[name]['value']} → {value}")
+            log.info("Overwriting fact '%s': %s → %s",
+                     name, self.facts[name]['value'], value)
 
         if isinstance(origin, Evidence):
             self._verify_evidence(origin)
@@ -394,8 +399,8 @@ class System:
         if ungrounded:
             origin = (f"potential fabrication — derived from unverified: "
                       f"{', '.join(ungrounded)}")
-            print(f"  [!] Derivation '{name}' marked as potential fabrication "
-                  f"(unverified sources: {', '.join(ungrounded)})")
+            log.warning("Derivation '%s' marked as potential fabrication "
+                        "(unverified sources: %s)", name, ', '.join(ungrounded))
         else:
             origin = "derived"
 
@@ -525,7 +530,7 @@ class System:
         every call to eval_diff() or consistency().
         """
         self.diffs[name] = {'replace': replace, 'with': with_}
-        print(f"  [diff] registered '{name}': {replace} vs {with_}")
+        log.debug("Diff registered '%s': %s vs %s", name, replace, with_)
 
     def eval_diff(self, name: str) -> dict:
         """Evaluate a registered diff against current system state."""
@@ -593,7 +598,7 @@ class System:
             del self.env[Symbol(name)]
         if not removed:
             raise KeyError(f"Unknown: {name}")
-        print(f"  [retract] '{name}' removed from system")
+        log.info("'%s' retracted from system", name)
 
     def rederive(self, name: str):
         """Re-run a derivation to refresh its fabrication status.
@@ -612,11 +617,11 @@ class System:
         if ungrounded:
             ax.origin = (f"potential fabrication — derived from unverified: "
                          f"{', '.join(ungrounded)}")
-            print(f"  [rederive] '{name}' still has unverified sources: "
-                  f"{', '.join(ungrounded)}")
+            log.warning("Rederive '%s': still has unverified sources: %s",
+                        name, ', '.join(ungrounded))
         else:
             ax.origin = "derived"
-            print(f"  [rederive] '{name}' sources now verified — cleared")
+            log.info("Rederive '%s': sources now verified — cleared", name)
 
     # ----------------------------------------------------------
     # Introspection
@@ -665,38 +670,57 @@ class System:
 
         return result
 
-    def list_axioms(self):
-        """List all axioms in the system."""
+    def _origin_tag(self, origin) -> str:
+        """Format an origin as a short status tag."""
+        if isinstance(origin, Evidence):
+            status = "grounded" if origin.is_grounded else "UNVERIFIED"
+            return f"[evidence: {origin.document} ({status})]"
+        return f"[origin: {origin}]"
+
+    def list_axioms(self) -> list[dict]:
+        """Return all axioms in the system."""
+        results = []
         for name, ax in self.axioms.items():
+            entry = {
+                'name': name,
+                'wff': to_sexp(ax.wff),
+                'derived': ax.derived,
+                'origin': self._format_origin(ax.origin),
+            }
             if ax.derived:
-                tag = f"[derived from: {', '.join(ax.derivation)}]"
-            elif isinstance(ax.origin, Evidence):
-                status = "grounded" if ax.origin.is_grounded else "UNVERIFIED"
-                tag = f"[evidence: {ax.origin.document} ({status})]"
-            else:
-                tag = f"[origin: {ax.origin}]"
-            print(f"  {name}: {to_sexp(ax.wff)} {tag}")
+                entry['derivation'] = ax.derivation
+            results.append(entry)
+            tag = (f"[derived from: {', '.join(ax.derivation)}]"
+                   if ax.derived else self._origin_tag(ax.origin))
+            log.info("%s: %s %s", name, to_sexp(ax.wff), tag)
+        return results
 
-    def list_terms(self):
-        """List all terms in the system."""
+    def list_terms(self) -> list[dict]:
+        """Return all terms in the system."""
+        results = []
         for name, term in self.terms.items():
-            if isinstance(term.origin, Evidence):
-                status = "grounded" if term.origin.is_grounded else "UNVERIFIED"
-                tag = f"[evidence: {term.origin.document} ({status})]"
-            else:
-                tag = f"[origin: {term.origin}]"
-            print(f"  {name}: {to_sexp(term.definition)} {tag}")
+            results.append({
+                'name': name,
+                'definition': to_sexp(term.definition),
+                'origin': self._format_origin(term.origin),
+            })
+            log.info("%s: %s %s", name, to_sexp(term.definition),
+                     self._origin_tag(term.origin))
+        return results
 
-    def list_facts(self):
-        """List all ground facts."""
+    def list_facts(self) -> list[dict]:
+        """Return all ground facts."""
+        results = []
         for name, info in self.facts.items():
             origin = info.get('origin', '')
-            if isinstance(origin, Evidence):
-                status = "grounded" if origin.is_grounded else "UNVERIFIED"
-                tag = f"[evidence: {origin.document} ({status})]"
-            else:
-                tag = f"[origin: {origin}]"
-            print(f"  {name} = {info['value']} {tag}")
+            results.append({
+                'name': name,
+                'value': info['value'],
+                'origin': self._format_origin(origin),
+            })
+            log.info("%s = %s %s", name, info['value'],
+                     self._origin_tag(origin))
+        return results
 
     def consistency(self) -> dict:
         """Display full consistency state of the system.
@@ -779,29 +803,32 @@ class System:
 
         consistent = len(issues) == 0
 
-        # Display
+        # Log results
         if consistent:
-            print("  [consistent] System is fully consistent")
+            log.info("System is fully consistent")
         else:
-            print(f"  [inconsistent] {len(issues)} issue(s) found:")
+            log.warning("System inconsistent: %d issue(s) found", len(issues))
             for issue in issues:
                 if issue['type'] == 'unverified_evidence':
-                    print(f"    Unverified evidence: {', '.join(issue['items'])}")
+                    log.warning("Unverified evidence: %s",
+                                ', '.join(issue['items']))
                 elif issue['type'] == 'no_evidence':
-                    print(f"    No evidence provided: {', '.join(issue['items'])}")
+                    log.warning("No evidence provided: %s",
+                                ', '.join(issue['items']))
                 elif issue['type'] == 'potential_fabrication':
-                    print(f"    Potential fabrication: {', '.join(issue['items'])}")
+                    log.warning("Potential fabrication: %s",
+                                ', '.join(issue['items']))
                 elif issue['type'] == 'diff_divergence':
                     for d in issue['items']:
-                        print(f"    Diff '{d['name']}': {d['replace']} ({d['value_a']}) "
-                              f"vs {d['with']} ({d['value_b']})")
+                        log.warning("Diff '%s': %s (%s) vs %s (%s)",
+                                    d['name'], d['replace'], d['value_a'],
+                                    d['with'], d['value_b'])
                         for t, (a, b) in d['divergences'].items():
-                            print(f"      {t}: {a} → {b}")
+                            log.warning("  %s: %s → %s", t, a, b)
 
-        if warnings:
-            for w in warnings:
-                if w['type'] == 'manually_verified':
-                    print(f"    [warning] Manually verified: {', '.join(w['items'])}")
+        for w in warnings:
+            if w['type'] == 'manually_verified':
+                log.info("Manually verified: %s", ', '.join(w['items']))
 
         return {'consistent': consistent, 'issues': issues, 'warnings': warnings}
 
