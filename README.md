@@ -28,7 +28,11 @@ export OPENROUTER_API_KEY=sk-...
 ```python
 from parseltongue import System, Pipeline, OpenRouterProvider
 
+
 system = System(overridable=True)
+# overridable=True lets statements overwrite each other (useful for LLM pipelines
+# that may revise facts across passes). Default is False — statements are immutable
+# and must be explicitly retracted before redefining.
 provider = OpenRouterProvider()  # reads OPENROUTER_API_KEY from .env
 
 pipeline = Pipeline(system, provider)
@@ -146,7 +150,7 @@ Parseltongue inverts this. Every axiom, every fact, every primitive term must ci
 
 **Ordinals via system extension.** The system grows by extension. You can start with the built-in operators (arithmetic, logic, comparison), or define your own primitives like `zero` and `succ`, or begin from a blank state — an empty set of symbols. From whatever starting point, you (or, conveniently, an LLM) introduce axioms, derive theorems, define new terms from those theorems, then derive further. Each layer of extension builds on everything below it. This is the ordinal hierarchy — not a static ranking of entity types, but the living growth of the system as it accumulates structure. The `apples` demo builds natural number arithmetic this way: zero, then successor, then addition defined recursively, then commutativity and identity as axioms, then concrete instances derived via `:bind`. The ordinals *are* the objects the system constructs.
 
-**Why this matters.** Each new ordinal — each new fact, term, or axiom added to the system — expands what can be proved. A bare system with only `zero` and `succ` can say nothing about addition. Once you introduce an axiom for addition identity, you can derive that `3 + 0 = 3`. Add commutativity, and you can prove `0 + 3 = 3` too. The same principle applies far beyond arithmetic: extract a revenue figure and a growth target from two business documents, and you can derive whether the target was met; add absolute quarterly figures from a third, and you can cross-check the reported percentage against one computed independently (see `core/demos/revenue_reports/`). Encode diagnostic sensitivity and specificity from competing medical papers, and you can detect when their claims about the same biomarker contradict each other (see `core/demos/biomarkers/`). Each extension unlocks derivations that were previously unreachable — and each derivation is a new opportunity for the engine to catch a contradiction.
+**Why this matters.** Each new ordinal — each new fact, term, or axiom added to the system — expands what can be proved. A bare system with only `zero` and `succ` can say nothing about addition. Once you introduce an axiom for addition identity, you can derive that `3 + 0 = 3`. Add commutativity, and you can prove `0 + 3 = 3` too. The same principle applies far beyond arithmetic: extract a revenue figure and a growth target from two business documents, and you can derive whether the target was met; add absolute quarterly figures from a third, and you can cross-check the reported percentage against one computed independently (see `core/demos/revenue_reports/`). Encode diagnostic sensitivity and specificity from competing medical papers, and you can detect when their claims about the same biomarker contradict each other (see `core/demos/biomarkers/`). Each extension unlocks derivations that were previously unreachable — and each derivation is a new opportunity for the engine to catch a contradiction. This is the core idea from Turing's *Systems of Logic Based on Ordinals* (1939): a sequence of logics, each extending the previous one by adding new axioms, can transcend the limitations of any single formal system. Parseltongue makes this practical — each document you feed it extends the system with new axioms grounded in evidence, and the engine tracks what each extension makes provable.
 
 **Diffs as axiom consistency checks.** Axioms from different sources may contradict each other. Diffs expose this mechanically: register two independent computation paths for the same quantity, and the system replays all dependent evaluations under both assumptions. Where results diverge, the axioms (or the documents grounding them) are inconsistent. This is not a proof of consistency — Godel tells us that's impossible for sufficiently strong systems — but a practical detection mechanism that catches real-world contradictions between documents, data sources, and reported figures.
 
@@ -373,6 +377,8 @@ s = System(initial_env={}, docs={})
 ```
 
 This is how you build domain-specific languages: strip the defaults, introduce your own primitives as facts and forward-declared terms, state your domain axioms with evidence, and let the engine handle consistency and provenance.
+
+The language can support anything you might need: probabilistic logic, temporal identifiers and relationships, pandas functions as primitives, etc. It provably does anything symbolic representation could allow — any base environment for any use case of any domain.
 
 ### Consistency Checking
 
