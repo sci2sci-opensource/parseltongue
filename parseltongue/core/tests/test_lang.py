@@ -37,6 +37,7 @@ from .. import (
 # Symbol Constants
 # ==============================================================
 
+
 class TestSpecialFormConstants(unittest.TestCase):
 
     def test_if(self):
@@ -103,8 +104,7 @@ class TestKeywordArgConstants(unittest.TestCase):
 
     def test_keywords_are_strings_not_symbols(self):
         """Keyword args are plain strings, not Symbol instances."""
-        for kw in (KW_QUOTES, KW_EXPLANATION, KW_ORIGIN, KW_EVIDENCE,
-                   KW_USING, KW_REPLACE, KW_WITH):
+        for kw in (KW_QUOTES, KW_EXPLANATION, KW_ORIGIN, KW_EVIDENCE, KW_USING, KW_REPLACE, KW_WITH):
             self.assertNotIsInstance(kw, Symbol)
             self.assertIsInstance(kw, str)
 
@@ -112,6 +112,7 @@ class TestKeywordArgConstants(unittest.TestCase):
 # ==============================================================
 # Lang Docs
 # ==============================================================
+
 
 class TestLangDocs(unittest.TestCase):
 
@@ -124,8 +125,7 @@ class TestLangDocs(unittest.TestCase):
             self.assertIn(sym, LANG_DOCS, f"{sym} missing from LANG_DOCS")
 
     def test_all_keyword_args_documented(self):
-        for kw in (KW_QUOTES, KW_EXPLANATION, KW_ORIGIN, KW_EVIDENCE,
-                   KW_USING, KW_REPLACE, KW_WITH):
+        for kw in (KW_QUOTES, KW_EXPLANATION, KW_ORIGIN, KW_EVIDENCE, KW_USING, KW_REPLACE, KW_WITH):
             self.assertIn(kw, LANG_DOCS, f"{kw} missing from LANG_DOCS")
 
     def test_doc_entries_have_required_keys(self):
@@ -138,6 +138,7 @@ class TestLangDocs(unittest.TestCase):
 # ==============================================================
 # Backward Compatibility
 # ==============================================================
+
 
 class TestBackwardCompat(unittest.TestCase):
     """Ensure lang re-exports everything from atoms."""
@@ -164,6 +165,7 @@ class TestBackwardCompat(unittest.TestCase):
 # ==============================================================
 # Parse Evidence
 # ==============================================================
+
 
 class TestParseEvidence(unittest.TestCase):
 

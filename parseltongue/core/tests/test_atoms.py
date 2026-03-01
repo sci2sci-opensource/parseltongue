@@ -2,18 +2,7 @@
 
 import unittest
 
-from .. import (
-    Evidence,
-    Symbol,
-    atom,
-    get_keyword,
-    parse,
-    parse_all,
-    to_sexp,
-    tokenize,
-    free_vars,
-    substitute
-)
+from .. import Evidence, Symbol, atom, free_vars, get_keyword, parse, parse_all, substitute, to_sexp, tokenize
 
 
 class TestTokenize(unittest.TestCase):
@@ -215,8 +204,7 @@ class TestFreeVars(unittest.TestCase):
         self.assertEqual(free_vars(expr), {Symbol('?n')})
 
     def test_nested(self):
-        expr = [Symbol('='), [Symbol('+'), Symbol('?a'), Symbol('?b')],
-                [Symbol('+'), Symbol('?b'), Symbol('?a')]]
+        expr = [Symbol('='), [Symbol('+'), Symbol('?a'), Symbol('?b')], [Symbol('+'), Symbol('?b'), Symbol('?a')]]
         self.assertEqual(free_vars(expr), {Symbol('?a'), Symbol('?b')})
 
     def test_none(self):
@@ -237,12 +225,10 @@ class TestSubstitute(unittest.TestCase):
         self.assertEqual(result, [Symbol('='), 5, 0])
 
     def test_nested(self):
-        expr = [Symbol('='), [Symbol('+'), Symbol('?a'), Symbol('?b')],
-                [Symbol('+'), Symbol('?b'), Symbol('?a')]]
+        expr = [Symbol('='), [Symbol('+'), Symbol('?a'), Symbol('?b')], [Symbol('+'), Symbol('?b'), Symbol('?a')]]
         bindings = {Symbol('?a'): 3, Symbol('?b'): 7}
         result = substitute(expr, bindings)
-        self.assertEqual(result, [Symbol('='), [Symbol('+'), 3, 7],
-                                  [Symbol('+'), 7, 3]])
+        self.assertEqual(result, [Symbol('='), [Symbol('+'), 3, 7], [Symbol('+'), 7, 3]])
 
     def test_no_match(self):
         expr = [Symbol('+'), Symbol('x'), 1]

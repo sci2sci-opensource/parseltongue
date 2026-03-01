@@ -25,8 +25,7 @@ class LLMProvider(ABC):
     """Abstract interface for LLM tool-calling completion."""
 
     @abstractmethod
-    def complete(self, messages: list[dict], tools: list[dict],
-                 **kwargs) -> dict:
+    def complete(self, messages: list[dict], tools: list[dict], **kwargs) -> dict:
         """Send messages with tool definitions, return tool call arguments.
 
         The LLM is forced to call exactly one tool (tool_choice="required").
@@ -57,10 +56,13 @@ class OpenRouterProvider(LLMProvider):
             None (default) disables reasoning.
     """
 
-    def __init__(self, model: str = "anthropic/claude-sonnet-4.6",
-                 api_key: str | None = None,
-                 base_url: str = "https://openrouter.ai/api/v1",
-                 reasoning: bool | int | None = None):
+    def __init__(
+        self,
+        model: str = "anthropic/claude-sonnet-4.6",
+        api_key: str | None = None,
+        base_url: str = "https://openrouter.ai/api/v1",
+        reasoning: bool | int | None = None,
+    ):
         load_dotenv()
         self._api_key = api_key or os.environ["OPENROUTER_API_KEY"]
         self._model = model
@@ -77,8 +79,7 @@ class OpenRouterProvider(LLMProvider):
             return {"reasoning": {"max_tokens": self._reasoning}}
         return None
 
-    def complete(self, messages: list[dict], tools: list[dict],
-                 **kwargs) -> dict:
+    def complete(self, messages: list[dict], tools: list[dict], **kwargs) -> dict:
         extra_body = kwargs.pop('extra_body', {})
         reasoning_cfg = self._reasoning_config()
         if reasoning_cfg:
@@ -94,9 +95,9 @@ class OpenRouterProvider(LLMProvider):
         if extra_body:
             create_kwargs['extra_body'] = extra_body
 
-        log.debug("Request params (no messages): %s",
-                  {k: v for k, v in create_kwargs.items()
-                   if k not in ('messages',)})
+        log.debug(
+            "Request params (no messages): %s", {k: v for k, v in create_kwargs.items() if k not in ('messages',)}
+        )
 
         response = self._client.chat.completions.create(**create_kwargs)
 

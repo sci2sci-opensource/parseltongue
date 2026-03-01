@@ -32,9 +32,15 @@ log = logging.getLogger('parseltongue.llm')
 class PipelineResult:
     """Container for the full pipeline result."""
 
-    def __init__(self, output: ResolvedOutput, system: System,
-                 pass1_source: str, pass2_source: str,
-                 pass3_source: str, pass4_raw: str):
+    def __init__(
+        self,
+        output: ResolvedOutput,
+        system: System,
+        pass1_source: str,
+        pass2_source: str,
+        pass3_source: str,
+        pass4_raw: str,
+    ):
         self.output = output
         self.system = system
         self.pass1_source = pass1_source
@@ -59,8 +65,7 @@ class Pipeline:
         self._provider = provider
         self._documents: dict[str, str] = {}
 
-    def add_document(self, name: str, path: str | None = None,
-                     text: str | None = None):
+    def add_document(self, name: str, path: str | None = None, text: str | None = None):
         """Register a source document.
 
         Args:

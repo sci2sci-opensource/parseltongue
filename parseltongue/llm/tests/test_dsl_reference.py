@@ -52,9 +52,12 @@ class TestFormatBlindedState(unittest.TestCase):
 
     def test_shows_axiom_wffs(self):
         s = make_system()
-        quiet(s.introduce_axiom, 'comm',
-              [Symbol('='), [Symbol('+'), Symbol('?a'), Symbol('?b')],
-               [Symbol('+'), Symbol('?b'), Symbol('?a')]], 'test')
+        quiet(
+            s.introduce_axiom,
+            'comm',
+            [Symbol('='), [Symbol('+'), Symbol('?a'), Symbol('?b')], [Symbol('+'), Symbol('?b'), Symbol('?a')]],
+            'test',
+        )
 
         result = format_blinded_state(s)
         self.assertIn('comm', result)

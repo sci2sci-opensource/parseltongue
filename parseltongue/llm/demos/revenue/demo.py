@@ -25,14 +25,12 @@ RESOURCE_DIR = os.path.join(os.path.dirname(__file__), 'resources')
 
 def main():
     parser = argparse.ArgumentParser(description="LLM pipeline demo — revenue reports")
-    parser.add_argument('--no-thinking', action='store_true',
-                        help='Disable extended thinking')
-    parser.add_argument('--reasoning-tokens', type=int, default=None,
-                        help='Set explicit reasoning token budget (default: adaptive)')
-    parser.add_argument('--model', default='anthropic/claude-sonnet-4.6',
-                        help='OpenRouter model ID')
-    parser.add_argument('-v', '--verbose', action='store_true',
-                        help='Show DEBUG-level pipeline logs')
+    parser.add_argument('--no-thinking', action='store_true', help='Disable extended thinking')
+    parser.add_argument(
+        '--reasoning-tokens', type=int, default=None, help='Set explicit reasoning token budget (default: adaptive)'
+    )
+    parser.add_argument('--model', default='anthropic/claude-sonnet-4.6', help='OpenRouter model ID')
+    parser.add_argument('-v', '--verbose', action='store_true', help='Show DEBUG-level pipeline logs')
     args = parser.parse_args()
 
     # Logging
@@ -63,12 +61,9 @@ def main():
     system = System(overridable=True)
 
     pipeline = Pipeline(system, provider)
-    pipeline.add_document("Q3 Report",
-                          path=os.path.join(RESOURCE_DIR, "q3_report.txt"))
-    pipeline.add_document("FY2024 Targets Memo",
-                          path=os.path.join(RESOURCE_DIR, "targets_memo.txt"))
-    pipeline.add_document("Bonus Policy Doc",
-                          path=os.path.join(RESOURCE_DIR, "bonus_policy.txt"))
+    pipeline.add_document("Q3 Report", path=os.path.join(RESOURCE_DIR, "q3_report.txt"))
+    pipeline.add_document("FY2024 Targets Memo", path=os.path.join(RESOURCE_DIR, "targets_memo.txt"))
+    pipeline.add_document("Bonus Policy Doc", path=os.path.join(RESOURCE_DIR, "bonus_policy.txt"))
     print(f"  Documents: {list(system.documents.keys())}")
 
     # --- Run ---

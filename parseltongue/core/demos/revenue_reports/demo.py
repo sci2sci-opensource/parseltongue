@@ -61,7 +61,9 @@ def main():
     # ----------------------------------------------------------
     print("\n--- Phase 2: Ingest Q3 Report (with quote verification) ---")
 
-    load_source(s, """
+    load_source(
+        s,
+        """
         (fact revenue-q3 15.0
           :evidence (evidence "Q3 Report"
             :quotes ("Q3 revenue was $15M")
@@ -71,7 +73,8 @@ def main():
           :evidence (evidence "Q3 Report"
             :quotes ("up 15% year-over-year")
             :explanation "YoY growth percentage"))
-    """)
+    """,
+    )
 
     print(f"  System now: {s}")
     _print_list(s.list_facts())
@@ -81,7 +84,9 @@ def main():
     # ----------------------------------------------------------
     print("\n--- Phase 3: Ingest Targets Memo (with quote verification) ---")
 
-    load_source(s, """
+    load_source(
+        s,
+        """
         (fact growth-target 10
           :evidence (evidence "FY2024 Targets Memo"
             :quotes ("Revenue growth target for FY2024: 10%")
@@ -92,7 +97,8 @@ def main():
             :evidence (evidence "FY2024 Targets Memo"
               :quotes ("Exceeding the growth target is defined as achieving year-over-year revenue growth above the stated target percentage")
               :explanation "Definition of what it means to beat the target"))
-    """)
+    """,
+    )
 
     print(f"  System now: {s}")
 
@@ -101,11 +107,14 @@ def main():
     # ----------------------------------------------------------
     print("\n--- Phase 4: Derivation from verified sources ---")
 
-    load_source(s, """
+    load_source(
+        s,
+        """
         (derive target-exceeded
             (> revenue-q3-growth growth-target)
             :using (revenue-q3-growth growth-target))
-    """)
+    """,
+    )
 
     result = s.evaluate(s.terms['beat-target'].definition)
     print(f"  beat-target evaluates to: {result}")
@@ -123,12 +132,15 @@ def main():
     # ----------------------------------------------------------
     print("\n--- Phase 6: Fabricated quote detection ---")
 
-    load_source(s, """
+    load_source(
+        s,
+        """
         (fact fake-metric 999
           :evidence (evidence "Q3 Report"
             :quotes ("Q3 revenue was $999M, a record-breaking quarter")
             :explanation "This quote does not exist in the document"))
-    """)
+    """,
+    )
 
     print("  fake-metric accepted but flagged:")
     _print_list(s.list_facts())
@@ -138,11 +150,14 @@ def main():
     # ----------------------------------------------------------
     print("\n--- Phase 7: Fabrication propagation ---")
 
-    load_source(s, """
+    load_source(
+        s,
+        """
         (derive uses-fake
             (> fake-metric 0)
             :using (fake-metric))
-    """)
+    """,
+    )
 
     print("  Derivation from unverified source:")
     _print_list(s.list_axioms())
@@ -164,7 +179,9 @@ def main():
     # ----------------------------------------------------------
     print("\n--- Phase 9: Cross-document inference ---")
 
-    load_source(s, """
+    load_source(
+        s,
+        """
         (fact base-salary 150000
           :evidence (evidence "Bonus Policy Doc"
             :quotes ("Base salary for eligible employees is $150,000")
@@ -183,16 +200,20 @@ def main():
               :quotes ("Bonus is 20% of base salary if growth target is exceeded"
                        "Eligibility requires that the quarterly revenue growth exceeds the stated annual growth target")
               :explanation "Bonus calculation formula and eligibility criteria"))
-    """)
+    """,
+    )
 
     amount = s.evaluate(s.terms['bonus-amount'].definition)
     print(f"  Bonus amount: ${amount:,.0f}")
 
-    load_source(s, """
+    load_source(
+        s,
+        """
         (derive bonus-confirmed
             (> (* base-salary bonus-rate) 0)
             :using (base-salary bonus-rate))
-    """)
+    """,
+    )
 
     print("\n  Full provenance of bonus:")
     print(json.dumps(s.provenance('bonus-confirmed'), indent=2))
@@ -203,7 +224,9 @@ def main():
     print("\n--- Phase 10: Diff — cross-source consistency check ---")
 
     # Add absolute revenue figures so we can compute growth independently
-    load_source(s, """
+    load_source(
+        s,
+        """
         (fact revenue-q3-abs 230
           :origin "Q3 Report, revenue table")
 
@@ -214,18 +237,22 @@ def main():
         (defterm revenue-q3-growth-computed
             (* (/ (- revenue-q3-abs revenue-q2) revenue-q2) 100)
             :origin "Derived from Q2/Q3 absolute revenue")
-    """)
+    """,
+    )
 
     computed = s.evaluate(s.terms['revenue-q3-growth-computed'].definition)
     print("  Reported growth: 15%")
     print(f"  Computed growth: {computed:.2f}%")
 
     # Now diff: what changes if we use the computed value instead?
-    load_source(s, """
+    load_source(
+        s,
+        """
         (diff growth-check
             :replace revenue-q3-growth
             :with revenue-q3-growth-computed)
-    """)
+    """,
+    )
 
     print("\n  Diff result:")
     print(f"  {s.eval_diff('growth-check')}")
@@ -261,8 +288,7 @@ def main():
     # Fix 4: Correct revenue-q3-abs — if Q2=210 and growth=15%, Q3=241.5
     # overridable=True: auto-overwrites and recomputes dependent diffs
     print("\n  Fix 4: Correct revenue-q3-abs (auto-recomputes diffs)")
-    s.set_fact('revenue-q3-abs', 241.5,
-               "Corrected: 210 * 1.15 = 241.5 to match reported 15% growth")
+    s.set_fact('revenue-q3-abs', 241.5, "Corrected: 210 * 1.15 = 241.5 to match reported 15% growth")
     s.verify_manual('revenue-q3-abs')
 
     # Check consistency again

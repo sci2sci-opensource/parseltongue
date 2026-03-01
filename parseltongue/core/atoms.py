@@ -12,8 +12,10 @@ from typing import Any
 # S-Expression Reader
 # ============================================================
 
+
 class Symbol(str):
     """A symbol in Parseltongue. Just a string with a distinct type."""
+
     def __repr__(self):
         return f"'{self}"
 
@@ -23,7 +25,7 @@ def tokenize(source: str) -> list[str]:
     tokens = []
     in_string = False
     in_comment = False
-    current = []
+    current: list[str] = []
     for char in source:
         if char == '\n':
             in_comment = False
@@ -140,6 +142,7 @@ def to_sexp(obj) -> str:
 # Data Structures
 # ============================================================
 
+
 def _origin_tag(origin) -> str:
     if isinstance(origin, Evidence):
         return str(origin)
@@ -149,12 +152,13 @@ def _origin_tag(origin) -> str:
 @dataclass
 class Evidence:
     """Structured evidence with verifiable quotes from a source document."""
-    document: str               # registered document name
-    quotes: list[str]           # exact quotes from the document
-    explanation: str = ""       # why these quotes support the claim
+
+    document: str  # registered document name
+    quotes: list[str]  # exact quotes from the document
+    explanation: str = ""  # why these quotes support the claim
     verification: list = field(default_factory=list)  # filled by verifier
-    verified: bool = False      # all quotes verified?
-    verify_manual: bool = False # manually verified by user?
+    verified: bool = False  # all quotes verified?
+    verify_manual: bool = False  # manually verified by user?
 
     @property
     def is_grounded(self) -> bool:
@@ -169,6 +173,7 @@ class Evidence:
 @dataclass
 class Axiom:
     """An axiom: a foundational WFF assumed true, with evidence."""
+
     name: str
     wff: Any
     origin: 'str | Evidence'
@@ -180,6 +185,7 @@ class Axiom:
 @dataclass
 class Theorem:
     """A theorem: a WFF derived from axioms/terms via substitution."""
+
     name: str
     wff: Any
     derivation: list = field(default_factory=list)
@@ -193,6 +199,7 @@ class Theorem:
 @dataclass
 class Term:
     """A term/concept introduced into the system."""
+
     name: str
     definition: Any
     origin: 'str | Evidence'
@@ -205,6 +212,7 @@ class Term:
 # ============================================================
 # DSL Helpers
 # ============================================================
+
 
 def get_keyword(expr, keyword, default=None):
     """Extract a keyword argument from an expression."""

@@ -48,29 +48,29 @@ from .atoms import (  # noqa: F401 — re-export
 # ============================================================
 
 # Special forms — evaluated directly by the interpreter, not via env
-IF    = Symbol('if')
-LET   = Symbol('let')
+IF = Symbol('if')
+LET = Symbol('let')
 
 # DSL keywords — structural symbols of the language
-AXIOM    = Symbol('axiom')
-DEFTERM  = Symbol('defterm')
-FACT     = Symbol('fact')
-DERIVE   = Symbol('derive')
-DIFF     = Symbol('diff')
+AXIOM = Symbol('axiom')
+DEFTERM = Symbol('defterm')
+FACT = Symbol('fact')
+DERIVE = Symbol('derive')
+DIFF = Symbol('diff')
 EVIDENCE = Symbol('evidence')
 
 SPECIAL_FORMS = (IF, LET)
-DSL_KEYWORDS  = (AXIOM, DEFTERM, FACT, DERIVE, DIFF, EVIDENCE)
+DSL_KEYWORDS = (AXIOM, DEFTERM, FACT, DERIVE, DIFF, EVIDENCE)
 
 # Keyword arguments (plain strings, not Symbols — returned by atom() as-is)
-KW_QUOTES      = ':quotes'
+KW_QUOTES = ':quotes'
 KW_EXPLANATION = ':explanation'
-KW_ORIGIN      = ':origin'
-KW_EVIDENCE    = ':evidence'
-KW_USING       = ':using'
-KW_REPLACE     = ':replace'
-KW_WITH        = ':with'
-KW_BIND        = ':bind'
+KW_ORIGIN = ':origin'
+KW_EVIDENCE = ':evidence'
+KW_USING = ':using'
+KW_REPLACE = ':replace'
+KW_WITH = ':with'
+KW_BIND = ':bind'
 
 
 # ============================================================
@@ -84,8 +84,8 @@ LANG_DOCS = {
     IF: {
         'category': 'special',
         'description': 'Conditional evaluation.  Evaluates the then-branch '
-                       'if condition is true, the else-branch otherwise.  '
-                       'Only the taken branch is evaluated (lazy).',
+        'if condition is true, the else-branch otherwise.  '
+        'Only the taken branch is evaluated (lazy).',
         'example': '(if (> x 0) "positive" "non-positive")',
         'expected': '"positive" (when x > 0)',
         'patterns': [
@@ -107,21 +107,19 @@ LANG_DOCS = {
     },
     LET: {
         'category': 'special',
-        'description': 'Local bindings.  Binds names to values in a local '
-                       'scope, then evaluates the body.',
+        'description': 'Local bindings.  Binds names to values in a local ' 'scope, then evaluates the body.',
         'example': '(let ((x 10)) (+ x 5))',
         'expected': 15,
     },
-
     # ----------------------------------------------------------
     # DSL directives
     # ----------------------------------------------------------
     AXIOM: {
         'category': 'directive',
         'description': 'Introduce a well-formed formula as an axiom.  '
-                       'Axioms may contain ?-variables making them '
-                       'parameterised templates that are instantiated '
-                       'later via :bind in a derive directive.',
+        'Axioms may contain ?-variables making them '
+        'parameterised templates that are instantiated '
+        'later via :bind in a derive directive.',
         'example': '(axiom a1 (> x 0) :origin "manual")',
         'patterns': [
             # Simple axiom with :origin
@@ -141,11 +139,11 @@ LANG_DOCS = {
     DEFTERM: {
         'category': 'directive',
         'description': 'Define a named term or concept.  Three forms:\n'
-                       '  1. Forward declaration (no body) — introduces a '
-                       'primitive symbol.\n'
-                       '  2. Computed expression — evaluates when referenced.\n'
-                       '  3. Conditional — uses (if ...) for branching logic.\n'
-                       'Terms resolve automatically when used in expressions.',
+        '  1. Forward declaration (no body) — introduces a '
+        'primitive symbol.\n'
+        '  2. Computed expression — evaluates when referenced.\n'
+        '  3. Conditional — uses (if ...) for branching logic.\n'
+        'Terms resolve automatically when used in expressions.',
         'example': '(defterm total (+ a b) :origin "definition")',
         'patterns': [
             # Forward declaration / primitive symbol (apples demo)
@@ -180,10 +178,10 @@ LANG_DOCS = {
     FACT: {
         'category': 'directive',
         'description': 'Set a ground truth value with evidence.  Facts are '
-                       'added to the evaluation environment so they resolve '
-                       'as values in expressions.  Use :origin for a plain '
-                       'string, or :evidence for a structured, quote-verified '
-                       'evidence block.',
+        'added to the evaluation environment so they resolve '
+        'as values in expressions.  Use :origin for a plain '
+        'string, or :evidence for a structured, quote-verified '
+        'evidence block.',
         'example': '(fact revenue 15 :origin "Q3 report")',
         'patterns': [
             # Simple fact with :origin
@@ -206,12 +204,12 @@ LANG_DOCS = {
     DERIVE: {
         'category': 'directive',
         'description': 'Derive a theorem from existing axioms, facts, or '
-                       'terms listed in :using.  Two modes:\n'
-                       '  1. Direct — provide the WFF to prove.\n'
-                       '  2. Instantiation — name a parameterised axiom/term '
-                       'and supply :bind to substitute ?-variables.\n'
-                       'If any source has unverified evidence, the theorem is '
-                       'marked as a "potential fabrication".',
+        'terms listed in :using.  Two modes:\n'
+        '  1. Direct — provide the WFF to prove.\n'
+        '  2. Instantiation — name a parameterised axiom/term '
+        'and supply :bind to substitute ?-variables.\n'
+        'If any source has unverified evidence, the theorem is '
+        'marked as a "potential fabrication".',
         'example': '(derive d1 (> x 0) :using (x))',
         'patterns': [
             # Direct derivation from facts (revenue demo)
@@ -230,27 +228,21 @@ LANG_DOCS = {
             '      :quotes ("Combined morning harvest was 8 apples")\n'
             '      :explanation "eve + adam = adam + eve"))',
             # Derivation showing fabrication propagation (revenue demo)
-            '(derive uses-fake\n'
-            '    (> fake-metric 0)\n'
-            '    :using (fake-metric))',
+            '(derive uses-fake\n' '    (> fake-metric 0)\n' '    :using (fake-metric))',
         ],
     },
     DIFF: {
         'category': 'directive',
         'description': 'Register a lazy comparison between two symbols.  '
-                       'When evaluated (via eval_diff or consistency), '
-                       'shows how all dependent terms diverge when :replace '
-                       'is swapped with :with.',
+        'When evaluated (via eval_diff or consistency), '
+        'shows how all dependent terms diverge when :replace '
+        'is swapped with :with.',
         'example': '(diff d1 :replace a :with b)',
         'patterns': [
             # Cross-source consistency check (revenue demo)
-            '(diff growth-check\n'
-            '    :replace revenue-q3-growth\n'
-            '    :with revenue-q3-growth-computed)',
+            '(diff growth-check\n' '    :replace revenue-q3-growth\n' '    :with revenue-q3-growth-computed)',
             # Hypothetical scenario (apples demo)
-            '(diff eve-check\n'
-            '    :replace eve-morning\n'
-            '    :with eve-morning-alt)',
+            '(diff eve-check\n' '    :replace eve-morning\n' '    :with eve-morning-alt)',
             # What-if analysis (biomarkers demo)
             '(diff specificity-check\n'
             '    :replace calprotectin-specificity\n'
@@ -260,10 +252,10 @@ LANG_DOCS = {
     EVIDENCE: {
         'category': 'structural',
         'description': 'Structured evidence block with verifiable quotes '
-                       'from a registered source document.  Quotes are '
-                       'checked against the document text; unverified '
-                       'quotes flag the statement and propagate through '
-                       'derivations.',
+        'from a registered source document.  Quotes are '
+        'checked against the document text; unverified '
+        'quotes flag the statement and propagate through '
+        'derivations.',
         'example': '(evidence "Doc" :quotes ("q1") :explanation "reason")',
         'patterns': [
             # Single quote (revenue demo)
@@ -273,48 +265,45 @@ LANG_DOCS = {
             # Multiple quotes (revenue demo)
             '(evidence "Bonus Policy Doc"\n'
             '    :quotes ("Bonus is 20% of base salary if growth target is exceeded"\n'
-            '             "Eligibility requires that the quarterly revenue growth exceeds the stated annual growth target")\n'
+            '             "Eligibility requires that the quarterly revenue growth exceeds the stated annual growth target")\n'  # noqa: E501
             '    :explanation "Bonus calculation formula and eligibility criteria")',
         ],
     },
-
     # ----------------------------------------------------------
     # Keyword arguments
     # ----------------------------------------------------------
     KW_QUOTES: {
         'category': 'keyword',
         'description': 'List of exact quotes from a registered source '
-                       'document.  Verified against the document text.',
+        'document.  Verified against the document text.',
         'example': ':quotes ("quote one" "quote two")',
     },
     KW_EXPLANATION: {
         'category': 'keyword',
-        'description': 'Free-text explanation of why the quotes support '
-                       'the claim being made.',
+        'description': 'Free-text explanation of why the quotes support ' 'the claim being made.',
         'example': ':explanation "revenue figure from Q3"',
     },
     KW_ORIGIN: {
         'category': 'keyword',
         'description': 'Plain-string origin for a fact/axiom/term.  Use '
-                       'when full evidence is not needed (e.g. hypotheticals, '
-                       'synthesised conclusions, manual entries).',
+        'when full evidence is not needed (e.g. hypotheticals, '
+        'synthesised conclusions, manual entries).',
         'example': ':origin "Q3 report"',
     },
     KW_EVIDENCE: {
         'category': 'keyword',
         'description': 'Attach a structured evidence block to a directive.  '
-                       'Preferred over :origin when the claim should be '
-                       'quote-verified against a source document.',
-        'example': ':evidence (evidence "Doc" :quotes ("q1") '
-                   ':explanation "x")',
+        'Preferred over :origin when the claim should be '
+        'quote-verified against a source document.',
+        'example': ':evidence (evidence "Doc" :quotes ("q1") ' ':explanation "x")',
     },
     KW_USING: {
         'category': 'keyword',
         'description': 'List of source names (axioms, facts, terms, or '
-                       'theorems) that a derivation depends on.  Required '
-                       'in derive directives.  If any source has unverified '
-                       'evidence, the derived theorem inherits a fabrication '
-                       'taint.',
+        'theorems) that a derivation depends on.  Required '
+        'in derive directives.  If any source has unverified '
+        'evidence, the derived theorem inherits a fabrication '
+        'taint.',
         'example': ':using (revenue-q3-growth growth-target)',
     },
     KW_REPLACE: {
@@ -330,9 +319,9 @@ LANG_DOCS = {
     KW_BIND: {
         'category': 'keyword',
         'description': 'Bind ?-variables when instantiating a parameterised '
-                       'axiom or term in a derive directive.  Each binding '
-                       'is a (?var value) pair; values are expression trees, '
-                       'not evaluated results.',
+        'axiom or term in a derive directive.  Each binding '
+        'is a (?var value) pair; values are expression trees, '
+        'not evaluated results.',
         'example': ':bind ((?a eve-morning) (?b adam-morning))',
         'patterns': [
             # Single variable binding
@@ -348,6 +337,7 @@ LANG_DOCS = {
 # Evidence Parsing
 # ============================================================
 
+
 def parse_evidence(expr) -> Evidence:
     """Parse an evidence s-expression into an Evidence object.
 
@@ -360,8 +350,7 @@ def parse_evidence(expr) -> Evidence:
         raise SyntaxError(f"Invalid evidence expression: {expr}")
 
     if expr[0] != EVIDENCE:
-        raise SyntaxError(
-            f"Evidence expression must start with 'evidence', got: {expr[0]}")
+        raise SyntaxError(f"Evidence expression must start with 'evidence', got: {expr[0]}")
 
     document = str(expr[1])
     quotes_raw = get_keyword(expr, KW_QUOTES, [])

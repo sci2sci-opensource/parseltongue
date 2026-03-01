@@ -30,12 +30,16 @@ class TestFactDirective(unittest.TestCase):
     def test_fact_with_evidence(self):
         s = make_system()
         quiet(s.register_document, 'Doc', SAMPLE_DOC)
-        quiet(load_source, s, """
+        quiet(
+            load_source,
+            s,
+            """
             (fact rev 15
               :evidence (evidence "Doc"
                 :quotes ("Q3 revenue was $15M")
                 :explanation "revenue figure"))
-        """)
+        """,
+        )
         self.assertIn('rev', s.facts)
         origin = s.facts['rev']['origin']
         self.assertIsInstance(origin, Evidence)
@@ -59,35 +63,47 @@ class TestFactDirective(unittest.TestCase):
     def test_fact_evidence_verified(self):
         s = make_system()
         quiet(s.register_document, 'Doc', SAMPLE_DOC)
-        quiet(load_source, s, """
+        quiet(
+            load_source,
+            s,
+            """
             (fact rev 15
               :evidence (evidence "Doc"
                 :quotes ("Q3 revenue was $15M")
                 :explanation "exact match"))
-        """)
+        """,
+        )
         self.assertTrue(s.facts['rev']['origin'].verified)
 
     def test_fact_evidence_unverified(self):
         s = make_system()
         quiet(s.register_document, 'Doc', SAMPLE_DOC)
-        quiet(load_source, s, """
+        quiet(
+            load_source,
+            s,
+            """
             (fact bad 999
               :evidence (evidence "Doc"
                 :quotes ("This quote is completely fabricated")
                 :explanation "no match"))
-        """)
+        """,
+        )
         self.assertFalse(s.facts['bad']['origin'].verified)
 
     def test_fact_evidence_multiple_quotes(self):
         s = make_system()
         quiet(s.register_document, 'Doc', SAMPLE_DOC)
-        quiet(load_source, s, """
+        quiet(
+            load_source,
+            s,
+            """
             (fact x 10
               :evidence (evidence "Doc"
                 :quotes ("Revenue growth target for FY2024: 10%"
                          "Q3 revenue was $15M")
                 :explanation "two quotes"))
-        """)
+        """,
+        )
         origin = s.facts['x']['origin']
         self.assertEqual(len(origin.quotes), 2)
         self.assertTrue(origin.verified)
@@ -113,12 +129,16 @@ class TestAxiomDirective(unittest.TestCase):
         s = make_system()
         quiet(s.register_document, 'Doc', SAMPLE_DOC)
         quiet(s.set_fact, 'x', 5, 'test')
-        quiet(load_source, s, """
+        quiet(
+            load_source,
+            s,
+            """
             (axiom a2 (> x 0)
               :evidence (evidence "Doc"
                 :quotes ("Revenue growth target for FY2024: 10%")
                 :explanation "test"))
-        """)
+        """,
+        )
         self.assertIsInstance(s.axioms['a2'].origin, Evidence)
 
     def test_axiom_compound_wff(self):
@@ -150,12 +170,16 @@ class TestDeftermDirective(unittest.TestCase):
         s = make_system()
         quiet(s.register_document, 'Doc', SAMPLE_DOC)
         quiet(s.set_fact, 'a', 10, 'test')
-        quiet(load_source, s, """
+        quiet(
+            load_source,
+            s,
+            """
             (defterm double_a (* a 2)
               :evidence (evidence "Doc"
                 :quotes ("Revenue growth target for FY2024: 10%")
                 :explanation "test"))
-        """)
+        """,
+        )
         self.assertIsInstance(s.terms['double_a'].origin, Evidence)
 
     def test_defterm_auto_resolves_as_symbol(self):
@@ -167,11 +191,15 @@ class TestDeftermDirective(unittest.TestCase):
     def test_defterm_with_if(self):
         s = make_system()
         quiet(s.set_fact, 'score', 85, 'test')
-        quiet(load_source, s, """
+        quiet(
+            load_source,
+            s,
+            """
             (defterm grade
                 (if (> score 90) "A" "B")
                 :origin "test")
-        """)
+        """,
+        )
         self.assertEqual(s.evaluate(s.terms['grade'].definition), 'B')
 
     def test_defterm_nested_expression(self):
@@ -185,10 +213,14 @@ class TestDeftermDirective(unittest.TestCase):
     def test_defterm_references_other_term(self):
         s = make_system()
         quiet(s.set_fact, 'x', 5, 'test')
-        quiet(load_source, s, """
+        quiet(
+            load_source,
+            s,
+            """
             (defterm step1 (+ x 1) :origin "test")
             (defterm step2 (* step1 2) :origin "test")
-        """)
+        """,
+        )
         self.assertEqual(s.evaluate(Symbol('step2')), 12)
 
 
@@ -257,10 +289,14 @@ class TestMultipleDirectives(unittest.TestCase):
 
     def test_multiple_in_one_source(self):
         s = make_system()
-        quiet(load_source, s, """
+        quiet(
+            load_source,
+            s,
+            """
             (fact x 10 :origin "test")
             (fact y 20 :origin "test")
-        """)
+        """,
+        )
         self.assertIn('x', s.facts)
         self.assertIn('y', s.facts)
         self.assertEqual(s.facts['x']['value'], 10)
@@ -268,23 +304,31 @@ class TestMultipleDirectives(unittest.TestCase):
 
     def test_comments_ignored(self):
         s = make_system()
-        quiet(load_source, s, """
+        quiet(
+            load_source,
+            s,
+            """
             ;; This is a comment
             (fact x 10 :origin "test")
             ;; Another comment
             (fact y 20 :origin "test")
-        """)
+        """,
+        )
         self.assertIn('x', s.facts)
         self.assertIn('y', s.facts)
 
     def test_mixed_directives(self):
         s = make_system()
-        quiet(load_source, s, """
+        quiet(
+            load_source,
+            s,
+            """
             (fact a 5 :origin "test")
             (fact b 10 :origin "test")
             (defterm sum_ab (+ a b) :origin "test")
             (diff d1 :replace a :with b)
-        """)
+        """,
+        )
         self.assertIn('a', s.facts)
         self.assertIn('sum_ab', s.terms)
         self.assertIn('d1', s.diffs)
@@ -296,8 +340,7 @@ class TestBindDirective(unittest.TestCase):
         s = make_system()
         quiet(s.set_fact, 'x', 5, 'test')
         quiet(s.verify_manual, 'x')
-        quiet(s.introduce_axiom, 'add-id',
-              [Symbol('='), [Symbol('+'), Symbol('?n'), 0], Symbol('?n')], 'test')
+        quiet(s.introduce_axiom, 'add-id', [Symbol('='), [Symbol('+'), Symbol('?n'), 0], Symbol('?n')], 'test')
         quiet(s.verify_manual, 'add-id')
         quiet(load_source, s, '(derive d1 add-id :bind ((?n x)) :using (x add-id))')
         self.assertIn('d1', s.theorems)
@@ -305,8 +348,7 @@ class TestBindDirective(unittest.TestCase):
 
     def test_defterm_with_bind(self):
         s = make_system()
-        quiet(s.introduce_term, 'sum-template',
-              [Symbol('+'), Symbol('?a'), Symbol('?b')], 'test')
+        quiet(s.introduce_term, 'sum-template', [Symbol('+'), Symbol('?a'), Symbol('?b')], 'test')
         quiet(s.set_fact, 'x', 3, 'test')
         quiet(s.set_fact, 'y', 7, 'test')
         quiet(load_source, s, '(defterm total sum-template :bind ((?a x) (?b y)) :origin "test")')
@@ -316,8 +358,7 @@ class TestBindDirective(unittest.TestCase):
 
     def test_axiom_with_bind(self):
         s = make_system()
-        quiet(s.introduce_axiom, 'add-id',
-              [Symbol('='), [Symbol('+'), Symbol('?n'), 0], Symbol('?n')], 'test')
+        quiet(s.introduce_axiom, 'add-id', [Symbol('='), [Symbol('+'), Symbol('?n'), 0], Symbol('?n')], 'test')
         quiet(s.set_fact, 'x', 5, 'test')
         quiet(load_source, s, '(axiom ground-id add-id :bind ((?n x)) :origin "test")')
         self.assertIn('ground-id', s.axioms)
@@ -330,8 +371,7 @@ class TestBindDirective(unittest.TestCase):
         quiet(s.register_document, 'Doc', SAMPLE_DOC)
         quiet(s.set_fact, 'rev', 15, 'test')
         quiet(s.verify_manual, 'rev')
-        quiet(s.introduce_axiom, 'gt-zero',
-              [Symbol('>'), Symbol('?x'), 0], 'test')
+        quiet(s.introduce_axiom, 'gt-zero', [Symbol('>'), Symbol('?x'), 0], 'test')
         quiet(s.verify_manual, 'gt-zero')
         quiet(load_source, s, '(derive d1 gt-zero :bind ((?x rev)) :using (rev gt-zero))')
         self.assertIn('d1', s.theorems)

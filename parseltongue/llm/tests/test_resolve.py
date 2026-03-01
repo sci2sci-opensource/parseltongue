@@ -28,8 +28,7 @@ class TestTagRegex(unittest.TestCase):
         self.assertEqual(matches, [('fact', 'revenue'), ('theorem', 'target-exceeded')])
 
     def test_matches_all_types(self):
-        text = ("[[fact:a]] [[term:b]] [[axiom:c]] "
-                "[[theorem:d]] [[quote:e]] [[diff:f]]")
+        text = "[[fact:a]] [[term:b]] [[axiom:c]] " "[[theorem:d]] [[quote:e]] [[diff:f]]"
         types = [m[0] for m in TAG_RE.findall(text)]
         self.assertEqual(types, ['fact', 'term', 'axiom', 'theorem', 'quote', 'diff'])
 
@@ -99,9 +98,12 @@ class TestResolveAxiom(unittest.TestCase):
 
     def test_resolve_known_axiom(self):
         s = make_system()
-        quiet(s.introduce_axiom, 'add-comm',
-              [Symbol('='), [Symbol('+'), Symbol('?a'), Symbol('?b')],
-               [Symbol('+'), Symbol('?b'), Symbol('?a')]], 'test')
+        quiet(
+            s.introduce_axiom,
+            'add-comm',
+            [Symbol('='), [Symbol('+'), Symbol('?a'), Symbol('?b')], [Symbol('+'), Symbol('?b'), Symbol('?a')]],
+            'test',
+        )
 
         result = resolve_references("[[axiom:add-comm]]", s)
         ref = result.references[0]

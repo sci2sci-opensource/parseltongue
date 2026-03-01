@@ -31,7 +31,13 @@ Repository = "https://github.com/sci2sci-opensource/parseltongue.git"
 Issues = "https://github.com/sci2sci-opensource/parseltongue/issues"
 
 [project.optional-dependencies]
-dev = ["pytest>=7.0"]
+dev = [
+    "pytest>=7.0",
+    "ruff>=0.1.0",
+    "mypy>=1.0.0",
+    "black>=23.0.0",
+    "pre-commit>=3.0.0",
+]
 llm = ["openai>=1.0", "python-dotenv>=1.0"]
 
 [tool.setuptools.packages.find]
@@ -41,5 +47,38 @@ exclude = ["parseltongue.*.tests", "parseltongue.*.tests.*"]
 [tool.setuptools.package-data]
 "*" = ["*.txt", "*.md"]
 
+[tool.black]
+line-length = 120
+target-version = ["py311", "py312"]
+skip-string-normalization = true
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]
+ignore = []
+
+[tool.ruff.lint.per-file-ignores]
+"parseltongue/llm/prompts.py" = ["E501"]
+"parseltongue/core/demos/**" = ["E501"]
+"parseltongue/llm/demos/**" = ["E501"]
+"parseltongue/core/tests/**" = ["E501", "E731", "F841"]
+"parseltongue/llm/tests/**" = ["E501", "F841"]
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = false
+warn_unused_configs = true
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+check_untyped_defs = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+
 [tool.pytest.ini_options]
 testpaths = ["parseltongue/core/tests", "parseltongue/llm/tests"]
+addopts = "-v --tb=short"

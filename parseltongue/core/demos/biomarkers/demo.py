@@ -42,10 +42,8 @@ def main():
     # ----------------------------------------------------------
     print("\n--- Phase 0: Load source papers ---")
     doc_dir = os.path.join(os.path.dirname(__file__), 'resources')
-    s.load_document("Paper A: Diagnostic",
-                    os.path.join(doc_dir, "paper_diagnostic.txt"))
-    s.load_document("Paper B: Specificity",
-                    os.path.join(doc_dir, "paper_specificity.txt"))
+    s.load_document("Paper A: Diagnostic", os.path.join(doc_dir, "paper_diagnostic.txt"))
+    s.load_document("Paper B: Specificity", os.path.join(doc_dir, "paper_specificity.txt"))
     print(f"  Loaded {len(s.documents)} source papers")
     for name in s.documents:
         print(f"    - {name}")
@@ -61,7 +59,9 @@ def main():
     # ----------------------------------------------------------
     print("\n--- Phase 2: Ingest Paper A (diagnostic value) ---")
 
-    load_source(s, """
+    load_source(
+        s,
+        """
         (fact calprotectin-sensitivity 93
           :evidence (evidence "Paper A: Diagnostic"
             :quotes ("Sensitivity of 93% was observed in distinguishing IBD from IBS")
@@ -82,7 +82,8 @@ def main():
             :evidence (evidence "Paper A: Diagnostic"
               :quotes ("Calprotectin is recommended as a first-line non-invasive test before colonoscopy")
               :explanation "Paper A recommends calprotectin as first-line test, implying reliability"))
-    """)
+    """,
+    )
 
     print(f"  System now: {s}")
     _print_list(s.list_facts())
@@ -92,7 +93,9 @@ def main():
     # ----------------------------------------------------------
     print("\n--- Phase 3: Ingest Paper B (specificity concerns) ---")
 
-    load_source(s, """
+    load_source(
+        s,
+        """
         (fact calprotectin-specificity 67
           :evidence (evidence "Paper B: Specificity"
             :quotes ("Specificity of only 67% was observed when non-IBD inflammatory conditions were included")
@@ -114,7 +117,8 @@ def main():
             :evidence (evidence "Paper B: Specificity"
               :quotes ("Calprotectin should not be used as a standalone diagnostic tool for IBD")
               :explanation "Paper B argues standalone use requires both high sensitivity AND specificity"))
-    """)
+    """,
+    )
 
     print(f"  System now: {s}")
     _print_list(s.list_facts())
@@ -124,7 +128,9 @@ def main():
     # ----------------------------------------------------------
     print("\n--- Phase 4: Derive conclusions from each paper ---")
 
-    load_source(s, """
+    load_source(
+        s,
+        """
         (derive marker-is-reliable
             (> calprotectin-sensitivity 90)
             :using (calprotectin-sensitivity))
@@ -132,7 +138,8 @@ def main():
         (derive marker-not-standalone
             (not (> calprotectin-specificity 90))
             :using (calprotectin-specificity))
-    """)
+    """,
+    )
 
     print("  From Paper A: marker-is-reliable = True (sensitivity 93 > 90)")
     print("  From Paper B: marker-not-standalone = True (specificity 67 < 90)")
@@ -143,13 +150,16 @@ def main():
     # ----------------------------------------------------------
     print("\n--- Phase 5: Cross-paper synthesis ---")
 
-    load_source(s, """
+    load_source(
+        s,
+        """
         (defterm clinical-utility
             (if (and reliable-marker standalone-diagnostic)
                 "use-alone"
                 "use-with-confirmation")
             :origin "Synthesized from both papers")
-    """)
+    """,
+    )
 
     utility = s.evaluate(s.terms['clinical-utility'].definition)
     print(f"  clinical-utility = \"{utility}\"")
@@ -165,14 +175,17 @@ def main():
     # ----------------------------------------------------------
     print("\n--- Phase 6: Diff — what if specificity were 95%? ---")
 
-    load_source(s, """
+    load_source(
+        s,
+        """
         (fact calprotectin-specificity-optimistic 95
           :origin "Hypothetical: what if combined approach achieved 95%?")
 
         (diff specificity-check
             :replace calprotectin-specificity
             :with calprotectin-specificity-optimistic)
-    """)
+    """,
+    )
 
     diff_result = s.eval_diff('specificity-check')
     print("\n  Diff result:")

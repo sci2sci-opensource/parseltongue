@@ -68,16 +68,16 @@ class TestPerformance(unittest.TestCase):
     def test_performance_comparison(self):
         """Compare old vs new across document sizes and quote types."""
         scenarios = [
-            ("small  (~0.2 KB)", SMALL_DOC,  200),
-            ("medium (~20 KB)",  MEDIUM_DOC,  50),
-            ("large  (~200 KB)", LARGE_DOC,   5),
+            ("small  (~0.2 KB)", SMALL_DOC, 200),
+            ("medium (~20 KB)", MEDIUM_DOC, 50),
+            ("large  (~200 KB)", LARGE_DOC, 5),
             # ("huge   (~400 KB)",   HUGE_DOC,     2),
             # this one takes looong time
         ]
 
         quote_sets = [
             ("existing", EXISTING_QUOTES),
-            ("missing",  MISSING_QUOTES),
+            ("missing", MISSING_QUOTES),
         ]
 
         print("\n" + "=" * 72)
@@ -86,8 +86,7 @@ class TestPerformance(unittest.TestCase):
 
         for size_label, doc, n_rounds in scenarios:
             for q_label, quotes in quote_sets:
-                old_t, new_t, speedup = self._run_comparison(
-                    doc, quotes, n_rounds, size_label)
+                old_t, new_t, speedup = self._run_comparison(doc, quotes, n_rounds, size_label)
                 print(f"{size_label:<28} {q_label:<10} {old_t:<10.4f} {new_t:<10.4f} {speedup:<10.1f}x")
 
         print("=" * 72)
@@ -130,10 +129,10 @@ class TestPerformance(unittest.TestCase):
 
             for i, (o, n) in enumerate(zip(old_results, new_results)):
                 with self.subTest(doc=doc_label, quote=all_quotes[i]):
-                    self.assertEqual(o["verified"], n["verified"],
-                                     f"verified mismatch for: {all_quotes[i]}")
-                    self.assertEqual(o["original_position"], n["original_position"],
-                                     f"position mismatch for: {all_quotes[i]}")
+                    self.assertEqual(o["verified"], n["verified"], f"verified mismatch for: {all_quotes[i]}")
+                    self.assertEqual(
+                        o["original_position"], n["original_position"], f"position mismatch for: {all_quotes[i]}"
+                    )
 
 
 if __name__ == "__main__":

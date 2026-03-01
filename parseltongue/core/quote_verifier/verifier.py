@@ -85,8 +85,7 @@ class QuoteVerifier:
     # By-text verification (auto-indexes via hash)
     # ------------------------------------------------------------------
 
-    def verify_quote(self, document_text: str, quote: str,
-                     context_length: int = 40) -> Dict:
+    def verify_quote(self, document_text: str, quote: str, context_length: int = 40) -> Dict:
         """Verify a quote against raw document text.
 
         Auto-indexes the document by its content hash if not already indexed.
@@ -103,14 +102,12 @@ class QuoteVerifier:
     # By-name verification (pre-indexed)
     # ------------------------------------------------------------------
 
-    def verify_indexed(self, doc_name: str, quote: str,
-                       context_length: int = 40) -> Dict:
+    def verify_indexed(self, doc_name: str, quote: str, context_length: int = 40) -> Dict:
         """Verify a quote against a pre-indexed document by name."""
         doc = self.index.get(doc_name)
         return self._verify_from_indexed(doc, quote, context_length)
 
-    def verify_indexed_quotes(self, doc_name: str,
-                              quotes: List[str]) -> List[Dict]:
+    def verify_indexed_quotes(self, doc_name: str, quotes: List[str]) -> List[Dict]:
         """Verify multiple quotes against a pre-indexed document by name."""
         doc = self.index.get(doc_name)
         return [self._verify_from_indexed(doc, q) for q in quotes]
@@ -126,8 +123,7 @@ class QuoteVerifier:
             self.index.add(key, text)
         return self.index.get(key)
 
-    def _verify_from_indexed(self, doc: IndexedDocument, quote: str,
-                             context_length: int = 40) -> Dict:
+    def _verify_from_indexed(self, doc: IndexedDocument, quote: str, context_length: int = 40) -> Dict:
         """Core verification against an IndexedDocument."""
         # Pre-validate
         result, ok = self._pre_validate(doc.original_text, quote)
@@ -135,18 +131,14 @@ class QuoteVerifier:
             return result
 
         normalized_quote, _, _ = normalize_with_mapping(quote, self.config)
-        position_info, confidence_info = self._find_quote_position(
-            doc, quote, normalized_quote)
+        position_info, confidence_info = self._find_quote_position(doc, quote, normalized_quote)
 
         verified = (
-            position_info["original"] is not None
-            and confidence_info["score"] >= self.config.confidence_threshold
+            position_info["original"] is not None and confidence_info["score"] >= self.config.confidence_threshold
         )
 
-        original_position = (position_info["original"].start
-                             if position_info["original"] else -1)
-        normalized_position = (position_info["normalized"].start
-                               if position_info["normalized"] else -1)
+        original_position = position_info["original"].start if position_info["original"] else -1
+        normalized_position = position_info["normalized"].start if position_info["normalized"] else -1
 
         context = None
         if position_info["original"]:
@@ -162,9 +154,7 @@ class QuoteVerifier:
             "verified": verified,
             "original_position": original_position,
             "normalized_position": normalized_position,
-            "length": (len(normalized_quote.split())
-                       if normalized_quote.strip()
-                       else len(quote.split())),
+            "length": (len(normalized_quote.split()) if normalized_quote.strip() else len(quote.split())),
         }
 
         if position_info["original"]:
@@ -201,8 +191,7 @@ class QuoteVerifier:
 
         return result
 
-    def _find_quote_position(self, doc: IndexedDocument, quote: str,
-                             normalized_quote: str):
+    def _find_quote_position(self, doc: IndexedDocument, quote: str, normalized_quote: str):
         """Find quote in an indexed document and compute confidence."""
         # Use the inverted index (with space-collapsed fallback)
         normalized_start, normalized_end, strategy = doc.find(normalized_quote)
@@ -219,24 +208,21 @@ class QuoteVerifier:
 
         # Map back to original positions
         original_start = doc.position_map[normalized_start]
-        original_end = doc.position_map[
-            min(normalized_end, len(doc.position_map) - 1)]
+        original_end = doc.position_map[min(normalized_end, len(doc.position_map) - 1)]
 
-        position_info["original"] = Position(
-            start=original_start, end=original_end)
-        position_info["normalized"] = Position(
-            start=normalized_start, end=normalized_end)
+        position_info["original"] = Position(start=original_start, end=original_end)  # type: ignore[assignment]
+        position_info["normalized"] = Position(start=normalized_start, end=normalized_end)  # type: ignore[assignment]
 
         # Extract matched portion and compute transformations
-        matched_portion = doc.original_text[original_start:original_end + 1]
+        matched_portion = doc.original_text[original_start : original_end + 1]
         _, _, matched_trans = normalize_with_mapping(matched_portion, self.config)
         _, _, quote_trans = normalize_with_mapping(quote, self.config)
 
         # Group by type
-        matched_by_type = {}
+        matched_by_type: dict[str, list[NormalizationTransformation]] = {}
         for t in matched_trans:
             matched_by_type.setdefault(t.type, []).append(t)
-        quote_by_type = {}
+        quote_by_type: dict[str, list[NormalizationTransformation]] = {}
         for t in quote_trans:
             quote_by_type.setdefault(t.type, []).append(t)
 
@@ -244,11 +230,13 @@ class QuoteVerifier:
 
         # Match strategy transformation
         if strategy == MatchStrategy.COLLAPSED:
-            relevant.append(NormalizationTransformation(
-                type="collapsed_space_match",
-                description="Matched after collapsing spaces (PDF line-break artifact)",
-                penalty=self.config.get_penalty("collapsed_space_match"),
-            ))
+            relevant.append(
+                NormalizationTransformation(
+                    type="collapsed_space_match",
+                    description="Matched after collapsing spaces (PDF line-break artifact)",
+                    penalty=self.config.get_penalty("collapsed_space_match"),
+                )
+            )
 
         # Non-stopword transformations
         for ttype, transforms in matched_by_type.items():
@@ -276,38 +264,48 @@ class QuoteVerifier:
         matched_only = matched_removed - quote_removed
 
         if quote_only:
-            relevant.append(NormalizationTransformation(
-                type="stopword_removal_difference",
-                description=f"Removed from quote but not from source: {', '.join(quote_only)}",
-                penalty=(self.config.get_penalty("stopword_removal")
-                         * len(quote_only) / max(1, len(quote.split()))),
-            ))
+            relevant.append(
+                NormalizationTransformation(
+                    type="stopword_removal_difference",
+                    description=f"Removed from quote but not from source: {', '.join(quote_only)}",
+                    penalty=(
+                        self.config.get_penalty("stopword_removal") * len(quote_only) / max(1, len(quote.split()))
+                    ),
+                )
+            )
         if matched_only:
-            relevant.append(NormalizationTransformation(
-                type="stopword_removal_difference",
-                description=f"Removed from source but not from quote: {', '.join(matched_only)}",
-                penalty=(self.config.get_penalty("stopword_removal")
-                         * len(matched_only) / max(1, len(matched_portion.split()))),
-            ))
+            relevant.append(
+                NormalizationTransformation(
+                    type="stopword_removal_difference",
+                    description=f"Removed from source but not from quote: {', '.join(matched_only)}",
+                    penalty=(
+                        self.config.get_penalty("stopword_removal")
+                        * len(matched_only)
+                        / max(1, len(matched_portion.split()))
+                    ),
+                )
+            )
 
         # Dangerous stopwords — full penalty, not diluted by word count
-        dangerous_quote = {
-            w for w in quote_only if w.lower() in self.config.dangerous_stopwords}
-        dangerous_matched = {
-            w for w in matched_only if w.lower() in self.config.dangerous_stopwords}
+        dangerous_quote = {w for w in quote_only if w.lower() in self.config.dangerous_stopwords}
+        dangerous_matched = {w for w in matched_only if w.lower() in self.config.dangerous_stopwords}
 
         if dangerous_quote:
-            relevant.append(NormalizationTransformation(
-                type="dangerous_stopword_removal_difference",
-                description=f"Dangerous words removed from quote but not source: {', '.join(dangerous_quote)}",
-                penalty=self.config.get_penalty("dangerous_stopword_removal") * len(dangerous_quote),
-            ))
+            relevant.append(
+                NormalizationTransformation(
+                    type="dangerous_stopword_removal_difference",
+                    description=f"Dangerous words removed from quote but not source: {', '.join(dangerous_quote)}",
+                    penalty=self.config.get_penalty("dangerous_stopword_removal") * len(dangerous_quote),
+                )
+            )
         if dangerous_matched:
-            relevant.append(NormalizationTransformation(
-                type="dangerous_stopword_removal_difference",
-                description=f"Dangerous words removed from source but not quote: {', '.join(dangerous_matched)}",
-                penalty=self.config.get_penalty("dangerous_stopword_removal") * len(dangerous_matched),
-            ))
+            relevant.append(
+                NormalizationTransformation(
+                    type="dangerous_stopword_removal_difference",
+                    description=f"Dangerous words removed from source but not quote: {', '.join(dangerous_matched)}",
+                    penalty=self.config.get_penalty("dangerous_stopword_removal") * len(dangerous_matched),
+                )
+            )
 
         # Compute confidence
         score = 1.0
@@ -332,11 +330,8 @@ class QuoteVerifier:
     # Helpers
     # ------------------------------------------------------------------
 
-    def _get_context(self, document_text: str, start: int, end: int,
-                     context_chars: int = 40) -> dict:
-        if (start < 0 or end < 0
-                or start >= len(document_text)
-                or end >= len(document_text)):
+    def _get_context(self, document_text: str, start: int, end: int, context_chars: int = 40) -> dict:
+        if start < 0 or end < 0 or start >= len(document_text) or end >= len(document_text):
             return {"full": None, "before": "", "after": ""}
 
         ctx_start = max(0, start - context_chars)
@@ -346,14 +341,12 @@ class QuoteVerifier:
         suffix = "..." if ctx_end < len(document_text) else ""
 
         before = document_text[ctx_start:start]
-        after = document_text[end + 1:ctx_end]
-        context = before + document_text[start:end + 1] + document_text[end + 1:ctx_end]
+        after = document_text[end + 1 : ctx_end]
+        context = before + document_text[start : end + 1] + document_text[end + 1 : ctx_end]
 
         match_start = start - ctx_start
         match_end = match_start + (end - start) + 1
-        full = (prefix + context[:match_start]
-                + context[match_start:match_end]
-                + context[match_end:] + suffix)
+        full = prefix + context[:match_start] + context[match_start:match_end] + context[match_end:] + suffix
 
         return {"full": full, "before": before, "after": after}
 
@@ -368,9 +361,7 @@ class QuoteVerifier:
                 "length": 0,
             }, False
 
-        if (len(quote.split()) == 1
-                and quote.lower() in self.config.stopwords
-                and self.config.remove_stopwords):
+        if len(quote.split()) == 1 and quote.lower() in self.config.stopwords and self.config.remove_stopwords:
             return {
                 "quote": quote,
                 "verified": False,
@@ -379,11 +370,13 @@ class QuoteVerifier:
                 "reason": "Quote consists entirely of stopwords",
                 "length": 1,
                 "confidence": {"score": 0.0, "level": ConfidenceLevel.NONE},
-                "transformations": [{
-                    "type": "stopword_removal",
-                    "description": f"Quote '{quote}' is a stopword that would be removed",
-                    "penalty": 1.0,
-                }],
+                "transformations": [
+                    {
+                        "type": "stopword_removal",
+                        "description": f"Quote '{quote}' is a stopword that would be removed",
+                        "penalty": 1.0,
+                    }
+                ],
             }, False
 
         normalized_quote, _, _ = normalize_with_mapping(quote, self.config)
@@ -396,11 +389,13 @@ class QuoteVerifier:
                 "reason": "Quote normalized to empty string",
                 "length": len(quote.split()),
                 "confidence": {"score": 0.0, "level": ConfidenceLevel.NONE},
-                "transformations": [{
-                    "type": "excessive_normalization",
-                    "description": "Normalization removed all content from quote",
-                    "penalty": 1.0,
-                }],
+                "transformations": [
+                    {
+                        "type": "excessive_normalization",
+                        "description": "Normalization removed all content from quote",
+                        "penalty": 1.0,
+                    }
+                ],
             }, False
 
         return None, True
@@ -415,10 +410,8 @@ class QuoteVerifier:
         nq, _, _ = normalize_with_mapping(quote, self.config)
         return self._find_quote_position(doc, quote, nq)
 
-    def get_context(self, document_text, start_pos, end_pos,
-                    context_chars=40):
-        return self._get_context(document_text, start_pos, end_pos,
-                                 context_chars)
+    def get_context(self, document_text, start_pos, end_pos, context_chars=40):
+        return self._get_context(document_text, start_pos, end_pos, context_chars)
 
     def pre_validate(self, document_text, quote):
         return self._pre_validate(document_text, quote)

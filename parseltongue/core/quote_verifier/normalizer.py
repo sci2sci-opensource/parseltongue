@@ -48,6 +48,7 @@ def normalize_with_mapping(
 # Individual normalization steps
 # ------------------------------------------------------------------
 
+
 def _normalize_case(
     text: str,
     config: QuoteVerifierConfig,
@@ -55,11 +56,13 @@ def _normalize_case(
     transformations = []
     if not config.case_sensitive:
         if any(c.isupper() for c in text):
-            transformations.append(NormalizationTransformation(
-                type="case_normalization",
-                description="Converted text to lowercase",
-                penalty=config.get_penalty("case_normalization"),
-            ))
+            transformations.append(
+                NormalizationTransformation(
+                    type="case_normalization",
+                    description="Converted text to lowercase",
+                    penalty=config.get_penalty("case_normalization"),
+                )
+            )
         processed = text.lower()
     else:
         processed = text
@@ -72,7 +75,7 @@ def _normalize_lists(
     position_map: List[int],
     config: QuoteVerifierConfig,
 ) -> Tuple[str, List[int], List[NormalizationTransformation]]:
-    transformations = []
+    transformations: list[NormalizationTransformation] = []
     if not config.normalize_lists:
         return text, position_map, transformations
 
@@ -94,11 +97,13 @@ def _normalize_lists(
             i += 1
 
     if list_items_removed > 0:
-        transformations.append(NormalizationTransformation(
-            type="list_normalization",
-            description=f"Removed {list_items_removed} list item markers",
-            penalty=config.get_penalty("list_normalization"),
-        ))
+        transformations.append(
+            NormalizationTransformation(
+                type="list_normalization",
+                description=f"Removed {list_items_removed} list item markers",
+                penalty=config.get_penalty("list_normalization"),
+            )
+        )
 
     return normalized_text, normalized_map, transformations
 
@@ -108,7 +113,7 @@ def _normalize_hyphenation(
     position_map: List[int],
     config: QuoteVerifierConfig,
 ) -> Tuple[str, List[int], List[NormalizationTransformation]]:
-    transformations = []
+    transformations: list[NormalizationTransformation] = []
     if not config.normalize_hyphenation:
         return text, position_map, transformations
 
@@ -118,12 +123,12 @@ def _normalize_hyphenation(
     i = 0
 
     while i < len(text):
-        if (i < len(text) - 2 and text[i] == '-' and text[i + 1] == '\n'):
-            before_alnum = (i > 0 and text[i - 1].isalnum())
+        if i < len(text) - 2 and text[i] == '-' and text[i + 1] == '\n':
+            before_alnum = i > 0 and text[i - 1].isalnum()
             i += 2
             while i < len(text) and text[i].isspace():
                 i += 1
-            after_alnum = (i < len(text) and text[i].isalnum())
+            after_alnum = i < len(text) and text[i].isalnum()
             if before_alnum and after_alnum:
                 count += 1
                 continue
@@ -141,11 +146,13 @@ def _normalize_hyphenation(
             i += 1
 
     if count > 0:
-        transformations.append(NormalizationTransformation(
-            type="hyphenation_normalization",
-            description=f"Fixed {count} hyphenated word(s) at line breaks",
-            penalty=config.get_penalty("hyphenation_normalization"),
-        ))
+        transformations.append(
+            NormalizationTransformation(
+                type="hyphenation_normalization",
+                description=f"Fixed {count} hyphenated word(s) at line breaks",
+                penalty=config.get_penalty("hyphenation_normalization"),
+            )
+        )
 
     return normalized_text, normalized_map, transformations
 
@@ -163,7 +170,7 @@ def _normalize_punctuation(
     position_map: List[int],
     config: QuoteVerifierConfig,
 ) -> Tuple[str, List[int], List[NormalizationTransformation]]:
-    transformations = []
+    transformations: list[NormalizationTransformation] = []
     if not config.ignore_punctuation:
         return text, position_map, transformations
 
@@ -175,13 +182,11 @@ def _normalize_punctuation(
         if char.isalnum() or char.isspace():
             normalized_text += char
             normalized_map.append(position_map[i])
-        elif (char == '-' and i > 0 and text[i - 1].isalnum()
-              and _next_alnum(text, i)):
+        elif char == '-' and i > 0 and text[i - 1].isalnum() and _next_alnum(text, i):
             # Keep attached hyphens (e.g. "multi-level") — they're word structure
             normalized_text += char
             normalized_map.append(position_map[i])
-        elif (char in ',.' and i > 0 and text[i - 1].isalnum()
-              and i + 1 < len(text) and text[i + 1].isalnum()):
+        elif char in ',.' and i > 0 and text[i - 1].isalnum() and i + 1 < len(text) and text[i + 1].isalnum():
             # Keep commas/dots immediately between alphanums (150,000  3.14)
             normalized_text += char
             normalized_map.append(position_map[i])
@@ -191,11 +196,13 @@ def _normalize_punctuation(
             normalized_map.append(position_map[i])
 
     if count > 0:
-        transformations.append(NormalizationTransformation(
-            type="punctuation_removal",
-            description=f"Removed {count} punctuation character(s)",
-            penalty=config.get_penalty("punctuation_removal"),
-        ))
+        transformations.append(
+            NormalizationTransformation(
+                type="punctuation_removal",
+                description=f"Removed {count} punctuation character(s)",
+                penalty=config.get_penalty("punctuation_removal"),
+            )
+        )
 
     return normalized_text, normalized_map, transformations
 
@@ -205,7 +212,7 @@ def _normalize_stopwords(
     position_map: List[int],
     config: QuoteVerifierConfig,
 ) -> Tuple[str, List[int], List[NormalizationTransformation]]:
-    transformations = []
+    transformations: list[NormalizationTransformation] = []
     if not config.remove_stopwords or not config.stopwords or not text.strip():
         return text, position_map, transformations
 
@@ -223,28 +230,28 @@ def _normalize_stopwords(
         words_to_keep = [words[0]]
         words_to_remove = words[1:]
         removed_stopwords.extend(words_to_remove)
-        removed_dangerous_words = [
-            w for w in words_to_remove if w.lower() in config.dangerous_stopwords
-        ]
-        transformations.append(NormalizationTransformation(
-            type="partial_stopword_removal",
-            description=f"Kept one word to prevent empty result, removed {len(words_to_remove)} stopword(s)",
-            penalty=config.get_penalty("stopword_removal") * 1.5,
-        ))
+        removed_dangerous_words = [w for w in words_to_remove if w.lower() in config.dangerous_stopwords]
+        transformations.append(
+            NormalizationTransformation(
+                type="partial_stopword_removal",
+                description=f"Kept one word to prevent empty result, removed {len(words_to_remove)} stopword(s)",
+                penalty=config.get_penalty("stopword_removal") * 1.5,
+            )
+        )
         normalized_text = words_to_keep[0]
         word_pos = text.lower().find(words_to_keep[0].lower())
         if 0 <= word_pos < len(position_map):
-            normalized_map = position_map[word_pos:word_pos + len(words_to_keep[0])]
+            normalized_map = position_map[word_pos : word_pos + len(words_to_keep[0])]
             return normalized_text, normalized_map, transformations
         else:
-            return normalized_text, position_map[:len(normalized_text)], transformations
+            return normalized_text, position_map[: len(normalized_text)], transformations
 
     # Find word positions in original text
     word_start_positions = []
     current_pos = 0
     for word in words:
         word_lower = word.lower()
-        while current_pos < len(text) and text[current_pos:current_pos + len(word)].lower() != word_lower:
+        while current_pos < len(text) and text[current_pos : current_pos + len(word)].lower() != word_lower:
             current_pos += 1
         if current_pos < len(text):
             word_start_positions.append(current_pos)
@@ -278,23 +285,27 @@ def _normalize_stopwords(
         normalized_text = words[0]
         word_pos = text.lower().find(words[0].lower())
         if 0 <= word_pos < len(position_map):
-            normalized_map = position_map[word_pos:word_pos + len(words[0])]
+            normalized_map = position_map[word_pos : word_pos + len(words[0])]
         else:
-            normalized_map = position_map[:len(normalized_text)]
+            normalized_map = position_map[: len(normalized_text)]
 
     if removed_stopwords:
         if removed_dangerous_words:
-            transformations.append(NormalizationTransformation(
-                type="dangerous_stopword_removal",
-                description=f"Removed potentially meaning-changing words: {', '.join(removed_dangerous_words)}",
-                penalty=config.get_penalty("dangerous_stopword_removal"),
-            ))
+            transformations.append(
+                NormalizationTransformation(
+                    type="dangerous_stopword_removal",
+                    description=f"Removed potentially meaning-changing words: {', '.join(removed_dangerous_words)}",
+                    penalty=config.get_penalty("dangerous_stopword_removal"),
+                )
+            )
         else:
-            transformations.append(NormalizationTransformation(
-                type="stopword_removal",
-                description=f"Removed {len(removed_stopwords)} stopword(s): {', '.join(removed_stopwords)}",
-                penalty=config.get_penalty("stopword_removal"),
-            ))
+            transformations.append(
+                NormalizationTransformation(
+                    type="stopword_removal",
+                    description=f"Removed {len(removed_stopwords)} stopword(s): {', '.join(removed_stopwords)}",
+                    penalty=config.get_penalty("stopword_removal"),
+                )
+            )
 
     return normalized_text, normalized_map, transformations
 
@@ -325,19 +336,23 @@ def _normalize_whitespace(
             in_whitespace = False
 
     if whitespace_normalized:
-        transformations.append(NormalizationTransformation(
-            type="whitespace_normalization",
-            description="Normalized whitespace",
-            penalty=config.get_penalty("whitespace_normalization"),
-        ))
+        transformations.append(
+            NormalizationTransformation(
+                type="whitespace_normalization",
+                description="Normalized whitespace",
+                penalty=config.get_penalty("whitespace_normalization"),
+            )
+        )
 
     stripped = normalized_text.strip()
     if len(stripped) < len(normalized_text):
-        transformations.append(NormalizationTransformation(
-            type="whitespace_trimming",
-            description="Trimmed leading/trailing whitespace",
-            penalty=config.get_penalty("whitespace_trimming"),
-        ))
+        transformations.append(
+            NormalizationTransformation(
+                type="whitespace_trimming",
+                description="Trimmed leading/trailing whitespace",
+                penalty=config.get_penalty("whitespace_trimming"),
+            )
+        )
         start = normalized_text.find(stripped)
         end = start + len(stripped)
         normalized_map = normalized_map[start:end]

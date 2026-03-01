@@ -14,15 +14,20 @@ from .normalizer import normalize_with_mapping
 class IndexedDocument:
     """A single document's pre-processed data with word-position index."""
 
-    __slots__ = ('name', 'original_text', 'normalized_text',
-                 'position_map', 'word_positions',
-                 '_collapsed_text', '_collapsed_to_norm')
+    __slots__ = (
+        'name',
+        'original_text',
+        'normalized_text',
+        'position_map',
+        'word_positions',
+        '_collapsed_text',
+        '_collapsed_to_norm',
+    )
 
     def __init__(self, name: str, text: str, config: QuoteVerifierConfig):
         self.name = name
         self.original_text = text
-        self.normalized_text, self.position_map, _ = normalize_with_mapping(
-            text, config)
+        self.normalized_text, self.position_map, _ = normalize_with_mapping(text, config)
         self.word_positions = self._build_word_index()
         self._collapsed_text, self._collapsed_to_norm = self._build_collapsed()
 
@@ -102,7 +107,7 @@ class IndexedDocument:
 
         for pos in candidates:
             if pos + quote_len <= text_len:
-                if text[pos:pos + quote_len] == normalized_quote:
+                if text[pos : pos + quote_len] == normalized_quote:
                     return pos, pos + quote_len - 1
 
         return -1, -1
@@ -154,7 +159,7 @@ class DocumentIndex:
             raise KeyError(f"Document not indexed: {name}")
         return self.documents[name]
 
-    def find_in(self, name: str, normalized_quote: str) -> Tuple[int, int]:
+    def find_in(self, name: str, normalized_quote: str) -> Tuple[int, int, MatchStrategy]:
         """Find a normalized quote in a named document. Returns (-1, -1) if not found."""
         return self.get(name).find(normalized_quote)
 

@@ -10,8 +10,7 @@ from __future__ import annotations
 from .dsl_reference import format_blinded_state, format_full_state
 
 
-def pass1_messages(doc: str, documents: dict[str, str],
-                   query: str) -> list[dict]:
+def pass1_messages(doc: str, documents: dict[str, str], query: str) -> list[dict]:
     """Build messages for Pass 1 (Extraction).
 
     Args:
@@ -19,10 +18,7 @@ def pass1_messages(doc: str, documents: dict[str, str],
         documents: {name: text} of registered source documents
         query: user's natural language question
     """
-    doc_block = "\n\n".join(
-        f'--- Document: "{name}" ---\n{text}'
-        for name, text in documents.items()
-    )
+    doc_block = "\n\n".join(f'--- Document: "{name}" ---\n{text}' for name, text in documents.items())
 
     system_prompt = f"""You are a Parseltongue extraction agent. Read the source documents and extract structured facts, terms, and axioms as Parseltongue s-expression directives.
 

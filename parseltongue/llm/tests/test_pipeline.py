@@ -8,10 +8,7 @@ from ..pipeline import Pipeline, PipelineResult
 from ..provider import LLMProvider
 from ..resolve import ResolvedOutput
 
-SAMPLE_DOC = (
-    "Q3 revenue was $15M, up 15% year-over-year. "
-    "The growth target for FY2024 was 10%."
-)
+SAMPLE_DOC = "Q3 revenue was $15M, up 15% year-over-year. " "The growth target for FY2024 was 10%."
 
 # ── Canned tool-call responses ──────────────────────────────────
 
@@ -81,12 +78,14 @@ class TestPipelineEndToEnd(unittest.TestCase):
 
     def test_four_pass_pipeline(self):
         system = make_system(overridable=True)
-        provider = MockProvider([
-            {"dsl_output": PASS1_DSL},
-            {"dsl_output": PASS2_DSL},
-            {"dsl_output": PASS3_DSL},
-            {"markdown": PASS4_MARKDOWN},
-        ])
+        provider = MockProvider(
+            [
+                {"dsl_output": PASS1_DSL},
+                {"dsl_output": PASS2_DSL},
+                {"dsl_output": PASS3_DSL},
+                {"markdown": PASS4_MARKDOWN},
+            ]
+        )
 
         pipeline = Pipeline(system, provider)
         pipeline.add_document("Report", text=SAMPLE_DOC)
@@ -122,12 +121,14 @@ class TestPipelineEndToEnd(unittest.TestCase):
 
     def test_references_resolved(self):
         system = make_system(overridable=True)
-        provider = MockProvider([
-            {"dsl_output": PASS1_DSL},
-            {"dsl_output": PASS2_DSL},
-            {"dsl_output": PASS3_DSL},
-            {"markdown": PASS4_MARKDOWN},
-        ])
+        provider = MockProvider(
+            [
+                {"dsl_output": PASS1_DSL},
+                {"dsl_output": PASS2_DSL},
+                {"dsl_output": PASS3_DSL},
+                {"markdown": PASS4_MARKDOWN},
+            ]
+        )
 
         pipeline = Pipeline(system, provider)
         pipeline.add_document("Report", text=SAMPLE_DOC)
@@ -166,12 +167,14 @@ class TestPipelineEndToEnd(unittest.TestCase):
 
     def test_provider_called_four_times(self):
         system = make_system(overridable=True)
-        provider = MockProvider([
-            {"dsl_output": PASS1_DSL},
-            {"dsl_output": PASS2_DSL},
-            {"dsl_output": PASS3_DSL},
-            {"markdown": PASS4_MARKDOWN},
-        ])
+        provider = MockProvider(
+            [
+                {"dsl_output": PASS1_DSL},
+                {"dsl_output": PASS2_DSL},
+                {"dsl_output": PASS3_DSL},
+                {"markdown": PASS4_MARKDOWN},
+            ]
+        )
 
         pipeline = Pipeline(system, provider)
         pipeline.add_document("Report", text=SAMPLE_DOC)
@@ -183,12 +186,14 @@ class TestPipelineEndToEnd(unittest.TestCase):
 
     def test_str_returns_markdown(self):
         system = make_system(overridable=True)
-        provider = MockProvider([
-            {"dsl_output": PASS1_DSL},
-            {"dsl_output": PASS2_DSL},
-            {"dsl_output": PASS3_DSL},
-            {"markdown": PASS4_MARKDOWN},
-        ])
+        provider = MockProvider(
+            [
+                {"dsl_output": PASS1_DSL},
+                {"dsl_output": PASS2_DSL},
+                {"dsl_output": PASS3_DSL},
+                {"markdown": PASS4_MARKDOWN},
+            ]
+        )
 
         pipeline = Pipeline(system, provider)
         pipeline.add_document("Report", text=SAMPLE_DOC)

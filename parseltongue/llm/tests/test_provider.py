@@ -4,10 +4,9 @@ import json
 import unittest
 from unittest.mock import MagicMock, patch
 
+from .. import provider
 from ..provider import LLMProvider, OpenRouterProvider
 from ..tools import ANSWER_TOOL, EXTRACT_TOOL
-from .. import provider
-
 
 
 class TestLLMProviderInterface(unittest.TestCase):

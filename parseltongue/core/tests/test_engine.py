@@ -31,10 +31,7 @@ from .. import (
 )
 
 # Reusable sample document text for evidence verification tests.
-SAMPLE_DOC = (
-    "Q3 revenue was $15M, up 15% year-over-year. "
-    "Operating margin improved to 22%."
-)
+SAMPLE_DOC = "Q3 revenue was $15M, up 15% year-over-year. " "Operating margin improved to 22%."
 
 
 def make_system(**kwargs):
@@ -52,6 +49,7 @@ def quiet(fn, *args, **kwargs):
 # ==============================================================
 # Evaluation
 # ==============================================================
+
 
 class TestEvaluation(unittest.TestCase):
 
@@ -124,9 +122,7 @@ class TestEvaluation(unittest.TestCase):
         self.assertEqual(self.s.evaluate(expr), 1)
 
     def test_if_nested(self):
-        expr = [Symbol('if'), True,
-                    [Symbol('if'), False, 1, 2],
-                    3]
+        expr = [Symbol('if'), True, [Symbol('if'), False, 1, 2], 3]
         self.assertEqual(self.s.evaluate(expr), 2)
 
     def test_if_only_evaluates_taken_branch(self):
@@ -138,9 +134,7 @@ class TestEvaluation(unittest.TestCase):
         self.assertEqual(self.s.evaluate(expr), 99)
 
     def test_if_with_expressions_in_branches(self):
-        expr = [Symbol('if'), [Symbol('<'), 2, 8],
-                    [Symbol('+'), 10, 20],
-                    [Symbol('*'), 5, 5]]
+        expr = [Symbol('if'), [Symbol('<'), 2, 8], [Symbol('+'), 10, 20], [Symbol('*'), 5, 5]]
         self.assertEqual(self.s.evaluate(expr), 30)
 
     def test_let(self):
@@ -148,16 +142,12 @@ class TestEvaluation(unittest.TestCase):
         self.assertEqual(self.s.evaluate(expr), 15)
 
     def test_let_multiple_bindings(self):
-        expr = [Symbol('let'),
-                [[Symbol('a'), 3], [Symbol('b'), 7]],
-                [Symbol('+'), Symbol('a'), Symbol('b')]]
+        expr = [Symbol('let'), [[Symbol('a'), 3], [Symbol('b'), 7]], [Symbol('+'), Symbol('a'), Symbol('b')]]
         self.assertEqual(self.s.evaluate(expr), 10)
 
     def test_let_sequential_bindings(self):
         """Later bindings can reference earlier ones."""
-        expr = [Symbol('let'),
-                [[Symbol('x'), 5], [Symbol('y'), [Symbol('+'), Symbol('x'), 1]]],
-                Symbol('y')]
+        expr = [Symbol('let'), [[Symbol('x'), 5], [Symbol('y'), [Symbol('+'), Symbol('x'), 1]]], Symbol('y')]
         self.assertEqual(self.s.evaluate(expr), 6)
 
     def test_let_shadows_outer(self):
@@ -169,15 +159,15 @@ class TestEvaluation(unittest.TestCase):
         self.assertEqual(self.s.env[Symbol('x')], 100)
 
     def test_let_nested(self):
-        expr = [Symbol('let'), [[Symbol('x'), 2]],
-                [Symbol('let'), [[Symbol('y'), 3]],
-                 [Symbol('*'), Symbol('x'), Symbol('y')]]]
+        expr = [
+            Symbol('let'),
+            [[Symbol('x'), 2]],
+            [Symbol('let'), [[Symbol('y'), 3]], [Symbol('*'), Symbol('x'), Symbol('y')]],
+        ]
         self.assertEqual(self.s.evaluate(expr), 6)
 
     def test_let_computed_values(self):
-        expr = [Symbol('let'),
-                [[Symbol('x'), [Symbol('*'), 3, 4]]],
-                [Symbol('+'), Symbol('x'), 1]]
+        expr = [Symbol('let'), [[Symbol('x'), [Symbol('*'), 3, 4]]], [Symbol('+'), Symbol('x'), 1]]
         self.assertEqual(self.s.evaluate(expr), 13)
 
     def test_nested(self):
@@ -194,16 +184,14 @@ class TestEvaluation(unittest.TestCase):
         self.assertEqual(self.s.evaluate(True), True)
 
     def test_local_env(self):
-        result = self.s.evaluate(
-            [Symbol('+'), Symbol('x'), 1],
-            {Symbol('x'): 10}
-        )
+        result = self.s.evaluate([Symbol('+'), Symbol('x'), 1], {Symbol('x'): 10})
         self.assertEqual(result, 11)
 
 
 # ==============================================================
 # Facts & Overridable Flag
 # ==============================================================
+
 
 class TestFacts(unittest.TestCase):
 
@@ -245,6 +233,7 @@ class TestFacts(unittest.TestCase):
 # Axioms
 # ==============================================================
 
+
 class TestAxioms(unittest.TestCase):
 
     def test_introduce_axiom_string_origin(self):
@@ -273,26 +262,31 @@ class TestAxioms(unittest.TestCase):
         s = make_system()
         quiet(s.set_fact, 'x', 5, 'test')
         quiet(s.set_fact, 'y', 10, 'test')
-        ax = quiet(s.introduce_axiom, 'a3',
-                   [Symbol('='), [Symbol('if'), [Symbol('>'), Symbol('x'), 0],
-                                  Symbol('y'), 0], Symbol('y')], 'test')
+        ax = quiet(
+            s.introduce_axiom,
+            'a3',
+            [Symbol('='), [Symbol('if'), [Symbol('>'), Symbol('x'), 0], Symbol('y'), 0], Symbol('y')],
+            'test',
+        )
         self.assertIn('a3', s.axioms)
 
     def test_axiom_with_let_in_wff(self):
         """Axioms can use 'let' in their WFF."""
         s = make_system()
         quiet(s.set_fact, 'x', 5, 'test')
-        ax = quiet(s.introduce_axiom, 'a4',
-                   [Symbol('='),
-                    [Symbol('let'), [[Symbol('z'), Symbol('x')]],
-                     [Symbol('+'), Symbol('z'), 1]],
-                    6], 'test')
+        ax = quiet(
+            s.introduce_axiom,
+            'a4',
+            [Symbol('='), [Symbol('let'), [[Symbol('z'), Symbol('x')]], [Symbol('+'), Symbol('z'), 1]], 6],
+            'test',
+        )
         self.assertIn('a4', s.axioms)
 
 
 # ==============================================================
 # Terms
 # ==============================================================
+
 
 class TestTerms(unittest.TestCase):
 
@@ -319,6 +313,7 @@ class TestTerms(unittest.TestCase):
 # ==============================================================
 # Derivation & Fabrication Propagation
 # ==============================================================
+
 
 class TestDerivation(unittest.TestCase):
 
@@ -356,8 +351,7 @@ class TestDerivation(unittest.TestCase):
         quiet(s.set_fact, 'bad', 999, ev)
         quiet(s.derive, 'tainted', [Symbol('>'), Symbol('bad'), 0], ['bad'])
         # Now derive from tainted
-        thm2 = quiet(s.derive, 'double_tainted',
-                      [Symbol('>'), Symbol('bad'), 0], ['tainted'])
+        thm2 = quiet(s.derive, 'double_tainted', [Symbol('>'), Symbol('bad'), 0], ['tainted'])
         self.assertIn('potential fabrication', thm2.origin)
 
     def test_derive_unknown_source_raises(self):
@@ -369,6 +363,7 @@ class TestDerivation(unittest.TestCase):
 # ==============================================================
 # Evidence Verification & Manual Override
 # ==============================================================
+
 
 class TestVerification(unittest.TestCase):
 
@@ -423,19 +418,18 @@ class TestVerification(unittest.TestCase):
 # Instantiation
 # ==============================================================
 
+
 class TestInstantiate(unittest.TestCase):
 
     def test_instantiate_axiom(self):
         s = make_system()
-        quiet(s.introduce_axiom, 'add-id',
-              [Symbol('='), [Symbol('+'), Symbol('?n'), 0], Symbol('?n')], 'test')
+        quiet(s.introduce_axiom, 'add-id', [Symbol('='), [Symbol('+'), Symbol('?n'), 0], Symbol('?n')], 'test')
         result = s.instantiate('add-id', {Symbol('?n'): 5})
         self.assertEqual(result, [Symbol('='), [Symbol('+'), 5, 0], 5])
 
     def test_instantiate_term(self):
         s = make_system()
-        quiet(s.introduce_term, 'sum-template',
-              [Symbol('+'), Symbol('?a'), Symbol('?b')], 'test')
+        quiet(s.introduce_term, 'sum-template', [Symbol('+'), Symbol('?a'), Symbol('?b')], 'test')
         result = s.instantiate('sum-template', {Symbol('?a'): 3, Symbol('?b'): 7})
         self.assertEqual(result, [Symbol('+'), 3, 7])
 
@@ -447,14 +441,14 @@ class TestInstantiate(unittest.TestCase):
     def test_parameterized_axiom_accepted(self):
         """Axiom with ?-vars passes _check_wff."""
         s = make_system()
-        ax = quiet(s.introduce_axiom, 'add-id',
-                   [Symbol('='), [Symbol('+'), Symbol('?n'), 0], Symbol('?n')], 'test')
+        ax = quiet(s.introduce_axiom, 'add-id', [Symbol('='), [Symbol('+'), Symbol('?n'), 0], Symbol('?n')], 'test')
         self.assertIn('add-id', s.axioms)
 
 
 # ==============================================================
 # Retract & Rederive
 # ==============================================================
+
 
 class TestRetract(unittest.TestCase):
 
@@ -527,6 +521,7 @@ class TestRederive(unittest.TestCase):
 # Diff (Lazy)
 # ==============================================================
 
+
 class TestDiff(unittest.TestCase):
 
     def test_register_stores_params(self):
@@ -552,8 +547,7 @@ class TestDiff(unittest.TestCase):
         s = make_system()
         quiet(s.set_fact, 'a', 10, 'test')
         quiet(s.set_fact, 'b', 20, 'test')
-        quiet(s.introduce_term, 'double_a',
-              [Symbol('*'), Symbol('a'), 2], 'test')
+        quiet(s.introduce_term, 'double_a', [Symbol('*'), Symbol('a'), 2], 'test')
         quiet(s.register_diff, 'd1', 'a', 'b')
         result = s.eval_diff('d1')
         self.assertFalse(result.empty)
@@ -587,9 +581,12 @@ class TestDiff(unittest.TestCase):
         quiet(s.set_fact, 'growth', 15, 'test')
         quiet(s.set_fact, 'target', 10, 'test')
         quiet(s.set_fact, 'alt_growth', 5, 'test')
-        quiet(s.introduce_term, 'beat',
-              [Symbol('if'), [Symbol('>'), Symbol('growth'), Symbol('target')],
-               True, False], 'test')
+        quiet(
+            s.introduce_term,
+            'beat',
+            [Symbol('if'), [Symbol('>'), Symbol('growth'), Symbol('target')], True, False],
+            'test',
+        )
         quiet(s.register_diff, 'd1', 'growth', 'alt_growth')
         result = s.eval_diff('d1')
         self.assertFalse(result.empty)
@@ -601,6 +598,7 @@ class TestDiff(unittest.TestCase):
 # ==============================================================
 # Consistency
 # ==============================================================
+
 
 class TestConsistency(unittest.TestCase):
 
@@ -685,6 +683,7 @@ class TestConsistency(unittest.TestCase):
 # Provenance
 # ==============================================================
 
+
 class TestProvenance(unittest.TestCase):
 
     def test_fact_provenance(self):
@@ -740,6 +739,7 @@ class TestProvenance(unittest.TestCase):
 # __repr__
 # ==============================================================
 
+
 class TestRepr(unittest.TestCase):
 
     def test_repr(self):
@@ -756,6 +756,7 @@ class TestRepr(unittest.TestCase):
 # ==============================================================
 # Operator Constants
 # ==============================================================
+
 
 class TestOperatorConstants(unittest.TestCase):
 
@@ -794,6 +795,7 @@ class TestOperatorConstants(unittest.TestCase):
 # Engine Docs
 # ==============================================================
 
+
 class TestEngineDocs(unittest.TestCase):
 
     def test_all_operators_documented(self):
@@ -811,6 +813,7 @@ class TestEngineDocs(unittest.TestCase):
 # ==============================================================
 # DEFAULT_OPERATORS & Configurable Init
 # ==============================================================
+
 
 class TestDefaultOperators(unittest.TestCase):
 
@@ -855,6 +858,7 @@ class TestDefaultOperators(unittest.TestCase):
 # ==============================================================
 # doc() Method
 # ==============================================================
+
 
 class TestDoc(unittest.TestCase):
 
@@ -953,7 +957,7 @@ class TestDoc(unittest.TestCase):
                 'description': 'Doubles a value',
                 'example': '(double 5)',
                 'expected': '10',
-            }
+            },
         }
         s = make_system(
             initial_env={**DEFAULT_OPERATORS, custom_sym: lambda x: x * 2},
@@ -980,6 +984,7 @@ class TestDoc(unittest.TestCase):
 # ==============================================================
 # Evidence with Formatted Numbers (integration)
 # ==============================================================
+
 
 class TestEvidenceFormattedNumbers(unittest.TestCase):
     """Verify that quotes with dollar amounts, dotted symbols, and
@@ -1030,8 +1035,7 @@ class TestEvidenceFormattedNumbers(unittest.TestCase):
         ev = Evidence(document='Doc', quotes=['Base salary is $999,999'])
         quiet(self.s.set_fact, 'wrong-salary', 999999, ev)
         self.assertFalse(ev.verified)
-        thm = quiet(self.s.derive, 'd1',
-                     [Symbol('>'), Symbol('wrong-salary'), 0], ['wrong-salary'])
+        thm = quiet(self.s.derive, 'd1', [Symbol('>'), Symbol('wrong-salary'), 0], ['wrong-salary'])
         self.assertIn('potential fabrication', thm.origin)
 
 

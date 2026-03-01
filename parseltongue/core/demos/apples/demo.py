@@ -43,10 +43,8 @@ def main():
     # ----------------------------------------------------------
     print("\n--- Phase 0: Load source documents ---")
     doc_dir = os.path.join(os.path.dirname(__file__), 'resources')
-    s.load_document("Counting Observations",
-                    os.path.join(doc_dir, "counting_observations.txt"))
-    s.load_document("Eden Inventory",
-                    os.path.join(doc_dir, "eden_inventory.txt"))
+    s.load_document("Counting Observations", os.path.join(doc_dir, "counting_observations.txt"))
+    s.load_document("Eden Inventory", os.path.join(doc_dir, "eden_inventory.txt"))
     print(f"  Loaded {len(s.documents)} source documents")
 
     # ----------------------------------------------------------
@@ -55,7 +53,9 @@ def main():
     print("\n--- Phase 1: Introduce primitive symbols ---")
     print(f"  Starting with: {s}  (empty!)")
 
-    load_source(s, """
+    load_source(
+        s,
+        """
         (defterm zero
           :evidence (evidence "Counting Observations"
             :quotes ("An empty basket contains zero apples")
@@ -90,7 +90,8 @@ def main():
           :evidence (evidence "Counting Observations"
             :quotes ("Multiplication is a shortcut for counting equal groups")
             :explanation "Multiplication: repeated addition"))
-    """)
+    """,
+    )
 
     print("  Introduced: zero, succ, =, +, -, >, *")
     print(f"  System: {s}")
@@ -100,7 +101,9 @@ def main():
     # ----------------------------------------------------------
     print("\n--- Phase 2: Axioms of Peano arithmetic ---")
 
-    load_source(s, """
+    load_source(
+        s,
+        """
         (axiom eq-reflexive (= ?x ?x)
           :evidence (evidence "Counting Observations"
             :quotes ("If both baskets have 4 apples, after swapping they still each have 4")
@@ -130,7 +133,8 @@ def main():
           :evidence (evidence "Counting Observations"
             :quotes ("Multiplication is a shortcut for counting equal groups")
             :explanation "Multiplication step: n * S(m) = n*m + n"))
-    """)
+    """,
+    )
 
     print("  Axioms:")
     _print_list(s.list_axioms())
@@ -141,27 +145,36 @@ def main():
     print("\n--- Phase 3: Concrete theorems via :bind ---")
 
     # 3 + 0 = 3
-    load_source(s, """
+    load_source(
+        s,
+        """
         (derive three-plus-zero add-identity
             :bind ((?n (succ (succ (succ zero)))))
             :using (add-identity))
-    """)
+    """,
+    )
 
     # commutativity: SSS0 + SS0 = SS0 + SSS0
-    load_source(s, """
+    load_source(
+        s,
+        """
         (derive commute-3-2 add-commutative
             :bind ((?a (succ (succ (succ zero))))
                    (?b (succ (succ zero))))
             :using (add-commutative))
-    """)
+    """,
+    )
 
     # addition step: SSS0 + S0 = S(SSS0 + 0)
-    load_source(s, """
+    load_source(
+        s,
+        """
         (derive add-step-3-1 add-succ
             :bind ((?n (succ (succ (succ zero))))
                    (?m zero))
             :using (add-succ))
-    """)
+    """,
+    )
 
     print("  Concrete theorems:")
     for name in ['three-plus-zero', 'commute-3-2', 'add-step-3-1']:
@@ -173,7 +186,9 @@ def main():
     # ----------------------------------------------------------
     print("\n--- Phase 4: Orchard inventory ---")
 
-    load_source(s, """
+    load_source(
+        s,
+        """
         (defterm eve-morning (succ (succ (succ zero)))
           :evidence (evidence "Eden Inventory"
             :quotes ("Eve picked 3 apples from the east grove")
@@ -193,7 +208,8 @@ def main():
           :evidence (evidence "Eden Inventory"
             :quotes ("Adam picked more apples than Eve in the morning")
             :explanation "Adam's count exceeds Eve's"))
-    """)
+    """,
+    )
 
     print("  Terms:")
     _print_list(s.list_terms())
@@ -203,14 +219,17 @@ def main():
     # ----------------------------------------------------------
     print("\n--- Phase 5: Morning commutativity ---")
 
-    load_source(s, """
+    load_source(
+        s,
+        """
         (derive morning-commutes add-commutative
             :bind ((?a eve-morning) (?b adam-morning))
             :using (add-commutative)
             :evidence (evidence "Eden Inventory"
               :quotes ("Combined morning harvest was 8 apples")
               :explanation "eve + adam = adam + eve"))
-    """)
+    """,
+    )
 
     ax = s.theorems['morning-commutes']
     print(f"  {ax}")
@@ -220,7 +239,9 @@ def main():
     # ----------------------------------------------------------
     print("\n--- Phase 6: Afternoon harvest ---")
 
-    load_source(s, """
+    load_source(
+        s,
+        """
         (defterm serpent-afternoon (succ (succ (succ (succ zero))))
           :evidence (evidence "Eden Inventory"
             :quotes ("Serpent picked 4 apples from the south grove")
@@ -250,11 +271,18 @@ def main():
           :evidence (evidence "Eden Inventory"
             :quotes ("The morning shift outproduced the afternoon by 2 apples")
             :explanation "Difference between shift totals"))
-    """)
+    """,
+    )
 
     print("  Terms:")
-    for name in ['serpent-afternoon', 'eve-afternoon', 'afternoon-total',
-                  'eve-daily', 'daily-total', 'morning-advantage']:
+    for name in [
+        'serpent-afternoon',
+        'eve-afternoon',
+        'afternoon-total',
+        'eve-daily',
+        'daily-total',
+        'morning-advantage',
+    ]:
         t = s.terms[name]
         print(f"    {t}")
 
@@ -263,14 +291,17 @@ def main():
     # ----------------------------------------------------------
     print("\n--- Phase 7: Diff — what if Eve tried the forbidden apple? ---")
 
-    load_source(s, """
+    load_source(
+        s,
+        """
         (defterm eve-morning-alt (succ (succ zero))
           :origin "Hypothetical: Eve tried the forbidden apple — SS0 instead of SSS0")
 
         (diff eve-check
             :replace eve-morning
             :with eve-morning-alt)
-    """)
+    """,
+    )
 
     # ----------------------------------------------------------
     # Phase 8: Provenance
@@ -296,10 +327,13 @@ def main():
     print(f"  {report}")
 
     print("\n  Resolving identity items...")
-    load_source(s, """
+    load_source(
+        s,
+        """
         (defterm eve-morning-alt (succ (succ (succ zero)))
           :origin "Hypothetical: Eve picks SSSS0 instead of SSS0")
-    """)
+    """,
+    )
     s.verify_manual('eve-morning-alt')
     report = s.consistency()
     print("\n  After verification:")

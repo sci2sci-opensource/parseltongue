@@ -19,6 +19,7 @@ VALID_TYPES = frozenset({'fact', 'term', 'axiom', 'theorem', 'quote', 'diff'})
 @dataclass
 class Reference:
     """A resolved inline reference from the markdown output."""
+
     type: str
     name: str
     value: Any = None
@@ -29,6 +30,7 @@ class Reference:
 @dataclass
 class ResolvedOutput:
     """Result of resolving all [[type:name]] tags in the markdown."""
+
     markdown: str
     references: list[Reference] = field(default_factory=list)
     consistency: str = ""
@@ -120,10 +122,13 @@ def resolve_references(markdown: str, system) -> ResolvedOutput:
         seen.add(key)
 
         if tag_type not in VALID_TYPES:
-            references.append(Reference(
-                type=tag_type, name=name,
-                error=f"unknown reference type: {tag_type}",
-            ))
+            references.append(
+                Reference(
+                    type=tag_type,
+                    name=name,
+                    error=f"unknown reference type: {tag_type}",
+                )
+            )
             continue
 
         references.append(_resolve_one(tag_type, name, system))

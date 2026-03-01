@@ -6,6 +6,7 @@ from typing import Dict, List, Optional, Set, Tuple
 
 class ConfidenceLevel(str, Enum):
     """Enum for confidence levels in quote verification"""
+
     HIGH = "high"
     MEDIUM = "medium"
     LOW = "low"
@@ -15,6 +16,7 @@ class ConfidenceLevel(str, Enum):
 @dataclass
 class NormalizationTransformation:
     """Records a transformation applied during normalization"""
+
     type: str
     description: str = None
     penalty: float = 0.0
@@ -23,6 +25,7 @@ class NormalizationTransformation:
 @dataclass
 class Position:
     """Positions in text"""
+
     start: int
     end: int
 
@@ -34,6 +37,7 @@ class Position:
 @dataclass
 class VerificationResult:
     """Result of quote verification"""
+
     quote: str
     verified: bool
     positions: Dict[str, Position] = None
@@ -58,7 +62,7 @@ class VerificationResult:
         if self.positions:
             result["positions"] = {
                 "original": self.positions.get("original").to_dict() if self.positions.get("original") else None,
-                "normalized": self.positions.get("normalized").to_dict() if self.positions.get("normalized") else None
+                "normalized": self.positions.get("normalized").to_dict() if self.positions.get("normalized") else None,
             }
 
         if self.confidence:
@@ -94,35 +98,72 @@ class QuoteVerifierConfig:
     medium_confidence_threshold: float = 0.7
 
     # Transformation penalties - customizable per transformation type
-    penalties: Dict[str, float] = field(default_factory=lambda: {
-        "whitespace_normalization": 0.001, # This shouldn't change meaning at all
-        "whitespace_trimming": 0.001, # This shouldn't change meaning at all
-        "hyphenation_normalization": 0.005, # This shouldn't change meaning, and it's very unlikely it would introduce side-effect
-        "case_normalization": 0.01, # Very unlikely to introduce potential meaning side-effect
-        "list_normalization": 0.01, # Can remove some useful number, but usually would be the number from list due to specific "newline" checks.
-        "punctuation_removal": 0.02, # Can affect meaning somewhat but it's extremely unlikely
-        # All the items above combined don't make confidence less than high
-
-        "stopword_removal": 0.125, # Regular stopwords removals can introduce changes of meaning. That's why confidence can't be more than medium
-        # Any regular stopword removal makes confidence less than high regardless
-
-        "dangerous_stopword_removal": 0.31, # Drops confidence always below medium
-        # We are missing some stopword which usually changes meaning to opposite or has critical pivotal meaning
-    })
+    penalties: Dict[str, float] = field(
+        default_factory=lambda: {
+            "whitespace_normalization": 0.001,  # This shouldn't change meaning at all
+            "whitespace_trimming": 0.001,  # This shouldn't change meaning at all
+            "hyphenation_normalization": 0.005,  # This shouldn't change meaning, and it's very unlikely it would introduce side-effect
+            "case_normalization": 0.01,  # Very unlikely to introduce potential meaning side-effect
+            "list_normalization": 0.01,  # Can remove some useful number, but usually would be the number from list due to specific "newline" checks.
+            "punctuation_removal": 0.02,  # Can affect meaning somewhat but it's extremely unlikely
+            # All the items above combined don't make confidence less than high
+            "stopword_removal": 0.125,  # Regular stopwords removals can introduce changes of meaning. That's why confidence can't be more than medium
+            # Any regular stopword removal makes confidence less than high regardless
+            "dangerous_stopword_removal": 0.31,  # Drops confidence always below medium
+            # We are missing some stopword which usually changes meaning to opposite or has critical pivotal meaning
+        }
+    )
 
     # Default stopwords
-    default_stopwords: Set[str] = field(default_factory=lambda: {
-        "a", "an", "the", "this", "that", "these", "those",
-        "it", "its", "in", "on", "at", "to", "for", "with", "by", "of",
-        'therefore',
-        "and", "or", "but", "so", "as", "is", "are", "was", "were"
-    })
+    default_stopwords: Set[str] = field(
+        default_factory=lambda: {
+            "a",
+            "an",
+            "the",
+            "this",
+            "that",
+            "these",
+            "those",
+            "it",
+            "its",
+            "in",
+            "on",
+            "at",
+            "to",
+            "for",
+            "with",
+            "by",
+            "of",
+            'therefore',
+            "and",
+            "or",
+            "but",
+            "so",
+            "as",
+            "is",
+            "are",
+            "was",
+            "were",
+        }
+    )
 
     # Dangerous stopwords that could change meaning
-    dangerous_stopwords: Set[str] = field(default_factory=lambda: {
-        "not", "no", "never", "none", "nor", "neither", "without",
-        "except", "but", "however", "although", "despite"
-    })
+    dangerous_stopwords: Set[str] = field(
+        default_factory=lambda: {
+            "not",
+            "no",
+            "never",
+            "none",
+            "nor",
+            "neither",
+            "without",
+            "except",
+            "but",
+            "however",
+            "although",
+            "despite",
+        }
+    )
 
     # Custom stopwords provided by user
     custom_stopwords: Set[str] = field(default_factory=set)
@@ -159,8 +200,9 @@ class QuoteVerifierConfig:
                 if key == "penalties" and isinstance(value, dict):
                     config.penalties.update(value)
                 # Special handling for sets to allow additions
-                elif key in ["default_stopwords", "dangerous_stopwords", "custom_stopwords"] and isinstance(value, (
-                        set, list)):
+                elif key in ["default_stopwords", "dangerous_stopwords", "custom_stopwords"] and isinstance(
+                    value, (set, list)
+                ):
                     setattr(config, key, set(value))
                 else:
                     setattr(config, key, value)
@@ -178,15 +220,15 @@ class QuoteVerifier:
     """
 
     def __init__(
-            self,
-            case_sensitive: bool = False,
-            ignore_punctuation: bool = True,
-            normalize_lists: bool = True,
-            normalize_hyphenation: bool = True,
-            remove_stopwords: bool = False,
-            stopwords: Optional[Set[str]] = None,
-            confidence_threshold: float = 0.7,
-            config: Optional[QuoteVerifierConfig] = None,
+        self,
+        case_sensitive: bool = False,
+        ignore_punctuation: bool = True,
+        normalize_lists: bool = True,
+        normalize_hyphenation: bool = True,
+        remove_stopwords: bool = False,
+        stopwords: Optional[Set[str]] = None,
+        confidence_threshold: float = 0.7,
+        config: Optional[QuoteVerifierConfig] = None,
     ):
         """
         Initialize the QuoteVerifier with configuration options.
@@ -214,7 +256,7 @@ class QuoteVerifier:
                 normalize_hyphenation=normalize_hyphenation,
                 remove_stopwords=remove_stopwords,
                 confidence_threshold=confidence_threshold,
-                custom_stopwords=stopwords if stopwords is not None else set()
+                custom_stopwords=stopwords if stopwords is not None else set(),
             )
 
         # For convenience, create direct references to frequently used config properties
@@ -239,11 +281,13 @@ class QuoteVerifier:
 
         if not self.config.case_sensitive:
             if any(c.isupper() for c in text):
-                transformations.append(NormalizationTransformation(
-                    type="case_normalization",
-                    description="Converted text to lowercase",
-                    penalty=self.config.get_penalty("case_normalization")
-                ))
+                transformations.append(
+                    NormalizationTransformation(
+                        type="case_normalization",
+                        description="Converted text to lowercase",
+                        penalty=self.config.get_penalty("case_normalization"),
+                    )
+                )
 
             processed_text = text.lower()
             # Create mapping for lowercase conversion (no position changes)
@@ -254,8 +298,9 @@ class QuoteVerifier:
 
         return processed_text, position_map, transformations
 
-    def _normalize_lists(self, text: str, position_map: List[int]) -> Tuple[
-        str, List[int], List[NormalizationTransformation]]:
+    def _normalize_lists(
+        self, text: str, position_map: List[int]
+    ) -> Tuple[str, List[int], List[NormalizationTransformation]]:
         """Normalize numbered lists in text"""
         transformations = []
 
@@ -284,16 +329,19 @@ class QuoteVerifier:
                 i += 1
 
         if list_items_removed > 0:
-            transformations.append(NormalizationTransformation(
-                type="list_normalization",
-                description=f"Removed {list_items_removed} list item markers",
-                penalty=self.config.get_penalty("list_normalization")
-            ))
+            transformations.append(
+                NormalizationTransformation(
+                    type="list_normalization",
+                    description=f"Removed {list_items_removed} list item markers",
+                    penalty=self.config.get_penalty("list_normalization"),
+                )
+            )
 
         return normalized_text, normalized_map, transformations
 
-    def _normalize_hyphenation(self, text: str, position_map: List[int]) -> Tuple[
-        str, List[int], List[NormalizationTransformation]]:
+    def _normalize_hyphenation(
+        self, text: str, position_map: List[int]
+    ) -> Tuple[str, List[int], List[NormalizationTransformation]]:
         """Normalize hyphenation at line breaks"""
         transformations = []
 
@@ -307,12 +355,10 @@ class QuoteVerifier:
         i = 0
         while i < len(text):
             # Look for hyphenation pattern: word-\n followed by optional spaces and then a word
-            if (i < len(text) - 2 and
-                    text[i] == '-' and
-                    text[i + 1] == '\n'):
+            if i < len(text) - 2 and text[i] == '-' and text[i + 1] == '\n':
 
                 # Check if we have alphanumeric chars before the hyphen
-                before_is_alnum = (i > 0 and text[i - 1].isalnum())
+                before_is_alnum = i > 0 and text[i - 1].isalnum()
 
                 # Skip the hyphen and newline
                 i += 2
@@ -322,7 +368,7 @@ class QuoteVerifier:
                     i += 1
 
                 # Check if we have alphanumeric chars after the spaces
-                after_is_alnum = (i < len(text) and text[i].isalnum())
+                after_is_alnum = i < len(text) and text[i].isalnum()
 
                 if before_is_alnum and after_is_alnum:
                     # Successfully found hyphenation pattern - don't add anything (removing hyphen and spaces)
@@ -347,16 +393,19 @@ class QuoteVerifier:
                 i += 1
 
         if hyphenation_fixed_count > 0:
-            transformations.append(NormalizationTransformation(
-                type="hyphenation_normalization",
-                description=f"Fixed {hyphenation_fixed_count} hyphenated word(s) at line breaks",
-                penalty=self.config.get_penalty("hyphenation_normalization")
-            ))
+            transformations.append(
+                NormalizationTransformation(
+                    type="hyphenation_normalization",
+                    description=f"Fixed {hyphenation_fixed_count} hyphenated word(s) at line breaks",
+                    penalty=self.config.get_penalty("hyphenation_normalization"),
+                )
+            )
 
         return normalized_text, normalized_map, transformations
 
-    def _normalize_punctuation(self, text: str, position_map: List[int]) -> Tuple[
-        str, List[int], List[NormalizationTransformation]]:
+    def _normalize_punctuation(
+        self, text: str, position_map: List[int]
+    ) -> Tuple[str, List[int], List[NormalizationTransformation]]:
         """Replace punctuation with spaces"""
         transformations = []
 
@@ -377,16 +426,19 @@ class QuoteVerifier:
                 normalized_map.append(position_map[i])
 
         if punctuation_count > 0:
-            transformations.append(NormalizationTransformation(
-                type="punctuation_removal",
-                description=f"Removed {punctuation_count} punctuation character(s)",
-                penalty=self.config.get_penalty("punctuation_removal")
-            ))
+            transformations.append(
+                NormalizationTransformation(
+                    type="punctuation_removal",
+                    description=f"Removed {punctuation_count} punctuation character(s)",
+                    penalty=self.config.get_penalty("punctuation_removal"),
+                )
+            )
 
         return normalized_text, normalized_map, transformations
 
-    def _normalize_stopwords(self, text: str, position_map: List[int]) -> Tuple[
-        str, List[int], List[NormalizationTransformation]]:
+    def _normalize_stopwords(
+        self, text: str, position_map: List[int]
+    ) -> Tuple[str, List[int], List[NormalizationTransformation]]:
         """Remove stopwords from text"""
         transformations = []
 
@@ -416,22 +468,24 @@ class QuoteVerifier:
             # Check for dangerous words in the removed set
             removed_dangerous_words = [w for w in words_to_remove if w.lower() in self.config.dangerous_stopwords]
 
-            transformations.append(NormalizationTransformation(
-                type="partial_stopword_removal",
-                description=f"Kept one word to prevent empty result, removed {len(words_to_remove)} stopword(s)",
-                penalty=self.config.get_penalty("stopword_removal") * 1.5  # Higher penalty for partial removal
-            ))
+            transformations.append(
+                NormalizationTransformation(
+                    type="partial_stopword_removal",
+                    description=f"Kept one word to prevent empty result, removed {len(words_to_remove)} stopword(s)",
+                    penalty=self.config.get_penalty("stopword_removal") * 1.5,  # Higher penalty for partial removal
+                )
+            )
 
             # Return early with appropriate mapping
             normalized_text = words_to_keep[0]
             # Find the position of this word in the original text
             word_pos = text.lower().find(words_to_keep[0].lower())
             if word_pos >= 0 and word_pos < len(position_map):
-                normalized_map = position_map[word_pos:word_pos + len(words_to_keep[0])]
+                normalized_map = position_map[word_pos : word_pos + len(words_to_keep[0])]
                 return normalized_text, normalized_map, transformations
             else:
                 # Fallback if position not found
-                return normalized_text, position_map[:len(normalized_text)], transformations
+                return normalized_text, position_map[: len(normalized_text)], transformations
 
         # Rebuild text without stopwords
         normalized_text = ""
@@ -442,7 +496,7 @@ class QuoteVerifier:
         for word in words:
             # Find the word in the original text
             word_lower = word.lower()
-            while current_pos < len(text) and text[current_pos:current_pos + len(word)].lower() != word_lower:
+            while current_pos < len(text) and text[current_pos : current_pos + len(word)].lower() != word_lower:
                 current_pos += 1
 
             if current_pos < len(text):
@@ -474,30 +528,35 @@ class QuoteVerifier:
             normalized_text = words[0]
             word_pos = text.lower().find(words[0].lower())
             if word_pos >= 0 and word_pos < len(position_map):
-                normalized_map = position_map[word_pos:word_pos + len(words[0])]
+                normalized_map = position_map[word_pos : word_pos + len(words[0])]
             else:
-                normalized_map = position_map[:len(normalized_text)]
+                normalized_map = position_map[: len(normalized_text)]
 
         if removed_stopwords:
             if removed_dangerous_words:
                 penalty = self.config.get_penalty("dangerous_stopword_removal")
-                transformations.append(NormalizationTransformation(
-                    type="dangerous_stopword_removal",
-                    description=f"Removed potentially meaning-changing words: {', '.join(removed_dangerous_words)}",
-                    penalty=penalty
-                ))
+                transformations.append(
+                    NormalizationTransformation(
+                        type="dangerous_stopword_removal",
+                        description=f"Removed potentially meaning-changing words: {', '.join(removed_dangerous_words)}",
+                        penalty=penalty,
+                    )
+                )
             else:
                 penalty = self.config.get_penalty("stopword_removal")
-                transformations.append(NormalizationTransformation(
-                    type="stopword_removal",
-                    description=f"Removed {len(removed_stopwords)} stopword(s): {', '.join(removed_stopwords)}",
-                    penalty=penalty
-                ))
+                transformations.append(
+                    NormalizationTransformation(
+                        type="stopword_removal",
+                        description=f"Removed {len(removed_stopwords)} stopword(s): {', '.join(removed_stopwords)}",
+                        penalty=penalty,
+                    )
+                )
 
         return normalized_text, normalized_map, transformations
 
-    def _normalize_whitespace(self, text: str, position_map: List[int]) -> Tuple[
-        str, List[int], List[NormalizationTransformation]]:
+    def _normalize_whitespace(
+        self, text: str, position_map: List[int]
+    ) -> Tuple[str, List[int], List[NormalizationTransformation]]:
         """Normalize whitespace (convert multiple spaces to single, trim leading/trailing)"""
         transformations = []
 
@@ -521,22 +580,26 @@ class QuoteVerifier:
                 in_whitespace = False
 
         if whitespace_normalized:
-            transformations.append(NormalizationTransformation(
-                type="whitespace_normalization",
-                description="Normalized whitespace",
-                penalty=self.config.get_penalty("whitespace_normalization")
-            ))
+            transformations.append(
+                NormalizationTransformation(
+                    type="whitespace_normalization",
+                    description="Normalized whitespace",
+                    penalty=self.config.get_penalty("whitespace_normalization"),
+                )
+            )
 
         # Step 2: Trim leading/trailing whitespace
         stripped = normalized_text.strip()
         strip_performed = len(stripped) < len(normalized_text)
 
         if strip_performed:
-            transformations.append(NormalizationTransformation(
-                type="whitespace_trimming",
-                description="Trimmed leading/trailing whitespace",
-                penalty=self.config.get_penalty("whitespace_trimming")
-            ))
+            transformations.append(
+                NormalizationTransformation(
+                    type="whitespace_trimming",
+                    description="Trimmed leading/trailing whitespace",
+                    penalty=self.config.get_penalty("whitespace_trimming"),
+                )
+            )
 
             start = normalized_text.find(stripped)
             end = start + len(stripped)
@@ -614,16 +677,9 @@ class QuoteVerifier:
         # Find the normalized quote in the normalized document
         normalized_position = normalized_doc.find(normalized_quote)
 
-        position_info = {
-            "original": None,
-            "normalized": None
-        }
+        position_info = {"original": None, "normalized": None}
 
-        confidence_info = {
-            "score": 0.0,
-            "level": ConfidenceLevel.NONE,
-            "transformations": []
-        }
+        confidence_info = {"score": 0.0, "level": ConfidenceLevel.NONE, "transformations": []}
 
         if normalized_position != -1:
             # Map back to position in original document
@@ -637,7 +693,7 @@ class QuoteVerifier:
             position_info["normalized"] = Position(start=normalized_position, end=normalized_end_pos)
 
             # Extract the portion of the original document that matched the quote
-            matched_portion = document_text[original_start:original_end + 1]
+            matched_portion = document_text[original_start : original_end + 1]
 
             # Re-run normalization on JUST the matched portion to get precise transformations
             _, _, matched_transformations = self.normalize_with_mapping(matched_portion)
@@ -702,43 +758,57 @@ class QuoteVerifier:
             # Only penalize for differences in stopword removal
             if quote_only_removed:
                 # Words removed from quote but present in original
-                relevant_transformations.append(NormalizationTransformation(
-                    type="stopword_removal_difference",
-                    description=f"Removed from quote but not from source: {', '.join(quote_only_removed)}",
-                    penalty=self.config.get_penalty("stopword_removal") * len(quote_only_removed) /
-                            max(1, len(quote.split()))
-                ))
+                relevant_transformations.append(
+                    NormalizationTransformation(
+                        type="stopword_removal_difference",
+                        description=f"Removed from quote but not from source: {', '.join(quote_only_removed)}",
+                        penalty=self.config.get_penalty("stopword_removal")
+                        * len(quote_only_removed)
+                        / max(1, len(quote.split())),
+                    )
+                )
 
             if matched_only_removed:
                 # Words removed from original but present in quote
-                relevant_transformations.append(NormalizationTransformation(
-                    type="stopword_removal_difference",
-                    description=f"Removed from source but not from quote: {', '.join(matched_only_removed)}",
-                    penalty=self.config.get_penalty("stopword_removal") * len(matched_only_removed) /
-                            max(1, len(matched_portion.split()))
-                ))
+                relevant_transformations.append(
+                    NormalizationTransformation(
+                        type="stopword_removal_difference",
+                        description=f"Removed from source but not from quote: {', '.join(matched_only_removed)}",
+                        penalty=self.config.get_penalty("stopword_removal")
+                        * len(matched_only_removed)
+                        / max(1, len(matched_portion.split())),
+                    )
+                )
 
             # Check for dangerous stopwords specifically
-            dangerous_in_quote_only = {word for word in quote_only_removed
-                                       if word.lower() in self.config.dangerous_stopwords}
-            dangerous_in_matched_only = {word for word in matched_only_removed
-                                         if word.lower() in self.config.dangerous_stopwords}
+            dangerous_in_quote_only = {
+                word for word in quote_only_removed if word.lower() in self.config.dangerous_stopwords
+            }
+            dangerous_in_matched_only = {
+                word for word in matched_only_removed if word.lower() in self.config.dangerous_stopwords
+            }
 
             if dangerous_in_quote_only:
-                relevant_transformations.append(NormalizationTransformation(
-                    type="dangerous_stopword_removal_difference",
-                    description=f"Dangerous words removed from quote but not source: {', '.join(dangerous_in_quote_only)}",
-                    penalty=self.config.get_penalty("dangerous_stopword_removal") * len(dangerous_in_quote_only) /
-                            max(1, len(quote.split()))
-                ))
+                relevant_transformations.append(
+                    NormalizationTransformation(
+                        type="dangerous_stopword_removal_difference",
+                        description=f"Dangerous words removed from quote but not source: {', '.join(dangerous_in_quote_only)}",
+                        penalty=self.config.get_penalty("dangerous_stopword_removal")
+                        * len(dangerous_in_quote_only)
+                        / max(1, len(quote.split())),
+                    )
+                )
 
             if dangerous_in_matched_only:
-                relevant_transformations.append(NormalizationTransformation(
-                    type="dangerous_stopword_removal_difference",
-                    description=f"Dangerous words removed from source but not quote: {', '.join(dangerous_in_matched_only)}",
-                    penalty=self.config.get_penalty("dangerous_stopword_removal") * len(dangerous_in_matched_only) /
-                            max(1, len(matched_portion.split()))
-                ))
+                relevant_transformations.append(
+                    NormalizationTransformation(
+                        type="dangerous_stopword_removal_difference",
+                        description=f"Dangerous words removed from source but not quote: {', '.join(dangerous_in_matched_only)}",
+                        penalty=self.config.get_penalty("dangerous_stopword_removal")
+                        * len(dangerous_in_matched_only)
+                        / max(1, len(matched_portion.split())),
+                    )
+                )
 
             # Calculate confidence based only on relevant transformations
             confidence_score = 1.0
@@ -786,24 +856,24 @@ class QuoteVerifier:
 
         # Get separate before/after context
         context_before = document_text[context_start:start_pos]
-        context_after = document_text[end_pos + 1:context_end]
+        context_after = document_text[end_pos + 1 : context_end]
 
         # Get the full text with context
-        context = context_before + document_text[start_pos:end_pos + 1] + document_text[end_pos + 1:context_end]
+        context = context_before + document_text[start_pos : end_pos + 1] + document_text[end_pos + 1 : context_end]
 
         # Format the matched part with markers
         match_start_offset = start_pos - context_start
         match_end_offset = match_start_offset + (end_pos - start_pos) + 1
 
-        context_with_markers = prefix + context[:match_start_offset] \
-                               + context[match_start_offset:match_end_offset] \
-                               + context[match_end_offset:] + suffix
+        context_with_markers = (
+            prefix
+            + context[:match_start_offset]
+            + context[match_start_offset:match_end_offset]
+            + context[match_end_offset:]
+            + suffix
+        )
 
-        return {
-            "full": context_with_markers,
-            "before": context_before,
-            "after": context_after
-        }
+        return {"full": context_with_markers, "before": context_before, "after": context_after}
 
     def pre_validate(self, document_text: str, quote: str):
         if not quote.strip():
@@ -813,7 +883,7 @@ class QuoteVerifier:
                 "original_position": -1,
                 "normalized_position": -1,
                 "reason": "Empty quote",
-                "length": 0
+                "length": 0,
             }, False
 
         # Check for degenerate cases
@@ -825,15 +895,14 @@ class QuoteVerifier:
                 "normalized_position": -1,
                 "reason": "Quote consists entirely of stopwords",
                 "length": 1,
-                "confidence": {
-                    "score": 0.0,
-                    "level": ConfidenceLevel.NONE
-                },
-                "transformations": [{
-                    "type": "stopword_removal",
-                    "description": f"Quote '{quote}' is a stopword that would be removed",
-                    "penalty": 1.0
-                }]
+                "confidence": {"score": 0.0, "level": ConfidenceLevel.NONE},
+                "transformations": [
+                    {
+                        "type": "stopword_removal",
+                        "description": f"Quote '{quote}' is a stopword that would be removed",
+                        "penalty": 1.0,
+                    }
+                ],
             }, False
         # Normalize quote for length calculation
         normalized_quote, _, _ = self.normalize_with_mapping(quote)
@@ -847,15 +916,14 @@ class QuoteVerifier:
                 "normalized_position": -1,
                 "reason": "Quote normalized to empty string",
                 "length": len(quote.split()),
-                "confidence": {
-                    "score": 0.0,
-                    "level": ConfidenceLevel.NONE
-                },
-                "transformations": [{
-                    "type": "excessive_normalization",
-                    "description": "Normalization removed all content from quote",
-                    "penalty": 1.0
-                }]
+                "confidence": {"score": 0.0, "level": ConfidenceLevel.NONE},
+                "transformations": [
+                    {
+                        "type": "excessive_normalization",
+                        "description": "Normalization removed all content from quote",
+                        "penalty": 1.0,
+                    }
+                ],
             }, False
 
         return None, True
@@ -879,8 +947,9 @@ class QuoteVerifier:
         normalized_quote, _, _ = self.normalize_with_mapping(quote)
         position_info, confidence_info = self.find_quote_position(document_text, quote)
 
-        verified = (position_info["original"] is not None and
-                    confidence_info["score"] >= self.config.confidence_threshold)
+        verified = (
+            position_info["original"] is not None and confidence_info["score"] >= self.config.confidence_threshold
+        )
 
         # Get original positions for backward compatibility
         original_position = position_info["original"].start if position_info["original"] else -1
@@ -889,10 +958,7 @@ class QuoteVerifier:
         context = None
         if position_info["original"]:
             context = self.get_context(
-                document_text,
-                position_info["original"].start,
-                position_info["original"].end,
-                context_length
+                document_text, position_info["original"].start, position_info["original"].end, context_length
             )
 
         # Build result with backward compatibility
@@ -901,36 +967,24 @@ class QuoteVerifier:
             "verified": verified,
             "original_position": original_position,
             "normalized_position": normalized_position,
-            "length": len(normalized_quote.split()) if normalized_quote.strip() else len(quote.split())
+            "length": len(normalized_quote.split()) if normalized_quote.strip() else len(quote.split()),
         }
 
         # Add enhanced information
         if position_info["original"]:
             result["positions"] = {
-                "original": {
-                    "start": position_info["original"].start,
-                    "end": position_info["original"].end
-                },
-                "normalized": {
-                    "start": position_info["normalized"].start,
-                    "end": position_info["normalized"].end
-                }
+                "original": {"start": position_info["original"].start, "end": position_info["original"].end},
+                "normalized": {"start": position_info["normalized"].start, "end": position_info["normalized"].end},
             }
 
         # Add confidence information
-        result["confidence"] = {
-            "score": confidence_info["score"],
-            "level": confidence_info["level"]
-        }
+        result["confidence"] = {"score": confidence_info["score"], "level": confidence_info["level"]}
 
         # Add transformations if any
         if confidence_info["transformations"]:
             result["transformations"] = [
-                {
-                    "type": t.type,
-                    "description": t.description,
-                    "penalty": t.penalty
-                } for t in confidence_info["transformations"]
+                {"type": t.type, "description": t.description, "penalty": t.penalty}
+                for t in confidence_info["transformations"]
             ]
 
         # Add context if available
