@@ -140,9 +140,9 @@ Under the hood, the pipeline runs four passes — extraction, blinded derivation
 ### Running the Demo
 
 ```bash
-python -m llm.demos.revenue.demo
-python -m llm.demos.revenue.demo --reasoning-tokens 8000
-python -m llm.demos.revenue.demo --no-thinking
+python -m parseltongue.llm.demos.revenue.demo
+python -m parseltongue.llm.demos.revenue.demo --reasoning-tokens 8000
+python -m parseltongue.llm.demos.revenue.demo --no-thinking
 ```
 
 ---
@@ -172,7 +172,7 @@ Parseltongue inverts this. Every axiom, every fact, every primitive term must ci
 The DSL in `core` is what the pipeline builds under the hood. You can also use it directly. Five directive types, each optionally grounded in `:evidence` with verbatim quotes or a plain `:origin` string.
 
 ```bash
-pip install -e .
+pip install parseltongue-dsl
 ```
 
 ```python
@@ -418,28 +418,28 @@ s.evaluate([Symbol('if'), True, 42, 0])  # 42
 
 ## Demos
 
-**Apples** (`core/demos/apples/`) — Peano arithmetic grounded in observational field notes. Introduces primitive symbols (zero, successor), states axioms with `:evidence`, and derives theorems via `:bind` instantiation.
+**Apples** ([`parseltongue/core/demos/apples/`](parseltongue/core/demos/apples/)) — Peano arithmetic grounded in observational field notes. Introduces primitive symbols (zero, successor), states axioms with `:evidence`, and derives theorems via `:bind` instantiation.
 
 ```bash
-python -m core.demos.apples.demo
+python -m parseltongue.core.demos.apples.demo
 ```
 
-**Revenue Reports** (`core/demos/revenue_reports/`) — Company performance analysis from Q3 reports, targets memos, and bonus policy documents. Shows quote verification, fabrication propagation, diffs, and manual override.
+**Revenue Reports** ([`parseltongue/core/demos/revenue_reports/`](parseltongue/core/demos/revenue_reports/)) — Company performance analysis from Q3 reports, targets memos, and bonus policy documents. Shows quote verification, fabrication propagation, diffs, and manual override.
 
 ```bash
-python -m core.demos.revenue_reports.demo
+python -m parseltongue.core.demos.revenue_reports.demo
 ```
 
-**Biomarkers** (`core/demos/biomarkers/`) — Diagnostic marker analysis from competing medical papers. Encodes sensitivity, specificity, and clinical claims, then cross-checks for contradictions between studies.
+**Biomarkers** ([`parseltongue/core/demos/biomarkers/`](parseltongue/core/demos/biomarkers/)) — Diagnostic marker analysis from competing medical papers. Encodes sensitivity, specificity, and clinical claims, then cross-checks for contradictions between studies.
 
 ```bash
-python -m core.demos.biomarkers.demo
+python -m parseltongue.core.demos.biomarkers.demo
 ```
 
-**LLM Revenue** (`llm/demos/revenue/`) — Same revenue scenario but fully automated via the four-pass LLM pipeline.
+**LLM Revenue** ([`parseltongue/llm/demos/revenue/`](parseltongue/llm/demos/revenue/)) — Same revenue scenario but fully automated via the four-pass LLM pipeline.
 
 ```bash
-python -m llm.demos.revenue.demo
+python -m parseltongue.llm.demos.revenue.demo
 ```
 
 ## LLM Pipeline — Deep Dive
@@ -540,7 +540,7 @@ parseltongue/
 ## Running Tests
 
 ```bash
-pip install -e ".[dev]"
+pip install -e ".[dev,llm]"
 pytest                           # all tests
 pytest core/tests/               # core only
 pytest llm/tests/                # llm only
