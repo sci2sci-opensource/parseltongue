@@ -884,5 +884,63 @@ class TestDoc(unittest.TestCase):
         self.assertNotIn('Logic Operators', result)
 
 
+# ==============================================================
+# Evidence with Formatted Numbers (integration)
+# ==============================================================
+
+class TestEvidenceFormattedNumbers(unittest.TestCase):
+    """Verify that quotes with dollar amounts, dotted symbols, and
+    comma-separated numbers pass evidence verification through the
+    full System pipeline."""
+
+    DOC_TEXT = (
+        "Base salary for eligible employees is $150,000. "
+        "Eligibility requires quarterly revenue growth exceeds "
+        "the stated annual growth target. "
+        "The module parseltongue.core provides the DSL engine. "
+        "Q2 FY2024 actual revenue was $210M. "
+        "Q3 FY2024 actual revenue was $230M. "
+        "Population reached 1,000,000 residents. "
+        "Requires Python 3.12.1 or higher."
+    )
+
+    def setUp(self):
+        self.s = make_system()
+        quiet(self.s.register_document, 'Doc', self.DOC_TEXT)
+
+    def test_dollar_amount_with_comma(self):
+        ev = Evidence(document='Doc', quotes=['Base salary for eligible employees is $150,000'])
+        quiet(self.s.set_fact, 'salary', 150000, ev)
+        self.assertTrue(ev.verified)
+
+    def test_dotted_symbol(self):
+        ev = Evidence(document='Doc', quotes=['parseltongue.core provides the DSL engine'])
+        quiet(self.s.set_fact, 'module', 'parseltongue.core', ev)
+        self.assertTrue(ev.verified)
+
+    def test_large_number_with_commas(self):
+        ev = Evidence(document='Doc', quotes=['Population reached 1,000,000 residents'])
+        quiet(self.s.set_fact, 'pop', 1000000, ev)
+        self.assertTrue(ev.verified)
+
+    def test_version_number(self):
+        ev = Evidence(document='Doc', quotes=['Python 3.12.1 or higher'])
+        quiet(self.s.set_fact, 'pyver', '3.12.1', ev)
+        self.assertTrue(ev.verified)
+
+    def test_dollar_millions(self):
+        ev = Evidence(document='Doc', quotes=['Q3 FY2024 actual revenue was $230M'])
+        quiet(self.s.set_fact, 'rev-q3', 230, ev)
+        self.assertTrue(ev.verified)
+
+    def test_fabrication_propagates_from_bad_dollar_quote(self):
+        ev = Evidence(document='Doc', quotes=['Base salary is $999,999'])
+        quiet(self.s.set_fact, 'wrong-salary', 999999, ev)
+        self.assertFalse(ev.verified)
+        thm = quiet(self.s.derive, 'd1',
+                     [Symbol('>'), Symbol('wrong-salary'), 0], ['wrong-salary'])
+        self.assertIn('potential fabrication', thm.origin)
+
+
 if __name__ == '__main__':
     unittest.main()

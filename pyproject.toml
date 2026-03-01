@@ -5,7 +5,7 @@ build-backend = "setuptools.backends._legacy:_Backend"
 [project]
 name = "parseltongue"
 version = "0.1.0"
-description = "A DSL for systems which refuse to speak falsehood"
+description = "Parseltongue: a DSL for systems which refuse to speak falsehood"
 requires-python = ">=3.11"
 license = "MIT"
 

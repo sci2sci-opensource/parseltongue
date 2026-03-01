@@ -599,5 +599,85 @@ class TestHyphensAndDashes(unittest.TestCase):
         self.assertTrue(result["verified"])
 
 
+class TestDotsAndCommasBetweenAlphanums(unittest.TestCase):
+    """Test that dots and commas between alphanumeric chars are preserved."""
+
+    def setUp(self):
+        self.verifier = QuoteVerifier()
+
+    def test_dotted_symbol_unsplit(self):
+        """parseltongue.core should not be split at the dot."""
+        doc = "The module parseltongue.core provides the DSL engine."
+        result = self.verifier.verify_quote(doc, "parseltongue.core provides the DSL engine")
+        self.assertTrue(result["verified"], f"Failed: {result.get('reason', 'unknown')}")
+
+    def test_dotted_package_path(self):
+        """A fully qualified package like a.b.c should stay intact."""
+        doc = "Import from com.example.utils to use the helper."
+        result = self.verifier.verify_quote(doc, "com.example.utils")
+        self.assertTrue(result["verified"], f"Failed: {result.get('reason', 'unknown')}")
+
+    def test_version_number(self):
+        """Version strings like 3.12.1 should stay intact."""
+        doc = "Requires Python 3.12.1 or higher."
+        result = self.verifier.verify_quote(doc, "Python 3.12.1 or higher")
+        self.assertTrue(result["verified"], f"Failed: {result.get('reason', 'unknown')}")
+
+    def test_decimal_number(self):
+        """Decimal like 3.14 should stay intact."""
+        doc = "The value of pi is approximately 3.14 for this calculation."
+        result = self.verifier.verify_quote(doc, "approximately 3.14 for this calculation")
+        self.assertTrue(result["verified"], f"Failed: {result.get('reason', 'unknown')}")
+
+    def test_comma_in_large_number(self):
+        """Commas in 1,000,000 should be preserved."""
+        doc = "The population reached 1,000,000 residents last year."
+        result = self.verifier.verify_quote(doc, "population reached 1,000,000 residents")
+        self.assertTrue(result["verified"], f"Failed: {result.get('reason', 'unknown')}")
+
+    def test_dot_at_sentence_end_removed(self):
+        """Dot at end of sentence (not between alphanums) should be removed as punctuation."""
+        doc = "The result is final."
+        result = self.verifier.verify_quote(doc, "The result is final")
+        self.assertTrue(result["verified"], f"Failed: {result.get('reason', 'unknown')}")
+
+
+class TestDollarAmounts(unittest.TestCase):
+    """Test that dollar amounts and numbers with commas are handled correctly."""
+
+    def setUp(self):
+        self.verifier = QuoteVerifier()
+
+    def test_dollar_amount_with_comma(self):
+        """$150,000 in document should match quote 'Base salary for eligible employees is $150,000'."""
+        doc = "Bonus is 20% of base salary if growth target is exceeded. Base salary\nfor eligible employees is $150,000. Eligibility requires that the\nquarterly revenue growth exceeds the stated annual growth target."
+        result = self.verifier.verify_quote(doc, "Base salary for eligible employees is $150,000")
+        self.assertTrue(result["verified"], f"Failed: {result.get('reason', 'unknown')}")
+
+    def test_dollar_amount_with_period(self):
+        """Same quote but with trailing period."""
+        doc = "Base salary for eligible employees is $150,000."
+        result = self.verifier.verify_quote(doc, "Base salary for eligible employees is $150,000.")
+        self.assertTrue(result["verified"], f"Failed: {result.get('reason', 'unknown')}")
+
+    def test_dollar_amount_across_linebreak(self):
+        """Quote spanning a line break should still verify."""
+        doc = "Base salary\nfor eligible employees is $150,000."
+        result = self.verifier.verify_quote(doc, "Base salary for eligible employees is $150,000.")
+        self.assertTrue(result["verified"], f"Failed: {result.get('reason', 'unknown')}")
+
+    def test_number_with_comma_preserved(self):
+        """Numbers like 150,000 should normalize consistently in doc and quote."""
+        doc = "The total was 150,000 units."
+        result = self.verifier.verify_quote(doc, "The total was 150,000 units")
+        self.assertTrue(result["verified"], f"Failed: {result.get('reason', 'unknown')}")
+
+    def test_dollar_millions(self):
+        """$15M style amounts should work."""
+        doc = "Q3 revenue was $15M, up 15% year-over-year."
+        result = self.verifier.verify_quote(doc, "Q3 revenue was $15M, up 15% year-over-year")
+        self.assertTrue(result["verified"], f"Failed: {result.get('reason', 'unknown')}")
+
+
 if __name__ == "__main__":
     unittest.main()

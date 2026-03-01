@@ -82,8 +82,8 @@ def _normalize_lists(
     i = 0
 
     while i < len(text):
-        match = re.match(r'\b\d+\.\s+', text[i:])
-        if match:
+        match = re.match(r'\d+\.\s+', text[i:])
+        if match and (i == 0 or text[i - 1].isspace()):
             list_items_removed += 1
             i += len(match.group(0))
             normalized_text += " "
@@ -178,6 +178,11 @@ def _normalize_punctuation(
         elif (char == '-' and i > 0 and text[i - 1].isalnum()
               and _next_alnum(text, i)):
             # Keep attached hyphens (e.g. "multi-level") — they're word structure
+            normalized_text += char
+            normalized_map.append(position_map[i])
+        elif (char in ',.' and i > 0 and text[i - 1].isalnum()
+              and i + 1 < len(text) and text[i + 1].isalnum()):
+            # Keep commas/dots immediately between alphanums (150,000  3.14)
             normalized_text += char
             normalized_map.append(position_map[i])
         else:
