@@ -10,9 +10,25 @@ requires-python = ">=3.11"
 license = "Apache-2.0"
 readme = "README.md"
 authors = [{name = "Parseltongue Contributors"}]
+keywords = ["dsl", "formal-verification", "evidence", "consistency", "llm", "fact-checking"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
 
 [project.urls]
-Repository = "https://gitlab.com/sci2sci-opensource/parseltongue"
+Homepage = "https://github.com/sci2sci-opensource/parseltongue"
+Repository = "https://github.com/sci2sci-opensource/parseltongue.git"
+Issues = "https://github.com/sci2sci-opensource/parseltongue/issues"
 
 [project.optional-dependencies]
 dev = ["pytest>=7.0"]
