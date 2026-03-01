@@ -3,7 +3,7 @@ requires = ["setuptools>=68.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "parseltongue"
+name = "parseltongue-dsl"
 version = "0.1.0"
 description = "Parseltongue: a DSL for systems which refuse to speak falsehood"
 requires-python = ">=3.11"
