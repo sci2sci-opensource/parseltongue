@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="parseltongue.svg" alt="Parseltongue" width="200">
+</p>
+
 # Parseltongue
 
 A DSL for formal systems that refuse to speak falsehood.
