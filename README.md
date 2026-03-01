@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/sci2sci-opensource/parseltongue/main/parseltongue.svg" alt="Parseltongue" width="200">
+  <img src="https://raw.githubusercontent.com/sci2sci-opensource/parseltongue/HEAD/parseltongue.svg" alt="Parseltongue" width="200">
 </p>
 
 # Parseltongue
