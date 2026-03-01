@@ -4,8 +4,9 @@ import json
 import unittest
 from unittest.mock import MagicMock, patch
 
-from .. import provider
-from ..provider import LLMProvider, OpenRouterProvider
+from .. import openrouter
+from ..openrouter import OpenRouterProvider
+from ..provider import LLMProvider
 from ..tools import ANSWER_TOOL, EXTRACT_TOOL
 
 
@@ -26,8 +27,8 @@ class TestLLMProviderInterface(unittest.TestCase):
 
 class TestOpenRouterProvider(unittest.TestCase):
 
-    @patch(f'{provider.__name__}.load_dotenv')
-    @patch(f'{provider.__name__}.OpenAI')
+    @patch(f'{openrouter.__name__}.load_dotenv')
+    @patch(f'{openrouter.__name__}.OpenAI')
     def test_init_with_explicit_key(self, mock_openai_cls, mock_dotenv):
         provider = OpenRouterProvider(api_key="test-key")
         mock_openai_cls.assert_called_once_with(
@@ -35,8 +36,8 @@ class TestOpenRouterProvider(unittest.TestCase):
             base_url="https://openrouter.ai/api/v1",
         )
 
-    @patch(f'{provider.__name__}.load_dotenv')
-    @patch(f'{provider.__name__}.OpenAI')
+    @patch(f'{openrouter.__name__}.load_dotenv')
+    @patch(f'{openrouter.__name__}.OpenAI')
     @patch.dict('os.environ', {'OPENROUTER_API_KEY': 'env-key'})
     def test_init_from_env(self, mock_openai_cls, mock_dotenv):
         provider = OpenRouterProvider()
@@ -45,8 +46,8 @@ class TestOpenRouterProvider(unittest.TestCase):
             base_url="https://openrouter.ai/api/v1",
         )
 
-    @patch(f'{provider.__name__}.load_dotenv')
-    @patch(f'{provider.__name__}.OpenAI')
+    @patch(f'{openrouter.__name__}.load_dotenv')
+    @patch(f'{openrouter.__name__}.OpenAI')
     def test_complete_parses_tool_call(self, mock_openai_cls, mock_dotenv):
         # Build mock response chain
         mock_client = MagicMock()
@@ -79,8 +80,8 @@ class TestOpenRouterProvider(unittest.TestCase):
         call_kwargs = mock_client.chat.completions.create.call_args
         self.assertEqual(call_kwargs.kwargs['tool_choice'], 'required')
 
-    @patch(f'{provider.__name__}.load_dotenv')
-    @patch(f'{provider.__name__}.OpenAI')
+    @patch(f'{openrouter.__name__}.load_dotenv')
+    @patch(f'{openrouter.__name__}.OpenAI')
     def test_complete_passes_kwargs(self, mock_openai_cls, mock_dotenv):
         mock_client = MagicMock()
         mock_openai_cls.return_value = mock_client

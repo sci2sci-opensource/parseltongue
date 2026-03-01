@@ -67,4 +67,14 @@ from .core import (  # noqa: F401
     substitute,
     to_sexp,
 )
-from .llm import OpenRouterProvider, Pipeline  # noqa: F401
+from .llm import LLMProvider, Pipeline  # noqa: F401
+
+try:
+    from .llm.openrouter import OpenRouterProvider  # noqa: F401
+except ImportError:
+    import warnings
+
+    warnings.warn(
+        "LLM provider dependencies not installed. Run: pip install parseltongue-dsl[llm]",
+        stacklevel=2,
+    )
