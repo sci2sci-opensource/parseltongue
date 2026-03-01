@@ -1,7 +1,11 @@
 # Parseltongue LLM Pipeline — Revenue Reports
 
+This is a sample run of the demo.
+
 **Model:** `anthropic/claude-sonnet-4.6`
+
 **Thinking:** Enabled
+
 **Documents:** Q3 Report, FY2024 Targets Memo, Bonus Policy Doc
 
 **Query:** *Did the company beat its growth target in Q3? What is the bonus?*
