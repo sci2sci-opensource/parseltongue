@@ -35,7 +35,8 @@ export OPENROUTER_API_KEY=sk-...
 ```
 
 ```python
-from parseltongue import System, Pipeline, OpenRouterProvider
+from parseltongue import System, Pipeline
+from parseltongue.llm.openrouter import OpenRouterProvider
 
 
 system = System(overridable=True)

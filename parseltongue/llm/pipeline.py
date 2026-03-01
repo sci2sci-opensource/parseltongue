@@ -4,7 +4,8 @@ Three-pass grounded inference pipeline.
 Usage::
 
     from core import System
-    from parseltongue.llm import Pipeline, OpenRouterProvider
+    from parseltongue.llm import Pipeline
+    from parseltongue.llm.openrouter import OpenRouterProvider
 
     system = System(overridable=True)
     provider = OpenRouterProvider()

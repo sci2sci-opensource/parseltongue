@@ -18,7 +18,8 @@ import os
 import sys
 
 from parseltongue.core import System
-from parseltongue.llm import OpenRouterProvider, Pipeline
+from parseltongue.llm import Pipeline
+from parseltongue.llm.openrouter import OpenRouterProvider
 
 RESOURCE_DIR = os.path.join(os.path.dirname(__file__), 'resources')
 
