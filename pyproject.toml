@@ -1,6 +1,6 @@
 [build-system]
 requires = ["setuptools>=68.0", "wheel"]
-build-backend = "setuptools.backends._legacy:_Backend"
+build-backend = "setuptools.build_meta"
 
 [project]
 name = "parseltongue"
@@ -19,7 +19,11 @@ dev = ["pytest>=7.0"]
 llm = ["openai>=1.0", "python-dotenv>=1.0"]
 
 [tool.setuptools.packages.find]
-include = ["parseltongue*"]
+include = ["parseltongue", "parseltongue.*"]
+exclude = ["parseltongue.*.tests", "parseltongue.*.tests.*"]
+
+[tool.setuptools.package-data]
+"*" = ["*.txt", "*.md"]
 
 [tool.pytest.ini_options]
-testpaths = ["core/tests", "llm/tests"]
+testpaths = ["parseltongue/core/tests", "parseltongue/llm/tests"]
