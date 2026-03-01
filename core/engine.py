@@ -380,7 +380,8 @@ class System:
     """The Parseltongue formal system. Grows via axiom introduction."""
 
     def __init__(self, overridable: bool = False,
-                 initial_env: dict | None = None):
+                 initial_env: dict | None = None,
+                 docs: dict | None = None):
         self.axioms: dict[str, Axiom] = {}
         self.theorems: dict[str, Theorem] = {}
         self.terms: dict[str, Term] = {}
@@ -395,6 +396,11 @@ class System:
             self.env.update(initial_env)
         else:
             self.env.update(DEFAULT_OPERATORS)
+
+        if docs is not None:
+            self._docs = docs
+        else:
+            self._docs = ENGINE_DOCS
 
     # ----------------------------------------------------------
     # Document Registry
@@ -1072,7 +1078,7 @@ class System:
         and the operators loaded into this system's environment.
         Does NOT include runtime state — use state() for that.
         """
-        all_docs = {**LANG_DOCS, **ENGINE_DOCS}
+        all_docs = {**LANG_DOCS, **self._docs}
         lines = []
         lines.append("Parseltongue System Documentation")
         lines.append("=" * 40)
@@ -1106,13 +1112,17 @@ class System:
             'keyword': 'Keyword Arguments',
         }
 
-        for cat in order:
+        # Include any custom categories not in the default order
+        all_cats = order + [c for c in categories if c not in order]
+
+        for cat in all_cats:
             entries = categories.get(cat, [])
             if not entries:
                 continue
             lines.append("")
-            lines.append(f"  {titles.get(cat, cat)}")
-            lines.append(f"  {'-' * len(titles.get(cat, cat))}")
+            title = titles.get(cat, cat.replace('_', ' ').title())
+            lines.append(f"  {title}")
+            lines.append(f"  {'-' * len(title)}")
             for sym, doc in entries:
                 lines.append(f"    {sym}")
                 # First line of description only for compact display

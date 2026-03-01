@@ -899,6 +899,68 @@ class TestDoc(unittest.TestCase):
         # Should NOT contain logic since we didn't include it
         self.assertNotIn('Logic Operators', result)
 
+    def test_doc_custom_docs_replaces(self):
+        """docs= replaces ENGINE_DOCS entirely — only custom docs appear."""
+        custom_sym = Symbol('double')
+        custom_docs = {
+            custom_sym: {
+                'category': 'custom',
+                'description': 'Doubles a value',
+                'example': '(double 5)',
+                'expected': '10',
+            }
+        }
+        s = make_system(
+            initial_env={custom_sym: lambda x: x * 2},
+            docs=custom_docs,
+        )
+        result = s.doc()
+        self.assertIn('double', result)
+        self.assertIn('Doubles a value', result)
+        # Default ENGINE_DOCS entries should NOT appear
+        self.assertNotIn('Arithmetic Operators', result)
+        self.assertNotIn('(+ 2 3)', result)
+
+    def test_doc_default_when_docs_none(self):
+        """When docs is not provided, ENGINE_DOCS is used."""
+        s = make_system()
+        result = s.doc()
+        self.assertIn('Arithmetic Operators', result)
+        self.assertIn('(+ 2 3)', result)
+
+    def test_doc_extend_with_engine_docs(self):
+        """Extending ENGINE_DOCS by merging with custom entries."""
+        custom_sym = Symbol('double')
+        custom_docs = {
+            **ENGINE_DOCS,
+            custom_sym: {
+                'category': 'custom',
+                'description': 'Doubles a value',
+                'example': '(double 5)',
+                'expected': '10',
+            }
+        }
+        s = make_system(
+            initial_env={**DEFAULT_OPERATORS, custom_sym: lambda x: x * 2},
+            docs=custom_docs,
+        )
+        result = s.doc()
+        # Has defaults
+        self.assertIn('Arithmetic Operators', result)
+        self.assertIn('(+ 2 3)', result)
+        # Plus custom
+        self.assertIn('double', result)
+        self.assertIn('Doubles a value', result)
+
+    def test_doc_empty_docs(self):
+        """Empty docs={} means no operator docs — only LANG_DOCS remain."""
+        s = make_system(docs={})
+        result = s.doc()
+        # LANG_DOCS (special forms, directives) should still appear
+        self.assertIn('Special Forms', result)
+        # But no operator categories
+        self.assertNotIn('Arithmetic Operators', result)
+
 
 # ==============================================================
 # Evidence with Formatted Numbers (integration)

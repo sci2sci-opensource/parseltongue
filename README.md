@@ -2,15 +2,15 @@
 
 A DSL for formal systems that refuse to speak falsehood.
 
-## Rationale
+## Rationale: Why
 
 LLMs hallucinate. They produce fluent, confident text that may have no basis in the source material. Traditional approaches treat this as a retrieval problem — feed the model better context and hope for the best. But even with perfect retrieval, nothing stops the model from inventing facts, misquoting sources, or drawing conclusions that don't follow from the evidence.
 
-Parseltongue takes a different approach: instead of asking an LLM to summarize documents, we ask it to build a **formal logic system** directly from them. Every extracted fact must cite a verbatim quote. Every conclusion must derive from stated premises. Every derivation is mechanically checked.
+Parseltongue takes a different approach: instead of asking an LLM to summarize documents, we ask it to encode each of the documents as a **logic system**. Every extracted fact must cite a verbatim quote. Every conclusion must derive from stated premises. And every derivation is checked.
 
 This gives us two things that prose summaries cannot:
 
-1. **Hallucination detection.** Every claim traces back to a quote in a source document. If the LLM fabricates a fact, the quote verification fails — and that failure propagates automatically to every conclusion that depends on it. You don't just catch the lie; you see everything it contaminates.
+1. **Hallucination detection.** Every claim traces back to a quote in a source document. If the LLM fabricates a fact, the quote verification fails — and that failure propagates automatically to every conclusion that depends on it. You don't just catch the lie; you see everything it contaminates. This also gives the user the ability to verify only the foundation — the basic facts — conclusions are guaranteed to follow from them.
 
 2. **Cross-document consistency checking.** Speaking plainly — **we validate if the ground truth is trustable itself.** The formal system makes it possible to compute the same value via independent paths — say, a reported growth percentage vs. one calculated from absolute revenue figures in a different document. When these paths disagree, the system flags a divergence. This catches not only LLM errors, but genuine inconsistencies in the source documents.
 
@@ -18,7 +18,7 @@ The result is a system where the LLM does what it's good at (reading documents, 
 
 ## Quick Start
 
-The main way to use Parseltongue is through the LLM pipeline. You give it documents and a question; it builds a formal system, cross-validates it, and returns a grounded answer where every claim links back to a verbatim quote. The truth-checking, fabrication detection, and consistency verification are all handled by the internal DSL machinery in `core` — you don't need to write any s-expressions yourself.
+The main way to use Parseltongue is through the LLM pipeline. You give it documents and a question; it builds a formal logic system, cross-validates it, and returns a grounded answer where every claim links back to a verbatim quote. The truth-checking, fabrication detection, and consistency verification are all handled by the internal DSL machinery in `core` — you don't need to write any s-expressions yourself.
 
 ```bash
 pip install -e ".[llm]"
@@ -39,7 +39,7 @@ pipeline.add_document("Bonus Policy", text="Bonus is 20% of base salary...")
 result = pipeline.run("Did we beat the growth target? What is the bonus?")
 ```
 
-For example, the markdown might contain:
+For example, `result.output.markdown` might contain:
 
 ```markdown
 > **Inconsistency detected:** The reported growth of 15% does not match
@@ -85,11 +85,16 @@ You can drill into the full provenance of the diff via `system.provenance("growt
       "grounded": true
     }
   },
-  "provenance_b": {
+  "provenance_b (simplified — in reality each revenue-* fact would have its own quotes)": {
     "name": "revenue-growth-from-absolutes",
     "type": "term",
     "definition": "(* (/ (- revenue-q3-abs revenue-q2) revenue-q2) 100)",
-    "origin": "Computed from absolute figures"
+    "origin": {
+      "document": "Targets Memo",
+      "quotes": ["Q2 FY2024 actual revenue was $210M.", "Q3 FY2024 actual revenue was $230M."], 
+      "verified": true,
+      "grounded": true
+    }
   }
 }
 ```
@@ -124,6 +129,10 @@ python -m llm.demos.revenue.demo
 python -m llm.demos.revenue.demo --reasoning-tokens 8000
 python -m llm.demos.revenue.demo --no-thinking
 ```
+
+---
+
+This section and the [LLM Pipeline — Deep Dive](#llm-pipeline--deep-dive) are everything you need to know to use Parseltongue. The following sections describe the design choices behind the system, the core language it builds on, and how to build your own optimized domain-specific language to use alongside (or instead) the default one.
 
 ## Mathematical Aside
 
@@ -189,15 +198,38 @@ load_source(s, """
       :using (revenue-q3-growth growth-target))
 """)
 
-# Check consistency
+# Cross-check: compute growth from absolute figures and compare
+load_source(s, """
+    (fact revenue-q2 210
+      :evidence (evidence "Targets Memo"
+        :quotes ("Q2 FY2024 actual revenue was $210M")
+        :explanation "Q2 absolute revenue"))
+
+    (fact revenue-q3-abs 230
+      :evidence (evidence "Targets Memo"
+        :quotes ("Q3 FY2024 actual revenue was $230M")
+        :explanation "Q3 absolute revenue"))
+
+    (defterm revenue-growth-computed
+      (* (/ (- revenue-q3-abs revenue-q2) revenue-q2) 100)
+      :origin "Growth recomputed from absolute figures")
+
+    (diff growth-check
+      :replace revenue-q3-growth
+      :with revenue-growth-computed)
+""")
+
+# Check consistency — the diff will flag the divergence (15% vs 9.52%)
 report = s.consistency()
 print(report)
-# Issues surface: unverified evidence, fabrication chains, diff divergences
+# Issues found:
+#   - diff_divergence: revenue-q3-growth (15) != revenue-growth-computed (9.52)
+#   - no_evidence: growth-target has :origin but no :evidence with quotes
 ```
 
 ### Directive Types
 
-**Facts** — ground truth values, added to the evaluation environment.
+**`fact`** — a named value extracted from a document. Facts are the atoms of the system: concrete data points that everything else builds on. Use them for any numeric, boolean, or string value that can be quoted verbatim from a source.
 
 ```scheme
 (fact revenue-q3 15.0
@@ -206,52 +238,52 @@ print(report)
     :explanation "Dollar revenue figure from Q3 report"))
 ```
 
-**Axioms** — well-formed formulas, optionally parameterised with `?`-variables.
+**`axiom`** — a well-formed formula asserted as true. Axioms state relationships between facts — equalities, inequalities, logical rules. Use concrete axioms to assert something about specific facts, or parameterised axioms (with `?`-variables) to state general rules that can be instantiated later via `:bind`.
 
 ```scheme
-;; Concrete assertion
+;; Concrete — asserts something about existing facts
 (axiom positive-revenue (> revenue-q3 0)
   :evidence (evidence "Q3 Report"
     :quotes ("Q3 revenue was $15M")
     :explanation "Revenue is positive"))
 
-;; Parameterised — can be instantiated via :bind
+;; Parameterised — a reusable rule with ?-variables
 (axiom add-commutative (= (+ ?a ?b) (+ ?b ?a))
   :origin "Arithmetic axiom")
 ```
 
-**Terms** — named concepts: forward declarations (primitives), computed expressions, or conditionals.
+**`defterm`** — a named concept. Terms come in three forms. A **forward declaration** introduces a primitive symbol with no body (like `zero` in Peano arithmetic). A **computed term** is an expression evaluated on reference — use it for derived quantities like totals or growth rates. A **conditional term** uses `if` to branch.
 
 ```scheme
-;; Primitive symbol (no body)
+;; Primitive symbol (no body) — the building block
 (defterm zero :origin "Base case")
 
-;; Computed expression
+;; Computed — evaluated when referenced, tracks dependencies
 (defterm morning-total (+ eve-morning adam-morning)
   :origin "Sum of morning picks")
 
-;; Conditional
+;; Conditional — branches based on other facts/terms
 (defterm bonus-amount
   (if (> revenue-q3-growth growth-target)
       (* base-salary bonus-rate) 0)
   :origin "Bonus calculation")
 ```
 
-**Derivations** — prove conclusions from existing facts, terms, and axioms.
+**`derive`** — a theorem proved from existing facts, terms, and axioms. Derivations are the inference engine: they evaluate a well-formed formula and record which sources were used. If any source has unverified evidence, the derivation inherits the fabrication taint. Use `:bind` to instantiate parameterised axioms with concrete values.
 
 ```scheme
-;; Direct derivation
+;; Direct — evaluates a WFF against existing facts
 (derive target-exceeded
   (> revenue-q3-growth growth-target)
   :using (revenue-q3-growth growth-target))
 
-;; Instantiate a parameterised axiom
+;; Instantiation — plugs concrete values into a parameterised axiom
 (derive three-plus-zero add-identity
   :bind ((?n (succ (succ (succ zero)))))
   :using (add-identity))
 ```
 
-**Diffs** — lazy what-if comparisons. When evaluated, the system detects how dependent terms diverge.
+**`diff`** — a lazy consistency comparison between two symbols. Diffs are how the system detects contradictions: register two independent values for the same quantity, and the engine replays all dependent computations under both assumptions. Where results diverge, something is wrong — either the LLM fabricated a value, or the source documents disagree.
 
 ```scheme
 (diff growth-check
@@ -261,15 +293,23 @@ print(report)
 
 ### Evidence Grounding
 
-Every statement can carry structured evidence with verbatim quotes:
+Evidence is a first-class citizen. It can be attached to any foundational atom — facts, axioms, and terms:
 
 ```scheme
-:evidence (evidence "Document Name"
-  :quotes ("exact quote from doc" "another exact quote")
-  :explanation "why these quotes support the claim")
+;; Structured evidence with verifiable quotes
+(fact revenue-q3 15.0
+    :evidence (evidence "Q3 Report"
+      :quotes ("Q3 revenue was $15M")
+      :explanation "Dollar revenue figure from Q3 report"))
+
+;; Plain string origin — flagged as unverified, useful for hypotheticals
+(fact growth-target 0.1 :origin "Management memo, not digitised")
+
+;; No evidence at all — consistency report will flag it
+(fact adjustment 0.5)
 ```
 
-Quotes are verified against registered source documents using a six-step normalization pipeline (case, lists, hyphenation, punctuation, stopwords, whitespace). The verifier handles PDF artifacts, line-break hyphens, formatted numbers (`$150,000`), dotted identifiers (`parseltongue.core`), and OCR noise.
+Statements without evidence can be verified after the fact via `system.verify_manual("adjustment")` — useful for human-in-the-loop workflows where an analyst confirms a value that has no document source.
 
 **Fabrication propagation**: if a fact's evidence is unverified, any theorem derived from it is automatically marked as a potential fabrication. This taint propagates through derivation chains.
 
@@ -282,6 +322,57 @@ for issue in report.issues:
 # Trace evidence back to source
 provenance = s.provenance("target-exceeded")
 ```
+
+### Quote Verification
+
+Main engine is aware about the documents and then a document is registered, it is normalized and indexed into an inverted word-position index (`DocumentIndex`). Each word maps to its character positions in the normalized text, so quote lookup is a candidate-set intersection rather than a linear scan. This makes verification fast even for very large document collections.
+
+```python
+from parseltongue.core.quote_verifier import QuoteVerifier
+
+document_text = "Very big doc with Q3 revenue..."
+v = QuoteVerifier(confidence_threshold=0.7)
+result = v.verify_quote(document_text, "Q3 revenue was $15M")
+# result: {verified: True, confidence: 0.95, position: 42, context: "..."}
+```
+
+Both the document and the quote pass through a six-step normalization pipeline (case, lists, hyphenation, punctuation, stopwords, whitespace) before matching. The verifier handles PDF artifacts, line-break hyphens, formatted numbers (`$150,000`), dotted identifiers (`parseltongue.core`), and OCR noise. A space-collapsed fallback catches cases where source documents split words across lines.
+
+Not all normalizations are equal. Light normalizations — missing punctuation, collapsed whitespace, case differences — receive small confidence penalties. Removing semantically meaningful words (stopwords that carry meaning like "not", "all", "never") receives a heavy penalty by default, because changing those words changes the meaning of the quote. The result is a confidence score with a binary threshold for pass/fail.
+
+The quote verifier is extensible: custom normalizers, fuzzy matchers, and custom tokenizers can be plugged in for domain-specific document formats.
+
+### Custom Environments
+
+The `System` engine does not hardcode any operators. By default it loads arithmetic, comparison, and logic into the environment, but you can replace them entirely or start from scratch. The `docs=` parameter controls what `system.doc()` returns — this is what the LLM pipeline feeds to the model so it knows which operators and directives are available.
+
+```python
+from parseltongue import System, Symbol, DEFAULT_OPERATORS, ENGINE_DOCS
+import operator
+
+# Default — all built-in operators and docs
+s = System()
+
+# Extend — add your own alongside defaults
+double = Symbol('double')
+s = System(
+    initial_env={**DEFAULT_OPERATORS, double: lambda x: x * 2},
+    docs={**ENGINE_DOCS, double: {
+        'category': 'custom',
+        'description': 'Doubles a value',
+        'example': '(double 5)',
+        'expected': '10',
+    }},
+)
+
+# Minimal — only what you need
+s = System(initial_env={Symbol('+'): operator.add}, docs={})
+
+# Blank slate — build everything from primitives
+s = System(initial_env={}, docs={})
+```
+
+This is how you build domain-specific languages: strip the defaults, introduce your own primitives as facts and forward-declared terms, state your domain axioms with evidence, and let the engine handle consistency and provenance.
 
 ### Consistency Checking
 
