@@ -7,7 +7,6 @@ No domain knowledge, no state.
 
 from dataclasses import dataclass, field
 from typing import Any
-import re
 
 
 # ============================================================

@@ -704,6 +704,22 @@ class TestProvenance(unittest.TestCase):
         self.assertEqual(prov['origin']['document'], 'Doc')
         self.assertTrue(prov['origin']['grounded'])
 
+    def test_diff_provenance(self):
+        s = make_system()
+        quiet(s.set_fact, 'a', 10, 'test')
+        quiet(s.set_fact, 'b', 20, 'test')
+        quiet(s.introduce_term, 'ta', [Symbol('+'), Symbol('a'), 1], 'test')
+        quiet(s.register_diff, 'd1', 'a', 'b')
+        prov = s.provenance('d1')
+        self.assertEqual(prov['type'], 'diff')
+        self.assertEqual(prov['replace'], 'a')
+        self.assertEqual(prov['with'], 'b')
+        self.assertEqual(prov['value_a'], 10)
+        self.assertEqual(prov['value_b'], 20)
+        self.assertIn('ta', prov['divergences'])
+        self.assertEqual(prov['provenance_a']['name'], 'a')
+        self.assertEqual(prov['provenance_b']['name'], 'b')
+
 
 # ==============================================================
 # __repr__

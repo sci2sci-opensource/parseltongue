@@ -952,6 +952,21 @@ class System:
                 ],
             }
 
+        if name in self.diffs:
+            diff = self.diffs[name]
+            result = self.eval_diff(name)
+            return {
+                'name': name,
+                'type': 'diff',
+                'replace': diff['replace'],
+                'with': diff['with'],
+                'value_a': result.value_a,
+                'value_b': result.value_b,
+                'divergences': result.divergences,
+                'provenance_a': self.provenance(diff['replace']),
+                'provenance_b': self.provenance(diff['with']),
+            }
+
         raise KeyError(f"Unknown: {name}")
 
     def list_axioms(self) -> list[Axiom]:
