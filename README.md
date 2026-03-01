@@ -1,8 +1,13 @@
 <p align="center">
-  <img src="parseltongue.svg" alt="Parseltongue" width="200">
+  <img src="https://raw.githubusercontent.com/sci2sci-opensource/parseltongue/main/parseltongue.svg" alt="Parseltongue" width="200">
 </p>
 
 # Parseltongue
+
+[![CI](https://github.com/sci2sci-opensource/parseltongue/actions/workflows/ci.yml/badge.svg)](https://github.com/sci2sci-opensource/parseltongue/actions/workflows/ci.yml)
+[![PyPI](https://img.shields.io/pypi/v/parseltongue-dsl)](https://pypi.org/project/parseltongue-dsl/)
+[![Python](https://img.shields.io/pypi/pyversions/parseltongue-dsl)](https://pypi.org/project/parseltongue-dsl/)
+[![License](https://img.shields.io/github/license/sci2sci-opensource/parseltongue)](https://github.com/sci2sci-opensource/parseltongue/blob/main/LICENSE)
 
 A DSL for systems that refuse to speak falsehood.
 
@@ -25,7 +30,7 @@ The result is a system where the LLM does what it's good at (reading documents, 
 The main way to use Parseltongue is through the LLM pipeline. You give it documents and a question; it builds a formal logic system, cross-validates it, and returns a grounded answer where every claim links back to a verbatim quote. The truth-checking, fabrication detection, and consistency verification are all handled by the internal DSL machinery in `core` — you don't need to write any s-expressions yourself.
 
 ```bash
-pip install -e ".[llm]"
+pip install parseltongue-dsl[llm]
 export OPENROUTER_API_KEY=sk-...
 ```
 
@@ -46,6 +51,8 @@ pipeline.add_document("Bonus Policy", text="Bonus is 20% of base salary...")
 
 result = pipeline.run("Did we beat the growth target? What is the bonus?")
 ```
+
+See the [full demo output](parseltongue/llm/demos/revenue/demo_example_output.md) for a complete example of what the pipeline produces.
 
 For example, `result.output.markdown` might contain:
 
