@@ -7,7 +7,12 @@ name = "parseltongue"
 version = "0.1.0"
 description = "Parseltongue: a DSL for systems which refuse to speak falsehood"
 requires-python = ">=3.11"
-license = "MIT"
+license = "Apache-2.0"
+readme = "README.md"
+authors = [{name = "Parseltongue Contributors"}]
+
+[project.urls]
+Repository = "https://gitlab.com/sci2sci-opensource/parseltongue"
 
 [project.optional-dependencies]
 dev = ["pytest>=7.0"]

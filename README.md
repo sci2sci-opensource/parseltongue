@@ -4,7 +4,7 @@
 
 # Parseltongue
 
-A DSL for formal systems that refuse to speak falsehood.
+A DSL for systems that refuse to speak falsehood.
 
 ## Rationale - Why?
 
@@ -542,4 +542,4 @@ pytest -v -k "QuoteVerifier"     # specific test class
 
 ## License
 
-MIT
+Apache 2.0
