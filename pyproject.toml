@@ -9,7 +9,7 @@ description = "Parseltongue: a DSL for systems which refuse to speak falsehood"
 requires-python = ">=3.11"
 license = "Apache-2.0"
 readme = "README.md"
-authors = [{name = "Parseltongue Contributors"}]
+authors = [{name = "Valerii Kremnev"}]
 keywords = ["dsl", "formal-verification", "evidence", "consistency", "llm", "fact-checking"]
 classifiers = [
     "Development Status :: 3 - Alpha",
