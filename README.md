@@ -2,7 +2,7 @@
 
 A DSL for formal systems that refuse to speak falsehood.
 
-## Rationale: Why
+## Rationale - Why?
 
 LLMs hallucinate. They produce fluent, confident text that may have no basis in the source material. Traditional approaches treat this as a retrieval problem — feed the model better context and hope for the best. But even with perfect retrieval, nothing stops the model from inventing facts, misquoting sources, or drawing conclusions that don't follow from the evidence.
 
@@ -325,7 +325,7 @@ provenance = s.provenance("target-exceeded")
 
 ### Quote Verification
 
-Main engine is aware about the documents and then a document is registered, it is normalized and indexed into an inverted word-position index (`DocumentIndex`). Each word maps to its character positions in the normalized text, so quote lookup is a candidate-set intersection rather than a linear scan. This makes verification fast even for very large document collections.
+The main engine is aware of the documents, and when a document is registered, it is normalized and indexed into an inverted word-position index (`DocumentIndex`). Each word maps to its character positions in the normalized text, so quote lookup is a candidate-set intersection rather than a linear scan. This makes verification fast even for very large document collections.
 
 ```python
 from parseltongue.core.quote_verifier import QuoteVerifier
@@ -459,11 +459,9 @@ class MyProvider(LLMProvider):
 The default `OpenRouterProvider` supports extended thinking:
 
 ```python
-provider = OpenRouterProvider(
-    model="anthropic/claude-sonnet-4.6",
-    reasoning=True,          # adaptive thinking
-    reasoning=8000,          # explicit token budget
-)
+provider = OpenRouterProvider(model="anthropic/claude-sonnet-4.6")
+provider = OpenRouterProvider(model="anthropic/claude-sonnet-4.6", reasoning=True)     # adaptive
+provider = OpenRouterProvider(model="anthropic/claude-sonnet-4.6", reasoning=8000)     # explicit budget
 ```
 
 ### Reference Resolution
@@ -508,7 +506,7 @@ parseltongue/
       apples/                          # Peano arithmetic demo
       revenue_reports/                 # company performance demo
       biomarkers/                      # diagnostic marker demo
-    tests/                             # 240+ unit tests
+    tests/                             # 290+ unit tests
   llm/
     __init__.py                        # llm public API
     pipeline.py                        # 4-pass pipeline orchestrator
@@ -519,7 +517,7 @@ parseltongue/
     resolve.py                         # [[type:name]] reference resolver
     demos/
       revenue/                         # end-to-end LLM pipeline demo
-    tests/                             # 100+ unit tests
+    tests/                             # 70+ unit tests
 ```
 
 ## Running Tests
