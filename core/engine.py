@@ -108,7 +108,7 @@ from .lang import (
     parse, tokenize, read_tokens, to_sexp,
     get_keyword, parse_evidence,
     # Special forms
-    IF, LET,
+    IF, LET, SPECIAL_FORMS,
     # DSL keywords
     AXIOM, DEFTERM, FACT, DERIVE, DIFF,
     # Keyword arguments
@@ -601,19 +601,24 @@ class System:
                 raise ValueError(f"Unknown axiom, fact, term, or theorem: {ax_name}")
 
         result = self.evaluate(wff)
-        if result is False:
-            raise ValueError(
-                f"Derivation '{name}' does not hold: "
-                f"{to_sexp(wff)} evaluated to False"
-            )
+        does_not_hold = result is False
+
+        if does_not_hold:
+            log.warning("Derivation '%s' does not hold: %s evaluated to False",
+                        name, to_sexp(wff))
 
         # Check fabrication propagation
         ungrounded = self._check_sources_grounded(using)
+        issues = []
+        if does_not_hold:
+            issues.append("does not hold (evaluated to False)")
         if ungrounded:
-            origin = (f"potential fabrication — derived from unverified: "
-                      f"{', '.join(ungrounded)}")
+            issues.append(f"derived from unverified: {', '.join(ungrounded)}")
             log.warning("Derivation '%s' marked as potential fabrication "
                         "(unverified sources: %s)", name, ', '.join(ungrounded))
+
+        if issues:
+            origin = f"potential fabrication — {'; '.join(issues)}"
         else:
             origin = "derived"
 
@@ -716,6 +721,8 @@ class System:
         """Check that an expression is well-formed in the current system."""
         if isinstance(expr, Symbol):
             if expr in self.env or str(expr) in self.terms:
+                return
+            if expr in SPECIAL_FORMS:
                 return
             if len(expr) == 1 and expr.isalpha():
                 return
@@ -923,6 +930,16 @@ class System:
                 'origin': self._format_origin(ax.origin),
             }
 
+        if name in self.terms:
+            term = self.terms[name]
+            defn = to_sexp(term.definition) if term.definition is not None else "(forward declaration)"
+            return {
+                'name': name,
+                'type': 'term',
+                'definition': defn,
+                'origin': self._format_origin(term.origin),
+            }
+
         if name in self.theorems:
             thm = self.theorems[name]
             return {
@@ -1034,11 +1051,11 @@ class System:
         return report
 
     def doc(self) -> str:
-        """Generate documentation for the system based on its current state.
+        """Generate DSL documentation: syntax reference and available operators.
 
-        Reflects the actual symbols loaded into this system instance,
-        grouped by category with descriptions, examples, and usage
-        patterns drawn from real-world demos.
+        Shows the language constructs (directives, keywords, special forms)
+        and the operators loaded into this system's environment.
+        Does NOT include runtime state — use state() for that.
         """
         all_docs = {**LANG_DOCS, **ENGINE_DOCS}
         lines = []
@@ -1098,15 +1115,18 @@ class System:
                             lines.append(f"        {pline}")
                         lines.append("")
 
-        # User-defined: facts
+        return "\n".join(lines)
+
+    def state(self) -> str:
+        """Show the current runtime state: facts, terms, axioms, theorems, diffs."""
+        lines = []
+
         if self.facts:
-            lines.append("")
             lines.append("  Facts")
             lines.append("  " + "-" * 5)
             for name, info in self.facts.items():
                 lines.append(f"    {name} = {info['value']}")
 
-        # User-defined: terms
         if self.terms:
             lines.append("")
             lines.append("  Terms")
@@ -1115,7 +1135,6 @@ class System:
                 defn = to_sexp(term.definition) if term.definition is not None else "(forward declaration)"
                 lines.append(f"    {name} := {defn}")
 
-        # User-defined: axioms
         if self.axioms:
             lines.append("")
             lines.append("  Axioms")
@@ -1123,7 +1142,6 @@ class System:
             for name, ax in self.axioms.items():
                 lines.append(f"    {name}: {to_sexp(ax.wff)}")
 
-        # User-defined: theorems
         if self.theorems:
             lines.append("")
             lines.append("  Theorems")
@@ -1132,13 +1150,15 @@ class System:
                 sources = ', '.join(thm.derivation)
                 lines.append(f"    {name}: {to_sexp(thm.wff)}  [from: {sources}]")
 
-        # User-defined: diffs
         if self.diffs:
             lines.append("")
             lines.append("  Diffs")
             lines.append("  " + "-" * 5)
             for name, params in self.diffs.items():
                 lines.append(f"    {name}: {params['replace']} vs {params['with']}")
+
+        if not lines:
+            return "  (empty)"
 
         return "\n".join(lines)
 
@@ -1212,8 +1232,16 @@ def _parse_bindings(system, bind_raw):
 
     Substitution is symbolic — binding values are expression trees,
     not evaluated results.
+
+    Skips malformed pairs (empty lists, singletons, non-list items).
     """
-    return {pair[0]: pair[1] for pair in bind_raw}
+    bindings = {}
+    for pair in bind_raw:
+        if not isinstance(pair, list) or len(pair) < 2:
+            log.warning("Skipping malformed bind pair: %s", pair)
+            continue
+        bindings[pair[0]] = pair[1]
+    return bindings
 
 
 def _execute_directive(system: System, expr):
@@ -1265,9 +1293,22 @@ def _execute_directive(system: System, expr):
         if bind_raw is not None:
             ref = str(expr[2])
             bindings = _parse_bindings(system, bind_raw)
-            wff = system.instantiate(ref, bindings)
+            if not bindings:
+                # Empty :bind — treat as direct axiom reference
+                log.warning("Empty :bind in derive '%s' — expanding axiom '%s' directly", name, ref)
+                if ref in system.axioms:
+                    wff = system.axioms[ref].wff
+                else:
+                    wff = expr[2]
+            else:
+                wff = system.instantiate(ref, bindings)
         else:
             wff = expr[2]
+            # Auto-expand axiom names used as bare WFF
+            if isinstance(wff, Symbol) and str(wff) in system.axioms:
+                axiom_name = str(wff)
+                log.warning("Derive '%s' used axiom name '%s' as WFF — auto-expanding to axiom body", name, axiom_name)
+                wff = system.axioms[axiom_name].wff
         system.derive(name, wff, using)
 
     elif head == DIFF:

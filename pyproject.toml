@@ -5,15 +5,16 @@ build-backend = "setuptools.backends._legacy:_Backend"
 [project]
 name = "parseltongue"
 version = "0.1.0"
-description = "A DSL for formal systems with evidence grounding"
+description = "A DSL for systems which refuse to speak falsehood"
 requires-python = ">=3.11"
 license = "MIT"
 
 [project.optional-dependencies]
 dev = ["pytest>=7.0"]
+llm = ["openai>=1.0", "python-dotenv>=1.0"]
 
 [tool.setuptools.packages.find]
 include = ["parseltongue*"]
 
 [tool.pytest.ini_options]
-testpaths = ["core/tests"]
+testpaths = ["core/tests", "llm/tests"]

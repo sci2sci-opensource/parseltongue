@@ -28,3 +28,5 @@ from .core import (                                # noqa: F401
     AND, OR, NOT, IMPLIES,
     DiffResult, ConsistencyIssue, ConsistencyWarning, ConsistencyReport,
 )
+
+from llm import Pipeline, OpenRouterProvider                # noqa: F401

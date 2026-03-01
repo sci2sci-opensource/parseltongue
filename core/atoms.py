@@ -22,11 +22,27 @@ class Symbol(str):
 
 def tokenize(source: str) -> list[str]:
     """Tokenize s-expression source into atoms and parens."""
-    source = re.sub(r';.*$', '', source, flags=re.MULTILINE)
     tokens = []
     in_string = False
+    in_comment = False
     current = []
     for char in source:
+        if char == '\n':
+            in_comment = False
+            if not in_string and current:
+                tokens.append(''.join(current))
+                current = []
+            elif in_string:
+                current.append(char)
+            continue
+        if in_comment:
+            continue
+        if char == ';' and not in_string:
+            in_comment = True
+            if current:
+                tokens.append(''.join(current))
+                current = []
+            continue
         if char == '"' and not in_string:
             in_string = True
             current.append(char)

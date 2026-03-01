@@ -253,6 +253,27 @@ class TestAxioms(unittest.TestCase):
         with self.assertRaises(NameError):
             quiet(s.introduce_axiom, 'bad', [Symbol('>'), Symbol('unknown'), 0], 'test')
 
+    def test_axiom_with_if_in_wff(self):
+        """Axioms can use special forms like 'if' in their WFF."""
+        s = make_system()
+        quiet(s.set_fact, 'x', 5, 'test')
+        quiet(s.set_fact, 'y', 10, 'test')
+        ax = quiet(s.introduce_axiom, 'a3',
+                   [Symbol('='), [Symbol('if'), [Symbol('>'), Symbol('x'), 0],
+                                  Symbol('y'), 0], Symbol('y')], 'test')
+        self.assertIn('a3', s.axioms)
+
+    def test_axiom_with_let_in_wff(self):
+        """Axioms can use 'let' in their WFF."""
+        s = make_system()
+        quiet(s.set_fact, 'x', 5, 'test')
+        ax = quiet(s.introduce_axiom, 'a4',
+                   [Symbol('='),
+                    [Symbol('let'), [[Symbol('z'), Symbol('x')]],
+                     [Symbol('+'), Symbol('z'), 1]],
+                    6], 'test')
+        self.assertIn('a4', s.axioms)
+
 
 # ==============================================================
 # Terms
@@ -304,11 +325,13 @@ class TestDerivation(unittest.TestCase):
         self.assertIn('potential fabrication', thm.origin)
         self.assertIn('bad', thm.origin)
 
-    def test_derive_false_raises(self):
+    def test_derive_false_is_fabrication(self):
+        """A derivation that evaluates to False is accepted but marked as fabrication."""
         s = make_system()
         quiet(s.set_fact, 'x', 5, 'test')
-        with self.assertRaises(ValueError):
-            quiet(s.derive, 'bad_d', [Symbol('<'), Symbol('x'), 0], ['x'])
+        thm = quiet(s.derive, 'bad_d', [Symbol('<'), Symbol('x'), 0], ['x'])
+        self.assertIn('potential fabrication', thm.origin)
+        self.assertIn('does not hold', thm.origin)
 
     def test_fabrication_chain(self):
         """Deriving from an already-fabricated theorem propagates fabrication."""
@@ -830,18 +853,25 @@ class TestDoc(unittest.TestCase):
         self.assertIn('=> 5', result)
         self.assertIn('=> True', result)
 
-    def test_doc_includes_user_facts(self):
+    def test_doc_does_not_include_state(self):
+        """doc() shows DSL reference only, not runtime facts/terms."""
+        s = make_system()
+        quiet(s.set_fact, 'my_test_fact', 15, 'test')
+        result = s.doc()
+        self.assertNotIn('my_test_fact', result)
+
+    def test_state_includes_user_facts(self):
         s = make_system()
         quiet(s.set_fact, 'revenue', 15, 'test')
-        result = s.doc()
+        result = s.state()
         self.assertIn('Facts', result)
         self.assertIn('revenue', result)
 
-    def test_doc_includes_user_terms(self):
+    def test_state_includes_user_terms(self):
         s = make_system()
         quiet(s.set_fact, 'a', 10, 'test')
         quiet(s.introduce_term, 'total', [Symbol('+'), Symbol('a'), 5], 'test')
-        result = s.doc()
+        result = s.state()
         self.assertIn('total', result)
 
     def test_doc_minimal_env(self):
