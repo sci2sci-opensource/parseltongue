@@ -107,10 +107,11 @@ class ParseltongueApp(App):
     # ------------------------------------------------------------------
 
     def on_documents_selected(self, event) -> None:
-        """Handle document selection → show query input."""
+        """Handle document selection — docs already ingested by picker."""
         from .screens.query_input import QueryInput
 
         self._selected_paths = list(event.paths)
+        self._ingested_docs = event.ingested
         self.push_screen(QueryInput(doc_count=len(event.paths)))
 
     def on_query_submitted(self, event) -> None:
@@ -143,7 +144,8 @@ class ParseltongueApp(App):
         from ..runner import create_interactive_pipeline
         from .screens.live_pass import LivePassScreen
 
-        self._pipeline, self._history_run_id = create_interactive_pipeline(self._run_config)
+        pre = getattr(self, "_ingested_docs", None) or None
+        self._pipeline, self._history_run_id = create_interactive_pipeline(self._run_config, pre_ingested=pre)
         for name, err in self._run_config.ingest_errors.items():
             self.notify(f"{name}: {err}", severity="error", timeout=10)
         self.push_screen(LivePassScreen(self._pipeline))

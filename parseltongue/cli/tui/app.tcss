@@ -282,6 +282,13 @@ DocumentPicker #selected-list {
     height: 1fr;
 }
 
+DocumentPicker #ingest-status {
+    dock: bottom;
+    height: 1;
+    color: $text-muted;
+    margin-bottom: 0;
+}
+
 DocumentPicker #continue-btn {
     dock: bottom;
     margin-top: 1;

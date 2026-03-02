@@ -91,8 +91,17 @@ def run_pipeline(
         raise
 
 
-def create_interactive_pipeline(config: RunConfig, on_progress: Callable[[str], None] | None = None):
+def create_interactive_pipeline(
+    config: RunConfig,
+    on_progress: Callable[[str], None] | None = None,
+    pre_ingested: dict[str, str] | None = None,
+):
     """Set up an InteractivePipeline from RunConfig.
+
+    Args:
+        config: Run configuration.
+        on_progress: Callback (message).
+        pre_ingested: Already-ingested documents {name: text}. Skips ingestion.
 
     Returns (InteractivePipeline, history_run_id) — caller drives the passes.
     """
@@ -107,16 +116,21 @@ def create_interactive_pipeline(config: RunConfig, on_progress: Callable[[str], 
     system = System(overridable=True)
     provider = _create_provider(config)
 
-    documents: dict[str, str] = {}
-    for name, path in config.documents:
-        progress(f"Ingesting: {name}")
-        try:
-            text = ingest_file(path)
+    if pre_ingested:
+        documents = dict(pre_ingested)
+        for name, text in documents.items():
             system.register_document(name, text)
-            documents[name] = text
-        except Exception as exc:
-            config.ingest_errors[name] = str(exc)
-            progress(f"Skipping {name}: {exc}")
+    else:
+        documents = {}
+        for name, path in config.documents:
+            progress(f"Ingesting: {name}")
+            try:
+                text = ingest_file(path)
+                system.register_document(name, text)
+                documents[name] = text
+            except Exception as exc:
+                config.ingest_errors[name] = str(exc)
+                progress(f"Skipping {name}: {exc}")
 
     prov = config.provider_config
     run_id = history.save_run(
