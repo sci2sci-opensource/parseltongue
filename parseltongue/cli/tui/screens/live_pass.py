@@ -21,6 +21,7 @@ from textual.widgets import (
 )
 
 from ..widgets.pass_viewer import PassViewer
+from ..widgets.resizable_split import ResizableSplitMixin
 
 if TYPE_CHECKING:
     from textual.timer import Timer
@@ -36,17 +37,21 @@ class PassesComplete(Message):
     pass
 
 
-class LivePassScreen(Screen):
+class LivePassScreen(ResizableSplitMixin, Screen):
     """Live view of pass-by-pass pipeline execution.
 
     Left: tabbed DSL output log.  Right: live system state tree.
     Bottom: action buttons for retry/skip/continue.
     """
 
+    _split_grid_id = "live-layout"
+
     BINDINGS = [
         ("escape", "interrupt", "Interrupt"),
         ("ctrl+n", "skip", "Skip pass"),
         ("ctrl+a", "copy_log", "Copy log"),
+        ("f11", "grow_right", "F11 Grow right"),
+        ("f12", "grow_left", "F12 Grow left"),
     ]
 
     _SPINNER = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
@@ -79,7 +84,8 @@ class LivePassScreen(Screen):
                 yield Button("Retry", id="retry-btn", variant="warning", disabled=True)
                 yield Button("Skip", id="skip-btn", variant="default")
             yield Static(
-                "[b]Enter[/b] Continue/Retry  [b]Ctrl+N[/b] Skip  [b]Esc[/b] Interrupt  [b]Ctrl+A[/b] Copy log",
+                "[b]Enter[/b] Continue/Retry  [b]Ctrl+N[/b] Skip  [b]Esc[/b] Interrupt"
+                "  [b]Ctrl+A[/b] Copy log  [b]F11/F12[/b] Resize",
                 id="live-hints",
             )
 

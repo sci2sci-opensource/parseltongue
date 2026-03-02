@@ -10,18 +10,21 @@ from textual.screen import Screen
 
 from ..widgets.provenance_tree import ProvenanceTree
 from ..widgets.reference_text import ReferenceClicked, ReferenceText
+from ..widgets.resizable_split import ResizableSplitMixin
 from ..widgets.status_bar import StatusBar
 
 if TYPE_CHECKING:
     from parseltongue.llm import PipelineResult
 
 
-class AnswerScreen(Screen):
+class AnswerScreen(ResizableSplitMixin, Screen):
     """Main answer view: markdown on the left, provenance on the right."""
 
     BINDINGS = [
         ("escape", "dismiss", "Back"),
         ("ctrl+a", "copy_answer", "Copy answer"),
+        ("f11", "grow_right", "F11 Grow right"),
+        ("f12", "grow_left", "F12 Grow left"),
     ]
 
     def __init__(self, result: PipelineResult, **kwargs) -> None:
@@ -33,7 +36,7 @@ class AnswerScreen(Screen):
             yield ReferenceText(str(self._result.output))
         with Container(id="provenance-panel"):
             yield ProvenanceTree(id="provenance-tree")
-        yield StatusBar()
+        yield StatusBar(extra_hints=[("F11/F12", "Resize")])
 
     def on_reference_clicked(self, event: ReferenceClicked) -> None:
         """When a reference tag is clicked, show its full provenance."""

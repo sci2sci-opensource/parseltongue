@@ -11,6 +11,7 @@ from textual.screen import Screen
 from textual.widgets import Label, TabbedContent, TabPane, Tree
 
 from ..widgets.pass_viewer import PassViewer
+from ..widgets.resizable_split import ResizableSplitMixin
 from ..widgets.status_bar import StatusBar
 from ..widgets.tree_builders import populate_system_tree
 
@@ -20,11 +21,15 @@ if TYPE_CHECKING:
 PASS_NAMES = {1: "Extract", 2: "Derive", 3: "Factcheck", 4: "Answer"}
 
 
-class PassesScreen(Screen):
+class PassesScreen(ResizableSplitMixin, Screen):
     """Tabbed view of the four pipeline passes with cumulative state tree."""
+
+    _split_grid_id = "passes-layout"
 
     BINDINGS = [
         ("escape", "dismiss", "Back"),
+        ("f11", "grow_right", "F11 Grow right"),
+        ("f12", "grow_left", "F12 Grow left"),
     ]
 
     def __init__(self, result: PipelineResult, **kwargs) -> None:
@@ -56,7 +61,7 @@ class PassesScreen(Screen):
             with Container(id="passes-state-panel"):
                 yield Label("Parseltongue State", id="passes-state-title")
                 yield Tree("State", id="passes-state-tree")
-        yield StatusBar()
+        yield StatusBar(extra_hints=[("F11/F12", "Resize")])
 
     def on_mount(self) -> None:
         self._refresh_state_tree(1)

@@ -34,6 +34,10 @@ class StatusBar(Widget):
         ("Esc", "Back"),
     ]
 
+    def __init__(self, extra_hints: list[tuple[str, str]] | None = None, **kwargs) -> None:
+        super().__init__(**kwargs)
+        self._extra_hints = extra_hints or []
+
     def compose(self) -> ComposeResult:
-        for key, desc in self.HINTS:
+        for key, desc in self.HINTS + self._extra_hints:
             yield Static(f"[b]{key}[/b] {desc}", classes="hint")
