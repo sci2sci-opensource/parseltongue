@@ -124,7 +124,7 @@ What you get back:
 - **`result.output.consistency`** — a consistency report listing unverified evidence, fabrication chains, and diff divergences.
 - **`result.system`** — the full formal system the LLM built, available for further inspection via `system.provenance(name)`, `system.eval_diff(name)`, etc.
 
-Under the hood, the pipeline runs four passes — extraction, blinded derivation, fact-checking, and inference. Each pass uses tool calling (`tool_choice="required"`) so the LLM outputs structured DSL, never raw prose. To add your own providers or customize the pipeline, see [LLM Pipeline — Deep Dive](#llm-pipeline--deep-dive).
+Under the hood, the pipeline runs four passes — extraction, blinded derivation, fact-checking, and answer inference. Each pass uses tool calling (`tool_choice="required"`) so the LLM outputs structured DSL, never raw prose. To add your own providers or customize the pipeline, see [LLM Pipeline — Deep Dive](#llm-pipeline--deep-dive).
 
 ```
   Documents + Query

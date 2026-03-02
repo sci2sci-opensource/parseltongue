@@ -15,6 +15,7 @@ from textual.widgets import (
     Button,
     Input,
     Label,
+    Static,
     TabbedContent,
     TabPane,
     Tree,
@@ -71,7 +72,9 @@ class LivePassScreen(ResizableSplitMixin, Screen):
     def compose(self) -> ComposeResult:
         with Horizontal(id="live-layout"):
             with Container(id="dsl-panel"):
-                yield Label("Pipeline", id="pass-title")
+                with Horizontal(id="pass-header"):
+                    yield Label("Pipeline", id="pass-title")
+                    yield Static("[@click=screen.copy_log]Copy[/]", id="pass-copy-btn")
                 yield TabbedContent(id="dsl-tabs")
             with Container(id="state-panel"):
                 yield Label("Parseltongue State", id="state-title")

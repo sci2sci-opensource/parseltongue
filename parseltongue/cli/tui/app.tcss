@@ -352,9 +352,19 @@ LivePassScreen #dsl-panel {
     height: 1fr;
 }
 
+LivePassScreen #pass-header {
+    height: auto;
+    margin-bottom: 1;
+}
+
 LivePassScreen #pass-title {
     text-style: bold;
-    margin-bottom: 1;
+    width: 1fr;
+}
+
+LivePassScreen #pass-copy-btn {
+    width: auto;
+    color: $text-muted;
 }
 
 LivePassScreen #dsl-tabs {
