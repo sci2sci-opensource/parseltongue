@@ -17,18 +17,18 @@ from parseltongue.core import Symbol, System, load_source
 def _print_list(items):
     for item in items:
         if isinstance(item, dict):
-            origin = item.get('origin', '')
-            tag = str(origin) if hasattr(origin, 'is_grounded') else f"[origin: {origin}]"
+            origin = item.get("origin", "")
+            tag = str(origin) if hasattr(origin, "is_grounded") else f"[origin: {origin}]"
             print(f"  {item['name']} = {item['value']} {tag}")
         else:
             print(f"  {item}")
 
 
 def main():
-    plog = logging.getLogger('parseltongue')
+    plog = logging.getLogger("parseltongue")
     plog.setLevel(logging.INFO)
     handler = logging.StreamHandler(sys.stdout)
-    handler.setFormatter(logging.Formatter('  [%(levelname)s] %(message)s'))
+    handler.setFormatter(logging.Formatter("  [%(levelname)s] %(message)s"))
     plog.addHandler(handler)
 
     s = System(overridable=True)
@@ -40,7 +40,7 @@ def main():
     # Phase 0: Load source documents
     # ----------------------------------------------------------
     print("\n--- Phase 0: Load source documents ---")
-    doc_dir = os.path.join(os.path.dirname(__file__), 'resources')
+    doc_dir = os.path.join(os.path.dirname(__file__), "resources")
     s.load_document("Q3 Report", os.path.join(doc_dir, "q3_report.txt"))
     s.load_document("FY2024 Targets Memo", os.path.join(doc_dir, "targets_memo.txt"))
     s.load_document("Bonus Policy Doc", os.path.join(doc_dir, "bonus_policy.txt"))
@@ -116,7 +116,7 @@ def main():
     """,
     )
 
-    result = s.evaluate(s.terms['beat-target'].definition)
+    result = s.evaluate(s.terms["beat-target"].definition)
     print(f"  beat-target evaluates to: {result}")
     _print_list(s.list_axioms())
 
@@ -124,7 +124,7 @@ def main():
     # Phase 5: Provenance trace with verification details
     # ----------------------------------------------------------
     print("\n--- Phase 5: Provenance trace ---")
-    prov = s.provenance('target-exceeded')
+    prov = s.provenance("target-exceeded")
     print(json.dumps(prov, indent=2))
 
     # ----------------------------------------------------------
@@ -169,7 +169,7 @@ def main():
     print("  Before override:")
     _print_list(s.list_facts())
 
-    s.verify_manual('fake-metric')
+    s.verify_manual("fake-metric")
 
     print("  After override:")
     _print_list(s.list_facts())
@@ -203,7 +203,7 @@ def main():
     """,
     )
 
-    amount = s.evaluate(s.terms['bonus-amount'].definition)
+    amount = s.evaluate(s.terms["bonus-amount"].definition)
     print(f"  Bonus amount: ${amount:,.0f}")
 
     load_source(
@@ -216,7 +216,7 @@ def main():
     )
 
     print("\n  Full provenance of bonus:")
-    print(json.dumps(s.provenance('bonus-confirmed'), indent=2))
+    print(json.dumps(s.provenance("bonus-confirmed"), indent=2))
 
     # ----------------------------------------------------------
     # Phase 10: Diff — cross-source consistency check
@@ -240,7 +240,7 @@ def main():
     """,
     )
 
-    computed = s.evaluate(s.terms['revenue-q3-growth-computed'].definition)
+    computed = s.evaluate(s.terms["revenue-q3-growth-computed"].definition)
     print("  Reported growth: 15%")
     print(f"  Computed growth: {computed:.2f}%")
 
@@ -272,24 +272,24 @@ def main():
 
     # Fix 1: Verify base-salary evidence (quote failed due to line-break formatting)
     print("\n  Fix 1: Verify base-salary (formatting edge case)")
-    s.verify_manual('base-salary')
+    s.verify_manual("base-salary")
 
     # Fix 2: Rederive tainted axioms now that sources are grounded
     print("\n  Fix 2: Rederive tainted axioms")
-    s.rederive('bonus-confirmed')
-    s.rederive('uses-fake')
+    s.rederive("bonus-confirmed")
+    s.rederive("uses-fake")
 
     # Fix 3: Manually verify plain-origin items
     print("\n  Fix 3: Verify plain-origin items")
-    s.verify_manual('revenue-q3-abs')
-    s.verify_manual('revenue-q2')
-    s.verify_manual('revenue-q3-growth-computed')
+    s.verify_manual("revenue-q3-abs")
+    s.verify_manual("revenue-q2")
+    s.verify_manual("revenue-q3-growth-computed")
 
     # Fix 4: Correct revenue-q3-abs — if Q2=210 and growth=15%, Q3=241.5
     # overridable=True: auto-overwrites and recomputes dependent diffs
     print("\n  Fix 4: Correct revenue-q3-abs (auto-recomputes diffs)")
-    s.set_fact('revenue-q3-abs', 241.5, "Corrected: 210 * 1.15 = 241.5 to match reported 15% growth")
-    s.verify_manual('revenue-q3-abs')
+    s.set_fact("revenue-q3-abs", 241.5, "Corrected: 210 * 1.15 = 241.5 to match reported 15% growth")
+    s.verify_manual("revenue-q3-abs")
 
     # Check consistency again
     print("\n  Consistency after fixes:")
@@ -310,5 +310,5 @@ def main():
     _print_list(s.list_facts())
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

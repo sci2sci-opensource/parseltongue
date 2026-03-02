@@ -6,34 +6,33 @@ from .. import Evidence, Symbol, atom, free_vars, get_keyword, parse, parse_all,
 
 
 class TestTokenize(unittest.TestCase):
-
     def test_basic_tokens(self):
         tokens = tokenize("(+ 2 3)")
-        self.assertEqual(tokens, ['(', '+', '2', '3', ')'])
+        self.assertEqual(tokens, ["(", "+", "2", "3", ")"])
 
     def test_nested_parens(self):
         tokens = tokenize("(+ (* 2 3) 4)")
-        self.assertEqual(tokens, ['(', '+', '(', '*', '2', '3', ')', '4', ')'])
+        self.assertEqual(tokens, ["(", "+", "(", "*", "2", "3", ")", "4", ")"])
 
     def test_string_tokens(self):
         tokens = tokenize('(fact "hello world")')
-        self.assertEqual(tokens, ['(', 'fact', '"hello world"', ')'])
+        self.assertEqual(tokens, ["(", "fact", '"hello world"', ")"])
 
     def test_comments_stripped(self):
         tokens = tokenize(";; this is a comment\n(+ 1 2)")
-        self.assertEqual(tokens, ['(', '+', '1', '2', ')'])
+        self.assertEqual(tokens, ["(", "+", "1", "2", ")"])
 
     def test_inline_comment(self):
         tokens = tokenize("(+ 1 2) ;; inline")
-        self.assertEqual(tokens, ['(', '+', '1', '2', ')'])
+        self.assertEqual(tokens, ["(", "+", "1", "2", ")"])
 
     def test_whitespace_variants(self):
         tokens = tokenize("(+\t2\n3)")
-        self.assertEqual(tokens, ['(', '+', '2', '3', ')'])
+        self.assertEqual(tokens, ["(", "+", "2", "3", ")"])
 
     def test_keyword_tokens(self):
-        tokens = tokenize("(fact x 5 :origin \"test\")")
-        self.assertEqual(tokens, ['(', 'fact', 'x', '5', ':origin', '"test"', ')'])
+        tokens = tokenize('(fact x 5 :origin "test")')
+        self.assertEqual(tokens, ["(", "fact", "x", "5", ":origin", '"test"', ")"])
 
     def test_empty_string(self):
         tokens = tokenize("")
@@ -41,7 +40,6 @@ class TestTokenize(unittest.TestCase):
 
 
 class TestAtom(unittest.TestCase):
-
     def test_integer(self):
         self.assertEqual(atom("42"), 42)
         self.assertIsInstance(atom("42"), int)
@@ -75,14 +73,13 @@ class TestAtom(unittest.TestCase):
 
 
 class TestParse(unittest.TestCase):
-
     def test_simple_expression(self):
         result = parse("(+ 2 3)")
-        self.assertEqual(result, [Symbol('+'), 2, 3])
+        self.assertEqual(result, [Symbol("+"), 2, 3])
 
     def test_nested_expression(self):
         result = parse("(+ (* 2 3) (- 10 4))")
-        self.assertEqual(result, [Symbol('+'), [Symbol('*'), 2, 3], [Symbol('-'), 10, 4]])
+        self.assertEqual(result, [Symbol("+"), [Symbol("*"), 2, 3], [Symbol("-"), 10, 4]])
 
     def test_atom_only(self):
         self.assertEqual(parse("42"), 42)
@@ -114,22 +111,20 @@ class TestParse(unittest.TestCase):
 
 
 class TestParseAll(unittest.TestCase):
-
     def test_multiple_expressions(self):
         result = parse_all("(+ 1 2) (- 3 4)")
-        self.assertEqual(result, [[Symbol('+'), 1, 2], [Symbol('-'), 3, 4]])
+        self.assertEqual(result, [[Symbol("+"), 1, 2], [Symbol("-"), 3, 4]])
 
     def test_single_expression(self):
         result = parse_all("(+ 1 2)")
-        self.assertEqual(result, [[Symbol('+'), 1, 2]])
+        self.assertEqual(result, [[Symbol("+"), 1, 2]])
 
     def test_with_comments(self):
         result = parse_all(";; comment\n(+ 1 2)\n;; another\n(* 3 4)")
-        self.assertEqual(result, [[Symbol('+'), 1, 2], [Symbol('*'), 3, 4]])
+        self.assertEqual(result, [[Symbol("+"), 1, 2], [Symbol("*"), 3, 4]])
 
 
 class TestToSexp(unittest.TestCase):
-
     def test_integer(self):
         self.assertEqual(to_sexp(42), "42")
 
@@ -144,13 +139,13 @@ class TestToSexp(unittest.TestCase):
         self.assertEqual(to_sexp("hello"), '"hello"')
 
     def test_symbol(self):
-        self.assertEqual(to_sexp(Symbol('foo')), "foo")
+        self.assertEqual(to_sexp(Symbol("foo")), "foo")
 
     def test_list(self):
-        self.assertEqual(to_sexp([Symbol('+'), 2, 3]), "(+ 2 3)")
+        self.assertEqual(to_sexp([Symbol("+"), 2, 3]), "(+ 2 3)")
 
     def test_nested_list(self):
-        expr = [Symbol('+'), [Symbol('*'), 2, 3], 4]
+        expr = [Symbol("+"), [Symbol("*"), 2, 3], 4]
         self.assertEqual(to_sexp(expr), "(+ (* 2 3) 4)")
 
     def test_round_trip(self):
@@ -159,27 +154,25 @@ class TestToSexp(unittest.TestCase):
 
 
 class TestGetKeyword(unittest.TestCase):
-
     def test_found(self):
-        expr = [Symbol('fact'), Symbol('x'), 5, ':origin', 'test']
-        self.assertEqual(get_keyword(expr, ':origin'), 'test')
+        expr = [Symbol("fact"), Symbol("x"), 5, ":origin", "test"]
+        self.assertEqual(get_keyword(expr, ":origin"), "test")
 
     def test_not_found(self):
-        expr = [Symbol('fact'), Symbol('x'), 5]
-        self.assertIsNone(get_keyword(expr, ':origin'))
+        expr = [Symbol("fact"), Symbol("x"), 5]
+        self.assertIsNone(get_keyword(expr, ":origin"))
 
     def test_default(self):
-        expr = [Symbol('fact'), Symbol('x'), 5]
-        self.assertEqual(get_keyword(expr, ':origin', 'fallback'), 'fallback')
+        expr = [Symbol("fact"), Symbol("x"), 5]
+        self.assertEqual(get_keyword(expr, ":origin", "fallback"), "fallback")
 
     def test_keyword_at_end(self):
         """Keyword at the very end without a value returns default."""
-        expr = [Symbol('fact'), Symbol('x'), ':origin']
-        self.assertIsNone(get_keyword(expr, ':origin'))
+        expr = [Symbol("fact"), Symbol("x"), ":origin"]
+        self.assertIsNone(get_keyword(expr, ":origin"))
 
 
 class TestEvidenceDataclass(unittest.TestCase):
-
     def test_is_grounded_verified(self):
         ev = Evidence(document="d", quotes=[], verified=True)
         self.assertTrue(ev.is_grounded)
@@ -198,47 +191,45 @@ class TestEvidenceDataclass(unittest.TestCase):
 
 
 class TestFreeVars(unittest.TestCase):
-
     def test_simple(self):
-        expr = [Symbol('='), Symbol('?n'), 0]
-        self.assertEqual(free_vars(expr), {Symbol('?n')})
+        expr = [Symbol("="), Symbol("?n"), 0]
+        self.assertEqual(free_vars(expr), {Symbol("?n")})
 
     def test_nested(self):
-        expr = [Symbol('='), [Symbol('+'), Symbol('?a'), Symbol('?b')], [Symbol('+'), Symbol('?b'), Symbol('?a')]]
-        self.assertEqual(free_vars(expr), {Symbol('?a'), Symbol('?b')})
+        expr = [Symbol("="), [Symbol("+"), Symbol("?a"), Symbol("?b")], [Symbol("+"), Symbol("?b"), Symbol("?a")]]
+        self.assertEqual(free_vars(expr), {Symbol("?a"), Symbol("?b")})
 
     def test_none(self):
-        expr = [Symbol('+'), 2, 3]
+        expr = [Symbol("+"), 2, 3]
         self.assertEqual(free_vars(expr), set())
 
     def test_atom(self):
         self.assertEqual(free_vars(42), set())
-        self.assertEqual(free_vars(Symbol('?x')), {Symbol('?x')})
-        self.assertEqual(free_vars(Symbol('x')), set())
+        self.assertEqual(free_vars(Symbol("?x")), {Symbol("?x")})
+        self.assertEqual(free_vars(Symbol("x")), set())
 
 
 class TestSubstitute(unittest.TestCase):
-
     def test_simple(self):
-        expr = [Symbol('='), Symbol('?n'), 0]
-        result = substitute(expr, {Symbol('?n'): 5})
-        self.assertEqual(result, [Symbol('='), 5, 0])
+        expr = [Symbol("="), Symbol("?n"), 0]
+        result = substitute(expr, {Symbol("?n"): 5})
+        self.assertEqual(result, [Symbol("="), 5, 0])
 
     def test_nested(self):
-        expr = [Symbol('='), [Symbol('+'), Symbol('?a'), Symbol('?b')], [Symbol('+'), Symbol('?b'), Symbol('?a')]]
-        bindings = {Symbol('?a'): 3, Symbol('?b'): 7}
+        expr = [Symbol("="), [Symbol("+"), Symbol("?a"), Symbol("?b")], [Symbol("+"), Symbol("?b"), Symbol("?a")]]
+        bindings = {Symbol("?a"): 3, Symbol("?b"): 7}
         result = substitute(expr, bindings)
-        self.assertEqual(result, [Symbol('='), [Symbol('+'), 3, 7], [Symbol('+'), 7, 3]])
+        self.assertEqual(result, [Symbol("="), [Symbol("+"), 3, 7], [Symbol("+"), 7, 3]])
 
     def test_no_match(self):
-        expr = [Symbol('+'), Symbol('x'), 1]
-        result = substitute(expr, {Symbol('?n'): 5})
-        self.assertEqual(result, [Symbol('+'), Symbol('x'), 1])
+        expr = [Symbol("+"), Symbol("x"), 1]
+        result = substitute(expr, {Symbol("?n"): 5})
+        self.assertEqual(result, [Symbol("+"), Symbol("x"), 1])
 
     def test_atom_passthrough(self):
-        self.assertEqual(substitute(42, {Symbol('?n'): 5}), 42)
-        self.assertEqual(substitute('hello', {Symbol('?n'): 5}), 'hello')
+        self.assertEqual(substitute(42, {Symbol("?n"): 5}), 42)
+        self.assertEqual(substitute("hello", {Symbol("?n"): 5}), "hello")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

@@ -25,7 +25,7 @@ def format_blinded_state(system) -> str:
     if system.facts:
         lines.append("Facts (names and types only — values hidden):")
         for name, info in system.facts.items():
-            type_name = type(info['value']).__name__
+            type_name = type(info["value"]).__name__
             lines.append(f"  {name}: {type_name}")
 
     if system.terms:
@@ -42,10 +42,10 @@ def format_blinded_state(system) -> str:
     if system.theorems:
         lines.append("\nTheorems (already derived):")
         for name, thm in system.theorems.items():
-            sources = ', '.join(thm.derivation)
+            sources = ", ".join(thm.derivation)
             lines.append(f"  {name}: {to_sexp(thm.wff)}  [from: {sources}]")
 
-    return '\n'.join(lines)
+    return "\n".join(lines)
 
 
 def format_full_state(system) -> str:
@@ -98,4 +98,4 @@ def format_full_state(system) -> str:
             except Exception:
                 pass
 
-    return '\n'.join(lines)
+    return "\n".join(lines)

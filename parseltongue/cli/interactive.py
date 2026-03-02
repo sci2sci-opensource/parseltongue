@@ -15,7 +15,7 @@ from ..llm.provider import LLMProvider
 from ..llm.resolve import ResolvedOutput, resolve_references
 from ..llm.tools import ANSWER_TOOL, DERIVE_TOOL, EXTRACT_TOOL, FACTCHECK_TOOL
 
-log = logging.getLogger('parseltongue.cli')
+log = logging.getLogger("parseltongue.cli")
 
 PASS_INFO = [
     (1, "Extract", EXTRACT_TOOL, "dsl_output"),

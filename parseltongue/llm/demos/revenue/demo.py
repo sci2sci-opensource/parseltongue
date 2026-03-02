@@ -21,24 +21,24 @@ from parseltongue.core import System
 from parseltongue.llm import Pipeline
 from parseltongue.llm.openrouter import OpenRouterProvider
 
-RESOURCE_DIR = os.path.join(os.path.dirname(__file__), 'resources')
+RESOURCE_DIR = os.path.join(os.path.dirname(__file__), "resources")
 
 
 def main():
     parser = argparse.ArgumentParser(description="LLM pipeline demo — revenue reports")
-    parser.add_argument('--no-thinking', action='store_true', help='Disable extended thinking')
+    parser.add_argument("--no-thinking", action="store_true", help="Disable extended thinking")
     parser.add_argument(
-        '--reasoning-tokens', type=int, default=None, help='Set explicit reasoning token budget (default: adaptive)'
+        "--reasoning-tokens", type=int, default=None, help="Set explicit reasoning token budget (default: adaptive)"
     )
-    parser.add_argument('--model', default='anthropic/claude-sonnet-4.6', help='OpenRouter model ID')
-    parser.add_argument('-v', '--verbose', action='store_true', help='Show DEBUG-level pipeline logs')
+    parser.add_argument("--model", default="anthropic/claude-sonnet-4.6", help="OpenRouter model ID")
+    parser.add_argument("-v", "--verbose", action="store_true", help="Show DEBUG-level pipeline logs")
     args = parser.parse_args()
 
     # Logging
-    log = logging.getLogger('parseltongue')
+    log = logging.getLogger("parseltongue")
     log.setLevel(logging.DEBUG if args.verbose else logging.INFO)
     handler = logging.StreamHandler(sys.stdout)
-    handler.setFormatter(logging.Formatter('  [%(levelname)s] %(message)s'))
+    handler.setFormatter(logging.Formatter("  [%(levelname)s] %(message)s"))
     log.addHandler(handler)
 
     # Reasoning config
@@ -116,5 +116,5 @@ def main():
         print(json.dumps(system.provenance(thm_name), indent=2, default=str))
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

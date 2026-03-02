@@ -6,7 +6,6 @@ import asyncio
 import re
 from typing import TYPE_CHECKING
 
-from rich.markup import escape as rich_escape
 from textual.app import ComposeResult
 from textual.containers import Container, Horizontal
 from textual.message import Message
@@ -15,13 +14,13 @@ from textual.widgets import (
     Button,
     Input,
     Label,
-    Markdown,
-    RichLog,
     Static,
     TabbedContent,
     TabPane,
     Tree,
 )
+
+from ..widgets.pass_viewer import PassViewer
 
 if TYPE_CHECKING:
     from textual.timer import Timer
@@ -29,7 +28,6 @@ if TYPE_CHECKING:
     from ...interactive import InteractivePipeline, PassResult
 
 PASS_NAMES = {1: "Extract", 2: "Derive", 3: "Factcheck", 4: "Answer"}
-_REF_RE = re.compile(r"\[\[(\w+):([^\]]+)\]\]")
 
 
 class PassesComplete(Message):
@@ -62,8 +60,6 @@ class LivePassScreen(Screen):
         self._spinner_timer: Timer | None = None
         self._tab_counter = 0
         self._current_tab_id: str | None = None
-        self._log_buffers: dict[str, list[str]] = {}
-        self._current_tab_is_md = False
 
     def compose(self) -> ComposeResult:
         with Horizontal(id="live-layout"):
@@ -83,7 +79,7 @@ class LivePassScreen(Screen):
                 yield Button("Retry", id="retry-btn", variant="warning", disabled=True)
                 yield Button("Skip", id="skip-btn", variant="default")
             yield Static(
-                "[b]Enter[/b] Continue/Retry  [b]Ctrl+N[/b] Skip  " "[b]Esc[/b] Interrupt  [b]Ctrl+A[/b] Copy log",
+                "[b]Enter[/b] Continue/Retry  [b]Ctrl+N[/b] Skip  [b]Esc[/b] Interrupt  [b]Ctrl+A[/b] Copy log",
                 id="live-hints",
             )
 
@@ -94,45 +90,24 @@ class LivePassScreen(Screen):
     # Tab management
     # ------------------------------------------------------------------
 
-    def _new_tab(self, label: str, *, markdown: bool = False) -> None:
-        """Create a new tab and activate it.
-
-        If *markdown* is True the tab holds a Markdown widget (for Pass 4),
-        otherwise a RichLog (for DSL passes).
-        """
+    def _new_tab(self, label: str) -> None:
+        """Create a new tab with a PassViewer and activate it."""
         self._tab_counter += 1
         tab_id = f"run-{self._tab_counter}"
         self._current_tab_id = tab_id
-        self._log_buffers[tab_id] = []
+        language = "markdown" if self._current_pass == 4 else "scheme"
         tabs = self.query_one("#dsl-tabs", TabbedContent)
-        if markdown:
-            content_widget: Markdown | RichLog = Markdown("", id=f"md-{tab_id}")
-            self._current_tab_is_md = True
-        else:
-            content_widget = RichLog(highlight=True, markup=True)
-            self._current_tab_is_md = False
-        pane = TabPane(label, content_widget, id=tab_id)
+        pane = TabPane(label, PassViewer(language=language), id=tab_id)
         tabs.add_pane(pane)
         tabs.active = tab_id
 
-    def _set_markdown(self, text: str) -> None:
-        """Set the Markdown widget content in the current tab."""
-        if not self._current_tab_id:
-            return
-        try:
-            pane = self.query_one(f"#{self._current_tab_id}", TabPane)
-            md = pane.query_one(Markdown)
-            md.update(text)
-        except Exception:
-            pass
-
-    def _current_log(self) -> RichLog | None:
-        """Get the RichLog in the current tab."""
+    def _current_viewer(self) -> PassViewer | None:
+        """Get the PassViewer in the current tab."""
         if not self._current_tab_id:
             return None
         try:
             pane = self.query_one(f"#{self._current_tab_id}", TabPane)
-            return pane.query_one(RichLog)
+            return pane.query_one(PassViewer)
         except Exception:
             return None
 
@@ -147,7 +122,7 @@ class LivePassScreen(Screen):
             return
 
         name = PASS_NAMES[self._current_pass]
-        self._new_tab(f"P{self._current_pass}: {name}", markdown=(self._current_pass == 4))
+        self._new_tab(f"P{self._current_pass}: {name}")
 
         title = self.query_one("#pass-title", Label)
         title.update(f"Pass {self._current_pass}: {name}")
@@ -177,20 +152,16 @@ class LivePassScreen(Screen):
         self._on_pass_done(result)
 
     def _on_pass_done(self, result: "PassResult") -> None:
-        if result.source:
-            if self._current_tab_is_md:
-                # Pass 4: render as markdown
-                self._set_markdown(result.source)
-                self._log_buffers.setdefault(self._current_tab_id or "", []).append(result.source)
-            else:
-                for line in result.source.splitlines():
-                    self._log(self._linkify(line), line)
-                self._log("")
+        viewer = self._current_viewer()
+        if viewer and result.source:
+            viewer.set_source(result.source)
 
         if result.error:
-            self._log(f"[red]Error: {result.error}[/red]", f"Error: {result.error}")
+            if viewer:
+                viewer.append_error(f"Error: {result.error}")
         elif result.interrupted:
-            self._log("[yellow]Interrupted.[/yellow]", "Interrupted.")
+            if viewer:
+                viewer.append_info("Interrupted.")
 
         self._stop_spinner()
         name = PASS_NAMES.get(self._current_pass, "")
@@ -209,44 +180,23 @@ class LivePassScreen(Screen):
         tree.root.expand()
         populate_system_tree(tree.root, self._pipeline.system)
 
-    @staticmethod
-    def _linkify(line: str) -> str:
-        """Escape line but make [[type:name]] refs clickable."""
-        parts = []
-        last = 0
-        for m in _REF_RE.finditer(line):
-            parts.append(rich_escape(line[last : m.start()]))
-            ref_type, ref_name = m.group(1), m.group(2)
-            parts.append(
-                f"[@click=show_ref('{ref_type}','{ref_name}')]" f"[bold cyan][[{ref_type}:{ref_name}]][/bold cyan][/]"
-            )
-            last = m.end()
-        parts.append(rich_escape(line[last:]))
-        return "".join(parts)
-
-    def action_show_ref(self, ref_type: str, ref_name: str) -> None:
-        """Highlight referenced item in the state tree."""
+    def action_ref_clicked(self, ref_type: str, ref_name: str) -> None:
+        """Handle @click from PassViewer refs — highlight in state tree."""
         tree = self.query_one("#state-tree", Tree)
-        # Walk tree nodes and expand/highlight the matching one
+        tree.root.expand()
         for node in tree.root.children:
+            node.expand()
             for child in node.children:
-                label = str(child.label)
-                if ref_name in label:
-                    node.expand()
-                    child.expand()
-                    tree.select_node(child)
-                    tree.scroll_to_node(child)
+                plain = re.sub(r"\[/?[^\]]*\]", "", str(child.label))
+                if plain.startswith(ref_name + ":") or plain.startswith(ref_name + " ="):
+                    child.toggle()
+                    tree.move_cursor(child)
+                    tree.focus()
                     return
-        self.notify(f"{ref_type}:{ref_name} not in state tree.", severity="warning")
-
-    def _log(self, rich_text: str, plain_text: str | None = None) -> None:
-        """Write to the current tab's RichLog and buffer for clipboard."""
-        log = self._current_log()
-        if log:
-            log.write(rich_text)
-        if self._current_tab_id:
-            buf = self._log_buffers.get(self._current_tab_id, [])
-            buf.append(plain_text if plain_text is not None else rich_text)
+        self.notify(
+            f"{ref_type}:{ref_name} not in state tree.",
+            severity="warning",
+        )
 
     def _set_controls(self, running: bool) -> None:
         self._running = running
@@ -283,11 +233,15 @@ class LivePassScreen(Screen):
             self._do_skip()
 
     def action_copy_log(self) -> None:
-        # Copy the active tab's log
+        # Copy the active tab's viewer plain text
         tabs = self.query_one("#dsl-tabs", TabbedContent)
         tab_id = tabs.active
-        lines = self._log_buffers.get(tab_id, [])
-        self.app.copy_to_clipboard("\n".join(lines))
+        try:
+            pane = self.query_one(f"#{tab_id}", TabPane)
+            viewer = pane.query_one(PassViewer)
+            self.app.copy_to_clipboard(viewer.plain_text)
+        except Exception:
+            pass
         self.notify("Log copied to clipboard.")
 
     def _do_retry(self) -> None:
@@ -301,7 +255,7 @@ class LivePassScreen(Screen):
 
         feedback_input.value = ""
         name = PASS_NAMES[self._current_pass]
-        self._new_tab(f"P{self._current_pass}: {name} (retry)", markdown=(self._current_pass == 4))
+        self._new_tab(f"P{self._current_pass}: {name} (retry)")
 
         self._set_controls(running=True)
         self._start_spinner(name)
@@ -314,7 +268,9 @@ class LivePassScreen(Screen):
     def _do_skip(self) -> None:
         if self._running:
             return
-        self._log("[dim]Skipped.[/dim]", "Skipped.")
+        viewer = self._current_viewer()
+        if viewer:
+            viewer.append_info("Skipped.")
         self._pipeline.skip_pass(self._current_pass)
         self._refresh_state_tree()
         self._run_next_pass()

@@ -23,6 +23,8 @@ def origin_color(origin: Any) -> str:
     """Green = grounded, red = unverified/fabrication, yellow = string origin, white = none."""
     if isinstance(origin, Evidence):
         return "green" if origin.is_grounded else "red"
+    if isinstance(origin, dict):
+        return "green" if origin.get("grounded") else "red"
     if isinstance(origin, str) and "potential fabrication" in origin:
         return "red"
     if origin:
@@ -35,33 +37,64 @@ def origin_color(origin: Any) -> str:
 # ------------------------------------------------------------------
 
 
+def add_evidence_node(
+    parent, document: str, grounded: bool, quotes: list, verification: list | None, explanation: str | None
+) -> None:
+    """Render evidence with quotes and verification into tree nodes.
+
+    Shared by add_origin_node (Evidence objects) and provenance_tree
+    (_add_prov_origin, serialized dicts).
+    """
+    status_tag = "[green]grounded[/green]" if grounded else "[red]UNVERIFIED[/red]"
+    origin_node = parent.add(f"evidence: {rich_escape(document)} ({status_tag})")
+    if explanation:
+        origin_node.add_leaf(f"explanation: {rich_escape(str(explanation))}")
+    verif_map: dict[str, dict] = {}
+    if verification:
+        for v in verification:
+            if isinstance(v, dict):
+                verif_map[v.get("quote", "")] = v
+    for q in quotes:
+        q_str = str(q)
+        short_q = rich_escape(q_str[:80]) + ("..." if len(q_str) > 80 else "")
+        v = verif_map.get(q_str)
+        if v:
+            ok = v.get("verified", False)
+            if ok:
+                conf = v.get("confidence", {})
+                level = conf.get("level", "?")
+                q_node = origin_node.add(f'[green]"{short_q}" ({level})[/green]')
+            else:
+                reason = v.get("reason", "no match")
+                q_node = origin_node.add(f'[red]"{short_q}" NOT verified ({rich_escape(reason)})[/red]')
+            if v.get("context"):
+                q_node.add_leaf(f"context: {rich_escape(str(v['context'])[:120])}")
+            if len(q_str) > 80:
+                q_node.add_leaf(f'full: "{rich_escape(q_str)}"')
+        else:
+            origin_node.add_leaf(f'"{short_q}"')
+
+
 def add_origin_node(parent, origin: Any) -> None:
     """Attach evidence or plain-string origin as child nodes."""
     if isinstance(origin, Evidence):
-        if origin.is_grounded:
-            status_tag = "[green]grounded[/green]"
-        else:
-            status_tag = "[red]UNVERIFIED[/red]"
-        origin_node = parent.add(f"evidence: {rich_escape(origin.document)} ({status_tag})")
-        for q in origin.quotes:
-            origin_node.add_leaf(f'"{rich_escape(q[:80])}{"..." if len(q) > 80 else ""}"')
-        if origin.explanation:
-            origin_node.add_leaf(f"explanation: {rich_escape(origin.explanation)}")
-        if origin.verification:
-            for v in origin.verification:
-                if isinstance(v, dict):
-                    ok = v.get("verified", False)
-                    quote = v.get("quote", "")
-                    short_q = rich_escape(quote[:60]) + ("..." if len(quote) > 60 else "")
-                    if ok:
-                        conf = v.get("confidence", {})
-                        level = conf.get("level", "?")
-                        origin_node.add_leaf(f'[green]"{short_q}" verified ({level})[/green]')
-                    else:
-                        reason = v.get("reason", "no match")
-                        origin_node.add_leaf(f'[red]"{short_q}" NOT verified ({rich_escape(reason)})[/red]')
-                else:
-                    origin_node.add_leaf(f"verification: {rich_escape(str(v))}")
+        add_evidence_node(
+            parent,
+            document=origin.document,
+            grounded=origin.is_grounded,
+            quotes=origin.quotes,
+            verification=origin.verification,
+            explanation=origin.explanation,
+        )
+    elif isinstance(origin, dict):
+        add_evidence_node(
+            parent,
+            document=origin.get("document", ""),
+            grounded=origin.get("grounded", False),
+            quotes=origin.get("quotes", []),
+            verification=origin.get("verification"),
+            explanation=origin.get("explanation"),
+        )
     elif origin:
         if isinstance(origin, str) and "potential fabrication" in origin:
             parent.add_leaf(f"[red]{rich_escape(origin)}[/red]")
@@ -110,8 +143,8 @@ def add_theorem_node(parent, name: str, thm: Any) -> None:
 
 def add_diff_node(parent, name: str, diff: dict, system: Any = None) -> None:
     """Add a Diff node with evaluated values, divergences, and provenance."""
-    replace_name = str(diff.get('replace', '?'))
-    with_name = str(diff.get('with', '?'))
+    replace_name = str(diff.get("replace", "?"))
+    with_name = str(diff.get("with", "?"))
     if system is not None:
         try:
             result = system.eval_diff(name)

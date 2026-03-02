@@ -156,7 +156,7 @@ class ParseltongueApp(App):
         result = self._pipeline.finalize()
         self._result = result
 
-        if hasattr(self, '_history_run_id'):
+        if hasattr(self, "_history_run_id"):
             try:
                 history.complete_run(self._history_run_id, result)
             except Exception:

@@ -18,18 +18,18 @@ from parseltongue.core import System, load_source
 def _print_list(items):
     for item in items:
         if isinstance(item, dict):
-            origin = item.get('origin', '')
-            tag = str(origin) if hasattr(origin, 'is_grounded') else f"[origin: {origin}]"
+            origin = item.get("origin", "")
+            tag = str(origin) if hasattr(origin, "is_grounded") else f"[origin: {origin}]"
             print(f"  {item['name']} = {item['value']} {tag}")
         else:
             print(f"  {item}")
 
 
 def main():
-    plog = logging.getLogger('parseltongue')
+    plog = logging.getLogger("parseltongue")
     plog.setLevel(logging.INFO)
     handler = logging.StreamHandler(sys.stdout)
-    handler.setFormatter(logging.Formatter('  [%(levelname)s] %(message)s'))
+    handler.setFormatter(logging.Formatter("  [%(levelname)s] %(message)s"))
     plog.addHandler(handler)
 
     s = System(overridable=True)
@@ -41,7 +41,7 @@ def main():
     # Phase 0: Load source papers
     # ----------------------------------------------------------
     print("\n--- Phase 0: Load source papers ---")
-    doc_dir = os.path.join(os.path.dirname(__file__), 'resources')
+    doc_dir = os.path.join(os.path.dirname(__file__), "resources")
     s.load_document("Paper A: Diagnostic", os.path.join(doc_dir, "paper_diagnostic.txt"))
     s.load_document("Paper B: Specificity", os.path.join(doc_dir, "paper_specificity.txt"))
     print(f"  Loaded {len(s.documents)} source papers")
@@ -161,12 +161,12 @@ def main():
     """,
     )
 
-    utility = s.evaluate(s.terms['clinical-utility'].definition)
-    print(f"  clinical-utility = \"{utility}\"")
+    utility = s.evaluate(s.terms["clinical-utility"].definition)
+    print(f'  clinical-utility = "{utility}"')
     print("  (High sensitivity but low specificity → needs confirmatory testing)")
 
-    standalone = s.evaluate(s.terms['standalone-diagnostic'].definition)
-    reliable = s.evaluate(s.terms['reliable-marker'].definition)
+    standalone = s.evaluate(s.terms["standalone-diagnostic"].definition)
+    reliable = s.evaluate(s.terms["reliable-marker"].definition)
     print(f"\n  reliable-marker = {reliable}")
     print(f"  standalone-diagnostic = {standalone}")
 
@@ -187,7 +187,7 @@ def main():
     """,
     )
 
-    diff_result = s.eval_diff('specificity-check')
+    diff_result = s.eval_diff("specificity-check")
     print("\n  Diff result:")
     print(f"  {diff_result}")
 
@@ -197,10 +197,10 @@ def main():
     print("\n--- Phase 7: Provenance — tracing clinical-utility ---")
 
     print("  Provenance of marker-is-reliable:")
-    print(json.dumps(s.provenance('marker-is-reliable'), indent=2))
+    print(json.dumps(s.provenance("marker-is-reliable"), indent=2))
 
     print("\n  Provenance of marker-not-standalone:")
-    print(json.dumps(s.provenance('marker-not-standalone'), indent=2))
+    print(json.dumps(s.provenance("marker-not-standalone"), indent=2))
 
     # ----------------------------------------------------------
     # Phase 8: Consistency report
@@ -216,8 +216,8 @@ def main():
     print("\n--- Phase 9: Resolve consistency issues ---")
 
     # Verify plain-origin items
-    s.verify_manual('clinical-utility')
-    s.verify_manual('calprotectin-specificity-optimistic')
+    s.verify_manual("clinical-utility")
+    s.verify_manual("calprotectin-specificity-optimistic")
 
     report = s.consistency()
     print("\n  After verification:")
@@ -243,5 +243,5 @@ def main():
     print("=" * 60)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

@@ -16,7 +16,7 @@ app = typer.Typer(
     invoke_without_command=True,
 )
 
-log = logging.getLogger('parseltongue.cli')
+log = logging.getLogger("parseltongue.cli")
 
 
 def _setup_logging(verbose: bool) -> None:
@@ -332,8 +332,7 @@ def _run_tui(config) -> None:
         from .tui.app import ParseltongueApp
     except ImportError:
         typer.echo(
-            "TUI dependencies not installed. Run: pip install parseltongue-dsl[cli]\n"
-            "Or use --no-tui for plain output.",
+            "TUI dependencies not installed. Run: pip install parseltongue-dsl[cli]\nOr use --no-tui for plain output.",
             err=True,
         )
         raise typer.Exit(1)

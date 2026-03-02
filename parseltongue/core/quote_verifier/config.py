@@ -138,7 +138,7 @@ class QuoteVerifierConfig:
         return self.penalties.get(transformation_type, 0.1)
 
     @classmethod
-    def create_with_overrides(cls, **kwargs) -> 'QuoteVerifierConfig':
+    def create_with_overrides(cls, **kwargs) -> "QuoteVerifierConfig":
         config = cls()
         for key, value in kwargs.items():
             if hasattr(config, key):

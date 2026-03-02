@@ -15,13 +15,13 @@ class IndexedDocument:
     """A single document's pre-processed data with word-position index."""
 
     __slots__ = (
-        'name',
-        'original_text',
-        'normalized_text',
-        'position_map',
-        'word_positions',
-        '_collapsed_text',
-        '_collapsed_to_norm',
+        "name",
+        "original_text",
+        "normalized_text",
+        "position_map",
+        "word_positions",
+        "_collapsed_text",
+        "_collapsed_to_norm",
     )
 
     def __init__(self, name: str, text: str, config: QuoteVerifierConfig):
@@ -40,13 +40,13 @@ class IndexedDocument:
 
         while i < n:
             # Skip whitespace
-            while i < n and text[i] == ' ':
+            while i < n and text[i] == " ":
                 i += 1
             if i >= n:
                 break
             # Collect word
             start = i
-            while i < n and text[i] != ' ':
+            while i < n and text[i] != " ":
                 i += 1
             word = text[start:i]
             if word:
@@ -66,10 +66,10 @@ class IndexedDocument:
         collapsed = []
         mapping = []
         for i, ch in enumerate(self.normalized_text):
-            if ch != ' ':
+            if ch != " ":
                 collapsed.append(ch)
                 mapping.append(i)
-        return ''.join(collapsed), mapping
+        return "".join(collapsed), mapping
 
     def find(self, normalized_quote: str) -> Tuple[int, int, MatchStrategy]:
         """Find quote position using the inverted index.
@@ -94,7 +94,7 @@ class IndexedDocument:
 
     def _find_exact(self, normalized_quote: str) -> Tuple[int, int]:
         """Primary lookup via inverted word-position index."""
-        space_idx = normalized_quote.find(' ')
+        space_idx = normalized_quote.find(" ")
         first_word = normalized_quote[:space_idx] if space_idx != -1 else normalized_quote
 
         candidates = self.word_positions.get(first_word)
@@ -118,7 +118,7 @@ class IndexedDocument:
         Handles PDF line-break artifacts where source has spurious spaces
         inside words that the quote doesn't.
         """
-        collapsed_quote = normalized_quote.replace(' ', '')
+        collapsed_quote = normalized_quote.replace(" ", "")
         if not collapsed_quote:
             return -1, -1
 

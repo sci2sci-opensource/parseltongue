@@ -134,7 +134,7 @@ class QuoteVerifierConfig:
             "with",
             "by",
             "of",
-            'therefore',
+            "therefore",
             "and",
             "or",
             "but",
@@ -188,7 +188,7 @@ class QuoteVerifierConfig:
         return self.penalties.get(transformation_type, 0.1)  # Default penalty if not specified
 
     @classmethod
-    def create_with_overrides(cls, **kwargs) -> 'QuoteVerifierConfig':
+    def create_with_overrides(cls, **kwargs) -> "QuoteVerifierConfig":
         """Create a new configuration with overrides from kwargs."""
         # Start with default config
         config = cls()
@@ -314,7 +314,7 @@ class QuoteVerifier:
         i = 0
         while i < len(text):
             # Check if we have a pattern like '\b\d+\.\s+'
-            match = re.match(r'\b\d+\.\s+', text[i:])
+            match = re.match(r"\b\d+\.\s+", text[i:])
             if match:
                 list_items_removed += 1
                 # Skip the list number pattern
@@ -355,8 +355,7 @@ class QuoteVerifier:
         i = 0
         while i < len(text):
             # Look for hyphenation pattern: word-\n followed by optional spaces and then a word
-            if i < len(text) - 2 and text[i] == '-' and text[i + 1] == '\n':
-
+            if i < len(text) - 2 and text[i] == "-" and text[i + 1] == "\n":
                 # Check if we have alphanumeric chars before the hyphen
                 before_is_alnum = i > 0 and text[i - 1].isalnum()
 
@@ -382,7 +381,7 @@ class QuoteVerifier:
                     i = i - 1 if i > 0 else 0
 
             # Handle regular newlines (convert to space)
-            elif text[i] == '\n':
+            elif text[i] == "\n":
                 normalized_text += " "
                 normalized_map.append(position_map[i])
                 i += 1
@@ -446,7 +445,7 @@ class QuoteVerifier:
             return text, position_map, transformations
 
         # First normalize whitespace to get proper word boundaries
-        temp_text = re.sub(r'\s+', ' ', text).strip()
+        temp_text = re.sub(r"\s+", " ", text).strip()
         words = temp_text.split()
 
         # If no words found, return original text

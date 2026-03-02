@@ -8,7 +8,7 @@ import tomllib
 from pathlib import Path
 from typing import Any
 
-log = logging.getLogger('parseltongue.cli')
+log = logging.getLogger("parseltongue.cli")
 
 CONFIG_DIR = Path.home() / ".parseltongue" / "cli"
 CONFIG_FILE = CONFIG_DIR / "config.toml"

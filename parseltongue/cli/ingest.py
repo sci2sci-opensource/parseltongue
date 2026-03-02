@@ -5,10 +5,10 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
-log = logging.getLogger('parseltongue.cli')
+log = logging.getLogger("parseltongue.cli")
 
 # Plain text extensions that don't need docling
-_PLAINTEXT_EXTS = {'.txt', '.text', '.md', '.markdown'}
+_PLAINTEXT_EXTS = {".txt", ".text", ".md", ".markdown"}
 
 
 def ingest_file(path: str) -> str:
@@ -23,7 +23,7 @@ def ingest_file(path: str) -> str:
 
     if p.suffix.lower() in _PLAINTEXT_EXTS:
         log.info("Reading plain text: %s", path)
-        return p.read_text(encoding='utf-8')
+        return p.read_text(encoding="utf-8")
 
     log.info("Converting via docling: %s", path)
     from docling.document_converter import DocumentConverter
@@ -40,8 +40,8 @@ def parse_document_arg(arg: str) -> tuple[str, str]:
         "name:path/to/file.pdf"  -> ("name", "path/to/file.pdf")
         "path/to/file.pdf"       -> ("file", "path/to/file.pdf")
     """
-    if ':' in arg and not Path(arg).exists():
-        name, path = arg.split(':', 1)
+    if ":" in arg and not Path(arg).exists():
+        name, path = arg.split(":", 1)
         return name.strip(), path.strip()
     p = Path(arg)
     return p.stem, str(p)

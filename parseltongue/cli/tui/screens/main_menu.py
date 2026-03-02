@@ -40,7 +40,7 @@ class MainMenu(Screen):
 
     def compose(self) -> ComposeResult:
         yield Static(
-            "[bold]Parseltongue[/bold]\n" "[dim]A DSL for systems which refuse to speak falsehood[/dim]",
+            "[bold]Parseltongue[/bold]\n[dim]A DSL for systems which refuse to speak falsehood[/dim]",
             id="menu-title",
         )
         yield OptionList(*_OPTIONS, id="menu-list")

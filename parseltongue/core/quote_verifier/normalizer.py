@@ -85,7 +85,7 @@ def _normalize_lists(
     i = 0
 
     while i < len(text):
-        match = re.match(r'\d+\.\s+', text[i:])
+        match = re.match(r"\d+\.\s+", text[i:])
         if match and (i == 0 or text[i - 1].isspace()):
             list_items_removed += 1
             i += len(match.group(0))
@@ -123,7 +123,7 @@ def _normalize_hyphenation(
     i = 0
 
     while i < len(text):
-        if i < len(text) - 2 and text[i] == '-' and text[i + 1] == '\n':
+        if i < len(text) - 2 and text[i] == "-" and text[i + 1] == "\n":
             before_alnum = i > 0 and text[i - 1].isalnum()
             i += 2
             while i < len(text) and text[i].isspace():
@@ -136,7 +136,7 @@ def _normalize_hyphenation(
                 normalized_text += " "
                 normalized_map.append(position_map[i - 1])
                 i = i - 1 if i > 0 else 0
-        elif text[i] == '\n':
+        elif text[i] == "\n":
             normalized_text += " "
             normalized_map.append(position_map[i])
             i += 1
@@ -182,11 +182,11 @@ def _normalize_punctuation(
         if char.isalnum() or char.isspace():
             normalized_text += char
             normalized_map.append(position_map[i])
-        elif char == '-' and i > 0 and text[i - 1].isalnum() and _next_alnum(text, i):
+        elif char == "-" and i > 0 and text[i - 1].isalnum() and _next_alnum(text, i):
             # Keep attached hyphens (e.g. "multi-level") — they're word structure
             normalized_text += char
             normalized_map.append(position_map[i])
-        elif char in ',.' and i > 0 and text[i - 1].isalnum() and i + 1 < len(text) and text[i + 1].isalnum():
+        elif char in ",." and i > 0 and text[i - 1].isalnum() and i + 1 < len(text) and text[i + 1].isalnum():
             # Keep commas/dots immediately between alphanums (150,000  3.14)
             normalized_text += char
             normalized_map.append(position_map[i])
@@ -216,7 +216,7 @@ def _normalize_stopwords(
     if not config.remove_stopwords or not config.stopwords or not text.strip():
         return text, position_map, transformations
 
-    temp_text = re.sub(r'\s+', ' ', text).strip()
+    temp_text = re.sub(r"\s+", " ", text).strip()
     words = temp_text.split()
     if not words:
         return text, position_map, transformations

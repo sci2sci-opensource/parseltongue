@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-log = logging.getLogger('parseltongue.cli')
+log = logging.getLogger("parseltongue.cli")
 
 DB_DIR = Path.home() / ".parseltongue" / "cli"
 DB_PATH = DB_DIR / "history.db"
@@ -98,7 +98,7 @@ def complete_run(run_id: int, result: Any) -> None:
     )
 
     system_json = ""
-    if hasattr(result, 'system') and result.system is not None:
+    if hasattr(result, "system") and result.system is not None:
         try:
             system_json = json.dumps(result.system.to_dict())
         except Exception:

@@ -11,7 +11,7 @@ from openai import OpenAI
 
 from .provider import LLMProvider
 
-log = logging.getLogger('parseltongue.llm')
+log = logging.getLogger("parseltongue.llm")
 
 
 class OpenRouterProvider(LLMProvider):
@@ -52,7 +52,7 @@ class OpenRouterProvider(LLMProvider):
         return None
 
     def complete(self, messages: list[dict], tools: list[dict], **kwargs) -> dict:
-        extra_body = kwargs.pop('extra_body', {})
+        extra_body = kwargs.pop("extra_body", {})
         reasoning_cfg = self._reasoning_config()
         if reasoning_cfg:
             extra_body.update(reasoning_cfg)
@@ -65,10 +65,10 @@ class OpenRouterProvider(LLMProvider):
             **kwargs,
         )
         if extra_body:
-            create_kwargs['extra_body'] = extra_body
+            create_kwargs["extra_body"] = extra_body
 
         log.debug(
-            "Request params (no messages): %s", {k: v for k, v in create_kwargs.items() if k not in ('messages',)}
+            "Request params (no messages): %s", {k: v for k, v in create_kwargs.items() if k not in ("messages",)}
         )
 
         response = self._client.chat.completions.create(**create_kwargs)
@@ -76,7 +76,7 @@ class OpenRouterProvider(LLMProvider):
         msg = response.choices[0].message
 
         # Log reasoning if present
-        reasoning_content = getattr(msg, 'reasoning', None) or getattr(msg, 'reasoning_content', None)
+        reasoning_content = getattr(msg, "reasoning", None) or getattr(msg, "reasoning_content", None)
         if reasoning_content:
             log.debug("Reasoning:\n%s", reasoning_content)
 

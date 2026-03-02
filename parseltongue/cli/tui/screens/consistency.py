@@ -31,7 +31,7 @@ class ConsistencyScreen(Screen):
         if system is not None:
             report = system.consistency()
             md = self._render_report(report)
-        elif hasattr(self._result, 'output') and hasattr(self._result.output, 'consistency'):
+        elif hasattr(self._result, "output") and hasattr(self._result.output, "consistency"):
             md = self._result.output.consistency or "*No consistency data in history.*"
         else:
             md = "*No live system available (history mode).*"

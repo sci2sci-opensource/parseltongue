@@ -27,7 +27,7 @@ from .provider import LLMProvider
 from .resolve import ResolvedOutput, resolve_references
 from .tools import ANSWER_TOOL, DERIVE_TOOL, EXTRACT_TOOL, FACTCHECK_TOOL
 
-log = logging.getLogger('parseltongue.llm')
+log = logging.getLogger("parseltongue.llm")
 
 
 class PipelineResult:
@@ -103,7 +103,7 @@ class Pipeline:
         log.info("Pass 1: Extraction")
         messages = pass1_messages(doc, self._documents, query)
         result = self._provider.complete(messages, [EXTRACT_TOOL], **kwargs)
-        pass1_source = result['dsl_output']
+        pass1_source = result["dsl_output"]
         log.info("Pass 1 output:\n%s", pass1_source)
 
         load_source(self._system, pass1_source)
@@ -112,7 +112,7 @@ class Pipeline:
         log.info("Pass 2: Derivation (blinded)")
         messages = pass2_messages(doc, self._system, query)
         result = self._provider.complete(messages, [DERIVE_TOOL], **kwargs)
-        pass2_source = result['dsl_output']
+        pass2_source = result["dsl_output"]
         log.info("Pass 2 output:\n%s", pass2_source)
 
         load_source(self._system, pass2_source)
@@ -121,7 +121,7 @@ class Pipeline:
         log.info("Pass 3: Fact Check")
         messages = pass3_messages(doc, self._system, query)
         result = self._provider.complete(messages, [FACTCHECK_TOOL], **kwargs)
-        pass3_source = result['dsl_output']
+        pass3_source = result["dsl_output"]
         log.info("Pass 3 output:\n%s", pass3_source)
 
         load_source(self._system, pass3_source)
@@ -130,7 +130,7 @@ class Pipeline:
         log.info("Pass 4: Inference")
         messages = pass4_messages(self._system, query)
         result = self._provider.complete(messages, [ANSWER_TOOL], **kwargs)
-        pass4_raw = result['markdown']
+        pass4_raw = result["markdown"]
         log.info("Pass 4 raw:\n%s", pass4_raw)
 
         output = resolve_references(pass4_raw, self._system)

@@ -62,7 +62,7 @@ class TestPerformance(unittest.TestCase):
     def _run_comparison(self, doc, quotes, n_rounds, size_label):
         old_time = _bench(OldVerifier, doc, quotes, n_rounds, "old")
         new_time = _bench(NewVerifier, doc, quotes, n_rounds, "new")
-        speedup = old_time / new_time if new_time > 0 else float('inf')
+        speedup = old_time / new_time if new_time > 0 else float("inf")
         return old_time, new_time, speedup
 
     def test_performance_comparison(self):
@@ -111,7 +111,7 @@ class TestPerformance(unittest.TestCase):
             new.verify_quotes(SMALL_DOC, quotes)
         new_time = time.perf_counter() - start
 
-        speedup = old_time / new_time if new_time > 0 else float('inf')
+        speedup = old_time / new_time if new_time > 0 else float("inf")
 
         print(f"\n{'Repeated verify (large doc, 50 rounds, 8 quotes each)':}")
         print(f"  Old: {old_time:.4f}s | New: {new_time:.4f}s | Speedup: {speedup:.1f}x")

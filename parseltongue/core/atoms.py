@@ -27,20 +27,20 @@ def tokenize(source: str) -> list[str]:
     in_comment = False
     current: list[str] = []
     for char in source:
-        if char == '\n':
+        if char == "\n":
             in_comment = False
             if not in_string and current:
-                tokens.append(''.join(current))
+                tokens.append("".join(current))
                 current = []
             elif in_string:
                 current.append(char)
             continue
         if in_comment:
             continue
-        if char == ';' and not in_string:
+        if char == ";" and not in_string:
             in_comment = True
             if current:
-                tokens.append(''.join(current))
+                tokens.append("".join(current))
                 current = []
             continue
         if char == '"' and not in_string:
@@ -49,23 +49,23 @@ def tokenize(source: str) -> list[str]:
         elif char == '"' and in_string:
             in_string = False
             current.append(char)
-            tokens.append(''.join(current))
+            tokens.append("".join(current))
             current = []
         elif in_string:
             current.append(char)
-        elif char in '()':
+        elif char in "()":
             if current:
-                tokens.append(''.join(current))
+                tokens.append("".join(current))
                 current = []
             tokens.append(char)
-        elif char in ' \t\n\r':
+        elif char in " \t\n\r":
             if current:
-                tokens.append(''.join(current))
+                tokens.append("".join(current))
                 current = []
         else:
             current.append(char)
     if current:
-        tokens.append(''.join(current))
+        tokens.append("".join(current))
     return tokens
 
 
@@ -76,15 +76,15 @@ def read_tokens(tokens: list[str]) -> Any:
 
     token = tokens.pop(0)
 
-    if token == '(':
+    if token == "(":
         expr = []
-        while tokens and tokens[0] != ')':
+        while tokens and tokens[0] != ")":
             expr.append(read_tokens(tokens))
         if not tokens:
             raise SyntaxError("Missing closing )")
         tokens.pop(0)
         return expr
-    elif token == ')':
+    elif token == ")":
         raise SyntaxError("Unexpected )")
     else:
         return atom(token)
@@ -100,13 +100,13 @@ def atom(token: str):
         return float(token)
     except ValueError:
         pass
-    if token == 'true':
+    if token == "true":
         return True
-    if token == 'false':
+    if token == "false":
         return False
     if token.startswith('"') and token.endswith('"'):
         return token[1:-1]
-    if token.startswith(':'):
+    if token.startswith(":"):
         return token
     return Symbol(token)
 
@@ -129,9 +129,9 @@ def parse_all(source: str) -> list:
 def to_sexp(obj) -> str:
     """Pretty-print a Python object back to s-expression string."""
     if isinstance(obj, list):
-        return '(' + ' '.join(to_sexp(x) for x in obj) + ')'
+        return "(" + " ".join(to_sexp(x) for x in obj) + ")"
     elif isinstance(obj, bool):
-        return 'true' if obj else 'false'
+        return "true" if obj else "false"
     elif isinstance(obj, str) and not isinstance(obj, Symbol):
         return f'"{obj}"'
     else:
@@ -176,7 +176,7 @@ class Axiom:
 
     name: str
     wff: Any
-    origin: 'str | Evidence'
+    origin: "str | Evidence"
 
     def __str__(self):
         return f"{self.name}: {to_sexp(self.wff)} {_origin_tag(self.origin)}"
@@ -189,7 +189,7 @@ class Theorem:
     name: str
     wff: Any
     derivation: list = field(default_factory=list)
-    origin: 'str | Evidence' = 'derived'
+    origin: "str | Evidence" = "derived"
 
     def __str__(self):
         tag = f"[derived from: {', '.join(self.derivation)}]"
@@ -202,7 +202,7 @@ class Term:
 
     name: str
     definition: Any
-    origin: 'str | Evidence'
+    origin: "str | Evidence"
 
     def __str__(self):
         defn = to_sexp(self.definition) if self.definition is not None else "(primitive)"
@@ -226,7 +226,7 @@ def match(pattern, expr, bindings=None):
     """Match pattern against expr. ?-prefixed symbols are pattern variables."""
     if bindings is None:
         bindings = {}
-    if isinstance(pattern, Symbol) and str(pattern).startswith('?'):
+    if isinstance(pattern, Symbol) and str(pattern).startswith("?"):
         if pattern in bindings:
             return bindings if bindings[pattern] == expr else None
         return {**bindings, pattern: expr}
@@ -245,7 +245,7 @@ def match(pattern, expr, bindings=None):
 
 def free_vars(expr) -> set:
     """Extract all ?-prefixed symbols from an expression."""
-    if isinstance(expr, Symbol) and str(expr).startswith('?'):
+    if isinstance(expr, Symbol) and str(expr).startswith("?"):
         return {expr}
     if isinstance(expr, list):
         result = set()

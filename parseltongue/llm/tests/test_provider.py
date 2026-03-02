@@ -11,7 +11,6 @@ from ..tools import ANSWER_TOOL, EXTRACT_TOOL
 
 
 class TestLLMProviderInterface(unittest.TestCase):
-
     def test_cannot_instantiate_abstract(self):
         with self.assertRaises(TypeError):
             LLMProvider()
@@ -26,9 +25,8 @@ class TestLLMProviderInterface(unittest.TestCase):
 
 
 class TestOpenRouterProvider(unittest.TestCase):
-
-    @patch(f'{openrouter.__name__}.load_dotenv')
-    @patch(f'{openrouter.__name__}.OpenAI')
+    @patch(f"{openrouter.__name__}.load_dotenv")
+    @patch(f"{openrouter.__name__}.OpenAI")
     def test_init_with_explicit_key(self, mock_openai_cls, mock_dotenv):
         provider = OpenRouterProvider(api_key="test-key")
         mock_openai_cls.assert_called_once_with(
@@ -36,9 +34,9 @@ class TestOpenRouterProvider(unittest.TestCase):
             base_url="https://openrouter.ai/api/v1",
         )
 
-    @patch(f'{openrouter.__name__}.load_dotenv')
-    @patch(f'{openrouter.__name__}.OpenAI')
-    @patch.dict('os.environ', {'OPENROUTER_API_KEY': 'env-key'})
+    @patch(f"{openrouter.__name__}.load_dotenv")
+    @patch(f"{openrouter.__name__}.OpenAI")
+    @patch.dict("os.environ", {"OPENROUTER_API_KEY": "env-key"})
     def test_init_from_env(self, mock_openai_cls, mock_dotenv):
         provider = OpenRouterProvider()
         mock_openai_cls.assert_called_once_with(
@@ -46,8 +44,8 @@ class TestOpenRouterProvider(unittest.TestCase):
             base_url="https://openrouter.ai/api/v1",
         )
 
-    @patch(f'{openrouter.__name__}.load_dotenv')
-    @patch(f'{openrouter.__name__}.OpenAI')
+    @patch(f"{openrouter.__name__}.load_dotenv")
+    @patch(f"{openrouter.__name__}.OpenAI")
     def test_complete_parses_tool_call(self, mock_openai_cls, mock_dotenv):
         # Build mock response chain
         mock_client = MagicMock()
@@ -78,10 +76,10 @@ class TestOpenRouterProvider(unittest.TestCase):
 
         # Verify tool_choice="required" was passed
         call_kwargs = mock_client.chat.completions.create.call_args
-        self.assertEqual(call_kwargs.kwargs['tool_choice'], 'required')
+        self.assertEqual(call_kwargs.kwargs["tool_choice"], "required")
 
-    @patch(f'{openrouter.__name__}.load_dotenv')
-    @patch(f'{openrouter.__name__}.OpenAI')
+    @patch(f"{openrouter.__name__}.load_dotenv")
+    @patch(f"{openrouter.__name__}.OpenAI")
     def test_complete_passes_kwargs(self, mock_openai_cls, mock_dotenv):
         mock_client = MagicMock()
         mock_openai_cls.return_value = mock_client
@@ -106,9 +104,9 @@ class TestOpenRouterProvider(unittest.TestCase):
         )
 
         call_kwargs = mock_client.chat.completions.create.call_args
-        self.assertEqual(call_kwargs.kwargs['temperature'], 0.2)
-        self.assertEqual(call_kwargs.kwargs['max_tokens'], 500)
+        self.assertEqual(call_kwargs.kwargs["temperature"], 0.2)
+        self.assertEqual(call_kwargs.kwargs["max_tokens"], 500)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

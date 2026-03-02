@@ -11,9 +11,9 @@ from typing import Any
 
 from ..core import to_sexp
 
-TAG_RE = re.compile(r'\[\[(\w+):([^\]]+)\]\]')
+TAG_RE = re.compile(r"\[\[(\w+):([^\]]+)\]\]")
 
-VALID_TYPES = frozenset({'fact', 'term', 'axiom', 'theorem', 'quote', 'diff'})
+VALID_TYPES = frozenset({"fact", "term", "axiom", "theorem", "quote", "diff"})
 
 
 @dataclass
@@ -44,14 +44,14 @@ def _resolve_one(tag_type: str, name: str, system) -> Reference:
     ref = Reference(type=tag_type, name=name)
 
     try:
-        if tag_type == 'fact':
+        if tag_type == "fact":
             if name not in system.facts:
                 ref.error = f"unknown fact: {name}"
             else:
-                ref.value = system.facts[name]['value']
+                ref.value = system.facts[name]["value"]
                 ref.provenance = system.provenance(name)
 
-        elif tag_type == 'term':
+        elif tag_type == "term":
             if name not in system.terms:
                 ref.error = f"unknown term: {name}"
             else:
@@ -64,13 +64,13 @@ def _resolve_one(tag_type: str, name: str, system) -> Reference:
                 else:
                     ref.value = "(forward declaration)"
 
-        elif tag_type == 'axiom':
+        elif tag_type == "axiom":
             if name not in system.axioms:
                 ref.error = f"unknown axiom: {name}"
             else:
                 ref.value = to_sexp(system.axioms[name].wff)
 
-        elif tag_type == 'theorem':
+        elif tag_type == "theorem":
             if name not in system.theorems:
                 ref.error = f"unknown theorem: {name}"
             else:
@@ -78,11 +78,11 @@ def _resolve_one(tag_type: str, name: str, system) -> Reference:
                 ref.value = to_sexp(thm.wff)
                 ref.provenance = system.provenance(name)
 
-        elif tag_type == 'quote':
+        elif tag_type == "quote":
             ref.provenance = system.provenance(name)
             # Pull the value from whatever store has it
             if name in system.facts:
-                ref.value = system.facts[name]['value']
+                ref.value = system.facts[name]["value"]
             elif name in system.axioms:
                 ref.value = to_sexp(system.axioms[name].wff)
             elif name in system.theorems:
@@ -90,7 +90,7 @@ def _resolve_one(tag_type: str, name: str, system) -> Reference:
             elif name in system.terms:
                 ref.value = to_sexp(system.terms[name].definition)
 
-        elif tag_type == 'diff':
+        elif tag_type == "diff":
             if name not in system.diffs:
                 ref.error = f"unknown diff: {name}"
             else:

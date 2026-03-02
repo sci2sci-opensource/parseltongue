@@ -19,18 +19,18 @@ from parseltongue.core import System, load_source
 def _print_list(items):
     for item in items:
         if isinstance(item, dict):
-            origin = item.get('origin', '')
-            tag = str(origin) if hasattr(origin, 'is_grounded') else f"[origin: {origin}]"
+            origin = item.get("origin", "")
+            tag = str(origin) if hasattr(origin, "is_grounded") else f"[origin: {origin}]"
             print(f"  {item['name']} = {item['value']} {tag}")
         else:
             print(f"  {item}")
 
 
 def main():
-    plog = logging.getLogger('parseltongue')
+    plog = logging.getLogger("parseltongue")
     plog.setLevel(logging.INFO)
     handler = logging.StreamHandler(sys.stdout)
-    handler.setFormatter(logging.Formatter('  [%(levelname)s] %(message)s'))
+    handler.setFormatter(logging.Formatter("  [%(levelname)s] %(message)s"))
     plog.addHandler(handler)
 
     s = System(initial_env={}, overridable=True)
@@ -42,7 +42,7 @@ def main():
     # Phase 0: Load source documents
     # ----------------------------------------------------------
     print("\n--- Phase 0: Load source documents ---")
-    doc_dir = os.path.join(os.path.dirname(__file__), 'resources')
+    doc_dir = os.path.join(os.path.dirname(__file__), "resources")
     s.load_document("Counting Observations", os.path.join(doc_dir, "counting_observations.txt"))
     s.load_document("Eden Inventory", os.path.join(doc_dir, "eden_inventory.txt"))
     print(f"  Loaded {len(s.documents)} source documents")
@@ -177,7 +177,7 @@ def main():
     )
 
     print("  Concrete theorems:")
-    for name in ['three-plus-zero', 'commute-3-2', 'add-step-3-1']:
+    for name in ["three-plus-zero", "commute-3-2", "add-step-3-1"]:
         ax = s.theorems[name]
         print(f"    {ax}")
 
@@ -231,7 +231,7 @@ def main():
     """,
     )
 
-    ax = s.theorems['morning-commutes']
+    ax = s.theorems["morning-commutes"]
     print(f"  {ax}")
 
     # ----------------------------------------------------------
@@ -276,12 +276,12 @@ def main():
 
     print("  Terms:")
     for name in [
-        'serpent-afternoon',
-        'eve-afternoon',
-        'afternoon-total',
-        'eve-daily',
-        'daily-total',
-        'morning-advantage',
+        "serpent-afternoon",
+        "eve-afternoon",
+        "afternoon-total",
+        "eve-daily",
+        "daily-total",
+        "morning-advantage",
     ]:
         t = s.terms[name]
         print(f"    {t}")
@@ -309,7 +309,7 @@ def main():
     print("\n--- Phase 8: Provenance ---")
 
     print("  Provenance of morning-commutes:")
-    print(json.dumps(s.provenance('morning-commutes'), indent=2))
+    print(json.dumps(s.provenance("morning-commutes"), indent=2))
 
     # ----------------------------------------------------------
     # Phase 9: Consistency report
@@ -319,9 +319,9 @@ def main():
     print(f"  {report}")
 
     print("\n  Resolving unverified items...")
-    s.verify_manual('eve-morning-alt')
-    s.verify_manual('eq-reflexive')
-    s.verify_manual('=')
+    s.verify_manual("eve-morning-alt")
+    s.verify_manual("eq-reflexive")
+    s.verify_manual("=")
     report = s.consistency()
     print("\n  After verification:")
     print(f"  {report}")
@@ -334,7 +334,7 @@ def main():
           :origin "Hypothetical: Eve picks SSSS0 instead of SSS0")
     """,
     )
-    s.verify_manual('eve-morning-alt')
+    s.verify_manual("eve-morning-alt")
     report = s.consistency()
     print("\n  After verification:")
     print(f"  {report}")
@@ -357,5 +357,5 @@ def main():
     print("=" * 60)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

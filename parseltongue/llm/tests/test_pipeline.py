@@ -8,7 +8,7 @@ from ..pipeline import Pipeline, PipelineResult
 from ..provider import LLMProvider
 from ..resolve import ResolvedOutput
 
-SAMPLE_DOC = "Q3 revenue was $15M, up 15% year-over-year. " "The growth target for FY2024 was 10%."
+SAMPLE_DOC = "Q3 revenue was $15M, up 15% year-over-year. The growth target for FY2024 was 10%."
 
 # ── Canned tool-call responses ──────────────────────────────────
 
@@ -70,12 +70,11 @@ class MockProvider(LLMProvider):
 
 
 def make_system(**kwargs):
-    with patch('builtins.print'):
+    with patch("builtins.print"):
         return System(**kwargs)
 
 
 class TestPipelineEndToEnd(unittest.TestCase):
-
     def test_four_pass_pipeline(self):
         system = make_system(overridable=True)
         provider = MockProvider(
@@ -90,30 +89,30 @@ class TestPipelineEndToEnd(unittest.TestCase):
         pipeline = Pipeline(system, provider)
         pipeline.add_document("Report", text=SAMPLE_DOC)
 
-        with patch('builtins.print'):
+        with patch("builtins.print"):
             result = pipeline.run("Did we beat the growth target?")
 
         self.assertIsInstance(result, PipelineResult)
         self.assertIsInstance(result.output, ResolvedOutput)
 
         # Facts should be loaded
-        self.assertIn('revenue-q3', system.facts)
-        self.assertIn('growth', system.facts)
-        self.assertIn('target', system.facts)
-        self.assertEqual(system.facts['revenue-q3']['value'], 15.0)
-        self.assertEqual(system.facts['growth']['value'], 15)
-        self.assertEqual(system.facts['target']['value'], 10)
+        self.assertIn("revenue-q3", system.facts)
+        self.assertIn("growth", system.facts)
+        self.assertIn("target", system.facts)
+        self.assertEqual(system.facts["revenue-q3"]["value"], 15.0)
+        self.assertEqual(system.facts["growth"]["value"], 15)
+        self.assertEqual(system.facts["target"]["value"], 10)
 
         # Term and theorem from pass 2
-        self.assertIn('beat-target', system.terms)
-        self.assertIn('target-exceeded', system.theorems)
+        self.assertIn("beat-target", system.terms)
+        self.assertIn("target-exceeded", system.theorems)
 
         # Pass 3 fact-check artifacts
-        self.assertIn('growth-alt', system.terms)
-        self.assertIn('growth-crosscheck', system.diffs)
+        self.assertIn("growth-alt", system.terms)
+        self.assertIn("growth-crosscheck", system.diffs)
 
         # Pass 4 markdown preserved
-        self.assertIn('beat its growth target', result.output.markdown)
+        self.assertIn("beat its growth target", result.output.markdown)
         self.assertEqual(result.pass1_source, PASS1_DSL)
         self.assertEqual(result.pass2_source, PASS2_DSL)
         self.assertEqual(result.pass3_source, PASS3_DSL)
@@ -133,24 +132,24 @@ class TestPipelineEndToEnd(unittest.TestCase):
         pipeline = Pipeline(system, provider)
         pipeline.add_document("Report", text=SAMPLE_DOC)
 
-        with patch('builtins.print'):
+        with patch("builtins.print"):
             result = pipeline.run("Did we beat the growth target?")
 
         refs = result.output.references
         ref_names = {r.name for r in refs}
 
-        self.assertIn('growth', ref_names)
-        self.assertIn('target', ref_names)
-        self.assertIn('revenue-q3', ref_names)
-        self.assertIn('target-exceeded', ref_names)
+        self.assertIn("growth", ref_names)
+        self.assertIn("target", ref_names)
+        self.assertIn("revenue-q3", ref_names)
+        self.assertIn("target-exceeded", ref_names)
 
         # Check resolved values
         for ref in refs:
-            if ref.name == 'revenue-q3':
+            if ref.name == "revenue-q3":
                 self.assertEqual(ref.value, 15.0)
-            elif ref.name == 'growth':
+            elif ref.name == "growth":
                 self.assertEqual(ref.value, 15)
-            elif ref.name == 'target':
+            elif ref.name == "target":
                 self.assertEqual(ref.value, 10)
 
         # No errors on valid references
@@ -179,7 +178,7 @@ class TestPipelineEndToEnd(unittest.TestCase):
         pipeline = Pipeline(system, provider)
         pipeline.add_document("Report", text=SAMPLE_DOC)
 
-        with patch('builtins.print'):
+        with patch("builtins.print"):
             pipeline.run("test")
 
         self.assertEqual(provider._call_count, 4)
@@ -198,14 +197,13 @@ class TestPipelineEndToEnd(unittest.TestCase):
         pipeline = Pipeline(system, provider)
         pipeline.add_document("Report", text=SAMPLE_DOC)
 
-        with patch('builtins.print'):
+        with patch("builtins.print"):
             result = pipeline.run("test")
 
         self.assertEqual(str(result), PASS4_MARKDOWN)
 
 
 class TestPipelineAddDocument(unittest.TestCase):
-
     def test_add_document_text(self):
         system = make_system()
         provider = MockProvider([])
@@ -223,5 +221,5 @@ class TestPipelineAddDocument(unittest.TestCase):
             pipeline.add_document("Doc")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

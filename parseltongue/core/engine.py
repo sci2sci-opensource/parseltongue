@@ -134,32 +134,32 @@ from .lang import (
 )
 from .quote_verifier import QuoteVerifier
 
-log = logging.getLogger('parseltongue')
+log = logging.getLogger("parseltongue")
 
 # ============================================================
 # Operator Constants (engine-level)
 # ============================================================
 
 # Arithmetic
-ADD = Symbol('+')
-SUB = Symbol('-')
-MUL = Symbol('*')
-DIV = Symbol('/')
-MOD = Symbol('mod')
+ADD = Symbol("+")
+SUB = Symbol("-")
+MUL = Symbol("*")
+DIV = Symbol("/")
+MOD = Symbol("mod")
 
 # Comparison
-GT = Symbol('>')
-LT = Symbol('<')
-GE = Symbol('>=')
-LE = Symbol('<=')
-EQ = Symbol('=')
-NE = Symbol('!=')
+GT = Symbol(">")
+LT = Symbol("<")
+GE = Symbol(">=")
+LE = Symbol("<=")
+EQ = Symbol("=")
+NE = Symbol("!=")
 
 # Logic
-AND = Symbol('and')
-OR = Symbol('or')
-NOT = Symbol('not')
-IMPLIES = Symbol('implies')
+AND = Symbol("and")
+OR = Symbol("or")
+NOT = Symbol("not")
+IMPLIES = Symbol("implies")
 
 ARITHMETIC_OPS = (ADD, SUB, MUL, DIV, MOD)
 COMPARISON_OPS = (GT, LT, GE, LE, EQ, NE)
@@ -173,103 +173,103 @@ LOGIC_OPS = (AND, OR, NOT, IMPLIES)
 ENGINE_DOCS = {
     # Arithmetic
     ADD: {
-        'category': 'arithmetic',
-        'description': 'Add two numbers.  Also used symbolically in ' 'formal terms: (+ eve-morning adam-morning).',
-        'example': '(+ 2 3)',
-        'expected': 5,
+        "category": "arithmetic",
+        "description": "Add two numbers.  Also used symbolically in formal terms: (+ eve-morning adam-morning).",
+        "example": "(+ 2 3)",
+        "expected": 5,
     },
     SUB: {
-        'category': 'arithmetic',
-        'description': 'Subtract second from first.  Useful for computing '
-        'differences between terms: (- morning-total afternoon-total).',
-        'example': '(- 10 4)',
-        'expected': 6,
+        "category": "arithmetic",
+        "description": "Subtract second from first.  Useful for computing "
+        "differences between terms: (- morning-total afternoon-total).",
+        "example": "(- 10 4)",
+        "expected": 6,
     },
     MUL: {
-        'category': 'arithmetic',
-        'description': 'Multiply two numbers.  Used in computed terms like '
-        'bonus calculations: (* base-salary bonus-rate).',
-        'example': '(* 3 7)',
-        'expected': 21,
+        "category": "arithmetic",
+        "description": "Multiply two numbers.  Used in computed terms like "
+        "bonus calculations: (* base-salary bonus-rate).",
+        "example": "(* 3 7)",
+        "expected": 21,
     },
     DIV: {
-        'category': 'arithmetic',
-        'description': 'Divide first by second (true division).  Used for ' 'computing ratios: (/ (- q3 q2) q2).',
-        'example': '(/ 10 2)',
-        'expected': 5.0,
+        "category": "arithmetic",
+        "description": "Divide first by second (true division).  Used for computing ratios: (/ (- q3 q2) q2).",
+        "example": "(/ 10 2)",
+        "expected": 5.0,
     },
     MOD: {
-        'category': 'arithmetic',
-        'description': 'Remainder of first divided by second.',
-        'example': '(mod 10 3)',
-        'expected': 1,
+        "category": "arithmetic",
+        "description": "Remainder of first divided by second.",
+        "example": "(mod 10 3)",
+        "expected": 1,
     },
     # Comparison
     GT: {
-        'category': 'comparison',
-        'description': 'True if first is strictly greater than second.  '
-        'Common in term definitions: (> sensitivity 90).',
-        'example': '(> 5 3)',
-        'expected': True,
+        "category": "comparison",
+        "description": "True if first is strictly greater than second.  "
+        "Common in term definitions: (> sensitivity 90).",
+        "example": "(> 5 3)",
+        "expected": True,
     },
     LT: {
-        'category': 'comparison',
-        'description': 'True if first is strictly less than second.',
-        'example': '(< 2 8)',
-        'expected': True,
+        "category": "comparison",
+        "description": "True if first is strictly less than second.",
+        "example": "(< 2 8)",
+        "expected": True,
     },
     GE: {
-        'category': 'comparison',
-        'description': 'True if first is greater than or equal to second.',
-        'example': '(>= 5 5)',
-        'expected': True,
+        "category": "comparison",
+        "description": "True if first is greater than or equal to second.",
+        "example": "(>= 5 5)",
+        "expected": True,
     },
     LE: {
-        'category': 'comparison',
-        'description': 'True if first is less than or equal to second.',
-        'example': '(<= 3 5)',
-        'expected': True,
+        "category": "comparison",
+        "description": "True if first is less than or equal to second.",
+        "example": "(<= 3 5)",
+        "expected": True,
     },
     EQ: {
-        'category': 'comparison',
-        'description': 'True if both values are equal.  Also the core of '
-        'rewrite rules — axioms of the form (= LHS RHS) are '
-        'applied as left-to-right rewrites during evaluation.',
-        'example': '(= 5 5)',
-        'expected': True,
+        "category": "comparison",
+        "description": "True if both values are equal.  Also the core of "
+        "rewrite rules — axioms of the form (= LHS RHS) are "
+        "applied as left-to-right rewrites during evaluation.",
+        "example": "(= 5 5)",
+        "expected": True,
     },
     NE: {
-        'category': 'comparison',
-        'description': 'True if values are not equal.',
-        'example': '(!= 5 6)',
-        'expected': True,
+        "category": "comparison",
+        "description": "True if values are not equal.",
+        "example": "(!= 5 6)",
+        "expected": True,
     },
     # Logic
     AND: {
-        'category': 'logic',
-        'description': 'Logical AND.  True only if both operands are true.  '
-        'Used in compound conditions: '
-        '(and reliable-marker standalone-diagnostic).',
-        'example': '(and true false)',
-        'expected': False,
+        "category": "logic",
+        "description": "Logical AND.  True only if both operands are true.  "
+        "Used in compound conditions: "
+        "(and reliable-marker standalone-diagnostic).",
+        "example": "(and true false)",
+        "expected": False,
     },
     OR: {
-        'category': 'logic',
-        'description': 'Logical OR.  True if at least one operand is true.',
-        'example': '(or false true)',
-        'expected': True,
+        "category": "logic",
+        "description": "Logical OR.  True if at least one operand is true.",
+        "example": "(or false true)",
+        "expected": True,
     },
     NOT: {
-        'category': 'logic',
-        'description': 'Logical NOT.  Negates a boolean.  Used in derivations: ' '(not (> specificity 90)).',
-        'example': '(not true)',
-        'expected': False,
+        "category": "logic",
+        "description": "Logical NOT.  Negates a boolean.  Used in derivations: (not (> specificity 90)).",
+        "example": "(not true)",
+        "expected": False,
     },
     IMPLIES: {
-        'category': 'logic',
-        'description': 'Logical implication.  False only when antecedent ' 'is true and consequent is false.',
-        'example': '(implies true false)',
-        'expected': False,
+        "category": "logic",
+        "description": "Logical implication.  False only when antecedent is true and consequent is false.",
+        "example": "(implies true false)",
+        "expected": False,
     },
 }
 
@@ -331,7 +331,7 @@ class DiffResult:
             a_s = to_sexp(a) if isinstance(a, (list, Symbol)) else a
             b_s = to_sexp(b) if isinstance(b, (list, Symbol)) else b
             lines.append(f"  {term}: {a_s} → {b_s}")
-        return '\n'.join(lines)
+        return "\n".join(lines)
 
 
 @dataclass
@@ -343,14 +343,14 @@ class ConsistencyIssue:
 
     def __str__(self):
         labels = {
-            'unverified_evidence': 'Unverified evidence',
-            'no_evidence': 'No evidence provided',
-            'potential_fabrication': 'Potential fabrication',
-            'diff_divergence': 'Diff divergence',
+            "unverified_evidence": "Unverified evidence",
+            "no_evidence": "No evidence provided",
+            "potential_fabrication": "Potential fabrication",
+            "diff_divergence": "Diff divergence",
         }
         label = labels.get(self.type, self.type)
-        if self.type == 'diff_divergence':
-            return '\n'.join(f"  {d}" for d in self.items)
+        if self.type == "diff_divergence":
+            return "\n".join(f"  {d}" for d in self.items)
         return f"{label}: {', '.join(str(i) for i in self.items)}"
 
 
@@ -362,7 +362,7 @@ class ConsistencyWarning:
     items: list[str]
 
     def __str__(self):
-        if self.type == 'manually_verified':
+        if self.type == "manually_verified":
             return f"Manually verified: {', '.join(self.items)}"
         return f"{self.type}: {', '.join(self.items)}"
 
@@ -387,7 +387,7 @@ class ConsistencyReport:
                 lines.append(f"  {issue}")
         for w in self.warnings:
             lines.append(f"  [warning] {w}")
-        return '\n'.join(lines)
+        return "\n".join(lines)
 
 
 # ============================================================
@@ -400,7 +400,7 @@ def _serialize_sexp(obj) -> Any:
     if isinstance(obj, list):
         return [_serialize_sexp(x) for x in obj]
     if isinstance(obj, Symbol):
-        return {'__symbol__': str(obj)}
+        return {"__symbol__": str(obj)}
     if isinstance(obj, bool):
         return obj
     return obj
@@ -410,31 +410,31 @@ def _deserialize_sexp(obj) -> Any:
     """Reconstruct an s-expression from JSON-safe form."""
     if isinstance(obj, list):
         return [_deserialize_sexp(x) for x in obj]
-    if isinstance(obj, dict) and '__symbol__' in obj:
-        return Symbol(obj['__symbol__'])
+    if isinstance(obj, dict) and "__symbol__" in obj:
+        return Symbol(obj["__symbol__"])
     return obj
 
 
 def _serialize_evidence(ev: Evidence) -> dict:
     return {
-        '__evidence__': True,
-        'document': ev.document,
-        'quotes': ev.quotes,
-        'explanation': ev.explanation,
-        'verification': ev.verification,
-        'verified': ev.verified,
-        'verify_manual': ev.verify_manual,
+        "__evidence__": True,
+        "document": ev.document,
+        "quotes": ev.quotes,
+        "explanation": ev.explanation,
+        "verification": ev.verification,
+        "verified": ev.verified,
+        "verify_manual": ev.verify_manual,
     }
 
 
 def _deserialize_evidence(d: dict) -> Evidence:
     return Evidence(
-        document=d['document'],
-        quotes=d.get('quotes', []),
-        explanation=d.get('explanation', ''),
-        verification=d.get('verification', []),
-        verified=d.get('verified', False),
-        verify_manual=d.get('verify_manual', False),
+        document=d["document"],
+        quotes=d.get("quotes", []),
+        explanation=d.get("explanation", ""),
+        verification=d.get("verification", []),
+        verified=d.get("verified", False),
+        verify_manual=d.get("verify_manual", False),
     )
 
 
@@ -445,75 +445,75 @@ def _serialize_origin(origin) -> Any:
 
 
 def _deserialize_origin(origin) -> Any:
-    if isinstance(origin, dict) and origin.get('__evidence__'):
+    if isinstance(origin, dict) and origin.get("__evidence__"):
         return _deserialize_evidence(origin)
     return origin
 
 
 def _serialize_term(term: Term) -> dict:
     return {
-        'definition': _serialize_sexp(term.definition),
-        'origin': _serialize_origin(term.origin),
+        "definition": _serialize_sexp(term.definition),
+        "origin": _serialize_origin(term.origin),
     }
 
 
 def _deserialize_term(name: str, d: dict) -> Term:
     return Term(
         name=name,
-        definition=_deserialize_sexp(d['definition']),
-        origin=_deserialize_origin(d['origin']),
+        definition=_deserialize_sexp(d["definition"]),
+        origin=_deserialize_origin(d["origin"]),
     )
 
 
 def _serialize_fact(fact: Any) -> dict:
     if isinstance(fact, dict):
         result = dict(fact)
-        if 'origin' in result:
-            result['origin'] = _serialize_origin(result['origin'])
-        if 'value' in result:
-            result['value'] = _serialize_sexp(result['value'])
+        if "origin" in result:
+            result["origin"] = _serialize_origin(result["origin"])
+        if "value" in result:
+            result["value"] = _serialize_sexp(result["value"])
         return result
-    return {'value': _serialize_sexp(fact)}
+    return {"value": _serialize_sexp(fact)}
 
 
 def _deserialize_fact(d: dict) -> dict:
     result = dict(d)
-    if 'origin' in result:
-        result['origin'] = _deserialize_origin(result['origin'])
-    if 'value' in result:
-        result['value'] = _deserialize_sexp(result['value'])
+    if "origin" in result:
+        result["origin"] = _deserialize_origin(result["origin"])
+    if "value" in result:
+        result["value"] = _deserialize_sexp(result["value"])
     return result
 
 
 def _serialize_axiom(axiom: Axiom) -> dict:
     return {
-        'wff': _serialize_sexp(axiom.wff),
-        'origin': _serialize_origin(axiom.origin),
+        "wff": _serialize_sexp(axiom.wff),
+        "origin": _serialize_origin(axiom.origin),
     }
 
 
 def _deserialize_axiom(name: str, d: dict) -> Axiom:
     return Axiom(
         name=name,
-        wff=_deserialize_sexp(d['wff']),
-        origin=_deserialize_origin(d['origin']),
+        wff=_deserialize_sexp(d["wff"]),
+        origin=_deserialize_origin(d["origin"]),
     )
 
 
 def _serialize_theorem(thm: Theorem) -> dict:
     return {
-        'wff': _serialize_sexp(thm.wff),
-        'derivation': thm.derivation,
-        'origin': _serialize_origin(thm.origin),
+        "wff": _serialize_sexp(thm.wff),
+        "derivation": thm.derivation,
+        "origin": _serialize_origin(thm.origin),
     }
 
 
 def _deserialize_theorem(name: str, d: dict) -> Theorem:
     return Theorem(
         name=name,
-        wff=_deserialize_sexp(d['wff']),
-        derivation=d.get('derivation', []),
-        origin=_deserialize_origin(d['origin']),
+        wff=_deserialize_sexp(d["wff"]),
+        derivation=d.get("derivation", []),
+        origin=_deserialize_origin(d["origin"]),
     )
 
 
@@ -576,13 +576,13 @@ class System:
 
         all_verified = True
         for r in results:
-            if r['verified']:
-                conf = r.get('confidence', {})
-                log.info('Quote verified: "%s" (confidence: %s)', r['quote'], conf.get('level', '?'))
+            if r["verified"]:
+                conf = r.get("confidence", {})
+                log.info('Quote verified: "%s" (confidence: %s)', r["quote"], conf.get("level", "?"))
             else:
                 all_verified = False
-                reason = r.get('reason', 'unknown')
-                log.warning('Quote NOT verified: "%s" (%s)', r['quote'], reason)
+                reason = r.get("reason", "unknown")
+                log.warning('Quote NOT verified: "%s" (%s)', r["quote"], reason)
 
         evidence.verified = all_verified
         return evidence
@@ -594,7 +594,7 @@ class System:
         """
         origin = None
         if name in self.facts:
-            origin = self.facts[name].get('origin')
+            origin = self.facts[name].get("origin")
         if name in self.axioms:
             origin = self.axioms[name].origin
         if name in self.theorems:
@@ -616,7 +616,7 @@ class System:
                 verify_manual=True,
             )
             if name in self.facts:
-                self.facts[name]['origin'] = ev
+                self.facts[name]["origin"] = ev
             if name in self.axioms:
                 self.axioms[name].origin = ev
             if name in self.theorems:
@@ -630,7 +630,7 @@ class System:
     # Axiom Introduction
     # ----------------------------------------------------------
 
-    def introduce_axiom(self, name: str, wff, origin: 'str | Evidence') -> Axiom:
+    def introduce_axiom(self, name: str, wff, origin: "str | Evidence") -> Axiom:
         """Introduce a new axiom from evidence. Extends the system."""
         if isinstance(wff, str):
             wff = parse(wff)
@@ -646,7 +646,7 @@ class System:
         self._register_if_definition(name, wff)
         return ax
 
-    def introduce_term(self, name: str, definition, origin: 'str | Evidence') -> Term:
+    def introduce_term(self, name: str, definition, origin: "str | Evidence") -> Term:
         """Introduce a new term/concept. Extends the grammar."""
         if isinstance(definition, str):
             definition = parse(definition)
@@ -658,7 +658,7 @@ class System:
         self.terms[name] = term
         return term
 
-    def set_fact(self, name: str, value: Any, origin: 'str | Evidence'):
+    def set_fact(self, name: str, value: Any, origin: "str | Evidence"):
         """Set a ground truth value with evidence.
 
         If the fact already exists:
@@ -668,14 +668,14 @@ class System:
         if name in self.facts:
             if not self.overridable:
                 raise ValueError(
-                    f"Fact '{name}' already exists. Use retract() first, " f"or create System(overridable=True)"
+                    f"Fact '{name}' already exists. Use retract() first, or create System(overridable=True)"
                 )
-            log.info("Overwriting fact '%s': %s → %s", name, self.facts[name]['value'], value)
+            log.info("Overwriting fact '%s': %s → %s", name, self.facts[name]["value"], value)
 
         if isinstance(origin, Evidence):
             self._verify_evidence(origin)
 
-        self.facts[name] = {'value': value, 'origin': origin}
+        self.facts[name] = {"value": value, "origin": origin}
         self.env[Symbol(name)] = value
 
     # ----------------------------------------------------------
@@ -708,7 +708,7 @@ class System:
         for src_name in using:
             origin = None
             if src_name in self.facts:
-                origin = self.facts[src_name].get('origin')
+                origin = self.facts[src_name].get("origin")
             if src_name in self.axioms:
                 origin = self.axioms[src_name].origin
             if src_name in self.theorems:
@@ -719,7 +719,7 @@ class System:
             if isinstance(origin, Evidence) and not origin.is_grounded:
                 ungrounded.append(src_name)
             # If origin is "potential fabrication" string from a prior derive
-            if isinstance(origin, str) and 'potential fabrication' in origin:
+            if isinstance(origin, str) and "potential fabrication" in origin:
                 ungrounded.append(src_name)
 
         return ungrounded
@@ -756,9 +756,9 @@ class System:
         if ungrounded:
             issues.append(f"derived from unverified: {', '.join(ungrounded)}")
             log.warning(
-                "Derivation '%s' marked as potential fabrication " "(unverified sources: %s)",
+                "Derivation '%s' marked as potential fabrication (unverified sources: %s)",
                 name,
-                ', '.join(ungrounded),
+                ", ".join(ungrounded),
             )
 
         if issues:
@@ -802,7 +802,7 @@ class System:
             if not isinstance(lhs, list):
                 continue
             # Skip symmetric rules (all args are bare ?-vars → would loop)
-            if all(isinstance(a, Symbol) and str(a).startswith('?') for a in lhs[1:]):
+            if all(isinstance(a, Symbol) and str(a).startswith("?") for a in lhs[1:]):
                 continue
             bindings = match(lhs, expr)
             if bindings is not None:
@@ -868,7 +868,7 @@ class System:
                 return
             if len(expr) == 1 and expr.isalpha():
                 return
-            if expr.startswith('?'):
+            if expr.startswith("?"):
                 return
             raise NameError(f"Symbol '{expr}' not in current system. Introduce it first.")
         if isinstance(expr, list):
@@ -931,7 +931,7 @@ class System:
         Stores only the parameters. The result is computed fresh on
         every call to eval_diff() or consistency().
         """
-        self.diffs[name] = {'replace': replace, 'with': with_}
+        self.diffs[name] = {"replace": replace, "with": with_}
         log.debug("Diff registered '%s': %s vs %s", name, replace, with_)
 
     def _resolve_value(self, name: str):
@@ -954,8 +954,8 @@ class System:
             raise KeyError(f"Unknown diff: {name}")
 
         params = self.diffs[name]
-        replace = params['replace']
-        with_ = params['with']
+        replace = params["replace"]
+        with_ = params["with"]
 
         original = self._resolve_value(replace)
         substitute_val = self._resolve_value(with_)
@@ -1027,8 +1027,8 @@ class System:
         # Re-derive: re-check sources and update origin
         ungrounded = self._check_sources_grounded(thm.derivation)
         if ungrounded:
-            thm.origin = f"potential fabrication — derived from unverified: " f"{', '.join(ungrounded)}"
-            log.warning("Rederive '%s': still has unverified sources: %s", name, ', '.join(ungrounded))
+            thm.origin = f"potential fabrication — derived from unverified: {', '.join(ungrounded)}"
+            log.warning("Rederive '%s': still has unverified sources: %s", name, ", ".join(ungrounded))
         else:
             thm.origin = "derived"
             log.info("Rederive '%s': sources now verified — cleared", name)
@@ -1041,15 +1041,15 @@ class System:
         """Format an origin for display/serialization."""
         if isinstance(origin, Evidence):
             result = {
-                'document': origin.document,
-                'quotes': origin.quotes,
-                'explanation': origin.explanation,
-                'verified': origin.verified,
-                'verify_manual': origin.verify_manual,
-                'grounded': origin.is_grounded,
+                "document": origin.document,
+                "quotes": origin.quotes,
+                "explanation": origin.explanation,
+                "verified": origin.verified,
+                "verify_manual": origin.verify_manual,
+                "grounded": origin.is_grounded,
             }
             if origin.verification:
-                result['verification'] = origin.verification
+                result["verification"] = origin.verification
             return result
         return origin
 
@@ -1057,53 +1057,53 @@ class System:
         """Trace the full provenance chain of a statement."""
         if name in self.facts:
             return {
-                'name': name,
-                'type': 'fact',
-                'origin': self._format_origin(self.facts[name].get('origin', '')),
+                "name": name,
+                "type": "fact",
+                "origin": self._format_origin(self.facts[name].get("origin", "")),
             }
 
         if name in self.axioms:
             ax = self.axioms[name]
             return {
-                'name': name,
-                'type': 'axiom',
-                'wff': to_sexp(ax.wff),
-                'origin': self._format_origin(ax.origin),
+                "name": name,
+                "type": "axiom",
+                "wff": to_sexp(ax.wff),
+                "origin": self._format_origin(ax.origin),
             }
 
         if name in self.terms:
             term = self.terms[name]
             defn = to_sexp(term.definition) if term.definition is not None else "(forward declaration)"
             return {
-                'name': name,
-                'type': 'term',
-                'definition': defn,
-                'origin': self._format_origin(term.origin),
+                "name": name,
+                "type": "term",
+                "definition": defn,
+                "origin": self._format_origin(term.origin),
             }
 
         if name in self.theorems:
             thm = self.theorems[name]
             return {
-                'name': name,
-                'type': 'theorem',
-                'wff': to_sexp(thm.wff),
-                'origin': self._format_origin(thm.origin),
-                'derivation_chain': [self.provenance(dep) for dep in thm.derivation],
+                "name": name,
+                "type": "theorem",
+                "wff": to_sexp(thm.wff),
+                "origin": self._format_origin(thm.origin),
+                "derivation_chain": [self.provenance(dep) for dep in thm.derivation],
             }
 
         if name in self.diffs:
             diff = self.diffs[name]
             result = self.eval_diff(name)
             return {
-                'name': name,
-                'type': 'diff',
-                'replace': diff['replace'],
-                'with': diff['with'],
-                'value_a': result.value_a,
-                'value_b': result.value_b,
-                'divergences': result.divergences,
-                'provenance_a': self.provenance(diff['replace']),
-                'provenance_b': self.provenance(diff['with']),
+                "name": name,
+                "type": "diff",
+                "replace": diff["replace"],
+                "with": diff["with"],
+                "value_a": result.value_a,
+                "value_b": result.value_b,
+                "divergences": result.divergences,
+                "provenance_a": self.provenance(diff["replace"]),
+                "provenance_b": self.provenance(diff["with"]),
             }
 
         raise KeyError(f"Unknown: {name}")
@@ -1133,13 +1133,13 @@ class System:
         """Return all ground facts."""
         result = []
         for name, info in self.facts.items():
-            origin = info.get('origin', '')
-            entry = {'name': name, 'value': info['value'], 'origin': origin}
+            origin = info.get("origin", "")
+            entry = {"name": name, "value": info["value"], "origin": origin}
             if isinstance(origin, Evidence):
                 tag = str(origin)
             else:
                 tag = f"[origin: {origin}]"
-            log.info("%s = %s %s", name, info['value'], tag)
+            log.info("%s = %s %s", name, info["value"], tag)
             result.append(entry)
         return result
 
@@ -1150,24 +1150,24 @@ class System:
     def to_dict(self) -> dict:
         """Serialize the full system state to a JSON-safe dict."""
         return {
-            'terms': {n: _serialize_term(t) for n, t in self.terms.items()},
-            'facts': {n: _serialize_fact(f) for n, f in self.facts.items()},
-            'axioms': {n: _serialize_axiom(a) for n, a in self.axioms.items()},
-            'theorems': {n: _serialize_theorem(t) for n, t in self.theorems.items()},
-            'diffs': dict(self.diffs),
-            'documents': dict(self.documents),
+            "terms": {n: _serialize_term(t) for n, t in self.terms.items()},
+            "facts": {n: _serialize_fact(f) for n, f in self.facts.items()},
+            "axioms": {n: _serialize_axiom(a) for n, a in self.axioms.items()},
+            "theorems": {n: _serialize_theorem(t) for n, t in self.theorems.items()},
+            "diffs": dict(self.diffs),
+            "documents": dict(self.documents),
         }
 
     @classmethod
-    def from_dict(cls, data: dict) -> 'System':
+    def from_dict(cls, data: dict) -> "System":
         """Reconstruct a System from a serialized dict."""
         system = cls()
-        system.terms = {n: _deserialize_term(n, d) for n, d in data.get('terms', {}).items()}
-        system.facts = {n: _deserialize_fact(d) for n, d in data.get('facts', {}).items()}
-        system.axioms = {n: _deserialize_axiom(n, d) for n, d in data.get('axioms', {}).items()}
-        system.theorems = {n: _deserialize_theorem(n, d) for n, d in data.get('theorems', {}).items()}
-        system.diffs = data.get('diffs', {})
-        system.documents = data.get('documents', {})
+        system.terms = {n: _deserialize_term(n, d) for n, d in data.get("terms", {}).items()}
+        system.facts = {n: _deserialize_fact(d) for n, d in data.get("facts", {}).items()}
+        system.axioms = {n: _deserialize_axiom(n, d) for n, d in data.get("axioms", {}).items()}
+        system.theorems = {n: _deserialize_theorem(n, d) for n, d in data.get("theorems", {}).items()}
+        system.diffs = data.get("diffs", {})
+        system.documents = data.get("documents", {})
         return system
 
     def consistency(self) -> ConsistencyReport:
@@ -1188,7 +1188,7 @@ class System:
         for store in [self.facts, self.axioms, self.theorems, self.terms]:
             for name, item in store.items():
                 if isinstance(item, dict):
-                    origin = item.get('origin')
+                    origin = item.get("origin")
                 else:
                     origin = item.origin
                 if isinstance(origin, Evidence):
@@ -1198,33 +1198,33 @@ class System:
                         unverified.append(name)
                 elif isinstance(origin, str):
                     if (
-                        origin not in ('unknown', 'derived')
-                        and not origin.startswith('diff ')
-                        and 'potential fabrication' not in origin
+                        origin not in ("unknown", "derived")
+                        and not origin.startswith("diff ")
+                        and "potential fabrication" not in origin
                     ):
                         no_evidence.append(name)
 
         if unverified:
-            issues.append(ConsistencyIssue('unverified_evidence', unverified))
+            issues.append(ConsistencyIssue("unverified_evidence", unverified))
         if no_evidence:
-            issues.append(ConsistencyIssue('no_evidence', no_evidence))
+            issues.append(ConsistencyIssue("no_evidence", no_evidence))
         if manually_verified:
-            warnings.append(ConsistencyWarning('manually_verified', manually_verified))
+            warnings.append(ConsistencyWarning("manually_verified", manually_verified))
 
         # 2. Fabrication propagation
         fabrications = [
             name
             for name, thm in self.theorems.items()
-            if isinstance(thm.origin, str) and 'potential fabrication' in thm.origin
+            if isinstance(thm.origin, str) and "potential fabrication" in thm.origin
         ]
         if fabrications:
-            issues.append(ConsistencyIssue('potential_fabrication', fabrications))
+            issues.append(ConsistencyIssue("potential_fabrication", fabrications))
 
         # 3. Diff divergences — evaluated live
         divergent = [self.eval_diff(n) for n in self.diffs]
         divergent = [d for d in divergent if not d.empty]
         if divergent:
-            issues.append(ConsistencyIssue('diff_divergence', divergent))
+            issues.append(ConsistencyIssue("diff_divergence", divergent))
 
         report = ConsistencyReport(
             consistent=len(issues) == 0,
@@ -1253,26 +1253,26 @@ class System:
         for sym in self.env:
             if isinstance(sym, Symbol) and sym in all_docs:
                 doc = all_docs[sym]
-                cat = doc['category']
+                cat = doc["category"]
                 categories.setdefault(cat, []).append((sym, doc))
                 documented.add(sym)
 
         # Add special forms and directives (not in env but part of the language)
         for sym, doc in all_docs.items():
-            if sym not in documented and doc['category'] in ('special', 'directive', 'structural', 'keyword'):
-                categories.setdefault(doc['category'], []).append((sym, doc))
+            if sym not in documented and doc["category"] in ("special", "directive", "structural", "keyword"):
+                categories.setdefault(doc["category"], []).append((sym, doc))
                 documented.add(sym)
 
         # Category display order
-        order = ['special', 'arithmetic', 'comparison', 'logic', 'directive', 'structural', 'keyword']
+        order = ["special", "arithmetic", "comparison", "logic", "directive", "structural", "keyword"]
         titles = {
-            'special': 'Special Forms',
-            'arithmetic': 'Arithmetic Operators',
-            'comparison': 'Comparison Operators',
-            'logic': 'Logic Operators',
-            'directive': 'DSL Directives',
-            'structural': 'Structural',
-            'keyword': 'Keyword Arguments',
+            "special": "Special Forms",
+            "arithmetic": "Arithmetic Operators",
+            "comparison": "Comparison Operators",
+            "logic": "Logic Operators",
+            "directive": "DSL Directives",
+            "structural": "Structural",
+            "keyword": "Keyword Arguments",
         }
 
         # Include any custom categories not in the default order
@@ -1283,23 +1283,23 @@ class System:
             if not entries:
                 continue
             lines.append("")
-            title = titles.get(cat, cat.replace('_', ' ').title())
+            title = titles.get(cat, cat.replace("_", " ").title())
             lines.append(f"  {title}")
             lines.append(f"  {'-' * len(title)}")
             for sym, doc in entries:
                 lines.append(f"    {sym}")
                 # First line of description only for compact display
-                desc = doc['description']
-                first_line = desc.split('\n')[0]
+                desc = doc["description"]
+                first_line = desc.split("\n")[0]
                 lines.append(f"      {first_line}")
                 lines.append(f"      Example: {doc['example']}")
-                if 'expected' in doc:
+                if "expected" in doc:
                     lines.append(f"      => {doc['expected']}")
                 # Show patterns if available
-                if 'patterns' in doc:
+                if "patterns" in doc:
                     lines.append("      Patterns:")
-                    for pattern in doc['patterns']:
-                        for pline in pattern.split('\n'):
+                    for pattern in doc["patterns"]:
+                        for pline in pattern.split("\n"):
                             lines.append(f"        {pline}")
                         lines.append("")
 
@@ -1335,7 +1335,7 @@ class System:
             lines.append("  Theorems")
             lines.append("  " + "-" * 8)
             for name, thm in self.theorems.items():
-                sources = ', '.join(thm.derivation)
+                sources = ", ".join(thm.derivation)
                 lines.append(f"    {name}: {to_sexp(thm.wff)}  [from: {sources}]")
 
         if self.diffs:
@@ -1407,13 +1407,13 @@ def load_source(system: System, source: str):
         _execute_directive(system, expr)
 
 
-def _resolve_origin(expr) -> 'str | Evidence':
+def _resolve_origin(expr) -> "str | Evidence":
     """Extract origin from an expression — either :origin string or :evidence."""
     evidence_raw = get_keyword(expr, KW_EVIDENCE, None)
     if evidence_raw is not None:
         return parse_evidence(evidence_raw)
 
-    origin = get_keyword(expr, KW_ORIGIN, 'unknown')
+    origin = get_keyword(expr, KW_ORIGIN, "unknown")
     return origin
 
 
@@ -1460,7 +1460,7 @@ def _execute_directive(system: System, expr):
             ref = str(expr[2])
             bindings = _parse_bindings(system, bind_raw)
             defn = system.instantiate(ref, bindings)
-        elif len(expr) < 3 or (isinstance(expr[2], str) and expr[2].startswith(':')):
+        elif len(expr) < 3 or (isinstance(expr[2], str) and expr[2].startswith(":")):
             # Forward declaration — no definition body
             defn = None
         else:

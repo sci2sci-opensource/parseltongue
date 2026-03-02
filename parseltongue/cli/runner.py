@@ -10,7 +10,7 @@ from ..core import System
 from ..llm import Pipeline, PipelineResult
 from .ingest import ingest_file
 
-log = logging.getLogger('parseltongue.cli')
+log = logging.getLogger("parseltongue.cli")
 
 
 @dataclass

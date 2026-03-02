@@ -9,7 +9,7 @@ from textual.containers import VerticalScroll
 from textual.message import Message
 from textual.widgets import Markdown
 
-TAG_RE = re.compile(r'\[\[(\w+):([^\]]+)\]\]')
+TAG_RE = re.compile(r"\[\[(\w+):([^\]]+)\]\]")
 
 
 class ReferenceClicked(Message):

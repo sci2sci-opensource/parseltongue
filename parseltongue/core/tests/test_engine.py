@@ -31,18 +31,18 @@ from .. import (
 )
 
 # Reusable sample document text for evidence verification tests.
-SAMPLE_DOC = "Q3 revenue was $15M, up 15% year-over-year. " "Operating margin improved to 22%."
+SAMPLE_DOC = "Q3 revenue was $15M, up 15% year-over-year. Operating margin improved to 22%."
 
 
 def make_system(**kwargs):
     """Create a System with print suppressed."""
-    with patch('builtins.print'):
+    with patch("builtins.print"):
         return System(**kwargs)
 
 
 def quiet(fn, *args, **kwargs):
     """Run a function with print suppressed."""
-    with patch('builtins.print'):
+    with patch("builtins.print"):
         return fn(*args, **kwargs)
 
 
@@ -52,131 +52,130 @@ def quiet(fn, *args, **kwargs):
 
 
 class TestEvaluation(unittest.TestCase):
-
     def setUp(self):
         self.s = make_system()
 
     def test_add(self):
-        self.assertEqual(self.s.evaluate([Symbol('+'), 2, 3]), 5)
+        self.assertEqual(self.s.evaluate([Symbol("+"), 2, 3]), 5)
 
     def test_sub(self):
-        self.assertEqual(self.s.evaluate([Symbol('-'), 10, 4]), 6)
+        self.assertEqual(self.s.evaluate([Symbol("-"), 10, 4]), 6)
 
     def test_mul(self):
-        self.assertEqual(self.s.evaluate([Symbol('*'), 3, 7]), 21)
+        self.assertEqual(self.s.evaluate([Symbol("*"), 3, 7]), 21)
 
     def test_div(self):
-        self.assertEqual(self.s.evaluate([Symbol('/'), 10, 2]), 5.0)
+        self.assertEqual(self.s.evaluate([Symbol("/"), 10, 2]), 5.0)
 
     def test_mod(self):
-        self.assertEqual(self.s.evaluate([Symbol('mod'), 10, 3]), 1)
+        self.assertEqual(self.s.evaluate([Symbol("mod"), 10, 3]), 1)
 
     def test_gt(self):
-        self.assertTrue(self.s.evaluate([Symbol('>'), 5, 3]))
-        self.assertFalse(self.s.evaluate([Symbol('>'), 3, 5]))
+        self.assertTrue(self.s.evaluate([Symbol(">"), 5, 3]))
+        self.assertFalse(self.s.evaluate([Symbol(">"), 3, 5]))
 
     def test_lt(self):
-        self.assertTrue(self.s.evaluate([Symbol('<'), 2, 8]))
+        self.assertTrue(self.s.evaluate([Symbol("<"), 2, 8]))
 
     def test_ge(self):
-        self.assertTrue(self.s.evaluate([Symbol('>='), 5, 5]))
-        self.assertTrue(self.s.evaluate([Symbol('>='), 6, 5]))
+        self.assertTrue(self.s.evaluate([Symbol(">="), 5, 5]))
+        self.assertTrue(self.s.evaluate([Symbol(">="), 6, 5]))
 
     def test_le(self):
-        self.assertTrue(self.s.evaluate([Symbol('<='), 5, 5]))
+        self.assertTrue(self.s.evaluate([Symbol("<="), 5, 5]))
 
     def test_eq(self):
-        self.assertTrue(self.s.evaluate([Symbol('='), 5, 5]))
-        self.assertFalse(self.s.evaluate([Symbol('='), 5, 6]))
+        self.assertTrue(self.s.evaluate([Symbol("="), 5, 5]))
+        self.assertFalse(self.s.evaluate([Symbol("="), 5, 6]))
 
     def test_ne(self):
-        self.assertTrue(self.s.evaluate([Symbol('!='), 5, 6]))
+        self.assertTrue(self.s.evaluate([Symbol("!="), 5, 6]))
 
     def test_and(self):
-        self.assertFalse(self.s.evaluate([Symbol('and'), True, False]))
-        self.assertTrue(self.s.evaluate([Symbol('and'), True, True]))
+        self.assertFalse(self.s.evaluate([Symbol("and"), True, False]))
+        self.assertTrue(self.s.evaluate([Symbol("and"), True, True]))
 
     def test_or(self):
-        self.assertTrue(self.s.evaluate([Symbol('or'), False, True]))
-        self.assertFalse(self.s.evaluate([Symbol('or'), False, False]))
+        self.assertTrue(self.s.evaluate([Symbol("or"), False, True]))
+        self.assertFalse(self.s.evaluate([Symbol("or"), False, False]))
 
     def test_not(self):
-        self.assertFalse(self.s.evaluate([Symbol('not'), True]))
-        self.assertTrue(self.s.evaluate([Symbol('not'), False]))
+        self.assertFalse(self.s.evaluate([Symbol("not"), True]))
+        self.assertTrue(self.s.evaluate([Symbol("not"), False]))
 
     def test_implies(self):
-        self.assertTrue(self.s.evaluate([Symbol('implies'), False, True]))
-        self.assertTrue(self.s.evaluate([Symbol('implies'), True, True]))
-        self.assertFalse(self.s.evaluate([Symbol('implies'), True, False]))
+        self.assertTrue(self.s.evaluate([Symbol("implies"), False, True]))
+        self.assertTrue(self.s.evaluate([Symbol("implies"), True, True]))
+        self.assertFalse(self.s.evaluate([Symbol("implies"), True, False]))
 
     def test_if_true(self):
-        expr = [Symbol('if'), True, 42, 0]
+        expr = [Symbol("if"), True, 42, 0]
         self.assertEqual(self.s.evaluate(expr), 42)
 
     def test_if_false(self):
-        expr = [Symbol('if'), False, 42, 0]
+        expr = [Symbol("if"), False, 42, 0]
         self.assertEqual(self.s.evaluate(expr), 0)
 
     def test_if_computed_condition(self):
-        expr = [Symbol('if'), [Symbol('>'), 5, 3], 1, 0]
+        expr = [Symbol("if"), [Symbol(">"), 5, 3], 1, 0]
         self.assertEqual(self.s.evaluate(expr), 1)
 
     def test_if_nested(self):
-        expr = [Symbol('if'), True, [Symbol('if'), False, 1, 2], 3]
+        expr = [Symbol("if"), True, [Symbol("if"), False, 1, 2], 3]
         self.assertEqual(self.s.evaluate(expr), 2)
 
     def test_if_only_evaluates_taken_branch(self):
         """The branch not taken should not be evaluated."""
         # Symbol 'boom' doesn't exist — if evaluated it would raise NameError
-        expr = [Symbol('if'), True, 42, Symbol('boom')]
+        expr = [Symbol("if"), True, 42, Symbol("boom")]
         self.assertEqual(self.s.evaluate(expr), 42)
-        expr = [Symbol('if'), False, Symbol('boom'), 99]
+        expr = [Symbol("if"), False, Symbol("boom"), 99]
         self.assertEqual(self.s.evaluate(expr), 99)
 
     def test_if_with_expressions_in_branches(self):
-        expr = [Symbol('if'), [Symbol('<'), 2, 8], [Symbol('+'), 10, 20], [Symbol('*'), 5, 5]]
+        expr = [Symbol("if"), [Symbol("<"), 2, 8], [Symbol("+"), 10, 20], [Symbol("*"), 5, 5]]
         self.assertEqual(self.s.evaluate(expr), 30)
 
     def test_let(self):
-        expr = [Symbol('let'), [[Symbol('x'), 10]], [Symbol('+'), Symbol('x'), 5]]
+        expr = [Symbol("let"), [[Symbol("x"), 10]], [Symbol("+"), Symbol("x"), 5]]
         self.assertEqual(self.s.evaluate(expr), 15)
 
     def test_let_multiple_bindings(self):
-        expr = [Symbol('let'), [[Symbol('a'), 3], [Symbol('b'), 7]], [Symbol('+'), Symbol('a'), Symbol('b')]]
+        expr = [Symbol("let"), [[Symbol("a"), 3], [Symbol("b"), 7]], [Symbol("+"), Symbol("a"), Symbol("b")]]
         self.assertEqual(self.s.evaluate(expr), 10)
 
     def test_let_sequential_bindings(self):
         """Later bindings can reference earlier ones."""
-        expr = [Symbol('let'), [[Symbol('x'), 5], [Symbol('y'), [Symbol('+'), Symbol('x'), 1]]], Symbol('y')]
+        expr = [Symbol("let"), [[Symbol("x"), 5], [Symbol("y"), [Symbol("+"), Symbol("x"), 1]]], Symbol("y")]
         self.assertEqual(self.s.evaluate(expr), 6)
 
     def test_let_shadows_outer(self):
         """Let bindings shadow the outer environment."""
-        self.s.env[Symbol('x')] = 100
-        expr = [Symbol('let'), [[Symbol('x'), 1]], Symbol('x')]
+        self.s.env[Symbol("x")] = 100
+        expr = [Symbol("let"), [[Symbol("x"), 1]], Symbol("x")]
         self.assertEqual(self.s.evaluate(expr), 1)
         # Outer env unchanged
-        self.assertEqual(self.s.env[Symbol('x')], 100)
+        self.assertEqual(self.s.env[Symbol("x")], 100)
 
     def test_let_nested(self):
         expr = [
-            Symbol('let'),
-            [[Symbol('x'), 2]],
-            [Symbol('let'), [[Symbol('y'), 3]], [Symbol('*'), Symbol('x'), Symbol('y')]],
+            Symbol("let"),
+            [[Symbol("x"), 2]],
+            [Symbol("let"), [[Symbol("y"), 3]], [Symbol("*"), Symbol("x"), Symbol("y")]],
         ]
         self.assertEqual(self.s.evaluate(expr), 6)
 
     def test_let_computed_values(self):
-        expr = [Symbol('let'), [[Symbol('x'), [Symbol('*'), 3, 4]]], [Symbol('+'), Symbol('x'), 1]]
+        expr = [Symbol("let"), [[Symbol("x"), [Symbol("*"), 3, 4]]], [Symbol("+"), Symbol("x"), 1]]
         self.assertEqual(self.s.evaluate(expr), 13)
 
     def test_nested(self):
-        expr = [Symbol('+'), [Symbol('*'), 2, 3], [Symbol('-'), 10, 4]]
+        expr = [Symbol("+"), [Symbol("*"), 2, 3], [Symbol("-"), 10, 4]]
         self.assertEqual(self.s.evaluate(expr), 12)
 
     def test_unresolved_symbol(self):
         with self.assertRaises(NameError):
-            self.s.evaluate(Symbol('unknown'))
+            self.s.evaluate(Symbol("unknown"))
 
     def test_literal_passthrough(self):
         self.assertEqual(self.s.evaluate(42), 42)
@@ -184,7 +183,7 @@ class TestEvaluation(unittest.TestCase):
         self.assertEqual(self.s.evaluate(True), True)
 
     def test_local_env(self):
-        result = self.s.evaluate([Symbol('+'), Symbol('x'), 1], {Symbol('x'): 10})
+        result = self.s.evaluate([Symbol("+"), Symbol("x"), 1], {Symbol("x"): 10})
         self.assertEqual(result, 11)
 
 
@@ -194,38 +193,37 @@ class TestEvaluation(unittest.TestCase):
 
 
 class TestFacts(unittest.TestCase):
-
     def test_set_and_retrieve_fact(self):
         s = make_system()
-        quiet(s.set_fact, 'x', 42, 'test')
-        self.assertEqual(s.facts['x']['value'], 42)
-        self.assertEqual(s.evaluate(Symbol('x')), 42)
+        quiet(s.set_fact, "x", 42, "test")
+        self.assertEqual(s.facts["x"]["value"], 42)
+        self.assertEqual(s.evaluate(Symbol("x")), 42)
 
     def test_duplicate_fact_strict_raises(self):
         s = make_system(overridable=False)
-        quiet(s.set_fact, 'x', 1, 'first')
+        quiet(s.set_fact, "x", 1, "first")
         with self.assertRaises(ValueError):
-            quiet(s.set_fact, 'x', 2, 'second')
+            quiet(s.set_fact, "x", 2, "second")
 
     def test_duplicate_fact_overridable(self):
         s = make_system(overridable=True)
-        quiet(s.set_fact, 'x', 1, 'first')
-        quiet(s.set_fact, 'x', 2, 'second')
-        self.assertEqual(s.facts['x']['value'], 2)
-        self.assertEqual(s.evaluate(Symbol('x')), 2)
+        quiet(s.set_fact, "x", 1, "first")
+        quiet(s.set_fact, "x", 2, "second")
+        self.assertEqual(s.facts["x"]["value"], 2)
+        self.assertEqual(s.evaluate(Symbol("x")), 2)
 
     def test_fact_with_evidence(self):
         s = make_system()
-        quiet(s.register_document, 'Doc', SAMPLE_DOC)
-        ev = Evidence(document='Doc', quotes=['Q3 revenue was $15M'])
-        quiet(s.set_fact, 'rev', 15.0, ev)
+        quiet(s.register_document, "Doc", SAMPLE_DOC)
+        ev = Evidence(document="Doc", quotes=["Q3 revenue was $15M"])
+        quiet(s.set_fact, "rev", 15.0, ev)
         self.assertTrue(ev.verified)
 
     def test_fact_with_bad_evidence(self):
         s = make_system()
-        quiet(s.register_document, 'Doc', SAMPLE_DOC)
-        ev = Evidence(document='Doc', quotes=['This quote does not exist at all'])
-        quiet(s.set_fact, 'bad', 999, ev)
+        quiet(s.register_document, "Doc", SAMPLE_DOC)
+        ev = Evidence(document="Doc", quotes=["This quote does not exist at all"])
+        quiet(s.set_fact, "bad", 999, ev)
         self.assertFalse(ev.verified)
 
 
@@ -235,52 +233,51 @@ class TestFacts(unittest.TestCase):
 
 
 class TestAxioms(unittest.TestCase):
-
     def test_introduce_axiom_string_origin(self):
         s = make_system()
-        quiet(s.set_fact, 'x', 5, 'test')
-        ax = quiet(s.introduce_axiom, 'a1', [Symbol('>'), Symbol('x'), 0], 'manual')
-        self.assertEqual(ax.name, 'a1')
-        self.assertEqual(ax.origin, 'manual')
-        self.assertIn('a1', s.axioms)
+        quiet(s.set_fact, "x", 5, "test")
+        ax = quiet(s.introduce_axiom, "a1", [Symbol(">"), Symbol("x"), 0], "manual")
+        self.assertEqual(ax.name, "a1")
+        self.assertEqual(ax.origin, "manual")
+        self.assertIn("a1", s.axioms)
 
     def test_introduce_axiom_evidence_origin(self):
         s = make_system()
-        quiet(s.register_document, 'Doc', SAMPLE_DOC)
-        quiet(s.set_fact, 'rev', 15.0, 'test')
-        ev = Evidence(document='Doc', quotes=['Q3 revenue was $15M'])
-        ax = quiet(s.introduce_axiom, 'a2', [Symbol('>'), Symbol('rev'), 0], ev)
+        quiet(s.register_document, "Doc", SAMPLE_DOC)
+        quiet(s.set_fact, "rev", 15.0, "test")
+        ev = Evidence(document="Doc", quotes=["Q3 revenue was $15M"])
+        ax = quiet(s.introduce_axiom, "a2", [Symbol(">"), Symbol("rev"), 0], ev)
         self.assertIsInstance(ax.origin, Evidence)
 
     def test_unknown_symbol_in_wff(self):
         s = make_system()
         with self.assertRaises(NameError):
-            quiet(s.introduce_axiom, 'bad', [Symbol('>'), Symbol('unknown'), 0], 'test')
+            quiet(s.introduce_axiom, "bad", [Symbol(">"), Symbol("unknown"), 0], "test")
 
     def test_axiom_with_if_in_wff(self):
         """Axioms can use special forms like 'if' in their WFF."""
         s = make_system()
-        quiet(s.set_fact, 'x', 5, 'test')
-        quiet(s.set_fact, 'y', 10, 'test')
+        quiet(s.set_fact, "x", 5, "test")
+        quiet(s.set_fact, "y", 10, "test")
         ax = quiet(
             s.introduce_axiom,
-            'a3',
-            [Symbol('='), [Symbol('if'), [Symbol('>'), Symbol('x'), 0], Symbol('y'), 0], Symbol('y')],
-            'test',
+            "a3",
+            [Symbol("="), [Symbol("if"), [Symbol(">"), Symbol("x"), 0], Symbol("y"), 0], Symbol("y")],
+            "test",
         )
-        self.assertIn('a3', s.axioms)
+        self.assertIn("a3", s.axioms)
 
     def test_axiom_with_let_in_wff(self):
         """Axioms can use 'let' in their WFF."""
         s = make_system()
-        quiet(s.set_fact, 'x', 5, 'test')
+        quiet(s.set_fact, "x", 5, "test")
         ax = quiet(
             s.introduce_axiom,
-            'a4',
-            [Symbol('='), [Symbol('let'), [[Symbol('z'), Symbol('x')]], [Symbol('+'), Symbol('z'), 1]], 6],
-            'test',
+            "a4",
+            [Symbol("="), [Symbol("let"), [[Symbol("z"), Symbol("x")]], [Symbol("+"), Symbol("z"), 1]], 6],
+            "test",
         )
-        self.assertIn('a4', s.axioms)
+        self.assertIn("a4", s.axioms)
 
 
 # ==============================================================
@@ -289,24 +286,23 @@ class TestAxioms(unittest.TestCase):
 
 
 class TestTerms(unittest.TestCase):
-
     def test_introduce_term(self):
         s = make_system()
-        quiet(s.set_fact, 'x', 10, 'test')
-        quiet(s.set_fact, 'y', 20, 'test')
-        quiet(s.introduce_term, 'total', [Symbol('+'), Symbol('x'), Symbol('y')], 'test')
-        self.assertIn('total', s.terms)
-        result = s.evaluate(s.terms['total'].definition)
+        quiet(s.set_fact, "x", 10, "test")
+        quiet(s.set_fact, "y", 20, "test")
+        quiet(s.introduce_term, "total", [Symbol("+"), Symbol("x"), Symbol("y")], "test")
+        self.assertIn("total", s.terms)
+        result = s.evaluate(s.terms["total"].definition)
         self.assertEqual(result, 30)
 
     def test_term_resolves_as_symbol(self):
         """Terms auto-resolve when referenced as bare symbols."""
         s = make_system()
-        quiet(s.set_fact, 'a', 3, 'test')
-        quiet(s.set_fact, 'b', 4, 'test')
-        quiet(s.introduce_term, 'sum_ab', [Symbol('+'), Symbol('a'), Symbol('b')], 'test')
+        quiet(s.set_fact, "a", 3, "test")
+        quiet(s.set_fact, "b", 4, "test")
+        quiet(s.introduce_term, "sum_ab", [Symbol("+"), Symbol("a"), Symbol("b")], "test")
         # Term should auto-resolve in evaluation
-        result = s.evaluate(Symbol('sum_ab'))
+        result = s.evaluate(Symbol("sum_ab"))
         self.assertEqual(result, 7)
 
 
@@ -316,48 +312,47 @@ class TestTerms(unittest.TestCase):
 
 
 class TestDerivation(unittest.TestCase):
-
     def test_derive_grounded(self):
         s = make_system()
-        quiet(s.register_document, 'Doc', SAMPLE_DOC)
-        ev = Evidence(document='Doc', quotes=['Q3 revenue was $15M'])
-        quiet(s.set_fact, 'rev', 15.0, ev)
-        thm = quiet(s.derive, 'd1', [Symbol('>'), Symbol('rev'), 0], ['rev'])
-        self.assertEqual(thm.origin, 'derived')
-        self.assertEqual(thm.derivation, ['rev'])
+        quiet(s.register_document, "Doc", SAMPLE_DOC)
+        ev = Evidence(document="Doc", quotes=["Q3 revenue was $15M"])
+        quiet(s.set_fact, "rev", 15.0, ev)
+        thm = quiet(s.derive, "d1", [Symbol(">"), Symbol("rev"), 0], ["rev"])
+        self.assertEqual(thm.origin, "derived")
+        self.assertEqual(thm.derivation, ["rev"])
 
     def test_derive_unverified_is_fabrication(self):
         s = make_system()
-        quiet(s.register_document, 'Doc', SAMPLE_DOC)
-        ev = Evidence(document='Doc', quotes=['Nonexistent quote xyz'])
-        quiet(s.set_fact, 'bad', 999, ev)
-        thm = quiet(s.derive, 'd2', [Symbol('>'), Symbol('bad'), 0], ['bad'])
-        self.assertIn('potential fabrication', thm.origin)
-        self.assertIn('bad', thm.origin)
+        quiet(s.register_document, "Doc", SAMPLE_DOC)
+        ev = Evidence(document="Doc", quotes=["Nonexistent quote xyz"])
+        quiet(s.set_fact, "bad", 999, ev)
+        thm = quiet(s.derive, "d2", [Symbol(">"), Symbol("bad"), 0], ["bad"])
+        self.assertIn("potential fabrication", thm.origin)
+        self.assertIn("bad", thm.origin)
 
     def test_derive_false_is_fabrication(self):
         """A derivation that evaluates to False is accepted but marked as fabrication."""
         s = make_system()
-        quiet(s.set_fact, 'x', 5, 'test')
-        thm = quiet(s.derive, 'bad_d', [Symbol('<'), Symbol('x'), 0], ['x'])
-        self.assertIn('potential fabrication', thm.origin)
-        self.assertIn('does not hold', thm.origin)
+        quiet(s.set_fact, "x", 5, "test")
+        thm = quiet(s.derive, "bad_d", [Symbol("<"), Symbol("x"), 0], ["x"])
+        self.assertIn("potential fabrication", thm.origin)
+        self.assertIn("does not hold", thm.origin)
 
     def test_fabrication_chain(self):
         """Deriving from an already-fabricated theorem propagates fabrication."""
         s = make_system()
-        quiet(s.register_document, 'Doc', SAMPLE_DOC)
-        ev = Evidence(document='Doc', quotes=['Nonexistent quote xyz'])
-        quiet(s.set_fact, 'bad', 999, ev)
-        quiet(s.derive, 'tainted', [Symbol('>'), Symbol('bad'), 0], ['bad'])
+        quiet(s.register_document, "Doc", SAMPLE_DOC)
+        ev = Evidence(document="Doc", quotes=["Nonexistent quote xyz"])
+        quiet(s.set_fact, "bad", 999, ev)
+        quiet(s.derive, "tainted", [Symbol(">"), Symbol("bad"), 0], ["bad"])
         # Now derive from tainted
-        thm2 = quiet(s.derive, 'double_tainted', [Symbol('>'), Symbol('bad'), 0], ['tainted'])
-        self.assertIn('potential fabrication', thm2.origin)
+        thm2 = quiet(s.derive, "double_tainted", [Symbol(">"), Symbol("bad"), 0], ["tainted"])
+        self.assertIn("potential fabrication", thm2.origin)
 
     def test_derive_unknown_source_raises(self):
         s = make_system()
         with self.assertRaises(ValueError):
-            quiet(s.derive, 'd', [Symbol('>'), 1, 0], ['nonexistent'])
+            quiet(s.derive, "d", [Symbol(">"), 1, 0], ["nonexistent"])
 
 
 # ==============================================================
@@ -366,28 +361,27 @@ class TestDerivation(unittest.TestCase):
 
 
 class TestVerification(unittest.TestCase):
-
     def test_document_registry(self):
         s = make_system()
-        quiet(s.register_document, 'Doc', 'some text')
-        self.assertIn('Doc', s.documents)
-        self.assertEqual(s.documents['Doc'], 'some text')
+        quiet(s.register_document, "Doc", "some text")
+        self.assertIn("Doc", s.documents)
+        self.assertEqual(s.documents["Doc"], "some text")
 
     def test_verify_manual_evidence_origin(self):
         s = make_system()
-        quiet(s.register_document, 'Doc', SAMPLE_DOC)
-        ev = Evidence(document='Doc', quotes=['Nonexistent quote'])
-        quiet(s.set_fact, 'x', 1, ev)
+        quiet(s.register_document, "Doc", SAMPLE_DOC)
+        ev = Evidence(document="Doc", quotes=["Nonexistent quote"])
+        quiet(s.set_fact, "x", 1, ev)
         self.assertFalse(ev.is_grounded)
-        quiet(s.verify_manual, 'x')
+        quiet(s.verify_manual, "x")
         self.assertTrue(ev.verify_manual)
         self.assertTrue(ev.is_grounded)
 
     def test_verify_manual_string_origin(self):
         s = make_system()
-        quiet(s.set_fact, 'x', 1, 'plain origin')
-        quiet(s.verify_manual, 'x')
-        origin = s.facts['x']['origin']
+        quiet(s.set_fact, "x", 1, "plain origin")
+        quiet(s.verify_manual, "x")
+        origin = s.facts["x"]["origin"]
         self.assertIsInstance(origin, Evidence)
         self.assertTrue(origin.verify_manual)
         self.assertTrue(origin.is_grounded)
@@ -395,23 +389,23 @@ class TestVerification(unittest.TestCase):
     def test_verify_manual_unknown_raises(self):
         s = make_system()
         with self.assertRaises(KeyError):
-            quiet(s.verify_manual, 'nonexistent')
+            quiet(s.verify_manual, "nonexistent")
 
     def test_verify_manual_on_axiom(self):
         s = make_system()
-        quiet(s.set_fact, 'x', 5, 'test')
-        quiet(s.introduce_axiom, 'a1', [Symbol('>'), Symbol('x'), 0], 'string origin')
-        quiet(s.verify_manual, 'a1')
-        self.assertIsInstance(s.axioms['a1'].origin, Evidence)
-        self.assertTrue(s.axioms['a1'].origin.is_grounded)
+        quiet(s.set_fact, "x", 5, "test")
+        quiet(s.introduce_axiom, "a1", [Symbol(">"), Symbol("x"), 0], "string origin")
+        quiet(s.verify_manual, "a1")
+        self.assertIsInstance(s.axioms["a1"].origin, Evidence)
+        self.assertTrue(s.axioms["a1"].origin.is_grounded)
 
     def test_verify_manual_on_term(self):
         s = make_system()
-        quiet(s.set_fact, 'x', 5, 'test')
-        quiet(s.introduce_term, 't1', [Symbol('+'), Symbol('x'), 1], 'string origin')
-        quiet(s.verify_manual, 't1')
-        self.assertIsInstance(s.terms['t1'].origin, Evidence)
-        self.assertTrue(s.terms['t1'].origin.is_grounded)
+        quiet(s.set_fact, "x", 5, "test")
+        quiet(s.introduce_term, "t1", [Symbol("+"), Symbol("x"), 1], "string origin")
+        quiet(s.verify_manual, "t1")
+        self.assertIsInstance(s.terms["t1"].origin, Evidence)
+        self.assertTrue(s.terms["t1"].origin.is_grounded)
 
 
 # ==============================================================
@@ -420,29 +414,28 @@ class TestVerification(unittest.TestCase):
 
 
 class TestInstantiate(unittest.TestCase):
-
     def test_instantiate_axiom(self):
         s = make_system()
-        quiet(s.introduce_axiom, 'add-id', [Symbol('='), [Symbol('+'), Symbol('?n'), 0], Symbol('?n')], 'test')
-        result = s.instantiate('add-id', {Symbol('?n'): 5})
-        self.assertEqual(result, [Symbol('='), [Symbol('+'), 5, 0], 5])
+        quiet(s.introduce_axiom, "add-id", [Symbol("="), [Symbol("+"), Symbol("?n"), 0], Symbol("?n")], "test")
+        result = s.instantiate("add-id", {Symbol("?n"): 5})
+        self.assertEqual(result, [Symbol("="), [Symbol("+"), 5, 0], 5])
 
     def test_instantiate_term(self):
         s = make_system()
-        quiet(s.introduce_term, 'sum-template', [Symbol('+'), Symbol('?a'), Symbol('?b')], 'test')
-        result = s.instantiate('sum-template', {Symbol('?a'): 3, Symbol('?b'): 7})
-        self.assertEqual(result, [Symbol('+'), 3, 7])
+        quiet(s.introduce_term, "sum-template", [Symbol("+"), Symbol("?a"), Symbol("?b")], "test")
+        result = s.instantiate("sum-template", {Symbol("?a"): 3, Symbol("?b"): 7})
+        self.assertEqual(result, [Symbol("+"), 3, 7])
 
     def test_instantiate_unknown_raises(self):
         s = make_system()
         with self.assertRaises(KeyError):
-            s.instantiate('nonexistent', {Symbol('?n'): 5})
+            s.instantiate("nonexistent", {Symbol("?n"): 5})
 
     def test_parameterized_axiom_accepted(self):
         """Axiom with ?-vars passes _check_wff."""
         s = make_system()
-        ax = quiet(s.introduce_axiom, 'add-id', [Symbol('='), [Symbol('+'), Symbol('?n'), 0], Symbol('?n')], 'test')
-        self.assertIn('add-id', s.axioms)
+        ax = quiet(s.introduce_axiom, "add-id", [Symbol("="), [Symbol("+"), Symbol("?n"), 0], Symbol("?n")], "test")
+        self.assertIn("add-id", s.axioms)
 
 
 # ==============================================================
@@ -451,70 +444,68 @@ class TestInstantiate(unittest.TestCase):
 
 
 class TestRetract(unittest.TestCase):
-
     def test_retract_fact(self):
         s = make_system()
-        quiet(s.set_fact, 'x', 1, 'test')
-        quiet(s.retract, 'x')
-        self.assertNotIn('x', s.facts)
-        self.assertNotIn(Symbol('x'), s.env)
+        quiet(s.set_fact, "x", 1, "test")
+        quiet(s.retract, "x")
+        self.assertNotIn("x", s.facts)
+        self.assertNotIn(Symbol("x"), s.env)
 
     def test_retract_axiom(self):
         s = make_system()
-        quiet(s.set_fact, 'x', 5, 'test')
-        quiet(s.introduce_axiom, 'a1', [Symbol('>'), Symbol('x'), 0], 'test')
-        quiet(s.retract, 'a1')
-        self.assertNotIn('a1', s.axioms)
+        quiet(s.set_fact, "x", 5, "test")
+        quiet(s.introduce_axiom, "a1", [Symbol(">"), Symbol("x"), 0], "test")
+        quiet(s.retract, "a1")
+        self.assertNotIn("a1", s.axioms)
 
     def test_retract_term(self):
         s = make_system()
-        quiet(s.set_fact, 'x', 5, 'test')
-        quiet(s.introduce_term, 't1', [Symbol('+'), Symbol('x'), 1], 'test')
-        quiet(s.retract, 't1')
-        self.assertNotIn('t1', s.terms)
+        quiet(s.set_fact, "x", 5, "test")
+        quiet(s.introduce_term, "t1", [Symbol("+"), Symbol("x"), 1], "test")
+        quiet(s.retract, "t1")
+        self.assertNotIn("t1", s.terms)
         with self.assertRaises(NameError):
-            s.evaluate(Symbol('t1'))
+            s.evaluate(Symbol("t1"))
 
     def test_retract_diff(self):
         s = make_system()
-        quiet(s.set_fact, 'a', 10, 'test')
-        quiet(s.set_fact, 'b', 20, 'test')
-        quiet(s.register_diff, 'd1', 'a', 'b')
-        quiet(s.retract, 'd1')
-        self.assertNotIn('d1', s.diffs)
+        quiet(s.set_fact, "a", 10, "test")
+        quiet(s.set_fact, "b", 20, "test")
+        quiet(s.register_diff, "d1", "a", "b")
+        quiet(s.retract, "d1")
+        self.assertNotIn("d1", s.diffs)
 
     def test_retract_unknown_raises(self):
         s = make_system()
         with self.assertRaises(KeyError):
-            quiet(s.retract, 'nonexistent')
+            quiet(s.retract, "nonexistent")
 
 
 class TestRederive(unittest.TestCase):
-
     def test_rederive_clears_fabrication(self):
         s = make_system()
-        quiet(s.register_document, 'Doc', SAMPLE_DOC)
-        ev = Evidence(document='Doc', quotes=['Nonexistent quote'])
-        quiet(s.set_fact, 'x', 999, ev)
-        thm = quiet(s.derive, 'd1', [Symbol('>'), Symbol('x'), 0], ['x'])
-        self.assertIn('potential fabrication', thm.origin)
+        quiet(s.register_document, "Doc", SAMPLE_DOC)
+        ev = Evidence(document="Doc", quotes=["Nonexistent quote"])
+        quiet(s.set_fact, "x", 999, ev)
+        thm = quiet(s.derive, "d1", [Symbol(">"), Symbol("x"), 0], ["x"])
+        self.assertIn("potential fabrication", thm.origin)
 
         # Manually verify the source
-        quiet(s.verify_manual, 'x')
-        quiet(s.rederive, 'd1')
-        self.assertEqual(s.theorems['d1'].origin, 'derived')
+        quiet(s.verify_manual, "x")
+        quiet(s.rederive, "d1")
+        self.assertEqual(s.theorems["d1"].origin, "derived")
 
     def test_rederive_non_derived_raises(self):
         s = make_system()
-        quiet(s.set_fact, 'x', 5, 'test')
-        quiet(s.introduce_axiom, 'a1', [Symbol('>'), Symbol('x'), 0], 'test')
+        quiet(s.set_fact, "x", 5, "test")
+        quiet(s.introduce_axiom, "a1", [Symbol(">"), Symbol("x"), 0], "test")
         with self.assertRaises(KeyError):
-            quiet(s.rederive, 'a1')
+            quiet(s.rederive, "a1")
 
     def test_rederive_unknown_raises(self):
         s = make_system()
         with self.assertRaises(KeyError):
-            quiet(s.rederive, 'nonexistent')
+            quiet(s.rederive, "nonexistent")
 
 
 # ==============================================================
@@ -523,76 +514,75 @@ class TestRederive(unittest.TestCase):
 
 
 class TestDiff(unittest.TestCase):
-
     def test_register_stores_params(self):
         s = make_system()
-        quiet(s.set_fact, 'a', 10, 'test')
-        quiet(s.set_fact, 'b', 20, 'test')
-        quiet(s.register_diff, 'd1', 'a', 'b')
-        self.assertIn('d1', s.diffs)
-        self.assertEqual(s.diffs['d1']['replace'], 'a')
-        self.assertEqual(s.diffs['d1']['with'], 'b')
+        quiet(s.set_fact, "a", 10, "test")
+        quiet(s.set_fact, "b", 20, "test")
+        quiet(s.register_diff, "d1", "a", "b")
+        self.assertIn("d1", s.diffs)
+        self.assertEqual(s.diffs["d1"]["replace"], "a")
+        self.assertEqual(s.diffs["d1"]["with"], "b")
 
     def test_eval_diff_no_divergence(self):
         s = make_system()
-        quiet(s.set_fact, 'a', 10, 'test')
-        quiet(s.set_fact, 'b', 10, 'test')
-        quiet(s.register_diff, 'd1', 'a', 'b')
-        result = s.eval_diff('d1')
+        quiet(s.set_fact, "a", 10, "test")
+        quiet(s.set_fact, "b", 10, "test")
+        quiet(s.register_diff, "d1", "a", "b")
+        result = s.eval_diff("d1")
         self.assertTrue(result.empty)
         self.assertEqual(result.value_a, 10)
         self.assertEqual(result.value_b, 10)
 
     def test_eval_diff_with_divergence(self):
         s = make_system()
-        quiet(s.set_fact, 'a', 10, 'test')
-        quiet(s.set_fact, 'b', 20, 'test')
-        quiet(s.introduce_term, 'double_a', [Symbol('*'), Symbol('a'), 2], 'test')
-        quiet(s.register_diff, 'd1', 'a', 'b')
-        result = s.eval_diff('d1')
+        quiet(s.set_fact, "a", 10, "test")
+        quiet(s.set_fact, "b", 20, "test")
+        quiet(s.introduce_term, "double_a", [Symbol("*"), Symbol("a"), 2], "test")
+        quiet(s.register_diff, "d1", "a", "b")
+        result = s.eval_diff("d1")
         self.assertFalse(result.empty)
-        self.assertIn('double_a', result.divergences)
-        self.assertEqual(result.divergences['double_a'], [20, 40])
+        self.assertIn("double_a", result.divergences)
+        self.assertEqual(result.divergences["double_a"], [20, 40])
 
     def test_eval_diff_laziness(self):
         """Changing a fact changes the diff result on next eval."""
         s = make_system(overridable=True)
-        quiet(s.set_fact, 'a', 10, 'test')
-        quiet(s.set_fact, 'b', 20, 'test')
-        quiet(s.introduce_term, 'x', [Symbol('+'), Symbol('a'), 1], 'test')
-        quiet(s.register_diff, 'd1', 'a', 'b')
+        quiet(s.set_fact, "a", 10, "test")
+        quiet(s.set_fact, "b", 20, "test")
+        quiet(s.introduce_term, "x", [Symbol("+"), Symbol("a"), 1], "test")
+        quiet(s.register_diff, "d1", "a", "b")
 
-        r1 = s.eval_diff('d1')
+        r1 = s.eval_diff("d1")
         self.assertFalse(r1.empty)
 
         # Now make a=b so diff should be empty
-        quiet(s.set_fact, 'a', 20, 'corrected')
-        r2 = s.eval_diff('d1')
+        quiet(s.set_fact, "a", 20, "corrected")
+        r2 = s.eval_diff("d1")
         self.assertTrue(r2.empty)
 
     def test_eval_diff_unknown_raises(self):
         s = make_system()
         with self.assertRaises(KeyError):
-            s.eval_diff('nonexistent')
+            s.eval_diff("nonexistent")
 
     def test_eval_diff_with_term_values(self):
         """Diff where the replaced symbol is used by a term with an if-branch."""
         s = make_system()
-        quiet(s.set_fact, 'growth', 15, 'test')
-        quiet(s.set_fact, 'target', 10, 'test')
-        quiet(s.set_fact, 'alt_growth', 5, 'test')
+        quiet(s.set_fact, "growth", 15, "test")
+        quiet(s.set_fact, "target", 10, "test")
+        quiet(s.set_fact, "alt_growth", 5, "test")
         quiet(
             s.introduce_term,
-            'beat',
-            [Symbol('if'), [Symbol('>'), Symbol('growth'), Symbol('target')], True, False],
-            'test',
+            "beat",
+            [Symbol("if"), [Symbol(">"), Symbol("growth"), Symbol("target")], True, False],
+            "test",
         )
-        quiet(s.register_diff, 'd1', 'growth', 'alt_growth')
-        result = s.eval_diff('d1')
+        quiet(s.register_diff, "d1", "growth", "alt_growth")
+        result = s.eval_diff("d1")
         self.assertFalse(result.empty)
-        self.assertIn('beat', result.divergences)
+        self.assertIn("beat", result.divergences)
         # growth=15 > target=10 → True; alt_growth=5 > target=10 → False
-        self.assertEqual(result.divergences['beat'], [True, False])
+        self.assertEqual(result.divergences["beat"], [True, False])
 
 
 # ==============================================================
@@ -601,7 +591,6 @@ class TestDiff(unittest.TestCase):
 
 
 class TestConsistency(unittest.TestCase):
-
     def test_clean_system_consistent(self):
         s = make_system()
         report = quiet(s.consistency)
@@ -610,71 +599,71 @@ class TestConsistency(unittest.TestCase):
 
     def test_unverified_evidence_issue(self):
         s = make_system()
-        quiet(s.register_document, 'Doc', SAMPLE_DOC)
-        ev = Evidence(document='Doc', quotes=['Nonexistent quote'])
-        quiet(s.set_fact, 'x', 1, ev)
+        quiet(s.register_document, "Doc", SAMPLE_DOC)
+        ev = Evidence(document="Doc", quotes=["Nonexistent quote"])
+        quiet(s.set_fact, "x", 1, ev)
         report = quiet(s.consistency)
         self.assertFalse(report.consistent)
         types = [i.type for i in report.issues]
-        self.assertIn('unverified_evidence', types)
+        self.assertIn("unverified_evidence", types)
 
     def test_no_evidence_issue(self):
         s = make_system()
-        quiet(s.set_fact, 'x', 1, 'plain origin string')
+        quiet(s.set_fact, "x", 1, "plain origin string")
         report = quiet(s.consistency)
         self.assertFalse(report.consistent)
         types = [i.type for i in report.issues]
-        self.assertIn('no_evidence', types)
+        self.assertIn("no_evidence", types)
 
     def test_fabrication_issue(self):
         s = make_system()
-        quiet(s.register_document, 'Doc', SAMPLE_DOC)
-        ev = Evidence(document='Doc', quotes=['Nonexistent quote'])
-        quiet(s.set_fact, 'x', 999, ev)
-        quiet(s.derive, 'd1', [Symbol('>'), Symbol('x'), 0], ['x'])
+        quiet(s.register_document, "Doc", SAMPLE_DOC)
+        ev = Evidence(document="Doc", quotes=["Nonexistent quote"])
+        quiet(s.set_fact, "x", 999, ev)
+        quiet(s.derive, "d1", [Symbol(">"), Symbol("x"), 0], ["x"])
         report = quiet(s.consistency)
         types = [i.type for i in report.issues]
-        self.assertIn('potential_fabrication', types)
+        self.assertIn("potential_fabrication", types)
 
     def test_diff_divergence_issue(self):
         s = make_system()
-        quiet(s.set_fact, 'a', 10, 'test')
-        quiet(s.set_fact, 'b', 20, 'test')
-        quiet(s.introduce_term, 'ta', [Symbol('+'), Symbol('a'), 1], 'test')
-        quiet(s.register_diff, 'd1', 'a', 'b')
+        quiet(s.set_fact, "a", 10, "test")
+        quiet(s.set_fact, "b", 20, "test")
+        quiet(s.introduce_term, "ta", [Symbol("+"), Symbol("a"), 1], "test")
+        quiet(s.register_diff, "d1", "a", "b")
         # Mark facts as verified to avoid no_evidence issue
-        quiet(s.verify_manual, 'a')
-        quiet(s.verify_manual, 'b')
-        quiet(s.verify_manual, 'ta')
+        quiet(s.verify_manual, "a")
+        quiet(s.verify_manual, "b")
+        quiet(s.verify_manual, "ta")
         report = quiet(s.consistency)
         self.assertFalse(report.consistent)
         types = [i.type for i in report.issues]
-        self.assertIn('diff_divergence', types)
+        self.assertIn("diff_divergence", types)
 
     def test_manually_verified_is_warning(self):
         s = make_system()
-        quiet(s.set_fact, 'x', 1, 'plain')
-        quiet(s.verify_manual, 'x')
+        quiet(s.set_fact, "x", 1, "plain")
+        quiet(s.verify_manual, "x")
         report = quiet(s.consistency)
         # Should be consistent (manually verified is not an issue)
         # but should have a warning
         warning_types = [w.type for w in report.warnings]
-        self.assertIn('manually_verified', warning_types)
+        self.assertIn("manually_verified", warning_types)
 
     def test_fix_all_makes_consistent(self):
         s = make_system()
-        quiet(s.register_document, 'Doc', SAMPLE_DOC)
-        ev = Evidence(document='Doc', quotes=['Nonexistent quote'])
-        quiet(s.set_fact, 'x', 999, ev)
-        quiet(s.derive, 'd1', [Symbol('>'), Symbol('x'), 0], ['x'])
+        quiet(s.register_document, "Doc", SAMPLE_DOC)
+        ev = Evidence(document="Doc", quotes=["Nonexistent quote"])
+        quiet(s.set_fact, "x", 999, ev)
+        quiet(s.derive, "d1", [Symbol(">"), Symbol("x"), 0], ["x"])
 
         # System inconsistent
         r1 = quiet(s.consistency)
         self.assertFalse(r1.consistent)
 
         # Fix: manually verify and rederive
-        quiet(s.verify_manual, 'x')
-        quiet(s.rederive, 'd1')
+        quiet(s.verify_manual, "x")
+        quiet(s.rederive, "d1")
         r2 = quiet(s.consistency)
         self.assertTrue(r2.consistent)
 
@@ -685,54 +674,53 @@ class TestConsistency(unittest.TestCase):
 
 
 class TestProvenance(unittest.TestCase):
-
     def test_fact_provenance(self):
         s = make_system()
-        quiet(s.set_fact, 'x', 42, 'test origin')
-        prov = s.provenance('x')
-        self.assertEqual(prov['name'], 'x')
-        self.assertEqual(prov['type'], 'fact')
-        self.assertEqual(prov['origin'], 'test origin')
+        quiet(s.set_fact, "x", 42, "test origin")
+        prov = s.provenance("x")
+        self.assertEqual(prov["name"], "x")
+        self.assertEqual(prov["type"], "fact")
+        self.assertEqual(prov["origin"], "test origin")
 
     def test_derived_provenance_chain(self):
         s = make_system()
-        quiet(s.set_fact, 'x', 5, 'test')
-        quiet(s.set_fact, 'y', 3, 'test')
-        quiet(s.derive, 'd1', [Symbol('>'), Symbol('x'), Symbol('y')], ['x', 'y'])
-        prov = s.provenance('d1')
-        self.assertEqual(prov['type'], 'theorem')
-        self.assertEqual(len(prov['derivation_chain']), 2)
+        quiet(s.set_fact, "x", 5, "test")
+        quiet(s.set_fact, "y", 3, "test")
+        quiet(s.derive, "d1", [Symbol(">"), Symbol("x"), Symbol("y")], ["x", "y"])
+        prov = s.provenance("d1")
+        self.assertEqual(prov["type"], "theorem")
+        self.assertEqual(len(prov["derivation_chain"]), 2)
 
     def test_provenance_unknown_raises(self):
         s = make_system()
         with self.assertRaises(KeyError):
-            s.provenance('nonexistent')
+            s.provenance("nonexistent")
 
     def test_fact_provenance_with_evidence(self):
         s = make_system()
-        quiet(s.register_document, 'Doc', SAMPLE_DOC)
-        ev = Evidence(document='Doc', quotes=['Q3 revenue was $15M'])
-        quiet(s.set_fact, 'rev', 15.0, ev)
-        prov = s.provenance('rev')
-        self.assertIsInstance(prov['origin'], dict)
-        self.assertEqual(prov['origin']['document'], 'Doc')
-        self.assertTrue(prov['origin']['grounded'])
+        quiet(s.register_document, "Doc", SAMPLE_DOC)
+        ev = Evidence(document="Doc", quotes=["Q3 revenue was $15M"])
+        quiet(s.set_fact, "rev", 15.0, ev)
+        prov = s.provenance("rev")
+        self.assertIsInstance(prov["origin"], dict)
+        self.assertEqual(prov["origin"]["document"], "Doc")
+        self.assertTrue(prov["origin"]["grounded"])
 
     def test_diff_provenance(self):
         s = make_system()
-        quiet(s.set_fact, 'a', 10, 'test')
-        quiet(s.set_fact, 'b', 20, 'test')
-        quiet(s.introduce_term, 'ta', [Symbol('+'), Symbol('a'), 1], 'test')
-        quiet(s.register_diff, 'd1', 'a', 'b')
-        prov = s.provenance('d1')
-        self.assertEqual(prov['type'], 'diff')
-        self.assertEqual(prov['replace'], 'a')
-        self.assertEqual(prov['with'], 'b')
-        self.assertEqual(prov['value_a'], 10)
-        self.assertEqual(prov['value_b'], 20)
-        self.assertIn('ta', prov['divergences'])
-        self.assertEqual(prov['provenance_a']['name'], 'a')
-        self.assertEqual(prov['provenance_b']['name'], 'b')
+        quiet(s.set_fact, "a", 10, "test")
+        quiet(s.set_fact, "b", 20, "test")
+        quiet(s.introduce_term, "ta", [Symbol("+"), Symbol("a"), 1], "test")
+        quiet(s.register_diff, "d1", "a", "b")
+        prov = s.provenance("d1")
+        self.assertEqual(prov["type"], "diff")
+        self.assertEqual(prov["replace"], "a")
+        self.assertEqual(prov["with"], "b")
+        self.assertEqual(prov["value_a"], 10)
+        self.assertEqual(prov["value_b"], 20)
+        self.assertIn("ta", prov["divergences"])
+        self.assertEqual(prov["provenance_a"]["name"], "a")
+        self.assertEqual(prov["provenance_b"]["name"], "b")
 
 
 # ==============================================================
@@ -741,16 +729,15 @@ class TestProvenance(unittest.TestCase):
 
 
 class TestRepr(unittest.TestCase):
-
     def test_repr(self):
         s = make_system()
         r = repr(s)
-        self.assertIn('System(', r)
-        self.assertIn('axioms', r)
-        self.assertIn('terms', r)
-        self.assertIn('facts', r)
-        self.assertIn('diffs', r)
-        self.assertIn('docs', r)
+        self.assertIn("System(", r)
+        self.assertIn("axioms", r)
+        self.assertIn("terms", r)
+        self.assertIn("facts", r)
+        self.assertIn("diffs", r)
+        self.assertIn("docs", r)
 
 
 # ==============================================================
@@ -759,27 +746,26 @@ class TestRepr(unittest.TestCase):
 
 
 class TestOperatorConstants(unittest.TestCase):
-
     def test_arithmetic_values(self):
-        self.assertEqual(ADD, '+')
-        self.assertEqual(SUB, '-')
-        self.assertEqual(MUL, '*')
-        self.assertEqual(DIV, '/')
-        self.assertEqual(MOD, 'mod')
+        self.assertEqual(ADD, "+")
+        self.assertEqual(SUB, "-")
+        self.assertEqual(MUL, "*")
+        self.assertEqual(DIV, "/")
+        self.assertEqual(MOD, "mod")
 
     def test_comparison_values(self):
-        self.assertEqual(GT, '>')
-        self.assertEqual(LT, '<')
-        self.assertEqual(GE, '>=')
-        self.assertEqual(LE, '<=')
-        self.assertEqual(EQ, '=')
-        self.assertEqual(NE, '!=')
+        self.assertEqual(GT, ">")
+        self.assertEqual(LT, "<")
+        self.assertEqual(GE, ">=")
+        self.assertEqual(LE, "<=")
+        self.assertEqual(EQ, "=")
+        self.assertEqual(NE, "!=")
 
     def test_logic_values(self):
-        self.assertEqual(AND, 'and')
-        self.assertEqual(OR, 'or')
-        self.assertEqual(NOT, 'not')
-        self.assertEqual(IMPLIES, 'implies')
+        self.assertEqual(AND, "and")
+        self.assertEqual(OR, "or")
+        self.assertEqual(NOT, "not")
+        self.assertEqual(IMPLIES, "implies")
 
     def test_all_are_symbols(self):
         for sym in ARITHMETIC_OPS + COMPARISON_OPS + LOGIC_OPS:
@@ -797,17 +783,16 @@ class TestOperatorConstants(unittest.TestCase):
 
 
 class TestEngineDocs(unittest.TestCase):
-
     def test_all_operators_documented(self):
         for sym in ARITHMETIC_OPS + COMPARISON_OPS + LOGIC_OPS:
             self.assertIn(sym, ENGINE_DOCS, f"{sym} missing from ENGINE_DOCS")
 
     def test_doc_entries_have_required_keys(self):
         for sym, doc in ENGINE_DOCS.items():
-            self.assertIn('category', doc, f"{sym} doc missing 'category'")
-            self.assertIn('description', doc, f"{sym} doc missing 'description'")
-            self.assertIn('example', doc, f"{sym} doc missing 'example'")
-            self.assertIn('expected', doc, f"{sym} doc missing 'expected'")
+            self.assertIn("category", doc, f"{sym} doc missing 'category'")
+            self.assertIn("description", doc, f"{sym} doc missing 'description'")
+            self.assertIn("example", doc, f"{sym} doc missing 'example'")
+            self.assertIn("expected", doc, f"{sym} doc missing 'expected'")
 
 
 # ==============================================================
@@ -816,7 +801,6 @@ class TestEngineDocs(unittest.TestCase):
 
 
 class TestDefaultOperators(unittest.TestCase):
-
     def test_default_operators_has_all_ops(self):
         for sym in ARITHMETIC_OPS + COMPARISON_OPS + LOGIC_OPS:
             self.assertIn(sym, DEFAULT_OPERATORS, f"{sym} missing from DEFAULT_OPERATORS")
@@ -836,7 +820,7 @@ class TestDefaultOperators(unittest.TestCase):
 
     def test_custom_initial_env_extend(self):
         """Extending defaults by merging with DEFAULT_OPERATORS."""
-        custom_sym = Symbol('double')
+        custom_sym = Symbol("double")
         custom_fn = lambda x: x * 2
         s = make_system(initial_env={**DEFAULT_OPERATORS, custom_sym: custom_fn})
         # Has all defaults
@@ -861,7 +845,6 @@ class TestDefaultOperators(unittest.TestCase):
 
 
 class TestDoc(unittest.TestCase):
-
     def test_doc_returns_string(self):
         s = make_system()
         result = s.doc()
@@ -870,63 +853,63 @@ class TestDoc(unittest.TestCase):
     def test_doc_contains_category_headers(self):
         s = make_system()
         result = s.doc()
-        self.assertIn('Arithmetic Operators', result)
-        self.assertIn('Comparison Operators', result)
-        self.assertIn('Logic Operators', result)
-        self.assertIn('Special Forms', result)
+        self.assertIn("Arithmetic Operators", result)
+        self.assertIn("Comparison Operators", result)
+        self.assertIn("Logic Operators", result)
+        self.assertIn("Special Forms", result)
 
     def test_doc_contains_examples(self):
         s = make_system()
         result = s.doc()
-        self.assertIn('(+ 2 3)', result)
-        self.assertIn('(> 5 3)', result)
-        self.assertIn('(and true false)', result)
+        self.assertIn("(+ 2 3)", result)
+        self.assertIn("(> 5 3)", result)
+        self.assertIn("(and true false)", result)
 
     def test_doc_contains_expected(self):
         s = make_system()
         result = s.doc()
-        self.assertIn('=> 5', result)
-        self.assertIn('=> True', result)
+        self.assertIn("=> 5", result)
+        self.assertIn("=> True", result)
 
     def test_doc_does_not_include_state(self):
         """doc() shows DSL reference only, not runtime facts/terms."""
         s = make_system()
-        quiet(s.set_fact, 'my_test_fact', 15, 'test')
+        quiet(s.set_fact, "my_test_fact", 15, "test")
         result = s.doc()
-        self.assertNotIn('my_test_fact', result)
+        self.assertNotIn("my_test_fact", result)
 
     def test_state_includes_user_facts(self):
         s = make_system()
-        quiet(s.set_fact, 'revenue', 15, 'test')
+        quiet(s.set_fact, "revenue", 15, "test")
         result = s.state()
-        self.assertIn('Facts', result)
-        self.assertIn('revenue', result)
+        self.assertIn("Facts", result)
+        self.assertIn("revenue", result)
 
     def test_state_includes_user_terms(self):
         s = make_system()
-        quiet(s.set_fact, 'a', 10, 'test')
-        quiet(s.introduce_term, 'total', [Symbol('+'), Symbol('a'), 5], 'test')
+        quiet(s.set_fact, "a", 10, "test")
+        quiet(s.introduce_term, "total", [Symbol("+"), Symbol("a"), 5], "test")
         result = s.state()
-        self.assertIn('total', result)
+        self.assertIn("total", result)
 
     def test_doc_minimal_env(self):
         """doc() works with a minimal custom env."""
         s = make_system(initial_env={ADD: operator.add})
         result = s.doc()
-        self.assertIn('Arithmetic Operators', result)
-        self.assertIn('(+ 2 3)', result)
+        self.assertIn("Arithmetic Operators", result)
+        self.assertIn("(+ 2 3)", result)
         # Should NOT contain logic since we didn't include it
-        self.assertNotIn('Logic Operators', result)
+        self.assertNotIn("Logic Operators", result)
 
     def test_doc_custom_docs_replaces(self):
         """docs= replaces ENGINE_DOCS entirely — only custom docs appear."""
-        custom_sym = Symbol('double')
+        custom_sym = Symbol("double")
         custom_docs = {
             custom_sym: {
-                'category': 'custom',
-                'description': 'Doubles a value',
-                'example': '(double 5)',
-                'expected': '10',
+                "category": "custom",
+                "description": "Doubles a value",
+                "example": "(double 5)",
+                "expected": "10",
             }
         }
         s = make_system(
@@ -934,29 +917,29 @@ class TestDoc(unittest.TestCase):
             docs=custom_docs,
         )
         result = s.doc()
-        self.assertIn('double', result)
-        self.assertIn('Doubles a value', result)
+        self.assertIn("double", result)
+        self.assertIn("Doubles a value", result)
         # Default ENGINE_DOCS entries should NOT appear
-        self.assertNotIn('Arithmetic Operators', result)
-        self.assertNotIn('(+ 2 3)', result)
+        self.assertNotIn("Arithmetic Operators", result)
+        self.assertNotIn("(+ 2 3)", result)
 
     def test_doc_default_when_docs_none(self):
         """When docs is not provided, ENGINE_DOCS is used."""
         s = make_system()
         result = s.doc()
-        self.assertIn('Arithmetic Operators', result)
-        self.assertIn('(+ 2 3)', result)
+        self.assertIn("Arithmetic Operators", result)
+        self.assertIn("(+ 2 3)", result)
 
     def test_doc_extend_with_engine_docs(self):
         """Extending ENGINE_DOCS by merging with custom entries."""
-        custom_sym = Symbol('double')
+        custom_sym = Symbol("double")
         custom_docs = {
             **ENGINE_DOCS,
             custom_sym: {
-                'category': 'custom',
-                'description': 'Doubles a value',
-                'example': '(double 5)',
-                'expected': '10',
+                "category": "custom",
+                "description": "Doubles a value",
+                "example": "(double 5)",
+                "expected": "10",
             },
         }
         s = make_system(
@@ -965,20 +948,20 @@ class TestDoc(unittest.TestCase):
         )
         result = s.doc()
         # Has defaults
-        self.assertIn('Arithmetic Operators', result)
-        self.assertIn('(+ 2 3)', result)
+        self.assertIn("Arithmetic Operators", result)
+        self.assertIn("(+ 2 3)", result)
         # Plus custom
-        self.assertIn('double', result)
-        self.assertIn('Doubles a value', result)
+        self.assertIn("double", result)
+        self.assertIn("Doubles a value", result)
 
     def test_doc_empty_docs(self):
         """Empty docs={} means no operator docs — only LANG_DOCS remain."""
         s = make_system(docs={})
         result = s.doc()
         # LANG_DOCS (special forms, directives) should still appear
-        self.assertIn('Special Forms', result)
+        self.assertIn("Special Forms", result)
         # But no operator categories
-        self.assertNotIn('Arithmetic Operators', result)
+        self.assertNotIn("Arithmetic Operators", result)
 
 
 # ==============================================================
@@ -1004,40 +987,40 @@ class TestEvidenceFormattedNumbers(unittest.TestCase):
 
     def setUp(self):
         self.s = make_system()
-        quiet(self.s.register_document, 'Doc', self.DOC_TEXT)
+        quiet(self.s.register_document, "Doc", self.DOC_TEXT)
 
     def test_dollar_amount_with_comma(self):
-        ev = Evidence(document='Doc', quotes=['Base salary for eligible employees is $150,000'])
-        quiet(self.s.set_fact, 'salary', 150000, ev)
+        ev = Evidence(document="Doc", quotes=["Base salary for eligible employees is $150,000"])
+        quiet(self.s.set_fact, "salary", 150000, ev)
         self.assertTrue(ev.verified)
 
     def test_dotted_symbol(self):
-        ev = Evidence(document='Doc', quotes=['parseltongue.core provides the DSL engine'])
-        quiet(self.s.set_fact, 'module', 'parseltongue.core', ev)
+        ev = Evidence(document="Doc", quotes=["parseltongue.core provides the DSL engine"])
+        quiet(self.s.set_fact, "module", "parseltongue.core", ev)
         self.assertTrue(ev.verified)
 
     def test_large_number_with_commas(self):
-        ev = Evidence(document='Doc', quotes=['Population reached 1,000,000 residents'])
-        quiet(self.s.set_fact, 'pop', 1000000, ev)
+        ev = Evidence(document="Doc", quotes=["Population reached 1,000,000 residents"])
+        quiet(self.s.set_fact, "pop", 1000000, ev)
         self.assertTrue(ev.verified)
 
     def test_version_number(self):
-        ev = Evidence(document='Doc', quotes=['Python 3.12.1 or higher'])
-        quiet(self.s.set_fact, 'pyver', '3.12.1', ev)
+        ev = Evidence(document="Doc", quotes=["Python 3.12.1 or higher"])
+        quiet(self.s.set_fact, "pyver", "3.12.1", ev)
         self.assertTrue(ev.verified)
 
     def test_dollar_millions(self):
-        ev = Evidence(document='Doc', quotes=['Q3 FY2024 actual revenue was $230M'])
-        quiet(self.s.set_fact, 'rev-q3', 230, ev)
+        ev = Evidence(document="Doc", quotes=["Q3 FY2024 actual revenue was $230M"])
+        quiet(self.s.set_fact, "rev-q3", 230, ev)
         self.assertTrue(ev.verified)
 
     def test_fabrication_propagates_from_bad_dollar_quote(self):
-        ev = Evidence(document='Doc', quotes=['Base salary is $999,999'])
-        quiet(self.s.set_fact, 'wrong-salary', 999999, ev)
+        ev = Evidence(document="Doc", quotes=["Base salary is $999,999"])
+        quiet(self.s.set_fact, "wrong-salary", 999999, ev)
         self.assertFalse(ev.verified)
-        thm = quiet(self.s.derive, 'd1', [Symbol('>'), Symbol('wrong-salary'), 0], ['wrong-salary'])
-        self.assertIn('potential fabrication', thm.origin)
+        thm = quiet(self.s.derive, "d1", [Symbol(">"), Symbol("wrong-salary"), 0], ["wrong-salary"])
+        self.assertIn("potential fabrication", thm.origin)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

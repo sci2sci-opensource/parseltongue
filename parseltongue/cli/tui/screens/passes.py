@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import TYPE_CHECKING
 
 from textual.app import ComposeResult
@@ -9,7 +10,7 @@ from textual.containers import Container, Horizontal
 from textual.screen import Screen
 from textual.widgets import Label, TabbedContent, TabPane, Tree
 
-from ..widgets.dsl_viewer import DslViewer
+from ..widgets.pass_viewer import PassViewer
 from ..widgets.status_bar import StatusBar
 from ..widgets.tree_builders import populate_system_tree
 
@@ -36,13 +37,22 @@ class PassesScreen(Screen):
                 yield Label("Passes", id="passes-title")
                 with TabbedContent(id="passes-tabs"):
                     with TabPane("P1: Extract", id="pass-tab-1"):
-                        yield DslViewer(self._result.pass1_source or "(empty)")
+                        yield PassViewer(
+                            self._result.pass1_source or "(empty)",
+                        )
                     with TabPane("P2: Derive", id="pass-tab-2"):
-                        yield DslViewer(self._result.pass2_source or "(empty)")
+                        yield PassViewer(
+                            self._result.pass2_source or "(empty)",
+                        )
                     with TabPane("P3: Factcheck", id="pass-tab-3"):
-                        yield DslViewer(self._result.pass3_source or "(empty)")
+                        yield PassViewer(
+                            self._result.pass3_source or "(empty)",
+                        )
                     with TabPane("P4: Answer", id="pass-tab-4"):
-                        yield DslViewer(self._result.pass4_raw or "(empty)")
+                        yield PassViewer(
+                            self._result.pass4_raw or "(empty)",
+                            language="markdown",
+                        )
             with Container(id="passes-state-panel"):
                 yield Label("Parseltongue State", id="passes-state-title")
                 yield Tree("State", id="passes-state-tree")
@@ -58,17 +68,33 @@ class PassesScreen(Screen):
                 self._refresh_state_tree(i)
                 return
 
+    def action_ref_clicked(self, ref_type: str, ref_name: str) -> None:
+        """Handle @click from PassViewer refs."""
+        tree = self.query_one("#passes-state-tree", Tree)
+        tree.root.expand()
+        for node in tree.root.children:
+            node.expand()
+            for child in node.children:
+                plain = re.sub(r"\[/?[^\]]*\]", "", str(child.label))
+                if plain.startswith(ref_name + ":") or plain.startswith(ref_name + " ="):
+                    child.toggle()
+                    tree.move_cursor(child)
+                    tree.focus()
+                    return
+        self.notify(
+            f"{ref_type}:{ref_name} not in state tree.",
+            severity="warning",
+        )
+
     def _refresh_state_tree(self, pass_num: int) -> None:
         tree = self.query_one("#passes-state-tree", Tree)
         tree.clear()
         tree.root.expand()
 
-        # Use stored post-pass snapshots from the interactive run
-        pass_systems = getattr(self._result, 'pass_systems', {})
+        pass_systems = getattr(self._result, "pass_systems", {})
         system = pass_systems.get(pass_num)
 
         if system is None:
-            # Fallback: show final system state
             system = self._result.system
 
         if system is None:
