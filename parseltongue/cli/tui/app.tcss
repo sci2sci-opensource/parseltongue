@@ -4,6 +4,20 @@ Screen {
     background: $surface;
 }
 
+/* Main menu */
+MainMenu {
+    align: center middle;
+}
+
+MainMenu #menu-title {
+    margin-bottom: 1;
+}
+
+MainMenu #menu-list {
+    width: 1fr;
+    height: auto;
+}
+
 /* Loading screen */
 LoadingScreen {
     align: center middle;
@@ -44,15 +58,45 @@ AnswerScreen #provenance-panel {
 }
 
 /* Passes screen */
-PassesScreen {
-    layout: vertical;
+PassesScreen #passes-layout {
+    layout: grid;
+    grid-size: 2 1;
+    grid-columns: 2fr 1fr;
+    grid-gutter: 1;
+    height: 1fr;
 }
 
-PassesScreen TabbedContent {
+PassesScreen #passes-dsl-panel {
+    border: round $primary;
+    padding: 1;
+    height: 1fr;
+}
+
+PassesScreen #passes-title {
+    text-style: bold;
+    margin-bottom: 1;
+}
+
+PassesScreen #passes-tabs {
     height: 1fr;
 }
 
 PassesScreen TextArea {
+    height: 1fr;
+}
+
+PassesScreen #passes-state-panel {
+    border: round #1a5c2a;
+    padding: 1;
+    height: 1fr;
+}
+
+PassesScreen #passes-state-title {
+    text-style: bold;
+    margin-bottom: 1;
+}
+
+PassesScreen #passes-state-tree {
     height: 1fr;
 }
 

@@ -30,9 +30,14 @@ CREATE TABLE IF NOT EXISTS runs (
     pass4_raw    TEXT,
     output_md    TEXT,
     refs         TEXT,
-    consistency  TEXT
+    consistency  TEXT,
+    system_state TEXT
 )
 """
+
+_MIGRATIONS = [
+    "ALTER TABLE runs ADD COLUMN system_state TEXT",
+]
 
 
 def _connect() -> sqlite3.Connection:
@@ -40,6 +45,11 @@ def _connect() -> sqlite3.Connection:
     conn = sqlite3.connect(str(DB_PATH))
     conn.row_factory = sqlite3.Row
     conn.execute(_CREATE_TABLE)
+    for migration in _MIGRATIONS:
+        try:
+            conn.execute(migration)
+        except sqlite3.OperationalError:
+            pass  # column already exists
     conn.commit()
     return conn
 
@@ -87,6 +97,13 @@ def complete_run(run_id: int, result: Any) -> None:
         ]
     )
 
+    system_json = ""
+    if hasattr(result, 'system') and result.system is not None:
+        try:
+            system_json = json.dumps(result.system.to_dict())
+        except Exception:
+            log.warning("Failed to serialize system state", exc_info=True)
+
     conn = _connect()
     try:
         conn.execute(
@@ -98,7 +115,8 @@ def complete_run(run_id: int, result: Any) -> None:
                    pass4_raw    = ?,
                    output_md    = ?,
                    refs         = ?,
-                   consistency  = ?
+                   consistency  = ?,
+                   system_state = ?
                WHERE id = ?""",
             (
                 result.pass1_source,
@@ -108,6 +126,7 @@ def complete_run(run_id: int, result: Any) -> None:
                 str(result.output),
                 refs_json,
                 result.output.consistency,
+                system_json,
                 run_id,
             ),
         )

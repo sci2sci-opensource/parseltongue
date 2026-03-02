@@ -36,6 +36,7 @@ class QueryInput(Screen):
     """Multiline text area for the user's question."""
 
     BINDINGS = [
+        ("escape", "dismiss", "Back"),
         ("ctrl+d", "submit", "Submit"),
     ]
 

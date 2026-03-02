@@ -41,6 +41,7 @@ class InteractiveResult:
 
     system: System
     pass_results: list[PassResult] = field(default_factory=list)
+    pass_systems: dict[int, System] = field(default_factory=dict)
     output: ResolvedOutput | None = None
 
     @property
@@ -95,7 +96,8 @@ class InteractivePipeline:
         self.interrupt = Event()
 
         self._pass_results: list[PassResult] = []
-        self._snapshots: dict[int, Any] = {}  # pass_num -> system deepcopy
+        self._snapshots: dict[int, Any] = {}  # pass_num -> system deepcopy (before pass)
+        self._post_snapshots: dict[int, Any] = {}  # pass_num -> system deepcopy (after pass)
         self._extra_messages: dict[int, list[dict]] = {}  # pass_num -> user feedback messages
 
     def run_pass(self, pass_num: int, **kwargs) -> PassResult:
@@ -160,7 +162,11 @@ class InteractivePipeline:
 
     def finalize(self) -> InteractiveResult:
         """Build the final result after all passes."""
-        ir = InteractiveResult(system=self.system, pass_results=list(self._pass_results))
+        ir = InteractiveResult(
+            system=self.system,
+            pass_results=list(self._pass_results),
+            pass_systems=dict(self._post_snapshots),
+        )
         pass4 = self._get_result(4)
         if pass4 and pass4.source:
             ir.output = resolve_references(pass4.source, self.system)
@@ -220,6 +226,7 @@ class InteractivePipeline:
     def _set_result(self, pass_num: int, result: PassResult) -> None:
         self._pass_results = [pr for pr in self._pass_results if pr.pass_num != pass_num]
         self._pass_results.append(result)
+        self._post_snapshots[pass_num] = copy.deepcopy(self.system)
 
     def _get_result(self, pass_num: int) -> PassResult | None:
         for pr in self._pass_results:

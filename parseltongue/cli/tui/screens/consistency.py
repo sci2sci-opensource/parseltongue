@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from textual.app import ComposeResult
+from textual.containers import VerticalScroll
 from textual.screen import Screen
 from textual.widgets import Markdown
 
@@ -17,14 +18,25 @@ if TYPE_CHECKING:
 class ConsistencyScreen(Screen):
     """Displays the system consistency report with color coding."""
 
+    BINDINGS = [
+        ("escape", "dismiss", "Back"),
+    ]
+
     def __init__(self, result: PipelineResult, **kwargs) -> None:
         super().__init__(**kwargs)
         self._result = result
 
     def compose(self) -> ComposeResult:
-        report = self._result.system.consistency()
-        md = self._render_report(report)
-        yield Markdown(md)
+        system = self._result.system
+        if system is not None:
+            report = system.consistency()
+            md = self._render_report(report)
+        elif hasattr(self._result, 'output') and hasattr(self._result.output, 'consistency'):
+            md = self._result.output.consistency or "*No consistency data in history.*"
+        else:
+            md = "*No live system available (history mode).*"
+        with VerticalScroll():
+            yield Markdown(md)
         yield StatusBar()
 
     def _render_report(self, report) -> str:

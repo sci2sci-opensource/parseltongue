@@ -1,4 +1,4 @@
-"""Reference text widget — markdown with clickable [[type:name]] tags."""
+"""Reference text widget — markdown with clickable footnote references."""
 
 from __future__ import annotations
 
@@ -11,18 +11,6 @@ from textual.widgets import Markdown
 
 TAG_RE = re.compile(r'\[\[(\w+):([^\]]+)\]\]')
 
-_SUPER_MAP = {
-    ord(c): s
-    for c, s in zip(
-        "abcdefghijklmnopqrstuvwxyz0123456789-_",
-        "ᵃᵇᶜᵈᵉᶠᵍʰⁱʲᵏˡᵐⁿᵒᵖqʳˢᵗᵘᵛʷˣʸᶻ⁰¹²³⁴⁵⁶⁷⁸⁹⁻₋",
-    )
-}
-
-
-def _to_superscript(text: str) -> str:
-    return text.translate(_SUPER_MAP)
-
 
 class ReferenceClicked(Message):
     """Posted when a [[type:name]] reference is clicked."""
@@ -34,20 +22,31 @@ class ReferenceClicked(Message):
 
 
 class ReferenceText(VerticalScroll):
-    """Scrollable markdown display with clickable [[type:name]] references."""
+    """Scrollable markdown display with clickable footnote references."""
 
     def __init__(self, markdown_text: str, **kwargs) -> None:
         super().__init__(**kwargs)
         self._raw = markdown_text
 
     def compose(self) -> ComposeResult:
-        # Convert [[type:name]] to markdown links (clickable, no browser)
+        footnotes: dict[tuple[str, str], int] = {}  # (type, name) -> number
+
         def _replace_ref(m):
             ref_type, ref_name = m.group(1), m.group(2)
-            label = _to_superscript(ref_name)
-            return f"[{label}]({ref_type}:{ref_name})"
+            key = (ref_type, ref_name)
+            if key not in footnotes:
+                footnotes[key] = len(footnotes) + 1
+            num = footnotes[key]
+            return f"[\\[{num}\\]]({ref_type}:{ref_name})"
 
         display_text = TAG_RE.sub(_replace_ref, self._raw)
+
+        # Append footnote list
+        if footnotes:
+            display_text += "\n\n---\n"
+            for (ref_type, ref_name), num in footnotes.items():
+                display_text += f"\n[{num}]({ref_type}:{ref_name}) {ref_name}  "
+
         yield Markdown(display_text, open_links=False)
 
     def on_markdown_link_clicked(self, event: Markdown.LinkClicked) -> None:

@@ -31,7 +31,7 @@ class StatusBar(Widget):
         ("F2", "Passes"),
         ("F3", "System"),
         ("F4", "Consistency"),
-        ("q", "Quit"),
+        ("Esc", "Back"),
     ]
 
     def compose(self) -> ComposeResult:

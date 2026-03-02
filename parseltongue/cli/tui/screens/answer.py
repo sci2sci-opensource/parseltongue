@@ -20,6 +20,7 @@ class AnswerScreen(Screen):
     """Main answer view: markdown on the left, provenance on the right."""
 
     BINDINGS = [
+        ("escape", "dismiss", "Back"),
         ("ctrl+a", "copy_answer", "Copy answer"),
     ]
 
@@ -35,8 +36,16 @@ class AnswerScreen(Screen):
         yield StatusBar()
 
     def on_reference_clicked(self, event: ReferenceClicked) -> None:
-        """When a reference tag is clicked, show its provenance."""
+        """When a reference tag is clicked, show its full provenance."""
         tree = self.query_one("#provenance-tree", ProvenanceTree)
+        system = self._result.system
+
+        # Prefer live system lookup for full provenance depth
+        if system is not None:
+            tree.show_system_item(event.ref_type, event.ref_name, system)
+            return
+
+        # Fallback for history mode: use resolved reference data
         ref = self._find_reference(event.ref_type, event.ref_name)
         if ref:
             tree.show_reference(
@@ -47,12 +56,7 @@ class AnswerScreen(Screen):
                 error=ref.error,
             )
         else:
-            # Try system provenance directly
-            try:
-                prov = self._result.system.provenance(event.ref_name)
-                tree.show_provenance(prov)
-            except Exception:
-                tree.show_reference(event.ref_type, event.ref_name, error="Not found")
+            tree.show_reference(event.ref_type, event.ref_name, error="Not found")
 
     def action_copy_answer(self) -> None:
         text = str(self._result.output) if self._result.output else ""

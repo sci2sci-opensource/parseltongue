@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
+from rich.syntax import Syntax
 from textual.app import ComposeResult
+from textual.containers import VerticalScroll
 from textual.widget import Widget
-from textual.widgets import TextArea
+from textual.widgets import Static
 
 
 class DslViewer(Widget):
-    """Read-only viewer for DSL source code with syntax highlighting."""
+    """Read-only viewer for DSL source code with Pygments syntax highlighting."""
 
     def __init__(self, source: str, language: str = "scheme", **kwargs) -> None:
         super().__init__(**kwargs)
@@ -16,10 +18,11 @@ class DslViewer(Widget):
         self._language = language
 
     def compose(self) -> ComposeResult:
-        text_area = TextArea(
+        syntax = Syntax(
             self._source,
-            language=self._language,
-            read_only=True,
-            show_line_numbers=True,
+            self._language,
+            line_numbers=True,
+            word_wrap=True,
         )
-        yield text_area
+        with VerticalScroll():
+            yield Static(syntax)

@@ -390,6 +390,133 @@ class ConsistencyReport:
         return '\n'.join(lines)
 
 
+# ============================================================
+# Serialization Helpers
+# ============================================================
+
+
+def _serialize_sexp(obj) -> Any:
+    """Convert an s-expression (with Symbols) to JSON-safe form."""
+    if isinstance(obj, list):
+        return [_serialize_sexp(x) for x in obj]
+    if isinstance(obj, Symbol):
+        return {'__symbol__': str(obj)}
+    if isinstance(obj, bool):
+        return obj
+    return obj
+
+
+def _deserialize_sexp(obj) -> Any:
+    """Reconstruct an s-expression from JSON-safe form."""
+    if isinstance(obj, list):
+        return [_deserialize_sexp(x) for x in obj]
+    if isinstance(obj, dict) and '__symbol__' in obj:
+        return Symbol(obj['__symbol__'])
+    return obj
+
+
+def _serialize_evidence(ev: Evidence) -> dict:
+    return {
+        '__evidence__': True,
+        'document': ev.document,
+        'quotes': ev.quotes,
+        'explanation': ev.explanation,
+        'verification': ev.verification,
+        'verified': ev.verified,
+        'verify_manual': ev.verify_manual,
+    }
+
+
+def _deserialize_evidence(d: dict) -> Evidence:
+    return Evidence(
+        document=d['document'],
+        quotes=d.get('quotes', []),
+        explanation=d.get('explanation', ''),
+        verification=d.get('verification', []),
+        verified=d.get('verified', False),
+        verify_manual=d.get('verify_manual', False),
+    )
+
+
+def _serialize_origin(origin) -> Any:
+    if isinstance(origin, Evidence):
+        return _serialize_evidence(origin)
+    return origin
+
+
+def _deserialize_origin(origin) -> Any:
+    if isinstance(origin, dict) and origin.get('__evidence__'):
+        return _deserialize_evidence(origin)
+    return origin
+
+
+def _serialize_term(term: Term) -> dict:
+    return {
+        'definition': _serialize_sexp(term.definition),
+        'origin': _serialize_origin(term.origin),
+    }
+
+
+def _deserialize_term(name: str, d: dict) -> Term:
+    return Term(
+        name=name,
+        definition=_deserialize_sexp(d['definition']),
+        origin=_deserialize_origin(d['origin']),
+    )
+
+
+def _serialize_fact(fact: Any) -> dict:
+    if isinstance(fact, dict):
+        result = dict(fact)
+        if 'origin' in result:
+            result['origin'] = _serialize_origin(result['origin'])
+        if 'value' in result:
+            result['value'] = _serialize_sexp(result['value'])
+        return result
+    return {'value': _serialize_sexp(fact)}
+
+
+def _deserialize_fact(d: dict) -> dict:
+    result = dict(d)
+    if 'origin' in result:
+        result['origin'] = _deserialize_origin(result['origin'])
+    if 'value' in result:
+        result['value'] = _deserialize_sexp(result['value'])
+    return result
+
+
+def _serialize_axiom(axiom: Axiom) -> dict:
+    return {
+        'wff': _serialize_sexp(axiom.wff),
+        'origin': _serialize_origin(axiom.origin),
+    }
+
+
+def _deserialize_axiom(name: str, d: dict) -> Axiom:
+    return Axiom(
+        name=name,
+        wff=_deserialize_sexp(d['wff']),
+        origin=_deserialize_origin(d['origin']),
+    )
+
+
+def _serialize_theorem(thm: Theorem) -> dict:
+    return {
+        'wff': _serialize_sexp(thm.wff),
+        'derivation': thm.derivation,
+        'origin': _serialize_origin(thm.origin),
+    }
+
+
+def _deserialize_theorem(name: str, d: dict) -> Theorem:
+    return Theorem(
+        name=name,
+        wff=_deserialize_sexp(d['wff']),
+        derivation=d.get('derivation', []),
+        origin=_deserialize_origin(d['origin']),
+    )
+
+
 class System:
     """The Parseltongue formal system. Grows via axiom introduction."""
 
@@ -1015,6 +1142,33 @@ class System:
             log.info("%s = %s %s", name, info['value'], tag)
             result.append(entry)
         return result
+
+    # ----------------------------------------------------------
+    # Serialization
+    # ----------------------------------------------------------
+
+    def to_dict(self) -> dict:
+        """Serialize the full system state to a JSON-safe dict."""
+        return {
+            'terms': {n: _serialize_term(t) for n, t in self.terms.items()},
+            'facts': {n: _serialize_fact(f) for n, f in self.facts.items()},
+            'axioms': {n: _serialize_axiom(a) for n, a in self.axioms.items()},
+            'theorems': {n: _serialize_theorem(t) for n, t in self.theorems.items()},
+            'diffs': dict(self.diffs),
+            'documents': dict(self.documents),
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> 'System':
+        """Reconstruct a System from a serialized dict."""
+        system = cls()
+        system.terms = {n: _deserialize_term(n, d) for n, d in data.get('terms', {}).items()}
+        system.facts = {n: _deserialize_fact(d) for n, d in data.get('facts', {}).items()}
+        system.axioms = {n: _deserialize_axiom(n, d) for n, d in data.get('axioms', {}).items()}
+        system.theorems = {n: _deserialize_theorem(n, d) for n, d in data.get('theorems', {}).items()}
+        system.diffs = data.get('diffs', {})
+        system.documents = data.get('documents', {})
+        return system
 
     def consistency(self) -> ConsistencyReport:
         """Check full consistency state of the system.

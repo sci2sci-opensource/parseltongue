@@ -28,7 +28,7 @@ class ParseltongueApp(App):
         Binding("f3", "switch_screen('system_state')", "System", show=True),
         Binding("f4", "switch_screen('consistency')", "Consistency", show=True),
         Binding("f5", "show_history", "History", show=True),
-        Binding("q", "quit", "Quit", show=True),
+        Binding("f6", "main_menu", "Menu", show=True),
     ]
 
     def __init__(
@@ -69,14 +69,38 @@ class ParseltongueApp(App):
 
     def on_mount(self) -> None:
         if self._mode == "standalone":
-            from .screens.document_picker import DocumentPicker
+            from .screens.main_menu import MainMenu
 
-            self.push_screen(DocumentPicker())
+            self.push_screen(MainMenu())
         elif self._mode == "history":
             self._install_history_screens()
             self._go_to_answer()
         else:
             self._start_interactive_pipeline()
+
+    # ------------------------------------------------------------------
+    # Main menu handlers
+    # ------------------------------------------------------------------
+
+    def on_new_run_requested(self, event) -> None:
+        """Main menu → New Run → show document picker."""
+        from .screens.document_picker import DocumentPicker
+
+        self.push_screen(DocumentPicker())
+
+    def on_history_requested(self, event) -> None:
+        """Main menu → History → show history browser."""
+        from .screens.history_browser import HistoryBrowser
+
+        self.push_screen(HistoryBrowser())
+
+    def on_configure_requested(self, event) -> None:
+        """Main menu → Configure → suspend TUI, run terminal wizard."""
+        from ..config import run_wizard
+
+        with self.suspend():
+            config = run_wizard()
+        self._standalone_config = config
 
     # ------------------------------------------------------------------
     # Standalone mode: doc picker → query input → pipeline
@@ -161,7 +185,9 @@ class ParseltongueApp(App):
     def _install_history_screens(self) -> None:
         """Install screens from cached history data (no live System)."""
         from .screens.answer import AnswerScreen
+        from .screens.consistency import ConsistencyScreen
         from .screens.passes import PassesScreen
+        from .screens.system_state import SystemStateScreen
 
         data = self._history_data
         assert data is not None
@@ -170,10 +196,16 @@ class ParseltongueApp(App):
         hist = _HistoryResult(data)
         self.install_screen(AnswerScreen(hist), name="answer")  # type: ignore[arg-type]
         self.install_screen(PassesScreen(hist), name="passes")  # type: ignore[arg-type]
+        self.install_screen(SystemStateScreen(hist), name="system_state")  # type: ignore[arg-type]
+        self.install_screen(ConsistencyScreen(hist), name="consistency")  # type: ignore[arg-type]
 
     def _go_to_answer(self) -> None:
+        from .screens.main_menu import MainMenu
+
         while len(self.screen_stack) > 1:
             self.pop_screen()
+        if self._mode == "standalone":
+            self.push_screen(MainMenu())
         self.push_screen("answer")
 
     # ------------------------------------------------------------------
@@ -183,7 +215,16 @@ class ParseltongueApp(App):
     async def action_switch_screen(self, screen_name: str) -> None:
         if self._result is None and self._history_data is None:
             return
-        while len(self.screen_stack) > 1:
+        if screen_name not in self._installed_screens:
+            self.notify(f"Screen '{screen_name}' not available in this mode.", severity="warning")
+            return
+        # Pop current result screen, keep history browser in stack if present
+        if self.screen.__class__.__name__ in (
+            "AnswerScreen",
+            "PassesScreen",
+            "SystemStateScreen",
+            "ConsistencyScreen",
+        ):
             self.pop_screen()
         self.push_screen(screen_name)
 
@@ -192,8 +233,24 @@ class ParseltongueApp(App):
 
         self.push_screen(HistoryBrowser())
 
+    def action_main_menu(self) -> None:
+        if self._mode != "standalone":
+            return
+        from .screens.main_menu import MainMenu
+
+        # Uninstall result screens to allow fresh install on next run
+        for name in ("answer", "passes", "system_state", "consistency"):
+            if name in self._installed_screens:
+                self.uninstall_screen(name)
+        self._result = None
+        self._history_data = None
+
+        while len(self.screen_stack) > 1:
+            self.pop_screen()
+        self.push_screen(MainMenu())
+
     def on_run_selected(self, event) -> None:
-        """Handle history run selection."""
+        """Handle history run selection — push answer on top of history browser."""
         from ..history import get_run
 
         data = get_run(event.run_id)
@@ -201,9 +258,15 @@ class ParseltongueApp(App):
             self.notify("Run has no cached result.", severity="warning")
             return
 
+        # Uninstall previous result screens if any
+        for name in ("answer", "passes", "system_state", "consistency"):
+            if name in self._installed_screens:
+                self.uninstall_screen(name)
+
         self._history_data = data
         self._install_history_screens()
-        self._go_to_answer()
+        # Push on top of history browser so Escape goes back to it
+        self.push_screen("answer")
 
 
 class _HistoryResult:
@@ -214,8 +277,62 @@ class _HistoryResult:
         self.pass2_source = data.get("pass2_source", "")
         self.pass3_source = data.get("pass3_source", "")
         self.pass4_raw = data.get("pass4_raw", "")
+        self._system_state_json = data.get("system_state", "")
+        self._documents = data.get("documents", "[]")
         self.output = _HistoryOutput(data)
-        self.system = None  # No live system for history runs
+        self.system, self.pass_systems = self._rebuild_system()
+
+    def _rebuild_system(self):
+        """Rebuild system and per-pass snapshots.
+
+        Returns (final_system, {pass_num: system_after_that_pass}).
+        """
+        import copy
+        import json
+
+        from parseltongue.core import System, load_source
+
+        # Register documents so verification works during replay
+        system = System()
+        try:
+            docs = json.loads(self._documents) if self._documents else []
+            for doc in docs:
+                name, path = doc.get("name", ""), doc.get("path", "")
+                if name and path:
+                    from pathlib import Path
+
+                    p = Path(path)
+                    if p.exists():
+                        system.register_document(name, p.read_text())
+        except Exception:
+            pass
+
+        # Replay incrementally: each pass builds on the previous
+        pass_systems: dict[int, System] = {}
+        for pass_num, source in [
+            (1, self.pass1_source),
+            (2, self.pass2_source),
+            (3, self.pass3_source),
+        ]:
+            if source:
+                try:
+                    load_source(system, source)
+                except Exception:
+                    pass
+            pass_systems[pass_num] = copy.deepcopy(system)
+
+        # If we have serialized state, use it as the authoritative final
+        # (preserves verification results that replay may not reproduce)
+        if self._system_state_json:
+            try:
+                final = System.from_dict(json.loads(self._system_state_json))
+                pass_systems[4] = final
+                return final, pass_systems
+            except Exception:
+                pass
+
+        pass_systems[4] = system
+        return system, pass_systems
 
 
 class _HistoryOutput:

@@ -15,6 +15,7 @@ from textual.widgets import (
     Button,
     Input,
     Label,
+    Markdown,
     RichLog,
     Static,
     TabbedContent,
@@ -62,6 +63,7 @@ class LivePassScreen(Screen):
         self._tab_counter = 0
         self._current_tab_id: str | None = None
         self._log_buffers: dict[str, list[str]] = {}
+        self._current_tab_is_md = False
 
     def compose(self) -> ComposeResult:
         with Horizontal(id="live-layout"):
@@ -73,7 +75,7 @@ class LivePassScreen(Screen):
                 yield Tree("State", id="state-tree")
         with Container(id="live-controls"):
             yield Input(
-                placeholder="Feedback (then press Enter to retry)...",
+                placeholder="Feedback to retry, or Enter to continue...",
                 id="feedback-input",
             )
             with Horizontal(id="live-buttons"):
@@ -81,7 +83,7 @@ class LivePassScreen(Screen):
                 yield Button("Retry", id="retry-btn", variant="warning", disabled=True)
                 yield Button("Skip", id="skip-btn", variant="default")
             yield Static(
-                "[b]Enter[/b] Retry w/ feedback  [b]Ctrl+N[/b] Skip  " "[b]Esc[/b] Interrupt  [b]Ctrl+A[/b] Copy log",
+                "[b]Enter[/b] Continue/Retry  [b]Ctrl+N[/b] Skip  " "[b]Esc[/b] Interrupt  [b]Ctrl+A[/b] Copy log",
                 id="live-hints",
             )
 
@@ -92,16 +94,37 @@ class LivePassScreen(Screen):
     # Tab management
     # ------------------------------------------------------------------
 
-    def _new_tab(self, label: str) -> None:
-        """Create a new tab with a RichLog and activate it."""
+    def _new_tab(self, label: str, *, markdown: bool = False) -> None:
+        """Create a new tab and activate it.
+
+        If *markdown* is True the tab holds a Markdown widget (for Pass 4),
+        otherwise a RichLog (for DSL passes).
+        """
         self._tab_counter += 1
         tab_id = f"run-{self._tab_counter}"
         self._current_tab_id = tab_id
         self._log_buffers[tab_id] = []
         tabs = self.query_one("#dsl-tabs", TabbedContent)
-        pane = TabPane(label, RichLog(highlight=True, markup=True), id=tab_id)
+        if markdown:
+            content_widget: Markdown | RichLog = Markdown("", id=f"md-{tab_id}")
+            self._current_tab_is_md = True
+        else:
+            content_widget = RichLog(highlight=True, markup=True)
+            self._current_tab_is_md = False
+        pane = TabPane(label, content_widget, id=tab_id)
         tabs.add_pane(pane)
         tabs.active = tab_id
+
+    def _set_markdown(self, text: str) -> None:
+        """Set the Markdown widget content in the current tab."""
+        if not self._current_tab_id:
+            return
+        try:
+            pane = self.query_one(f"#{self._current_tab_id}", TabPane)
+            md = pane.query_one(Markdown)
+            md.update(text)
+        except Exception:
+            pass
 
     def _current_log(self) -> RichLog | None:
         """Get the RichLog in the current tab."""
@@ -124,7 +147,7 @@ class LivePassScreen(Screen):
             return
 
         name = PASS_NAMES[self._current_pass]
-        self._new_tab(f"P{self._current_pass}: {name}")
+        self._new_tab(f"P{self._current_pass}: {name}", markdown=(self._current_pass == 4))
 
         title = self.query_one("#pass-title", Label)
         title.update(f"Pass {self._current_pass}: {name}")
@@ -155,9 +178,14 @@ class LivePassScreen(Screen):
 
     def _on_pass_done(self, result: "PassResult") -> None:
         if result.source:
-            for line in result.source.splitlines():
-                self._log(self._linkify(line), line)
-            self._log("")
+            if self._current_tab_is_md:
+                # Pass 4: render as markdown
+                self._set_markdown(result.source)
+                self._log_buffers.setdefault(self._current_tab_id or "", []).append(result.source)
+            else:
+                for line in result.source.splitlines():
+                    self._log(self._linkify(line), line)
+                self._log("")
 
         if result.error:
             self._log(f"[red]Error: {result.error}[/red]", f"Error: {result.error}")
@@ -171,86 +199,15 @@ class LivePassScreen(Screen):
 
         self._refresh_state_tree()
         self._set_controls(running=False)
+        self.query_one("#feedback-input", Input).focus()
 
     def _refresh_state_tree(self) -> None:
-        from parseltongue.core.atoms import to_sexp
+        from ..widgets.tree_builders import populate_system_tree
 
         tree = self.query_one("#state-tree", Tree)
         tree.clear()
         tree.root.expand()
-        system = self._pipeline.system
-
-        if system.terms:
-            section = tree.root.add("[bold]Terms[/bold]", expand=True)
-            for name, term in system.terms.items():
-                defn = to_sexp(term.definition) if term.definition is not None else "(primitive)"
-                color = self._origin_color(term.origin)
-                node = section.add(f"[{color}]{rich_escape(name)}: {rich_escape(defn)}[/{color}]")
-                self._add_origin_node(node, term.origin)
-
-        if system.facts:
-            section = tree.root.add("[bold]Facts[/bold]", expand=True)
-            for name, data in system.facts.items():
-                val = data.get("value", data) if isinstance(data, dict) else data
-                origin = data.get("origin") if isinstance(data, dict) else None
-                color = self._origin_color(origin)
-                node = section.add(f"[{color}]{rich_escape(str(name))} = {rich_escape(str(val))}[/{color}]")
-                if origin:
-                    self._add_origin_node(node, origin)
-
-        if system.axioms:
-            section = tree.root.add("[bold]Axioms[/bold]", expand=True)
-            for name, axiom in system.axioms.items():
-                color = self._origin_color(axiom.origin)
-                node = section.add(f"[{color}]{rich_escape(name)}: {rich_escape(to_sexp(axiom.wff))}[/{color}]")
-                self._add_origin_node(node, axiom.origin)
-
-        if system.theorems:
-            section = tree.root.add("[bold]Theorems[/bold]", expand=True)
-            for name, thm in system.theorems.items():
-                color = self._origin_color(thm.origin)
-                node = section.add(f"[{color}]{rich_escape(name)}: {rich_escape(to_sexp(thm.wff))}[/{color}]")
-                if thm.derivation:
-                    node.add_leaf(f"derived from: {', '.join(thm.derivation)}")
-                self._add_origin_node(node, thm.origin)
-
-        if system.diffs:
-            section = tree.root.add("[bold]Diffs[/bold]", expand=True)
-            for name, diff in system.diffs.items():
-                section.add_leaf(f"{name}: replace {diff['replace']} with {diff['with']}")
-
-    @staticmethod
-    def _origin_color(origin) -> str:
-        """Green = grounded, red = unverified/fabrication, yellow = no evidence."""
-        from parseltongue.core.atoms import Evidence
-
-        if isinstance(origin, Evidence):
-            return "green" if origin.is_grounded else "red"
-        if isinstance(origin, str) and "potential fabrication" in origin:
-            return "red"
-        if origin:
-            return "yellow"
-        return "white"
-
-    @staticmethod
-    def _add_origin_node(node, origin) -> None:
-        from parseltongue.core.atoms import Evidence
-
-        if isinstance(origin, Evidence):
-            if origin.is_grounded:
-                status_tag = "[green]grounded[/green]"
-            else:
-                status_tag = "[red]UNVERIFIED[/red]"
-            origin_node = node.add(f"evidence: {origin.document} ({status_tag})")
-            for q in origin.quotes:
-                origin_node.add_leaf(f'"{q[:80]}{"..." if len(q) > 80 else ""}"')
-            if origin.explanation:
-                origin_node.add_leaf(f"explanation: {origin.explanation}")
-        elif origin:
-            if isinstance(origin, str) and "potential fabrication" in origin:
-                node.add_leaf(f"[red]{origin}[/red]")
-            else:
-                node.add_leaf(f"[yellow]origin: {origin}[/yellow]")
+        populate_system_tree(tree.root, self._pipeline.system)
 
     @staticmethod
     def _linkify(line: str) -> str:
@@ -311,8 +268,11 @@ class LivePassScreen(Screen):
             self._do_skip()
 
     def on_input_submitted(self, event: Input.Submitted) -> None:
-        """Enter in feedback field -> retry with that feedback."""
-        self._do_retry()
+        """Enter in feedback field -> retry with feedback, or continue if empty."""
+        if event.value.strip():
+            self._do_retry()
+        elif not self._running:
+            self._run_next_pass()
 
     def action_interrupt(self) -> None:
         if self._running:
@@ -341,7 +301,7 @@ class LivePassScreen(Screen):
 
         feedback_input.value = ""
         name = PASS_NAMES[self._current_pass]
-        self._new_tab(f"P{self._current_pass}: {name} (retry)")
+        self._new_tab(f"P{self._current_pass}: {name} (retry)", markdown=(self._current_pass == 4))
 
         self._set_controls(running=True)
         self._start_spinner(name)

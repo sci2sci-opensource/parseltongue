@@ -23,6 +23,7 @@ class DocumentPicker(Screen):
     """File browser rooted at CWD.  Select files/dirs, accumulate in hopper."""
 
     BINDINGS = [
+        ("escape", "dismiss", "Back"),
         ("backspace", "remove_selected", "Remove"),
         ("delete", "remove_selected", "Remove"),
         ("ctrl+d", "confirm", "Done"),
