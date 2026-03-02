@@ -1,0 +1,251 @@
+/* Parseltongue TUI styles */
+
+Screen {
+    background: $surface;
+}
+
+/* Loading screen */
+LoadingScreen {
+    align: center middle;
+}
+
+LoadingScreen #spinner-container {
+    width: 60;
+    height: 10;
+    border: heavy $primary;
+    padding: 1 2;
+    content-align: center middle;
+}
+
+LoadingScreen #status-label {
+    text-align: center;
+    margin-top: 1;
+    color: $text-muted;
+}
+
+/* Answer screen */
+AnswerScreen {
+    layout: grid;
+    grid-size: 2 1;
+    grid-columns: 2fr 1fr;
+    grid-gutter: 1;
+}
+
+AnswerScreen #markdown-panel {
+    border: round $primary;
+    padding: 1 2;
+    overflow-y: auto;
+}
+
+AnswerScreen #provenance-panel {
+    border: round #1a5c2a;
+    padding: 1 2;
+    overflow-y: auto;
+}
+
+/* Passes screen */
+PassesScreen {
+    layout: vertical;
+}
+
+PassesScreen TabbedContent {
+    height: 1fr;
+}
+
+PassesScreen TextArea {
+    height: 1fr;
+}
+
+/* Consistency screen */
+ConsistencyScreen {
+    padding: 1 2;
+    overflow-y: auto;
+}
+
+/* System state screen */
+SystemStateScreen {
+    padding: 1 2;
+}
+
+SystemStateScreen Tree {
+    height: 1fr;
+}
+
+/* DSL viewer widget */
+DslViewer {
+    height: 1fr;
+    overflow-y: auto;
+    padding: 0 1;
+}
+
+/* Provenance tree */
+ProvenanceTree {
+    height: 1fr;
+    overflow-y: auto;
+}
+
+/* Status bar */
+StatusBar {
+    dock: bottom;
+    height: 1;
+    background: $primary;
+    color: $text;
+}
+
+StatusBar .key {
+    text-style: bold;
+    color: $text;
+}
+
+StatusBar .description {
+    color: $text-muted;
+}
+
+/* Document picker screen */
+DocumentPicker #picker-layout {
+    layout: grid;
+    grid-size: 2 1;
+    grid-columns: 2fr 1fr;
+    grid-gutter: 1;
+    height: 1fr;
+}
+
+DocumentPicker #browser-panel {
+    border: round $primary;
+    padding: 1;
+    height: 1fr;
+}
+
+DocumentPicker #browser-label {
+    margin-bottom: 1;
+    text-style: bold;
+}
+
+DocumentPicker #file-tree {
+    height: 1fr;
+}
+
+DocumentPicker #selected-panel {
+    border: round $accent;
+    padding: 1;
+    height: 1fr;
+}
+
+DocumentPicker #selected-label {
+    margin-bottom: 1;
+    text-style: bold;
+}
+
+DocumentPicker #selected-list {
+    height: 1fr;
+}
+
+DocumentPicker #continue-btn {
+    dock: bottom;
+    margin-top: 1;
+}
+
+/* Query input screen */
+QueryInput {
+    padding: 1 2;
+}
+
+QueryInput #query-label {
+    margin-bottom: 1;
+    text-style: bold;
+}
+
+QueryInput #query-field {
+    height: 1fr;
+    margin-bottom: 1;
+}
+
+QueryInput #query-hints {
+    color: $text-muted;
+    height: 1;
+}
+
+QueryInput #submit-btn {
+    dock: bottom;
+    margin-top: 1;
+}
+
+/* History browser screen */
+HistoryBrowser {
+    padding: 1 2;
+}
+
+HistoryBrowser #history-title {
+    text-style: bold;
+    margin-bottom: 1;
+}
+
+HistoryBrowser #history-table {
+    height: 1fr;
+}
+
+/* Live pass screen */
+LivePassScreen #live-layout {
+    layout: grid;
+    grid-size: 2 1;
+    grid-columns: 2fr 1fr;
+    grid-gutter: 1;
+    height: 1fr;
+}
+
+LivePassScreen #dsl-panel {
+    border: round $primary;
+    padding: 1;
+    height: 1fr;
+}
+
+LivePassScreen #pass-title {
+    text-style: bold;
+    margin-bottom: 1;
+}
+
+LivePassScreen #dsl-tabs {
+    height: 1fr;
+}
+
+LivePassScreen #dsl-tabs RichLog {
+    height: 1fr;
+}
+
+LivePassScreen #state-panel {
+    border: round #1a5c2a;
+    padding: 1;
+    height: 1fr;
+}
+
+LivePassScreen #state-title {
+    text-style: bold;
+    margin-bottom: 1;
+}
+
+LivePassScreen #state-tree {
+    height: 1fr;
+}
+
+LivePassScreen #live-controls {
+    dock: bottom;
+    height: auto;
+    padding: 0 1;
+}
+
+LivePassScreen #feedback-input {
+    margin-bottom: 1;
+}
+
+LivePassScreen #live-buttons {
+    height: 3;
+}
+
+LivePassScreen #live-buttons Button {
+    margin-right: 1;
+}
+
+LivePassScreen #live-hints {
+    color: $text-muted;
+    height: 1;
+}

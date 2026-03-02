@@ -38,13 +38,23 @@ dev = [
     "pre-commit>=3.0.0",
 ]
 llm = ["openai>=1.0", "python-dotenv>=1.0"]
+cli = [
+    "parseltongue-dsl[llm]",
+    "typer>=0.9.0",
+    "textual>=0.50.0",
+    "rich>=13.0.0",
+    "docling>=2.0.0",
+]
+
+[project.scripts]
+parseltongue = "parseltongue.cli.app:main"
 
 [tool.setuptools.packages.find]
 include = ["parseltongue", "parseltongue.*"]
 exclude = ["parseltongue.*.tests", "parseltongue.*.tests.*"]
 
 [tool.setuptools.package-data]
-"*" = ["*.txt", "*.md"]
+"*" = ["*.txt", "*.md", "*.tcss"]
 
 [tool.black]
 line-length = 120
