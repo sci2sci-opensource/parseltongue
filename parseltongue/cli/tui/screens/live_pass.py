@@ -14,12 +14,12 @@ from textual.widgets import (
     Button,
     Input,
     Label,
-    Static,
     TabbedContent,
     TabPane,
     Tree,
 )
 
+from ..widgets.hints_bar import HintsBar
 from ..widgets.pass_viewer import PassViewer
 from ..widgets.resizable_split import ResizableSplitMixin
 
@@ -49,7 +49,7 @@ class LivePassScreen(ResizableSplitMixin, Screen):
     BINDINGS = [
         ("escape", "interrupt", "Interrupt"),
         ("ctrl+n", "skip", "Skip pass"),
-        ("ctrl+a", "copy_log", "Copy log"),
+        ("ctrl+y", "copy_log", "Copy log"),
         ("shift+f11", "grow_right", "Shift+F11 Grow right"),
         ("shift+f12", "grow_left", "Shift+F12 Grow left"),
     ]
@@ -83,10 +83,14 @@ class LivePassScreen(ResizableSplitMixin, Screen):
                 yield Button("Continue", id="continue-btn", variant="primary")
                 yield Button("Retry", id="retry-btn", variant="warning", disabled=True)
                 yield Button("Skip", id="skip-btn", variant="default")
-            yield Static(
-                "[b]Enter[/b] Continue/Retry  [b]Ctrl+N[/b] Skip  [b]Esc[/b] Interrupt"
-                "  [b]Ctrl+A[/b] Copy log  [b]Shift+F11/F12[/b] Resize",
-                id="live-hints",
+            yield HintsBar(
+                [
+                    ("Enter", "Continue/Retry"),
+                    ("Ctrl+N", "Skip"),
+                    ("Ctrl+Y", "Copy"),
+                    ("Shift+F11/F12", "Resize"),
+                    ("Esc", "Interrupt"),
+                ]
             )
 
     def on_mount(self) -> None:
@@ -239,15 +243,20 @@ class LivePassScreen(ResizableSplitMixin, Screen):
             self._do_skip()
 
     def action_copy_log(self) -> None:
-        # Copy the active tab's viewer plain text
+        import subprocess
+
         tabs = self.query_one("#dsl-tabs", TabbedContent)
         tab_id = tabs.active
         try:
             pane = self.query_one(f"#{tab_id}", TabPane)
             viewer = pane.query_one(PassViewer)
-            self.app.copy_to_clipboard(viewer.plain_text)
+            text = viewer.plain_text
         except Exception:
-            pass
+            text = ""
+        try:
+            subprocess.run(["pbcopy"], input=text.encode(), check=True)
+        except Exception:
+            self.app.copy_to_clipboard(text)
         self.notify("Log copied to clipboard.")
 
     def _do_retry(self) -> None:

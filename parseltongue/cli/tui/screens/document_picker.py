@@ -10,6 +10,8 @@ from textual.message import Message
 from textual.screen import Screen
 from textual.widgets import Button, DirectoryTree, Label, ListItem, ListView
 
+from ..widgets.hints_bar import HintsBar
+
 
 class DocumentsSelected(Message):
     """Posted when user confirms document selection."""
@@ -43,6 +45,14 @@ class DocumentPicker(Screen):
                 yield Label("Selected documents:", id="selected-label")
                 yield ListView(id="selected-list")
                 yield Button("Continue", id="continue-btn", variant="primary")
+        yield HintsBar(
+            [
+                ("Enter", "Add"),
+                ("Backspace", "Remove"),
+                ("Ctrl+D", "Done"),
+                ("Esc", "Back"),
+            ]
+        )
 
     def on_directory_tree_file_selected(self, event: DirectoryTree.FileSelected) -> None:
         """Add file to selected list."""

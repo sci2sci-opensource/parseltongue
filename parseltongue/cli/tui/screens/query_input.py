@@ -6,7 +6,9 @@ from textual.app import ComposeResult
 from textual.events import Key
 from textual.message import Message
 from textual.screen import Screen
-from textual.widgets import Button, Label, Static, TextArea
+from textual.widgets import Button, Label, TextArea
+
+from ..widgets.hints_bar import HintsBar
 
 
 class QuerySubmitted(Message):
@@ -50,11 +52,15 @@ class QueryInput(Screen):
             id="query-label",
         )
         yield _QueryTextArea(id="query-field")
-        yield Static(
-            "[b]Shift+Enter[/b] send  [b]Ctrl+D[/b] send  [b]Enter[/b] newline",
-            id="query-hints",
-        )
         yield Button("Run Pipeline", id="submit-btn", variant="primary")
+        yield HintsBar(
+            [
+                ("Shift+Enter", "Send"),
+                ("Ctrl+D", "Send"),
+                ("Enter", "Newline"),
+                ("Esc", "Back"),
+            ]
+        )
 
     def on_mount(self) -> None:
         self.query_one("#query-field", _QueryTextArea).focus()

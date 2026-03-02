@@ -180,7 +180,9 @@ def add_theorem_node(parent, name: str, thm: Any, system: Any = None) -> None:
         deriv_node = node.add(f"derived from: {', '.join(rich_escape(d) for d in thm.derivation)}")
         if system is not None:
             for d in thm.derivation:
-                _add_definition_leaf(deriv_node, d, system)
+                defn = _item_definition(d, system)
+                if defn:
+                    deriv_node.add_leaf(f"[dim]{rich_escape(d)}: {rich_escape(defn)}[/dim]")
     add_origin_node(node, thm.origin)
 
 
@@ -278,15 +280,15 @@ def add_diff_node(parent, name: str, diff: dict, system: Any = None) -> None:
 
 def populate_system_tree(tree_root, system: Any) -> None:
     """Populate a Tree root node with the full system state."""
-    if system.terms:
-        section = tree_root.add("[bold]Terms[/bold]", expand=True)
-        for name, term in system.terms.items():
-            add_term_node(section, name, term, system=system)
-
     if system.facts:
         section = tree_root.add("[bold]Facts[/bold]", expand=True)
         for name, data in system.facts.items():
             add_fact_node(section, name, data)
+
+    if system.terms:
+        section = tree_root.add("[bold]Terms[/bold]", expand=True)
+        for name, term in system.terms.items():
+            add_term_node(section, name, term, system=system)
 
     if system.axioms:
         section = tree_root.add("[bold]Axioms[/bold]", expand=True)

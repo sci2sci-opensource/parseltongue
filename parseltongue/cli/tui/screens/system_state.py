@@ -8,7 +8,7 @@ from textual.app import ComposeResult
 from textual.screen import Screen
 from textual.widgets import Tree
 
-from ..widgets.status_bar import StatusBar
+from ..widgets.hints_bar import HintsBar
 
 if TYPE_CHECKING:
     from parseltongue.llm import PipelineResult
@@ -30,7 +30,15 @@ class SystemStateScreen(Screen):
         tree.root.expand()
         self._populate(tree)
         yield tree
-        yield StatusBar()
+        yield HintsBar(
+            [
+                ("F1", "Answer"),
+                ("F2", "Passes"),
+                ("F3", "System"),
+                ("F4", "Consistency"),
+                ("Esc", "Back"),
+            ]
+        )
 
     def _populate(self, tree: Tree) -> None:
         from ..widgets.tree_builders import populate_system_tree

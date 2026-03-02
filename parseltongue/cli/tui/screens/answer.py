@@ -5,14 +5,14 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from textual.app import ComposeResult
-from textual.containers import Container
+from textual.containers import Container, Horizontal
 from textual.screen import Screen
-from textual.widgets import Label
+from textual.widgets import Label, Static
 
+from ..widgets.hints_bar import HintsBar
 from ..widgets.provenance_tree import ProvenanceTree
 from ..widgets.reference_text import ReferenceClicked, ReferenceText
 from ..widgets.resizable_split import ResizableSplitMixin
-from ..widgets.status_bar import StatusBar
 
 if TYPE_CHECKING:
     from parseltongue.llm import PipelineResult
@@ -23,7 +23,7 @@ class AnswerScreen(ResizableSplitMixin, Screen):
 
     BINDINGS = [
         ("escape", "dismiss", "Back"),
-        ("ctrl+a", "copy_answer", "Copy answer"),
+        ("ctrl+y", "copy_answer", "Copy answer"),
         ("shift+f11", "grow_right", "Shift+F11 Grow right"),
         ("shift+f12", "grow_left", "Shift+F12 Grow left"),
     ]
@@ -34,12 +34,24 @@ class AnswerScreen(ResizableSplitMixin, Screen):
 
     def compose(self) -> ComposeResult:
         with Container(id="markdown-panel"):
-            yield Label("Report", id="report-title")
+            with Horizontal(id="report-header"):
+                yield Label("Report", id="report-title")
+                yield Static("[@click=screen.copy_answer]Copy[/]", id="copy-btn")
             yield ReferenceText(str(self._result.output))
         with Container(id="provenance-panel"):
             yield Label("Parseltongue Provenance", id="provenance-title")
             yield ProvenanceTree(id="provenance-tree")
-        yield StatusBar(extra_hints=[("Shift+F11/F12", "Resize")])
+        yield HintsBar(
+            [
+                ("F1", "Answer"),
+                ("F2", "Passes"),
+                ("F3", "System"),
+                ("F4", "Consistency"),
+                ("Ctrl+Y", "Copy"),
+                ("Shift+F11/F12", "Resize"),
+                ("Esc", "Back"),
+            ]
+        )
 
     def on_reference_clicked(self, event: ReferenceClicked) -> None:
         """When a reference tag is clicked, show its full provenance."""
@@ -68,8 +80,13 @@ class AnswerScreen(ResizableSplitMixin, Screen):
             tree.show_reference(event.ref_type, event.ref_name, error="Not found")
 
     def action_copy_answer(self) -> None:
+        import subprocess
+
         text = str(self._result.output) if self._result.output else ""
-        self.app.copy_to_clipboard(text)
+        try:
+            subprocess.run(["pbcopy"], input=text.encode(), check=True)
+        except Exception:
+            self.app.copy_to_clipboard(text)
         self.notify("Answer copied to clipboard.")
 
     def _find_reference(self, ref_type: str, ref_name: str):

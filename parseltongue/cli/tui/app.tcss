@@ -4,6 +4,14 @@ Screen {
     background: $surface;
 }
 
+/* Global button style */
+Button {
+    min-width: 0;
+    height: 1;
+    border: none;
+    padding: 0 3;
+}
+
 /* Main menu */
 MainMenu {
     align: center middle;
@@ -56,9 +64,19 @@ AnswerScreen #markdown-panel {
     overflow-y: auto;
 }
 
+AnswerScreen #report-header {
+    height: auto;
+    margin-bottom: 1;
+}
+
 AnswerScreen #report-title {
     text-style: bold;
-    margin-bottom: 1;
+    width: 1fr;
+}
+
+AnswerScreen #copy-btn {
+    width: auto;
+    color: $text-muted;
 }
 
 AnswerScreen #provenance-panel {
@@ -87,9 +105,19 @@ PassesScreen #passes-dsl-panel {
     height: 1fr;
 }
 
+PassesScreen #passes-header {
+    height: auto;
+    margin-bottom: 1;
+}
+
 PassesScreen #passes-title {
     text-style: bold;
-    margin-bottom: 1;
+    width: 1fr;
+}
+
+PassesScreen #passes-copy-btn {
+    width: auto;
+    color: $text-muted;
 }
 
 PassesScreen #passes-tabs {
@@ -214,22 +242,6 @@ ProvenanceTree {
     overflow-y: auto;
 }
 
-/* Status bar */
-StatusBar {
-    dock: bottom;
-    height: 1;
-    background: $primary;
-    color: $text;
-}
-
-StatusBar .key {
-    text-style: bold;
-    color: $text;
-}
-
-StatusBar .description {
-    color: $text-muted;
-}
 
 /* Document picker screen */
 DocumentPicker #picker-layout {
@@ -290,10 +302,6 @@ QueryInput #query-field {
     margin-bottom: 1;
 }
 
-QueryInput #query-hints {
-    color: $text-muted;
-    height: 1;
-}
 
 QueryInput #submit-btn {
     dock: bottom;
@@ -376,7 +384,7 @@ LivePassScreen #feedback-input {
 }
 
 LivePassScreen #live-buttons {
-    height: 3;
+    height: auto;
 }
 
 LivePassScreen #live-buttons Button {

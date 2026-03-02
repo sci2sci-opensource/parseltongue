@@ -7,7 +7,7 @@ from textual.message import Message
 from textual.screen import Screen
 from textual.widgets import DataTable, Label
 
-from ..widgets.status_bar import StatusBar
+from ..widgets.hints_bar import HintsBar
 
 
 class RunSelected(Message):
@@ -28,7 +28,7 @@ class HistoryBrowser(Screen):
     def compose(self) -> ComposeResult:
         yield Label("Run History", id="history-title")
         yield DataTable(id="history-table")
-        yield StatusBar()
+        yield HintsBar([("Enter", "Open"), ("Esc", "Back")])
 
     def on_mount(self) -> None:
         from ...history import list_runs

@@ -9,7 +9,7 @@ from textual.app import ComposeResult
 from textual.screen import Screen
 from textual.widgets import Tree
 
-from ..widgets.status_bar import StatusBar
+from ..widgets.hints_bar import HintsBar
 from ..widgets.tree_builders import (
     _add_definition_leaf,
     add_diff_result_node,
@@ -52,7 +52,15 @@ class ConsistencyScreen(Screen):
         tree.root.expand()
         self._populate(tree)
         yield tree
-        yield StatusBar()
+        yield HintsBar(
+            [
+                ("F1", "Answer"),
+                ("F2", "Passes"),
+                ("F3", "System"),
+                ("F4", "Consistency"),
+                ("Esc", "Back"),
+            ]
+        )
 
     def _populate(self, tree: Tree[str]) -> None:
         system = self._result.system

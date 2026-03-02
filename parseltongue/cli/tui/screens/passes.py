@@ -8,11 +8,11 @@ from typing import TYPE_CHECKING
 from textual.app import ComposeResult
 from textual.containers import Container, Horizontal
 from textual.screen import Screen
-from textual.widgets import Label, TabbedContent, TabPane, Tree
+from textual.widgets import Label, Static, TabbedContent, TabPane, Tree
 
+from ..widgets.hints_bar import HintsBar
 from ..widgets.pass_viewer import PassViewer
 from ..widgets.resizable_split import ResizableSplitMixin
-from ..widgets.status_bar import StatusBar
 from ..widgets.tree_builders import populate_system_tree
 
 if TYPE_CHECKING:
@@ -28,6 +28,7 @@ class PassesScreen(ResizableSplitMixin, Screen):
 
     BINDINGS = [
         ("escape", "dismiss", "Back"),
+        ("ctrl+y", "copy_pass", "Copy pass"),
         ("shift+f11", "grow_right", "Shift+F11 Grow right"),
         ("shift+f12", "grow_left", "Shift+F12 Grow left"),
     ]
@@ -39,7 +40,9 @@ class PassesScreen(ResizableSplitMixin, Screen):
     def compose(self) -> ComposeResult:
         with Horizontal(id="passes-layout"):
             with Container(id="passes-dsl-panel"):
-                yield Label("Passes", id="passes-title")
+                with Horizontal(id="passes-header"):
+                    yield Label("Passes", id="passes-title")
+                    yield Static("[@click=screen.copy_pass]Copy[/]", id="passes-copy-btn")
                 with TabbedContent(id="passes-tabs"):
                     with TabPane("P1: Extract", id="pass-tab-1"):
                         yield PassViewer(
@@ -61,7 +64,17 @@ class PassesScreen(ResizableSplitMixin, Screen):
             with Container(id="passes-state-panel"):
                 yield Label("Parseltongue State", id="passes-state-title")
                 yield Tree("State", id="passes-state-tree")
-        yield StatusBar(extra_hints=[("Shift+F11/F12", "Resize")])
+        yield HintsBar(
+            [
+                ("F1", "Answer"),
+                ("F2", "Passes"),
+                ("F3", "System"),
+                ("F4", "Consistency"),
+                ("Ctrl+Y", "Copy"),
+                ("Shift+F11/F12", "Resize"),
+                ("Esc", "Back"),
+            ]
+        )
 
     def on_mount(self) -> None:
         self._refresh_state_tree(1)
@@ -72,6 +85,24 @@ class PassesScreen(ResizableSplitMixin, Screen):
             if tab_id == f"pass-tab-{i}":
                 self._refresh_state_tree(i)
                 return
+
+    def action_copy_pass(self) -> None:
+        """Copy the active tab's pass content to clipboard."""
+        import subprocess
+
+        tabs = self.query_one("#passes-tabs", TabbedContent)
+        tab_id = tabs.active
+        try:
+            pane = self.query_one(f"#{tab_id}", TabPane)
+            viewer = pane.query_one(PassViewer)
+            text = viewer.plain_text
+        except Exception:
+            text = ""
+        try:
+            subprocess.run(["pbcopy"], input=text.encode(), check=True)
+        except Exception:
+            self.app.copy_to_clipboard(text)
+        self.notify("Pass copied to clipboard.")
 
     def action_ref_clicked(self, ref_type: str, ref_name: str) -> None:
         """Handle @click from PassViewer refs."""
