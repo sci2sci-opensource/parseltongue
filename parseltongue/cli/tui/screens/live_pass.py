@@ -7,6 +7,7 @@ import re
 from typing import TYPE_CHECKING
 
 from textual.app import ComposeResult
+from textual.binding import Binding
 from textual.containers import Container, Horizontal
 from textual.message import Message
 from textual.screen import Screen
@@ -47,7 +48,7 @@ class LivePassScreen(ResizableSplitMixin, Screen):
     _split_grid_id = "live-layout"
 
     BINDINGS = [
-        ("escape", "interrupt", "Interrupt"),
+        Binding("escape", "interrupt", "Interrupt", priority=True),
         ("ctrl+n", "skip", "Skip pass"),
         ("ctrl+y", "copy_log", "Copy log"),
         ("shift+f11", "grow_right", "Shift+F11 Grow right"),
@@ -65,6 +66,7 @@ class LivePassScreen(ResizableSplitMixin, Screen):
         self._spinner_timer: Timer | None = None
         self._tab_counter = 0
         self._current_tab_id: str | None = None
+        self._awaiting_factcheck = False
 
     def compose(self) -> ComposeResult:
         with Horizontal(id="live-layout"):
@@ -137,6 +139,22 @@ class LivePassScreen(ResizableSplitMixin, Screen):
         title = self.query_one("#pass-title", Label)
         title.update(f"Pass {self._current_pass}: {name}")
 
+        # Factcheck is optional — confirm before running
+        if self._current_pass == 3:
+            self._awaiting_factcheck = True
+            self._set_controls(running=False)
+            viewer = self._current_viewer()
+            if viewer:
+                viewer.append_info("Factcheck is optional. Press Enter to run, or Ctrl+N / Skip to skip.")
+            self.query_one("#feedback-input", Input).focus()
+            return
+
+        self._start_pass()
+
+    def _start_pass(self) -> None:
+        """Actually start executing the current pass."""
+        self._awaiting_factcheck = False
+        name = PASS_NAMES[self._current_pass]
         self._set_controls(running=True)
         self._start_spinner(name)
         self.run_worker(self._execute_current_pass(), exclusive=True)
@@ -221,7 +239,10 @@ class LivePassScreen(ResizableSplitMixin, Screen):
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "continue-btn":
-            self._run_next_pass()
+            if getattr(self, "_awaiting_factcheck", False):
+                self._start_pass()
+            else:
+                self._run_next_pass()
         elif event.button.id == "retry-btn":
             self._do_retry()
         elif event.button.id == "skip-btn":
@@ -231,12 +252,16 @@ class LivePassScreen(ResizableSplitMixin, Screen):
         """Enter in feedback field -> retry with feedback, or continue if empty."""
         if event.value.strip():
             self._do_retry()
+        elif getattr(self, "_awaiting_factcheck", False):
+            self._start_pass()
         elif not self._running:
             self._run_next_pass()
 
     def action_interrupt(self) -> None:
         if self._running:
             self._pipeline.request_interrupt()
+        else:
+            self.dismiss()
 
     def action_skip(self) -> None:
         if not self._running:

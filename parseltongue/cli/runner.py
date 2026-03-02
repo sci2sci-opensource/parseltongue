@@ -22,6 +22,7 @@ class RunConfig:
     model: str = "anthropic/claude-sonnet-4.6"
     reasoning: bool | int | None = None
     provider_config: dict[str, Any] = field(default_factory=dict)
+    ingest_errors: dict[str, str] = field(default_factory=dict)  # name -> error message
 
 
 def _create_provider(config: RunConfig):
@@ -72,8 +73,12 @@ def run_pipeline(
 
         for name, path in config.documents:
             progress(f"Ingesting: {name}")
-            text = ingest_file(path)
-            pipeline.add_document(name, text=text)
+            try:
+                text = ingest_file(path)
+                pipeline.add_document(name, text=text)
+            except Exception as exc:
+                config.ingest_errors[name] = str(exc)
+                progress(f"Skipping {name}: {exc}")
 
         progress("Running pipeline (4 passes: extract → derive → factcheck → answer)...")
         result = pipeline.run(config.query)
@@ -105,9 +110,13 @@ def create_interactive_pipeline(config: RunConfig, on_progress: Callable[[str], 
     documents: dict[str, str] = {}
     for name, path in config.documents:
         progress(f"Ingesting: {name}")
-        text = ingest_file(path)
-        system.register_document(name, text)
-        documents[name] = text
+        try:
+            text = ingest_file(path)
+            system.register_document(name, text)
+            documents[name] = text
+        except Exception as exc:
+            config.ingest_errors[name] = str(exc)
+            progress(f"Skipping {name}: {exc}")
 
     prov = config.provider_config
     run_id = history.save_run(

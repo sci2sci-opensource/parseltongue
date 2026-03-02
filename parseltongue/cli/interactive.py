@@ -173,8 +173,9 @@ class InteractivePipeline:
         return ir
 
     def request_interrupt(self) -> None:
-        """Signal the pipeline to stop after current LLM call."""
+        """Cancel the in-flight LLM request and signal the pipeline to stop."""
         self.interrupt.set()
+        self.provider.cancel()
 
     # ------------------------------------------------------------------
 
@@ -190,7 +191,12 @@ class InteractivePipeline:
         _, _, tool, result_key = PASS_INFO[pass_num - 1]
 
         log.info("Pass %d: calling provider", pass_num)
-        result = self.provider.complete(messages, [tool], **kwargs)
+        try:
+            result = self.provider.complete(messages, [tool], **kwargs)
+        except Exception:
+            if self.interrupt.is_set():
+                raise _Interrupted
+            raise
         source = result[result_key]
         self._last_source = source
 

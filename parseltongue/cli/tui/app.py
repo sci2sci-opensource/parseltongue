@@ -86,7 +86,7 @@ class ParseltongueApp(App):
         """Main menu → New Run → show document picker."""
         from .screens.document_picker import DocumentPicker
 
-        self.push_screen(DocumentPicker())
+        self.push_screen(DocumentPicker(selected=self._selected_paths))
 
     def on_history_requested(self, event) -> None:
         """Main menu → History → show history browser."""
@@ -133,9 +133,6 @@ class ParseltongueApp(App):
             provider_config=prov,
         )
 
-        while len(self.screen_stack) > 1:
-            self.pop_screen()
-
         self._start_interactive_pipeline()
 
     # ------------------------------------------------------------------
@@ -147,6 +144,8 @@ class ParseltongueApp(App):
         from .screens.live_pass import LivePassScreen
 
         self._pipeline, self._history_run_id = create_interactive_pipeline(self._run_config)
+        for name, err in self._run_config.ingest_errors.items():
+            self.notify(f"{name}: {err}", severity="error", timeout=10)
         self.push_screen(LivePassScreen(self._pipeline))
 
     def on_passes_complete(self, event) -> None:
@@ -202,6 +201,7 @@ class ParseltongueApp(App):
     def _go_to_answer(self) -> None:
         from .screens.main_menu import MainMenu
 
+        # Clear run screens but keep the base
         while len(self.screen_stack) > 1:
             self.pop_screen()
         if self._mode == "standalone":

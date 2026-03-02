@@ -31,10 +31,10 @@ class DocumentPicker(Screen):
         ("ctrl+d", "confirm", "Done"),
     ]
 
-    def __init__(self, root: Path | None = None, **kwargs) -> None:
+    def __init__(self, root: Path | None = None, selected: list[Path] | None = None, **kwargs) -> None:
         super().__init__(**kwargs)
         self._root = root or Path.cwd()
-        self._selected: list[Path] = []
+        self._selected: list[Path] = list(selected) if selected else []
 
     def compose(self) -> ComposeResult:
         with Horizontal(id="picker-layout"):
@@ -53,6 +53,10 @@ class DocumentPicker(Screen):
                 ("Esc", "Back"),
             ]
         )
+
+    def on_mount(self) -> None:
+        if self._selected:
+            self._refresh_list()
 
     def on_directory_tree_file_selected(self, event: DirectoryTree.FileSelected) -> None:
         """Add file to selected list."""

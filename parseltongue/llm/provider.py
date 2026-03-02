@@ -30,3 +30,12 @@ class LLMProvider(ABC):
             (e.g. {"dsl_output": "..."} or {"markdown": "..."}).
         """
         ...
+
+    async def async_complete(self, messages: list[dict], tools: list[dict], **kwargs) -> dict:
+        """Async version of complete(). Default: runs sync in a thread."""
+        import asyncio
+
+        return await asyncio.to_thread(self.complete, messages, tools, **kwargs)
+
+    def cancel(self) -> None:
+        """Cancel any in-flight request. Override in subclasses."""
