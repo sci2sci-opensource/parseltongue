@@ -100,7 +100,7 @@ def add_evidence_node(
                 reason = v.get("reason", "no match")
                 q_node = origin_node.add(f'[red]"{short_q}" [bold]✗[/bold] {rich_escape(reason)}[/red]')
             if v.get("context"):
-                q_node.add_leaf(f"context: {rich_escape(str(v['context'])[:120])}")
+                q_node.add_leaf(f"context: {rich_escape(str(v['context']))}")
             if len(q_str) > 80:
                 q_node.add_leaf(f'full: "{rich_escape(q_str)}"')
         else:
@@ -236,13 +236,15 @@ def _add_diff_result_leaves(node, result: Any, system: Any = None) -> None:
             da, db = _diff_highlight(_fmt_value(val_a), _fmt_value(val_b))
             d.add_leaf(f"original: {da}")
             d.add_leaf(f"substituted: {db}")
+    elif hasattr(result, "values_diverge") and result.values_diverge:
+        node.add_leaf("[yellow]values differ (no downstream affected)[/yellow]")
     else:
         node.add_leaf("[green]no divergences[/green]")
 
 
 def add_diff_result_node(parent, result: Any, system: Any = None) -> None:
     """Add a pre-evaluated DiffResult as a tree node (used by consistency screen)."""
-    color = "yellow" if result.divergences else "green"
+    color = "yellow" if result.divergences or result.values_diverge else "green"
     node = parent.add(f"[{color}]Diff Divergence: {rich_escape(result.name)}[/{color}]")
     _add_diff_result_leaves(node, result, system=system)
 
@@ -254,7 +256,7 @@ def add_diff_node(parent, name: str, diff: dict, system: Any = None) -> None:
     if system is not None:
         try:
             result = system.eval_diff(name)
-            has_divergences = bool(result.divergences)
+            has_divergences = bool(result.divergences) or result.values_diverge
         except Exception:
             result = None
             has_divergences = False

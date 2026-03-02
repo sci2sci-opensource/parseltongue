@@ -28,6 +28,7 @@ _ISSUE_LABELS: dict[str, str] = {
     "no_evidence": "No Evidence Provided",
     "potential_fabrication": "Potential Fabrication",
     "diff_divergence": "Diff Divergence",
+    "diff_value_divergence": "Diff Value Divergence",
 }
 
 # Display labels for warning types
@@ -127,7 +128,7 @@ class ConsistencyScreen(Screen):
     def _add_issue_node(self, parent, issue) -> None:
         label = _ISSUE_LABELS.get(issue.type, issue.type)
 
-        if issue.type == "diff_divergence":
+        if issue.type in ("diff_divergence", "diff_value_divergence"):
             # Items are DiffResult objects — delegate to shared builder
             for diff_result in issue.items:
                 add_diff_result_node(parent, diff_result, system=self._result.system)

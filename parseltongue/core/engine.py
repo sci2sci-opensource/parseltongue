@@ -321,18 +321,47 @@ class DiffResult:
     def empty(self) -> bool:
         return not self.divergences
 
+    @property
+    def values_diverge(self) -> bool:
+        return self.value_a != self.value_b
+
     def __str__(self):
         va = to_sexp(self.value_a) if isinstance(self.value_a, (list, Symbol)) else self.value_a
         vb = to_sexp(self.value_b) if isinstance(self.value_b, (list, Symbol)) else self.value_b
         header = f"{self.name}: {self.replace} ({va}) vs {self.with_} ({vb})"
-        if self.empty:
+        if self.empty and not self.values_diverge:
             return f"{header} — no divergences"
+        if self.empty and self.values_diverge:
+            return f"{header} — values differ"
         lines = [header]
-        for term, (a, b) in self.divergences.items():
+        for term, (a, b) in sorted(self.divergences.items()):
             a_s = to_sexp(a) if isinstance(a, (list, Symbol)) else a
             b_s = to_sexp(b) if isinstance(b, (list, Symbol)) else b
-            lines.append(f"  {term}: {a_s} → {b_s}")
+            lines.append(f"{term}: {a_s} → {b_s}")
         return "\n".join(lines)
+
+    def to_dict(self) -> dict:
+        return {
+            "name": self.name,
+            "replace": self.replace,
+            "with": self.with_,
+            "value_a": _serialize_sexp(self.value_a),
+            "value_b": _serialize_sexp(self.value_b),
+            "divergences": {k: [_serialize_sexp(a), _serialize_sexp(b)] for k, (a, b) in self.divergences.items()},
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "DiffResult":
+        return cls(
+            name=data["name"],
+            replace=data["replace"],
+            with_=data["with"],
+            value_a=_deserialize_sexp(data["value_a"]),
+            value_b=_deserialize_sexp(data["value_b"]),
+            divergences={
+                k: [_deserialize_sexp(a), _deserialize_sexp(b)] for k, (a, b) in data.get("divergences", {}).items()
+            },
+        )
 
 
 @dataclass
@@ -348,11 +377,32 @@ class ConsistencyIssue:
             "no_evidence": "No evidence provided",
             "potential_fabrication": "Potential fabrication",
             "diff_divergence": "Diff divergence",
+            "diff_value_divergence": "Diff value divergence",
         }
         label = labels.get(self.type, self.type)
-        if self.type == "diff_divergence":
-            return "\n".join(f"  {d}" for d in self.items)
-        return f"{label}: {', '.join(str(i) for i in self.items)}"
+        parts = [f"{label}:"]
+        if self.type in ("diff_divergence", "diff_value_divergence"):
+            for d in self.items:
+                for i, line in enumerate(str(d).splitlines()):
+                    parts.append(f"    {line}" if i else f"  {line}")
+        else:
+            for item in self.items:
+                parts.append(f"  {item}")
+        return "\n".join(parts)
+
+    def to_dict(self) -> dict:
+        if self.type in ("diff_divergence", "diff_value_divergence"):
+            return {"type": self.type, "items": [d.to_dict() for d in self.items]}
+        return {"type": self.type, "items": [str(i) for i in self.items]}
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "ConsistencyIssue":
+        t = data["type"]
+        if t in ("diff_divergence", "diff_value_divergence"):
+            items = [DiffResult.from_dict(d) for d in data["items"]]
+        else:
+            items = data["items"]
+        return cls(type=t, items=items)
 
 
 @dataclass
@@ -366,6 +416,13 @@ class ConsistencyWarning:
         if self.type == "manually_verified":
             return f"Manually verified: {', '.join(self.items)}"
         return f"{self.type}: {', '.join(self.items)}"
+
+    def to_dict(self) -> dict:
+        return {"type": self.type, "items": self.items}
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "ConsistencyWarning":
+        return cls(type=data["type"], items=data["items"])
 
 
 @dataclass
@@ -385,10 +442,27 @@ class ConsistencyReport:
         else:
             lines.append(f"System inconsistent: {len(self.issues)} issue(s)")
             for issue in self.issues:
-                lines.append(f"  {issue}")
+                issue_str = str(issue)
+                for line in issue_str.splitlines():
+                    lines.append(f"  {line}")
         for w in self.warnings:
             lines.append(f"  [warning] {w}")
         return "\n".join(lines)
+
+    def to_dict(self) -> dict:
+        return {
+            "consistent": self.consistent,
+            "issues": [i.to_dict() for i in self.issues],
+            "warnings": [w.to_dict() for w in self.warnings],
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "ConsistencyReport":
+        return cls(
+            consistent=data["consistent"],
+            issues=[ConsistencyIssue.from_dict(i) for i in data.get("issues", [])],
+            warnings=[ConsistencyWarning.from_dict(w) for w in data.get("warnings", [])],
+        )
 
 
 # ============================================================
@@ -1396,26 +1470,29 @@ class System:
                         no_evidence.append(name)
 
         if unverified:
-            issues.append(ConsistencyIssue("unverified_evidence", unverified))
+            issues.append(ConsistencyIssue("unverified_evidence", sorted(unverified)))
         if no_evidence:
-            issues.append(ConsistencyIssue("no_evidence", no_evidence))
+            issues.append(ConsistencyIssue("no_evidence", sorted(no_evidence)))
         if manually_verified:
-            warnings.append(ConsistencyWarning("manually_verified", manually_verified))
+            warnings.append(ConsistencyWarning("manually_verified", sorted(manually_verified)))
 
         # 2. Fabrication propagation
-        fabrications = [
+        fabrications = sorted(
             name
             for name, thm in self.theorems.items()
             if isinstance(thm.origin, str) and "potential fabrication" in thm.origin
-        ]
+        )
         if fabrications:
             issues.append(ConsistencyIssue("potential_fabrication", fabrications))
 
         # 3. Diff divergences — evaluated live
-        divergent = [self.eval_diff(n) for n in self.diffs]
-        divergent = [d for d in divergent if not d.empty]
-        if divergent:
-            issues.append(ConsistencyIssue("diff_divergence", divergent))
+        all_diffs = sorted((self.eval_diff(n) for n in self.diffs), key=lambda d: d.name)
+        downstream_divergent = [d for d in all_diffs if not d.empty]
+        value_divergent = [d for d in all_diffs if d.values_diverge and d.empty]
+        if downstream_divergent:
+            issues.append(ConsistencyIssue("diff_divergence", downstream_divergent))
+        if value_divergent:
+            issues.append(ConsistencyIssue("diff_value_divergence", value_divergent))
 
         report = ConsistencyReport(
             consistent=len(issues) == 0,

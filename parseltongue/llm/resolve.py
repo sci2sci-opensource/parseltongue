@@ -33,7 +33,7 @@ class ResolvedOutput:
 
     markdown: str
     references: list[Reference] = field(default_factory=list)
-    consistency: str = ""
+    consistency: dict | str = ""
 
     def __str__(self):
         return self.markdown
@@ -141,10 +141,9 @@ def resolve_references(markdown: str, system) -> ResolvedOutput:
         references.append(_resolve_one(tag_type, name, system))
 
     report = system.consistency()
-    consistency = str(report)
 
     return ResolvedOutput(
         markdown=markdown,
         references=references,
-        consistency=consistency,
+        consistency=report.to_dict(),
     )

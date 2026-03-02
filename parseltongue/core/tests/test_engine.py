@@ -975,6 +975,50 @@ class TestConsistency(unittest.TestCase):
         types = [i.type for i in report.issues]
         self.assertIn("diff_divergence", types)
 
+    def test_diff_value_divergence_no_downstream(self):
+        """Diff with different values but no downstream terms is still inconsistent."""
+        s = make_system()
+        quiet(s.set_fact, "a", 10, "test")
+        quiet(s.set_fact, "b", 20, "test")
+        quiet(s.register_diff, "d1", "a", "b")
+        quiet(s.verify_manual, "a")
+        quiet(s.verify_manual, "b")
+        report = quiet(s.consistency)
+        self.assertFalse(report.consistent)
+        types = [i.type for i in report.issues]
+        self.assertIn("diff_value_divergence", types)
+
+    def test_diff_equal_values_no_downstream_is_consistent(self):
+        """Diff with equal values and no downstream is consistent."""
+        s = make_system()
+        quiet(s.set_fact, "a", 10, "test")
+        quiet(s.set_fact, "b", 10, "test")
+        quiet(s.register_diff, "d1", "a", "b")
+        quiet(s.verify_manual, "a")
+        quiet(s.verify_manual, "b")
+        report = quiet(s.consistency)
+        self.assertTrue(report.consistent)
+
+    def test_diff_values_diverge_property(self):
+        """DiffResult.values_diverge reflects value comparison."""
+        s = make_system()
+        quiet(s.set_fact, "a", 10, "test")
+        quiet(s.set_fact, "b", 20, "test")
+        quiet(s.register_diff, "d1", "a", "b")
+        r = s.eval_diff("d1")
+        self.assertTrue(r.values_diverge)
+        self.assertTrue(r.empty)  # no downstream terms
+
+    def test_diff_values_agree_property(self):
+        """DiffResult.values_diverge is False when values match."""
+        s = make_system()
+        quiet(s.set_fact, "a", 10, "test")
+        quiet(s.set_fact, "b", 10, "test")
+        quiet(s.register_diff, "d1", "a", "b")
+        r = s.eval_diff("d1")
+        self.assertFalse(r.values_diverge)
+        self.assertTrue(r.empty)
+
     def test_manually_verified_is_warning(self):
         s = make_system()
         quiet(s.set_fact, "x", 1, "plain")
@@ -984,6 +1028,76 @@ class TestConsistency(unittest.TestCase):
         # but should have a warning
         warning_types = [w.type for w in report.warnings]
         self.assertIn("manually_verified", warning_types)
+
+    def test_report_str_indentation(self):
+        """ConsistencyReport.__str__ produces clean, hierarchical indentation."""
+        from parseltongue.core.engine import (
+            ConsistencyIssue,
+            ConsistencyReport,
+            ConsistencyWarning,
+            DiffResult,
+        )
+
+        # DiffResult with divergences
+        diff = DiffResult(
+            name="d1",
+            replace="a",
+            with_="b",
+            value_a=10,
+            value_b=20,
+            divergences={"t1": [11, 21]},
+        )
+        # DiffResult with value divergence only
+        vdiff = DiffResult(
+            name="d2",
+            replace="x",
+            with_="y",
+            value_a=5,
+            value_b=9,
+        )
+
+        report = ConsistencyReport(
+            consistent=False,
+            issues=[
+                ConsistencyIssue("potential_fabrication", ["bad-thm"]),
+                ConsistencyIssue("diff_divergence", [diff]),
+                ConsistencyIssue("diff_value_divergence", [vdiff]),
+            ],
+            warnings=[ConsistencyWarning("manually_verified", ["m1"])],
+        )
+        text = str(report)
+        lines = text.splitlines()
+
+        # Header
+        self.assertEqual(lines[0], "System inconsistent: 3 issue(s)")
+        # Each issue block starts with 2-space indent label
+        self.assertEqual(lines[1], "  Potential fabrication:")
+        self.assertEqual(lines[2], "    bad-thm")
+        self.assertEqual(lines[3], "  Diff divergence:")
+        self.assertEqual(lines[4], "    d1: a (10) vs b (20)")
+        self.assertEqual(lines[5], "      t1: 11 \u2192 21")
+        self.assertEqual(lines[6], "  Diff value divergence:")
+        self.assertEqual(lines[7], "    d2: x (5) vs y (9) \u2014 values differ")
+        # Warning
+        self.assertEqual(lines[8], "  [warning] Manually verified: m1")
+
+    def test_diff_result_str_flat(self):
+        """DiffResult.__str__ produces flat lines (no indent)."""
+        from parseltongue.core.engine import DiffResult
+
+        diff = DiffResult(
+            name="d1",
+            replace="a",
+            with_="b",
+            value_a=10,
+            value_b=20,
+            divergences={"t1": [11, 21], "t2": [12, 22]},
+        )
+        lines = str(diff).splitlines()
+        self.assertEqual(lines[0], "d1: a (10) vs b (20)")
+        # Divergence lines have no leading spaces
+        for line in lines[1:]:
+            self.assertFalse(line.startswith(" "), f"Unexpected indent: {line!r}")
 
     def test_fix_all_makes_consistent(self):
         s = make_system()

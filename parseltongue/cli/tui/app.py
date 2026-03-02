@@ -73,8 +73,7 @@ class ParseltongueApp(App):
 
             self.push_screen(MainMenu())
         elif self._mode == "history":
-            self._install_history_screens()
-            self._go_to_answer()
+            self._install_history_screens(then_go_to_answer=True)
         else:
             self._start_interactive_pipeline()
 
@@ -183,22 +182,59 @@ class ParseltongueApp(App):
         self.install_screen(SystemStateScreen(result), name="system_state")  # type: ignore[arg-type]
         self.install_screen(ConsistencyScreen(result), name="consistency")  # type: ignore[arg-type]
 
-    def _install_history_screens(self) -> None:
+    def _install_history_screens(self, then_go_to_answer: bool = False) -> None:
         """Install screens from cached history data (no live System)."""
+        data = self._history_data
+        assert data is not None
+
+        hist = _HistoryResult(data)
+
+        # Recompute consistency and compare with cached
+        cached_raw = data.get("consistency", "")
+        if hist.system is not None and cached_raw:
+            import json
+
+            from parseltongue.core.engine import ConsistencyReport
+
+            fresh_report = hist.system.consistency()
+            fresh_text = str(fresh_report)
+
+            # Parse cached — could be JSON (new) or plain text (legacy)
+            cached_dict = None
+            try:
+                cached_dict = json.loads(cached_raw) if isinstance(cached_raw, str) else cached_raw
+                cached_report = ConsistencyReport.from_dict(cached_dict)
+                cached_text = str(cached_report)
+            except (json.JSONDecodeError, KeyError, TypeError):
+                cached_text = str(cached_raw)
+
+            # Compare structured data if available, otherwise strings
+            changed = fresh_report.to_dict() != cached_dict if cached_dict is not None else fresh_text != cached_text
+            if changed:
+                from .screens.consistency_alert import ConsistencyAlert
+
+                def on_alert(use_current: bool) -> None:
+                    if use_current and hist.output is not None:
+                        hist.output.consistency = fresh_report.to_dict()
+                    self._finish_install_history(hist, then_go_to_answer)
+
+                self.push_screen(ConsistencyAlert(cached_text, fresh_text), callback=on_alert)
+                return
+
+        self._finish_install_history(hist, then_go_to_answer)
+
+    def _finish_install_history(self, hist: "_HistoryResult", go_to_answer: bool = False) -> None:
         from .screens.answer import AnswerScreen
         from .screens.consistency import ConsistencyScreen
         from .screens.passes import PassesScreen
         from .screens.system_state import SystemStateScreen
 
-        data = self._history_data
-        assert data is not None
-
-        # Build a minimal result-like object for the screens
-        hist = _HistoryResult(data)
         self.install_screen(AnswerScreen(hist), name="answer")  # type: ignore[arg-type]
         self.install_screen(PassesScreen(hist), name="passes")  # type: ignore[arg-type]
         self.install_screen(SystemStateScreen(hist), name="system_state")  # type: ignore[arg-type]
         self.install_screen(ConsistencyScreen(hist), name="consistency")  # type: ignore[arg-type]
+        if go_to_answer:
+            self.push_screen("answer")
 
     def _go_to_answer(self) -> None:
         from .screens.main_menu import MainMenu
@@ -266,9 +302,7 @@ class ParseltongueApp(App):
                 self.uninstall_screen(name)
 
         self._history_data = data
-        self._install_history_screens()
-        # Push on top of history browser so Escape goes back to it
-        self.push_screen("answer")
+        self._install_history_screens(then_go_to_answer=True)
 
 
 class _HistoryResult:
@@ -344,7 +378,16 @@ class _HistoryOutput:
         import json
 
         self.markdown = data.get("output_md", "")
-        self.consistency = data.get("consistency", "")
+
+        # Consistency: JSON dict (new) or plain text (legacy)
+        raw = data.get("consistency", "")
+        try:
+            from parseltongue.core.engine import ConsistencyReport
+
+            d = json.loads(raw) if isinstance(raw, str) else raw
+            self.consistency = str(ConsistencyReport.from_dict(d))
+        except (json.JSONDecodeError, KeyError, TypeError):
+            self.consistency = str(raw) if raw else ""
 
         refs_raw = data.get("refs", "[]")
         parsed = json.loads(refs_raw) if refs_raw else []

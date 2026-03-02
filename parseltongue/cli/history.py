@@ -125,7 +125,11 @@ def complete_run(run_id: int, result: Any) -> None:
                 result.pass4_raw,
                 str(result.output),
                 refs_json,
-                result.output.consistency,
+                (
+                    json.dumps(result.output.consistency)
+                    if isinstance(result.output.consistency, dict)
+                    else result.output.consistency
+                ),
                 system_json,
                 run_id,
             ),
