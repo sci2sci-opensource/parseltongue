@@ -235,8 +235,7 @@ class TestFacts(unittest.TestCase):
 class TestAxioms(unittest.TestCase):
     def test_introduce_axiom_string_origin(self):
         s = make_system()
-        quiet(s.set_fact, "x", 5, "test")
-        ax = quiet(s.introduce_axiom, "a1", [Symbol(">"), Symbol("x"), 0], "manual")
+        ax = quiet(s.introduce_axiom, "a1", [Symbol(">"), Symbol("?x"), 0], "manual")
         self.assertEqual(ax.name, "a1")
         self.assertEqual(ax.origin, "manual")
         self.assertIn("a1", s.axioms)
@@ -244,25 +243,23 @@ class TestAxioms(unittest.TestCase):
     def test_introduce_axiom_evidence_origin(self):
         s = make_system()
         quiet(s.register_document, "Doc", SAMPLE_DOC)
-        quiet(s.set_fact, "rev", 15.0, "test")
         ev = Evidence(document="Doc", quotes=["Q3 revenue was $15M"])
-        ax = quiet(s.introduce_axiom, "a2", [Symbol(">"), Symbol("rev"), 0], ev)
+        ax = quiet(s.introduce_axiom, "a2", [Symbol(">"), Symbol("?r"), 0], ev)
         self.assertIsInstance(ax.origin, Evidence)
 
     def test_unknown_symbol_in_wff(self):
         s = make_system()
+        # ?x is a valid pattern variable, but 'unknown' is not defined in the system.
         with self.assertRaises(NameError):
-            quiet(s.introduce_axiom, "bad", [Symbol(">"), Symbol("unknown"), 0], "test")
+            quiet(s.introduce_axiom, "bad", [Symbol(">"), Symbol("?x"), Symbol("unknown")], "test")
 
     def test_axiom_with_if_in_wff(self):
         """Axioms can use special forms like 'if' in their WFF."""
         s = make_system()
-        quiet(s.set_fact, "x", 5, "test")
-        quiet(s.set_fact, "y", 10, "test")
         ax = quiet(
             s.introduce_axiom,
             "a3",
-            [Symbol("="), [Symbol("if"), [Symbol(">"), Symbol("x"), 0], Symbol("y"), 0], Symbol("y")],
+            [Symbol("="), [Symbol("if"), [Symbol(">"), Symbol("?x"), 0], Symbol("?y"), 0], Symbol("?y")],
             "test",
         )
         self.assertIn("a3", s.axioms)
@@ -270,14 +267,21 @@ class TestAxioms(unittest.TestCase):
     def test_axiom_with_let_in_wff(self):
         """Axioms can use 'let' in their WFF."""
         s = make_system()
-        quiet(s.set_fact, "x", 5, "test")
         ax = quiet(
             s.introduce_axiom,
             "a4",
-            [Symbol("="), [Symbol("let"), [[Symbol("z"), Symbol("x")]], [Symbol("+"), Symbol("z"), 1]], 6],
+            [Symbol("="), [Symbol("let"), [[Symbol("z"), Symbol("?x")]], [Symbol("+"), Symbol("z"), 1]], 6],
             "test",
         )
         self.assertIn("a4", s.axioms)
+
+    def test_axiom_rejects_ground_wff(self):
+        """Ground axioms (no ?-variables) must be rejected with ValueError."""
+        s = make_system()
+        quiet(s.set_fact, "x", 5, "test")
+        with self.assertRaises(ValueError) as ctx:
+            quiet(s.introduce_axiom, "bad", [Symbol(">"), Symbol("x"), 0], "test")
+        self.assertIn("no ?-variables", str(ctx.exception))
 
 
 # ==============================================================
@@ -345,14 +349,238 @@ class TestDerivation(unittest.TestCase):
         ev = Evidence(document="Doc", quotes=["Nonexistent quote xyz"])
         quiet(s.set_fact, "bad", 999, ev)
         quiet(s.derive, "tainted", [Symbol(">"), Symbol("bad"), 0], ["bad"])
-        # Now derive from tainted
-        thm2 = quiet(s.derive, "double_tainted", [Symbol(">"), Symbol("bad"), 0], ["tainted"])
+        # Now derive from tainted — WFF still references bad so it must be in :using
+        thm2 = quiet(s.derive, "double_tainted", [Symbol(">"), Symbol("bad"), 0], ["tainted", "bad"])
         self.assertIn("potential fabrication", thm2.origin)
 
     def test_derive_unknown_source_raises(self):
         s = make_system()
         with self.assertRaises(ValueError):
             quiet(s.derive, "d", [Symbol(">"), 1, 0], ["nonexistent"])
+
+
+# ==============================================================
+# Restricted vs Unrestricted Derive (strict_derive flag)
+# ==============================================================
+
+
+class TestRestrictedDerive(unittest.TestCase):
+    """Tests that derive enforces :using in strict mode and bypasses in lax mode."""
+
+    def test_strict_rejects_symbol_not_in_using(self):
+        """Strict mode (default): WFF references a fact not listed in :using → NameError."""
+        s = make_system()
+        quiet(s.set_fact, "a", 10, "test")
+        quiet(s.set_fact, "b", 20, "test")
+        # WFF uses both a and b, but :using only lists a
+        with self.assertRaises(NameError):
+            quiet(s.derive, "bad", [Symbol(">"), Symbol("b"), Symbol("a")], ["a"])
+
+    def test_lax_allows_symbol_not_in_using(self):
+        """Lax mode: same derivation passes because global env is used."""
+        s = make_system(strict_derive=False)
+        quiet(s.set_fact, "a", 10, "test")
+        quiet(s.set_fact, "b", 20, "test")
+        thm = quiet(s.derive, "ok", [Symbol(">"), Symbol("b"), Symbol("a")], ["a"])
+        self.assertEqual(thm.origin, "derived")
+
+    def test_strict_rejects_term_not_in_using(self):
+        """Strict mode (default): WFF references a term not in :using → NameError."""
+        s = make_system()
+        quiet(s.set_fact, "x", 5, "test")
+        quiet(s.introduce_term, "double_x", [Symbol("*"), Symbol("x"), 2], "test")
+        # double_x is defined but not in :using
+        with self.assertRaises(NameError):
+            quiet(s.derive, "bad", [Symbol(">"), Symbol("double_x"), 0], ["x"])
+
+    def test_strict_allows_term_in_using(self):
+        """Strict mode (default): term listed in :using resolves fine."""
+        s = make_system()
+        quiet(s.set_fact, "x", 5, "test")
+        quiet(s.introduce_term, "double_x", [Symbol("*"), Symbol("x"), 2], "test")
+        thm = quiet(s.derive, "ok", [Symbol(">"), Symbol("double_x"), 0], ["x", "double_x"])
+        self.assertEqual(thm.origin, "derived")
+
+    def test_strict_scopes_axiom_rewrite(self):
+        """Strict mode (default): axiom rewrite rules only apply if axiom is in :using."""
+        s = make_system()
+        quiet(s.set_fact, "p", 3, "test")
+        quiet(s.set_fact, "q", 4, "test")
+        quiet(
+            s.introduce_axiom,
+            "comm",
+            [EQ, [Symbol("+"), Symbol("?a"), Symbol("?b")], [Symbol("+"), Symbol("?b"), Symbol("?a")]],
+            "test",
+        )
+        # Derive using the axiom — should work
+        thm = quiet(
+            s.derive,
+            "ok",
+            [EQ, [Symbol("+"), Symbol("p"), Symbol("q")], [Symbol("+"), Symbol("q"), Symbol("p")]],
+            ["p", "q", "comm"],
+        )
+        self.assertEqual(thm.origin, "derived")
+
+    def test_strict_rejects_axiom_not_in_using(self):
+        """Strict mode: axiom not in :using — rewrite doesn't fire."""
+        s = make_system()
+        quiet(s.introduce_term, "plus", None, "test")
+        quiet(s.set_fact, "a", 3, "test")
+        quiet(s.set_fact, "b", 4, "test")
+        quiet(
+            s.introduce_axiom,
+            "comm",
+            [EQ, [Symbol("plus"), Symbol("?a"), Symbol("?b")], [Symbol("plus"), Symbol("?b"), Symbol("?a")]],
+            "test",
+        )
+        # comm exists but not in :using — rewrite can't prove this
+        thm = quiet(
+            s.derive,
+            "no_comm",
+            [EQ, [Symbol("plus"), Symbol("a"), Symbol("b")], [Symbol("plus"), Symbol("b"), Symbol("a")]],
+            ["plus", "a", "b"],
+        )
+        self.assertIn("does not hold", thm.origin)
+
+    def test_strict_axiom_in_using_enables_rewrite(self):
+        """Strict mode: same derivation succeeds when axiom IS in :using."""
+        s = make_system()
+        quiet(s.introduce_term, "plus", None, "test")
+        quiet(s.set_fact, "a", 3, "test")
+        quiet(s.set_fact, "b", 4, "test")
+        quiet(
+            s.introduce_axiom,
+            "comm",
+            [EQ, [Symbol("plus"), Symbol("?a"), Symbol("?b")], [Symbol("plus"), Symbol("?b"), Symbol("?a")]],
+            "test",
+        )
+        # comm in :using — rewrite fires
+        thm = quiet(
+            s.derive,
+            "with_comm",
+            [EQ, [Symbol("plus"), Symbol("a"), Symbol("b")], [Symbol("plus"), Symbol("b"), Symbol("a")]],
+            ["plus", "a", "b", "comm"],
+        )
+        self.assertEqual(thm.origin, "derived")
+
+    def test_lax_ignores_using_for_eval(self):
+        """Lax mode: all system facts/terms available regardless of :using."""
+        s = make_system(strict_derive=False)
+        quiet(s.set_fact, "a", 10, "test")
+        quiet(s.set_fact, "b", 3, "test")
+        quiet(s.set_fact, "c", 7, "test")
+        # WFF uses a, b, c but :using only lists a
+        thm = quiet(
+            s.derive,
+            "lax_ok",
+            [Symbol("="), Symbol("a"), [Symbol("+"), Symbol("b"), Symbol("c")]],
+            ["a"],
+        )
+        self.assertEqual(thm.origin, "derived")
+
+    def test_strict_default(self):
+        """System defaults to strict_derive=True."""
+        s = make_system()
+        self.assertTrue(s.strict_derive)
+
+
+# ==============================================================
+# Transitive :using expansion
+# ==============================================================
+
+
+class TestTransitiveUsing(unittest.TestCase):
+    """Tests that :using transitively pulls in dependencies from axioms and terms."""
+
+    def test_axiom_deps_are_transparent(self):
+        """Axiom references 'plus' — derive only lists axiom, plus is auto-included."""
+        s = make_system()
+        quiet(s.introduce_term, "plus", None, "test")
+        quiet(s.set_fact, "a", 3, "test")
+        quiet(s.set_fact, "b", 4, "test")
+        quiet(
+            s.introduce_axiom,
+            "comm",
+            [EQ, [Symbol("plus"), Symbol("?x"), Symbol("?y")], [Symbol("plus"), Symbol("?y"), Symbol("?x")]],
+            "test",
+        )
+        # :using only lists comm, a, b — plus is pulled in from comm's WFF
+        thm = quiet(
+            s.derive,
+            "ok",
+            [EQ, [Symbol("plus"), Symbol("a"), Symbol("b")], [Symbol("plus"), Symbol("b"), Symbol("a")]],
+            ["comm", "a", "b"],
+        )
+        self.assertEqual(thm.origin, "derived")
+
+    def test_term_deps_are_transparent(self):
+        """Term 'total' depends on facts x, y — derive only lists total."""
+        s = make_system()
+        quiet(s.set_fact, "x", 5, "test")
+        quiet(s.set_fact, "y", 3, "test")
+        quiet(s.introduce_term, "total", [Symbol("+"), Symbol("x"), Symbol("y")], "test")
+        # :using only lists total — x and y are pulled in from total's definition
+        thm = quiet(
+            s.derive,
+            "ok",
+            [Symbol(">"), Symbol("total"), 0],
+            ["total"],
+        )
+        self.assertEqual(thm.origin, "derived")
+
+    def test_chain_expansion(self):
+        """term A depends on term B which depends on fact c — all resolved."""
+        s = make_system()
+        quiet(s.set_fact, "c", 10, "test")
+        quiet(s.introduce_term, "doubled", [Symbol("*"), Symbol("c"), 2], "test")
+        quiet(s.introduce_term, "final", [Symbol("+"), Symbol("doubled"), 1], "test")
+        # :using only lists final — doubled and c are pulled in transitively
+        thm = quiet(
+            s.derive,
+            "ok",
+            [Symbol(">"), Symbol("final"), 0],
+            ["final"],
+        )
+        self.assertEqual(thm.origin, "derived")
+
+    def test_axiom_brings_in_its_terms(self):
+        """Axiom WFF references a term — that term and its deps are included."""
+        s = make_system()
+        quiet(s.introduce_term, "f", None, "test")
+        quiet(s.set_fact, "n", 5, "test")
+        quiet(
+            s.introduce_axiom,
+            "f-def",
+            [EQ, [Symbol("f"), Symbol("?x")], [Symbol("*"), Symbol("?x"), 2]],
+            "test",
+        )
+        # :using lists f-def and n — f is pulled in from f-def's WFF
+        thm = quiet(
+            s.derive,
+            "ok",
+            [EQ, [Symbol("f"), Symbol("n")], 10],
+            ["f-def", "n"],
+        )
+        self.assertEqual(thm.origin, "derived")
+
+    def test_unknown_deps_are_ignored(self):
+        """Symbols in axiom WFF that aren't in the system (operators like +) don't cause errors."""
+        s = make_system()
+        quiet(s.set_fact, "x", 7, "test")
+        quiet(
+            s.introduce_axiom,
+            "pos",
+            [Symbol(">"), Symbol("?v"), 0],
+            "test",
+        )
+        # + and > are operators, not facts/terms — they're already callable in env
+        thm = quiet(
+            s.derive,
+            "ok",
+            [Symbol(">"), Symbol("x"), 0],
+            ["pos", "x"],
+        )
+        self.assertEqual(thm.origin, "derived")
 
 
 # ==============================================================
@@ -393,8 +621,7 @@ class TestVerification(unittest.TestCase):
 
     def test_verify_manual_on_axiom(self):
         s = make_system()
-        quiet(s.set_fact, "x", 5, "test")
-        quiet(s.introduce_axiom, "a1", [Symbol(">"), Symbol("x"), 0], "string origin")
+        quiet(s.introduce_axiom, "a1", [Symbol(">"), Symbol("?x"), 0], "string origin")
         quiet(s.verify_manual, "a1")
         self.assertIsInstance(s.axioms["a1"].origin, Evidence)
         self.assertTrue(s.axioms["a1"].origin.is_grounded)
@@ -453,8 +680,7 @@ class TestRetract(unittest.TestCase):
 
     def test_retract_axiom(self):
         s = make_system()
-        quiet(s.set_fact, "x", 5, "test")
-        quiet(s.introduce_axiom, "a1", [Symbol(">"), Symbol("x"), 0], "test")
+        quiet(s.introduce_axiom, "a1", [Symbol(">"), Symbol("?x"), 0], "test")
         quiet(s.retract, "a1")
         self.assertNotIn("a1", s.axioms)
 
@@ -497,8 +723,7 @@ class TestRederive(unittest.TestCase):
 
     def test_rederive_non_derived_raises(self):
         s = make_system()
-        quiet(s.set_fact, "x", 5, "test")
-        quiet(s.introduce_axiom, "a1", [Symbol(">"), Symbol("x"), 0], "test")
+        quiet(s.introduce_axiom, "a1", [Symbol(">"), Symbol("?x"), 0], "test")
         with self.assertRaises(KeyError):
             quiet(s.rederive, "a1")
 

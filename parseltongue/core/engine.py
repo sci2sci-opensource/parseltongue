@@ -50,7 +50,7 @@ Building a System — Step by Step
           :quotes ("Bonus is 20% of base salary if growth target is exceeded")
           :explanation "Bonus calculation formula"))
 
-  axiom — well-formed formula (may use ?-variables for parameterisation)::
+  axiom — parametric rewrite rule (MUST have ?-variables)::
 
     (axiom add-commutative (= (+ ?a ?b) (+ ?b ?a))
         :evidence (evidence "Counting Observations"
@@ -59,15 +59,16 @@ Building a System — Step by Step
 
   derive — theorem from existing statements; use :bind to instantiate::
 
-    ;; Direct derivation
+    ;; Direct derivation — :using lists all referenced symbols
     (derive target-exceeded
         (> revenue-q3-growth growth-target)
         :using (revenue-q3-growth growth-target))
 
     ;; Instantiate a parameterised axiom via :bind
+    ;; :using must include the axiom AND any symbols from :bind values
     (derive morning-commutes add-commutative
         :bind ((?a eve-morning) (?b adam-morning))
-        :using (add-commutative))
+        :using (add-commutative eve-morning adam-morning))
 
   diff — lazy what-if comparison::
 
@@ -100,7 +101,7 @@ import operator
 from dataclasses import dataclass, field
 from typing import Any
 
-from .atoms import Symbol, match, substitute
+from .atoms import Symbol, free_vars, match, substitute
 from .lang import (
     # DSL keywords
     AXIOM,
@@ -520,7 +521,13 @@ def _deserialize_theorem(name: str, d: dict) -> Theorem:
 class System:
     """The Parseltongue formal system. Grows via axiom introduction."""
 
-    def __init__(self, overridable: bool = False, initial_env: dict | None = None, docs: dict | None = None):
+    def __init__(
+        self,
+        overridable: bool = False,
+        initial_env: dict | None = None,
+        docs: dict | None = None,
+        strict_derive: bool = True,
+    ):
         self.axioms: dict[str, Axiom] = {}
         self.theorems: dict[str, Theorem] = {}
         self.terms: dict[str, Term] = {}
@@ -528,6 +535,7 @@ class System:
         self.env: dict = {}
         self.documents: dict[str, str] = {}
         self.overridable = overridable
+        self.strict_derive = strict_derive
         self.diffs: dict[str, dict] = {}  # name -> {replace, with} — evaluated lazily
         self._verifier = QuoteVerifier()
 
@@ -631,9 +639,19 @@ class System:
     # ----------------------------------------------------------
 
     def introduce_axiom(self, name: str, wff, origin: "str | Evidence") -> Axiom:
-        """Introduce a new axiom from evidence. Extends the system."""
+        """Introduce a new axiom from evidence. Extends the system.
+
+        Axioms must contain at least one pattern variable (?-prefixed symbol).
+        Ground statements should use ``fact`` or ``derive`` instead.
+        """
         if isinstance(wff, str):
             wff = parse(wff)
+
+        if not free_vars(wff):
+            raise ValueError(
+                f"Axiom '{name}' has no ?-variables — it is a ground statement. "
+                f"Use (fact ...) for ground values or (derive ...) for provable claims."
+            )
 
         self._check_wff(wff)
         self._check_consistency(wff)
@@ -724,9 +742,86 @@ class System:
 
         return ungrounded
 
+    @staticmethod
+    def _expr_symbols(expr) -> set[str]:
+        """Extract all non-?-prefixed symbol names from an expression."""
+        if isinstance(expr, Symbol) and not str(expr).startswith("?"):
+            return {str(expr)}
+        if isinstance(expr, list):
+            result: set[str] = set()
+            for sub in expr:
+                result |= System._expr_symbols(sub)
+            return result
+        return set()
+
+    def _expand_using(self, using: list[str]) -> list[str]:
+        """Transitively expand :using by pulling in symbols referenced by axioms/terms."""
+        resolved: set[str] = set()
+        pending = set(using)
+        while pending:
+            name = pending.pop()
+            if name in resolved:
+                continue
+            resolved.add(name)
+            # Collect symbols from axiom/theorem WFFs
+            if name in self.axioms:
+                deps = self._expr_symbols(self.axioms[name].wff)
+                pending |= deps - resolved
+            if name in self.theorems:
+                deps = self._expr_symbols(self.theorems[name].wff)
+                pending |= deps - resolved
+            # Collect symbols from term definitions
+            if name in self.terms and self.terms[name].definition is not None:
+                deps = self._expr_symbols(self.terms[name].definition)
+                pending |= deps - resolved
+        return list(resolved)
+
+    def _build_restricted_env(self, using: list[str]) -> dict:
+        """Build an evaluation environment restricted to :using sources.
+
+        Transitively expands :using — symbols referenced in axiom WFFs
+        and term definitions are automatically included.
+        """
+        expanded = self._expand_using(using)
+        log.debug("_build_restricted_env: %r expanded to %r", using, expanded)
+        env: dict = {}
+        # Include callable operators (arithmetic, comparison, logic)
+        for sym, val in self.env.items():
+            if callable(val):
+                env[sym] = val
+        for src_name in expanded:
+            if src_name in self.facts:
+                data = self.facts[src_name]
+                val = data.get("value", data) if isinstance(data, dict) else data
+                env[Symbol(src_name)] = val
+            elif src_name in self.terms:
+                term = self.terms[src_name]
+                if term.definition is not None:
+                    try:
+                        env[Symbol(src_name)] = self.evaluate(term.definition)
+                    except (NameError, TypeError):
+                        env[Symbol(src_name)] = Symbol(src_name)
+                else:
+                    # Forward-declared: resolve to own symbol for rewriting
+                    env[Symbol(src_name)] = Symbol(src_name)
+        return env
+
+    def _collect_using_rules(self, using: list[str]) -> list[Axiom | Theorem]:
+        """Collect axiom/theorem objects from :using (expanded transitively)."""
+        expanded = self._expand_using(using)
+        rules: list[Axiom | Theorem] = []
+        for src_name in expanded:
+            if src_name in self.axioms:
+                rules.append(self.axioms[src_name])
+            if src_name in self.theorems:
+                rules.append(self.theorems[src_name])
+        return rules
+
     def derive(self, name: str, wff, using: list[str]) -> Theorem:
         """Derive a theorem from existing axioms/terms.
 
+        Evaluation is restricted to facts/terms listed in :using.
+        Axiom rewrite rules are scoped to axioms/theorems in :using.
         If any source has unverified evidence, the theorem is
         marked as 'potential fabrication' with a trace to the unverified sources.
         """
@@ -742,8 +837,17 @@ class System:
             ):
                 raise ValueError(f"Unknown axiom, fact, term, or theorem: {ax_name}")
 
-        result = self.evaluate(wff)
-        does_not_hold = result is False
+        # Evaluate: restricted (strict) or global (legacy) mode
+        if self.strict_derive:
+            restricted_env = self._build_restricted_env(using)
+            axiom_scope = self._collect_using_rules(using)
+            try:
+                result = self._eval(wff, restricted_env, axiom_scope=axiom_scope, restricted=True)
+            except NameError as e:
+                raise NameError(f"Derivation '{name}' references symbols not in :using: {e}") from e
+        else:
+            result = self.evaluate(wff)
+        does_not_hold = result is False or result is None
 
         if does_not_hold:
             log.warning("Derivation '%s' does not hold: %s evaluated to False", name, to_sexp(wff))
@@ -779,49 +883,72 @@ class System:
         env = {**self.env, **(local_env or {})}
         return self._eval(expr, env)
 
-    def _rewrite(self, expr, depth=0):
+    def _eval_rewritten(self, expr, env, axiom_scope, restricted):
+        """Rewrite an expression then re-evaluate the result."""
+        rewritten = self._rewrite(expr, axiom_scope=axiom_scope)
+        if rewritten != expr and isinstance(rewritten, list):
+            return self._eval(rewritten, env, axiom_scope, restricted)
+        return rewritten
+
+    def _rewrite(self, expr, depth=0, axiom_scope=None, _prev=None):
         """Reduce an expression by applying axioms as rewrite rules.
 
         Axioms of the form (= LHS RHS) are used left-to-right:
         if expr matches LHS, substitute to get RHS.
+
+        When *axiom_scope* is provided, only those rules are tried;
+        otherwise all axioms and theorems in the system are used.
         """
+        log.debug("_rewrite depth=%d expr=%r", depth, expr)
         if depth > 100:
             return expr
         if not isinstance(expr, list):
             return expr
 
         # Reduce subexpressions first (innermost-first)
-        expr = [self._rewrite(sub, depth + 1) for sub in expr]
+        expr = [self._rewrite(sub, depth + 1, axiom_scope) for sub in expr]
 
         # Try axioms and theorems as rewrite rules
-        for rule in list(self.axioms.values()) + list(self.theorems.values()):
+        if axiom_scope is not None:
+            rules = axiom_scope
+        else:
+            rules = list(self.axioms.values()) + list(self.theorems.values())
+        for rule in rules:
             wff = rule.wff
             if not (isinstance(wff, list) and len(wff) == 3 and wff[0] == EQ):
                 continue
             lhs, rhs = wff[1], wff[2]
             if not isinstance(lhs, list):
                 continue
-            # Skip symmetric rules (all args are bare ?-vars → would loop)
-            if all(isinstance(a, Symbol) and str(a).startswith("?") for a in lhs[1:]):
-                continue
             bindings = match(lhs, expr)
             if bindings is not None:
                 result = substitute(rhs, bindings)
-                return self._rewrite(result, depth + 1)
+                if result == expr or result == _prev:
+                    continue  # 1-cycle or 2-cycle — skip
+                log.debug("_rewrite rule %s: %r -> %r", rule.name, expr, result)
+                return self._rewrite(result, depth + 1, axiom_scope, _prev=expr)
 
         return expr
 
-    def _eval(self, expr, env) -> Any:
+    def _eval(self, expr, env, axiom_scope=None, restricted=False) -> Any:
+        log.debug("_eval expr=%r restricted=%s", expr, restricted)
         if isinstance(expr, Symbol):
             if expr in env:
-                return env[expr]
+                val = env[expr]
+                log.debug("_eval symbol %r -> %r", expr, val)
+                return val
             name = str(expr)
-            if name in self.terms:
+            # In restricted mode, symbols must be in env — no global fallthrough
+            if not restricted and name in self.terms:
                 defn = self.terms[name].definition
                 if defn is not None:
-                    return self._eval(defn, env)
+                    return self._eval(defn, env, axiom_scope, restricted)
                 return expr  # forward-declared / primitive term
-            raise NameError(f"Unresolved symbol: {expr} — not in current system")
+            raise NameError(
+                f"Unresolved symbol: {expr} — not in :using"
+                if restricted
+                else f"Unresolved symbol: {expr} — not in current system"
+            )
         if not isinstance(expr, list):
             return expr
 
@@ -832,28 +959,49 @@ class System:
 
         if head == IF:
             _, cond, then, else_ = expr
-            return self._eval(then, env) if self._eval(cond, env) else self._eval(else_, env)
+            return (
+                self._eval(then, env, axiom_scope, restricted)
+                if self._eval(cond, env, axiom_scope, restricted)
+                else self._eval(else_, env, axiom_scope, restricted)
+            )
 
         if head == LET:
             _, bindings, body = expr
             new_env = env.copy()
             for binding in bindings:
-                new_env[binding[0]] = self._eval(binding[1], new_env)
-            return self._eval(body, new_env)
+                new_env[binding[0]] = self._eval(binding[1], new_env, axiom_scope, restricted)
+            return self._eval(body, new_env, axiom_scope, restricted)
 
-        head_val = self._eval(head, env)
-        args = [self._eval(arg, env) for arg in expr[1:]]
+        head_val = self._eval(head, env, axiom_scope, restricted)
+        args = [self._eval(arg, env, axiom_scope, restricted) for arg in expr[1:]]
+        log.debug("_eval head_val=%r callable=%s args=%r", head_val, callable(head_val), args)
 
         if callable(head_val):
-            return head_val(*args)
+            result = head_val(*args)
+            log.debug("_eval callable result=%r", result)
+            # For equality: if direct comparison fails on formal (list) args,
+            # try axiom rewriting — e.g. commutativity can't be checked structurally
+            if result is False and head == EQ and any(isinstance(a, list) for a in args):
+                left_rw = self._rewrite(args[0], axiom_scope=axiom_scope)
+                right_rw = self._rewrite(args[1], axiom_scope=axiom_scope)
+                log.debug("_eval EQ rewrite fallback: left_rw=%r right_rw=%r args=%r", left_rw, right_rw, args)
+                if left_rw == right_rw or left_rw == args[1] or right_rw == args[0]:
+                    return True
+            return result
 
-        # Formal: use axiom rewriting
+        # Formal: rewrite then re-evaluate if the head becomes callable
         formal_expr = [head_val] + args
-        if head_val == EQ:
-            left = self._rewrite(args[0])
-            right = self._rewrite(args[1])
-            return left == right
-        return self._rewrite(formal_expr)
+        rewritten = self._rewrite(formal_expr, axiom_scope=axiom_scope)
+        if rewritten != formal_expr and isinstance(rewritten, list) and rewritten:
+            new_head = rewritten[0]
+            # Resolve head symbol if needed
+            if isinstance(new_head, Symbol) and new_head in env:
+                new_head = env[new_head]
+            if callable(new_head):
+                log.debug("_eval formal rewrite %r -> %r, re-evaluating", formal_expr, rewritten)
+                return self._eval(rewritten, env, axiom_scope, restricted)
+        log.debug("_eval formal result=%r", rewritten)
+        return rewritten
 
     # ----------------------------------------------------------
     # Validation

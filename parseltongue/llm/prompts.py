@@ -67,7 +67,7 @@ EXTRACTION EXAMPLES:
              "Eligibility requires that the quarterly revenue growth exceeds the stated annual growth target")
     :explanation "Bonus calculation formula and eligibility"))
 
-;; Parameterised axiom with ?-variables
+;; Parametric rewrite rule with ?-variables (REQUIRED for axioms)
 (axiom add-commutative (= (+ ?a ?b) (+ ?b ?a))
   :evidence (evidence "Counting Observations"
     :quotes ("The order of combining does not matter")
@@ -80,7 +80,8 @@ RULES:
 4. Choose descriptive hyphenated names (e.g., revenue-q3, calprotectin-sensitivity).
 5. Extract ALL facts relevant to answering the user's query.
 6. Every symbol in a WFF MUST already be defined (as a fact, term, or operator) UNLESS it is a ?-variable (e.g., ?a, ?n). You cannot reference names that don't exist yet. Define facts and terms BEFORE axioms that use them.
-7. Axioms with concrete symbols (not ?-variables) are assertions about existing definitions. Use ?-variables for general/parameterised axioms. Do NOT invent new symbol names inside axiom WFFs — only reference what you have already defined above."""
+7. Axioms MUST contain at least one ?-variable — they are parametric rewrite rules. Ground statements like (> revenue 0) are NOT axioms; use (derive ...) for provable claims. Do NOT create axioms without ?-variables.
+8. Do NOT invent new symbol names inside axiom WFFs — only reference what you have already defined above, plus ?-variables for parameterisation."""
 
     user_prompt = f"""Source documents:
 
@@ -120,14 +121,15 @@ DERIVATION EXAMPLES:
   :using (revenue-q3-growth growth-target))
 
 ;; Instantiate a parameterised axiom via :bind
+;; :using must include the axiom + symbols from :bind values
 (derive three-plus-zero add-identity
   :bind ((?n (succ (succ (succ zero)))))
-  :using (add-identity))
+  :using (add-identity succ zero))
 
 ;; Multi-variable :bind
 (derive morning-commutes add-commutative
   :bind ((?a eve-morning) (?b adam-morning))
-  :using (add-commutative)
+  :using (add-commutative eve-morning adam-morning)
   :evidence (evidence "Eden Inventory"
     :quotes ("Combined morning harvest was 8 apples")
     :explanation "eve + adam = adam + eve"))
@@ -162,7 +164,12 @@ There are exactly TWO forms of (derive ...):
 
 WHEN TO USE WHICH FORM:
 - Axiom has ?-variables (e.g., ?a, ?b, ?n) → Use form 2 with :bind providing concrete values for EACH ?-variable.
-- Axiom has NO ?-variables (concrete symbols only) → Use form 1. Write a direct WFF that references the concrete facts/terms, NOT the axiom name. Do NOT use :bind.
+- No axiom involved → Use form 1 with a direct WFF referencing facts/terms.
+
+IMPORTANT — :using IS THE DERIVATION SCOPE:
+- Evaluation is RESTRICTED to symbols listed in :using. If a symbol is not in :using (directly or transitively), the derivation will fail.
+- Dependencies expand transitively: if you list an axiom in :using, all symbols in its WFF are automatically available. Same for terms — their definition's dependencies are pulled in.
+- You still need to list the DIRECT symbols your WFF references. Transitive expansion only follows axiom/term definitions.
 
 CRITICAL MISTAKES TO AVOID:
 - WRONG: (derive foo my-axiom :using (my-axiom ...))  ← axiom name as WFF
@@ -253,7 +260,9 @@ RULES:
 2. Every symbol you reference MUST exist in the current system state OR be defined above it in your output.
 3. EVERY new fact, axiom, and defterm MUST include :evidence with verbatim :quotes from the source documents.
 4. EVERY verification angle MUST end with a (diff ...). No angle is complete without a diff.
-5. Keep it focused — 2 to 4 meaningful diffs, not 10."""
+5. Keep it focused — 2 to 4 meaningful diffs, not 10.
+6. Axioms MUST have ?-variables (parametric rewrite rules). For ground checks use (derive ...) instead.
+7. Derive :using is restricted — list all symbols the WFF references. Dependencies of axioms/terms in :using are included automatically."""
 
     user_prompt = f"""Fully evaluated system state:
 

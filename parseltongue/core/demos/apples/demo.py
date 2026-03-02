@@ -150,7 +150,7 @@ def main():
         """
         (derive three-plus-zero add-identity
             :bind ((?n (succ (succ (succ zero)))))
-            :using (add-identity))
+            :using (add-identity succ))
     """,
     )
 
@@ -161,7 +161,7 @@ def main():
         (derive commute-3-2 add-commutative
             :bind ((?a (succ (succ (succ zero))))
                    (?b (succ (succ zero))))
-            :using (add-commutative))
+            :using (add-commutative succ zero))
     """,
     )
 
@@ -172,7 +172,7 @@ def main():
         (derive add-step-3-1 add-succ
             :bind ((?n (succ (succ (succ zero))))
                    (?m zero))
-            :using (add-succ))
+            :using (add-succ zero))
     """,
     )
 
@@ -224,7 +224,7 @@ def main():
         """
         (derive morning-commutes add-commutative
             :bind ((?a eve-morning) (?b adam-morning))
-            :using (add-commutative)
+            :using (add-commutative eve-morning adam-morning)
             :evidence (evidence "Eden Inventory"
               :quotes ("Combined morning harvest was 8 apples")
               :explanation "eve + adam = adam + eve"))

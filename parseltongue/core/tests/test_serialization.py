@@ -80,14 +80,14 @@ class TestBasicRoundtrip(unittest.TestCase):
             s,
             """
             (fact revenue 15 :origin "test")
-            (axiom positive-rev (> revenue 0) :origin "test")
+            (axiom positive-rev (> ?x 0) :origin "test")
         """,
         )
         s2 = roundtrip(s)
         self.assertIn("positive-rev", s2.axioms)
         self.assertEqual(
             to_sexp(s2.axioms["positive-rev"].wff),
-            "(> revenue 0)",
+            "(> ?x 0)",
         )
 
     def test_theorems_preserved(self):
@@ -97,14 +97,12 @@ class TestBasicRoundtrip(unittest.TestCase):
             s,
             """
             (fact x 5 :origin "test")
-            (axiom ax1 (> x 0) :origin "test")
-            (axiom ax2 (< x 100) :origin "test")
-            (derive bounded (and (> x 0) (< x 100)) :using (ax1 ax2))
+            (derive bounded (and (> x 0) (< x 100)) :using (x))
         """,
         )
         s2 = roundtrip(s)
         self.assertIn("bounded", s2.theorems)
-        self.assertEqual(s2.theorems["bounded"].derivation, ["ax1", "ax2"])
+        self.assertEqual(s2.theorems["bounded"].derivation, ["x"])
 
     def test_diffs_preserved(self):
         s = make_system()
@@ -166,7 +164,7 @@ class TestEvidenceSerialization(unittest.TestCase):
             s,
             """
             (fact margin 22 :origin "test")
-            (axiom positive-margin (> margin 0)
+            (axiom positive-margin (> ?m 0)
               :evidence (evidence "report"
                 :quotes ("Margin improved to 22%")
                 :explanation "margin positive"))
@@ -280,18 +278,18 @@ class TestEnvRebuild(unittest.TestCase):
         self.assertEqual(s2.env[Symbol("z")], 30)
 
     def test_axiom_definition_in_env(self):
-        """Axiom of form (= symbol expr) populates env."""
+        """Term definition populates env after round-trip."""
         s = make_system()
         quiet(
             load_source,
             s,
             """
             (fact a 3 :origin "test")
-            (axiom def-b (= b (+ a 7)) :origin "test")
+            (defterm b (+ a 7) :origin "test")
         """,
         )
         s2 = roundtrip(s)
-        self.assertEqual(s2.env.get(Symbol("b")), 10)
+        self.assertEqual(s2.env[Symbol("b")], 10)
 
     def test_forward_declared_term_not_in_env(self):
         """Term with no definition should not crash env rebuild."""

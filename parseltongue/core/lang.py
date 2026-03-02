@@ -15,7 +15,7 @@ Every Parseltongue statement is an s-expression directive:
 Directives:
 
   fact     — Ground truth value with evidence.
-  axiom    — Well-formed formula (may contain ?-variables for parameterisation).
+  axiom    — Parametric rewrite rule (must contain ?-variables).
   defterm  — Named term/concept (may be a forward declaration, computed
              expression, or conditional).
   derive   — Theorem derived from existing axioms/facts/terms. Use :bind
@@ -116,14 +116,16 @@ LANG_DOCS = {
     # ----------------------------------------------------------
     AXIOM: {
         "category": "directive",
-        "description": "Introduce a well-formed formula as an axiom.  "
-        "Axioms may contain ?-variables making them "
-        "parameterised templates that are instantiated "
-        "later via :bind in a derive directive.",
-        "example": '(axiom a1 (> x 0) :origin "manual")',
+        "description": "Introduce a parametric rewrite rule as an axiom.  "
+        "Axioms MUST contain at least one ?-variable — "
+        "ground statements (no ?-variables) are rejected; "
+        "use (fact ...) for values or (derive ...) for "
+        "provable claims.  Axioms are instantiated later "
+        "via :bind in a derive directive.",
+        "example": '(axiom pos-rule (> ?x 0) :origin "manual")',
         "patterns": [
-            # Simple axiom with :origin
-            '(axiom a1 (> x 0) :origin "manual")',
+            # Simple parametric axiom with :origin
+            '(axiom pos-rule (> ?x 0) :origin "manual")',
             # Parameterised axiom with structured evidence (apples demo)
             "(axiom add-identity (= (+ ?n zero) ?n)\n"
             '    :evidence (evidence "Counting Observations"\n'
@@ -204,10 +206,12 @@ LANG_DOCS = {
     DERIVE: {
         "category": "directive",
         "description": "Derive a theorem from existing axioms, facts, or "
-        "terms listed in :using.  Two modes:\n"
+        "terms listed in :using.  Evaluation is restricted to "
+        ":using sources; dependencies of axioms and terms are "
+        "expanded transitively.  Two modes:\n"
         "  1. Direct — provide the WFF to prove.\n"
-        "  2. Instantiation — name a parameterised axiom/term "
-        "and supply :bind to substitute ?-variables.\n"
+        "  2. Instantiation — name a parameterised axiom and "
+        "supply :bind to substitute ?-variables.\n"
         "If any source has unverified evidence, the theorem is "
         'marked as a "potential fabrication".',
         "example": "(derive d1 (> x 0) :using (x))",
@@ -217,13 +221,14 @@ LANG_DOCS = {
             "    (> revenue-q3-growth growth-target)\n"
             "    :using (revenue-q3-growth growth-target))",
             # Instantiation via :bind — single variable (apples demo)
+            # :using must include axiom + symbols from :bind values
             "(derive three-plus-zero add-identity\n"
             "    :bind ((?n (succ (succ (succ zero)))))\n"
-            "    :using (add-identity))",
+            "    :using (add-identity succ zero))",
             # Instantiation via :bind — multiple variables (apples demo)
             "(derive morning-commutes add-commutative\n"
             "    :bind ((?a eve-morning) (?b adam-morning))\n"
-            "    :using (add-commutative)\n"
+            "    :using (add-commutative eve-morning adam-morning)\n"
             '    :evidence (evidence "Eden Inventory"\n'
             '      :quotes ("Combined morning harvest was 8 apples")\n'
             '      :explanation "eve + adam = adam + eve"))',
@@ -300,9 +305,11 @@ LANG_DOCS = {
         "category": "keyword",
         "description": "List of source names (axioms, facts, terms, or "
         "theorems) that a derivation depends on.  Required "
-        "in derive directives.  If any source has unverified "
-        "evidence, the derived theorem inherits a fabrication "
-        "taint.",
+        "in derive directives.  Dependencies are expanded "
+        "transitively — symbols referenced in axiom WFFs "
+        "and term definitions are automatically included.  "
+        "If any source has unverified evidence, the derived "
+        "theorem inherits a fabrication taint.",
         "example": ":using (revenue-q3-growth growth-target)",
     },
     KW_REPLACE: {

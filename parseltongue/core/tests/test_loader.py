@@ -111,27 +111,24 @@ class TestFactDirective(unittest.TestCase):
 class TestAxiomDirective(unittest.TestCase):
     def test_axiom(self):
         s = make_system()
-        quiet(s.set_fact, "x", 5, "test")
-        quiet(load_source, s, '(axiom a1 (> x 0) :origin "test")')
+        quiet(load_source, s, '(axiom a1 (> ?x 0) :origin "test")')
         self.assertIn("a1", s.axioms)
 
     def test_axiom_stores_wff(self):
         s = make_system()
-        quiet(s.set_fact, "x", 5, "test")
-        quiet(load_source, s, '(axiom a1 (> x 0) :origin "test")')
+        quiet(load_source, s, '(axiom a1 (> ?x 0) :origin "test")')
         ax = s.axioms["a1"]
-        self.assertEqual(ax.wff, [Symbol(">"), Symbol("x"), 0])
+        self.assertEqual(ax.wff, [Symbol(">"), Symbol("?x"), 0])
         self.assertEqual(ax.origin, "test")
 
     def test_axiom_with_evidence(self):
         s = make_system()
         quiet(s.register_document, "Doc", SAMPLE_DOC)
-        quiet(s.set_fact, "x", 5, "test")
         quiet(
             load_source,
             s,
             """
-            (axiom a2 (> x 0)
+            (axiom a2 (> ?x 0)
               :evidence (evidence "Doc"
                 :quotes ("Revenue growth target for FY2024: 10%")
                 :explanation "test"))
@@ -141,15 +138,12 @@ class TestAxiomDirective(unittest.TestCase):
 
     def test_axiom_compound_wff(self):
         s = make_system()
-        quiet(s.set_fact, "a", 5, "test")
-        quiet(s.set_fact, "b", 3, "test")
-        quiet(load_source, s, '(axiom a1 (= (+ a b) 8) :origin "test")')
+        quiet(load_source, s, '(axiom a1 (= (+ ?a ?b) (+ ?b ?a)) :origin "test")')
         self.assertIn("a1", s.axioms)
 
     def test_axiom_default_origin(self):
         s = make_system()
-        quiet(s.set_fact, "x", 5, "test")
-        quiet(load_source, s, "(axiom a1 (> x 0))")
+        quiet(load_source, s, "(axiom a1 (> ?x 0))")
         self.assertEqual(s.axioms["a1"].origin, "unknown")
 
 
@@ -243,9 +237,9 @@ class TestDeriveDirective(unittest.TestCase):
         s = make_system()
         quiet(s.set_fact, "x", 10, "test")
         quiet(s.verify_manual, "x")
-        quiet(s.introduce_axiom, "ax1", [Symbol(">"), Symbol("x"), 0], "test")
+        quiet(s.introduce_axiom, "ax1", [Symbol(">"), Symbol("?v"), 0], "test")
         quiet(s.verify_manual, "ax1")
-        quiet(load_source, s, "(derive d1 (> x 0) :using (x ax1))")
+        quiet(load_source, s, "(derive d1 ax1 :bind ((?v x)) :using (x ax1))")
         self.assertEqual(s.theorems["d1"].derivation, ["x", "ax1"])
 
     def test_derive_compound_wff(self):
@@ -349,14 +343,16 @@ class TestBindDirective(unittest.TestCase):
         result = s.evaluate(s.terms["total"].definition)
         self.assertEqual(result, 10)
 
-    def test_axiom_with_bind(self):
+    def test_derive_with_bind_from_axiom(self):
         s = make_system()
         quiet(s.introduce_axiom, "add-id", [Symbol("="), [Symbol("+"), Symbol("?n"), 0], Symbol("?n")], "test")
+        quiet(s.verify_manual, "add-id")
         quiet(s.set_fact, "x", 5, "test")
-        quiet(load_source, s, '(axiom ground-id add-id :bind ((?n x)) :origin "test")')
-        self.assertIn("ground-id", s.axioms)
+        quiet(s.verify_manual, "x")
+        quiet(load_source, s, "(derive ground-id add-id :bind ((?n x)) :using (x add-id))")
+        self.assertIn("ground-id", s.theorems)
         # The WFF should be the instantiated version
-        wff = s.axioms["ground-id"].wff
+        wff = s.theorems["ground-id"].wff
         self.assertEqual(wff, [Symbol("="), [Symbol("+"), Symbol("x"), 0], Symbol("x")])
 
     def test_derive_with_bind_and_evidence(self):

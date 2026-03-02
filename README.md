@@ -254,18 +254,16 @@ print(report)
     :explanation "Dollar revenue figure from Q3 report"))
 ```
 
-**`axiom`** — a well-formed formula asserted as true. Axioms state relationships between facts — equalities, inequalities, logical rules. Use concrete axioms to assert something about specific facts, or parameterised axioms (with `?`-variables) to state general rules that can be instantiated later via `:bind`.
+**`axiom`** — a parametric rewrite rule. Axioms MUST contain at least one `?`-variable — they are general rules that can be instantiated later via `:bind` in a derive directive. Ground statements (no `?`-variables) are rejected; use `fact` for values or `derive` for provable claims.
 
 ```scheme
-;; Concrete — asserts something about existing facts
-(axiom positive-revenue (> revenue-q3 0)
-  :evidence (evidence "Q3 Report"
-    :quotes ("Q3 revenue was $15M")
-    :explanation "Revenue is positive"))
-
-;; Parameterised — a reusable rule with ?-variables
+;; Parametric rewrite rule — ?-variables are required
 (axiom add-commutative (= (+ ?a ?b) (+ ?b ?a))
   :origin "Arithmetic axiom")
+
+;; Parametric inequality rule
+(axiom positive-rule (> ?x 0)
+  :origin "Positivity constraint")
 ```
 
 **`defterm`** — a named concept. Terms come in three forms. A **forward declaration** introduces a primitive symbol with no body (like `zero` in Peano arithmetic). A **computed term** is an expression evaluated on reference — use it for derived quantities like totals or growth rates. A **conditional term** uses `if` to branch.
@@ -285,18 +283,19 @@ print(report)
   :origin "Bonus calculation")
 ```
 
-**`derive`** — a theorem proved from existing facts, terms, and axioms. Derivations are the inference engine: they evaluate a well-formed formula and record which sources were used. If any source has unverified evidence, the derivation inherits the fabrication taint. Use `:bind` to instantiate parameterised axioms with concrete values.
+**`derive`** — a theorem proved from existing facts, terms, and axioms. Evaluation is restricted to symbols listed in `:using`; dependencies of axioms and terms are expanded transitively. If any source has unverified evidence, the derivation inherits the fabrication taint. Use `:bind` to instantiate parameterised axioms with concrete values.
 
 ```scheme
-;; Direct — evaluates a WFF against existing facts
+;; Direct — evaluates a WFF against facts listed in :using
 (derive target-exceeded
   (> revenue-q3-growth growth-target)
   :using (revenue-q3-growth growth-target))
 
 ;; Instantiation — plugs concrete values into a parameterised axiom
+;; :using must include the axiom + symbols from :bind values
 (derive three-plus-zero add-identity
   :bind ((?n (succ (succ (succ zero)))))
-  :using (add-identity))
+  :using (add-identity succ zero))
 ```
 
 **`diff`** — a lazy consistency comparison between two symbols. Diffs are how the system detects contradictions: register two independent values for the same quantity, and the engine replays all dependent computations under both assumptions. Where results diverge, something is wrong — either the LLM fabricated a value, or the source documents disagree.
