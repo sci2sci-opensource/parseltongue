@@ -88,7 +88,14 @@ def _resolve_one(tag_type: str, name: str, system) -> Reference:
             elif name in system.theorems:
                 ref.value = to_sexp(system.theorems[name].wff)
             elif name in system.terms:
-                ref.value = to_sexp(system.terms[name].definition)
+                defn = system.terms[name].definition
+                if defn is not None:
+                    try:
+                        ref.value = system.evaluate(defn)
+                    except (NameError, TypeError):
+                        ref.value = to_sexp(defn)
+                else:
+                    ref.value = "(forward declaration)"
 
         elif tag_type == "diff":
             if name not in system.diffs:

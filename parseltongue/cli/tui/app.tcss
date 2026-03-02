@@ -16,6 +16,11 @@ MainMenu #menu-title {
 MainMenu #menu-list {
     width: 1fr;
     height: auto;
+    border: round green;
+}
+
+MainMenu OptionList > .option-list--option-highlighted {
+    background: green 30%;
 }
 
 /* Loading screen */
@@ -103,7 +108,10 @@ PassesScreen #passes-state-tree {
 /* Consistency screen */
 ConsistencyScreen {
     padding: 1 2;
-    overflow-y: auto;
+}
+
+ConsistencyScreen #consistency-tree {
+    height: 1fr;
 }
 
 /* System state screen */
@@ -115,11 +123,57 @@ SystemStateScreen Tree {
     height: 1fr;
 }
 
-/* DSL viewer widget */
-DslViewer {
-    height: 1fr;
-    overflow-y: auto;
-    padding: 0 1;
+/* Answer markdown styling — match PassViewer color scheme */
+ReferenceText Markdown {
+    margin: 0;
+    padding: 0;
+}
+
+ReferenceText Markdown MarkdownH1 {
+    color: green;
+    text-style: bold;
+}
+
+ReferenceText Markdown MarkdownH2 {
+    color: green;
+    text-style: bold;
+}
+
+ReferenceText Markdown MarkdownH3 {
+    color: green;
+    text-style: bold;
+}
+
+ReferenceText Markdown MarkdownBulletList {
+    margin: 0 0 0 2;
+    padding: 0;
+}
+
+ReferenceText Markdown MarkdownOrderedList {
+    margin: 0 0 0 2;
+    padding: 0;
+}
+
+ReferenceText Markdown MarkdownBlockQuote {
+    border-left: thick $accent;
+    margin: 1 0 1 4;
+    padding: 0 0 0 2;
+}
+
+ReferenceText Markdown MarkdownFence {
+    background: $surface-darken-1;
+    color: white;
+    margin: 1 0;
+    padding: 1 2;
+}
+
+ReferenceText Markdown MarkdownTable {
+    margin: 1 0;
+}
+
+ReferenceText MarkdownTableContent > .header {
+    color: #5faf5f;
+    text-style: bold;
 }
 
 /* Provenance tree */
@@ -228,6 +282,14 @@ HistoryBrowser #history-table {
     height: 1fr;
 }
 
+HistoryBrowser .datatable--header {
+    text-style: bold;
+}
+
+HistoryBrowser .datatable--cursor {
+    background: green 30%;
+}
+
 /* Live pass screen */
 LivePassScreen #live-layout {
     layout: grid;
@@ -252,7 +314,7 @@ LivePassScreen #dsl-tabs {
     height: 1fr;
 }
 
-LivePassScreen #dsl-tabs RichLog {
+LivePassScreen #dsl-tabs PassViewer {
     height: 1fr;
 }
 

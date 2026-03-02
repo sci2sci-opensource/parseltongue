@@ -584,6 +584,116 @@ class TestDiff(unittest.TestCase):
         # growth=15 > target=10 → True; alt_growth=5 > target=10 → False
         self.assertEqual(result.divergences["beat"], [True, False])
 
+    def test_eval_diff_term_vs_fact_resolves_values(self):
+        """Diff between a fact and a computed term should resolve both to numbers."""
+        s = make_system()
+        quiet(s.set_fact, "revenue", 100, "test")
+        quiet(s.set_fact, "prior", 80, "test")
+        # A computed term: growth = ((revenue - prior) / prior) * 100
+        quiet(
+            s.introduce_term,
+            "computed_growth",
+            [Symbol("*"), [Symbol("/"), [Symbol("-"), Symbol("revenue"), Symbol("prior")], Symbol("prior")], 100],
+            "test",
+        )
+        quiet(s.set_fact, "simple_growth", 15, "test")
+        quiet(s.introduce_term, "dep", [Symbol("+"), Symbol("simple_growth"), 1], "test")
+        quiet(s.register_diff, "d1", "simple_growth", "computed_growth")
+        result = s.eval_diff("d1")
+        # value_a should be 15 (the fact value)
+        self.assertEqual(result.value_a, 15)
+        # value_b should be 25.0 (evaluated), NOT the S-expression
+        self.assertIsInstance(result.value_b, (int, float))
+        self.assertEqual(result.value_b, 25.0)
+
+    def test_eval_diff_term_with_term_refs_resolves(self):
+        """Diff where the with-symbol is a term referencing other terms should evaluate."""
+        s = make_system()
+        quiet(s.set_fact, "base", 100, "test")
+        quiet(s.set_fact, "rate", 0.2, "test")
+        # bonus = base * rate (a computed term referencing facts)
+        quiet(
+            s.introduce_term,
+            "bonus",
+            [Symbol("*"), Symbol("base"), Symbol("rate")],
+            "test",
+        )
+        # alt_rate is a term referencing another term
+        quiet(s.set_fact, "alt_rate", 0.25, "test")
+        quiet(
+            s.introduce_term,
+            "alt_bonus",
+            [Symbol("*"), Symbol("base"), Symbol("alt_rate")],
+            "test",
+        )
+        quiet(s.introduce_term, "dep", [Symbol("+"), Symbol("bonus"), 1], "test")
+        quiet(s.register_diff, "d1", "bonus", "alt_bonus")
+        result = s.eval_diff("d1")
+        # Both values should be numbers
+        self.assertIsInstance(result.value_a, (int, float))
+        self.assertIsInstance(result.value_b, (int, float))
+        self.assertAlmostEqual(result.value_a, 20.0)
+        self.assertAlmostEqual(result.value_b, 25.0)
+
+    def test_resolve_value_term_referencing_terms(self):
+        """_resolve_value should evaluate a term that references other terms (not just facts)."""
+        s = make_system()
+        # Facts as base values
+        quiet(s.set_fact, "revenue-q3", 1000, "test")
+        quiet(s.set_fact, "revenue-prior", 800, "test")
+        # Term defined in terms of other terms
+        quiet(
+            s.introduce_term,
+            "revenue-diff",
+            [Symbol("-"), Symbol("revenue-q3"), Symbol("revenue-prior")],
+            "test",
+        )
+        quiet(
+            s.introduce_term,
+            "growth-pct",
+            [Symbol("*"), [Symbol("/"), Symbol("revenue-diff"), Symbol("revenue-prior")], 100],
+            "test",
+        )
+        quiet(s.set_fact, "simple-growth", 15, "test")
+        quiet(s.introduce_term, "dep", [Symbol("+"), Symbol("simple-growth"), 1], "test")
+        quiet(s.register_diff, "d1", "simple-growth", "growth-pct")
+        result = s.eval_diff("d1")
+        self.assertEqual(result.value_a, 15)
+        # growth-pct = ((1000 - 800) / 800) * 100 = 25.0
+        self.assertIsInstance(
+            result.value_b, (int, float), f"Expected number, got {type(result.value_b)}: {result.value_b}"
+        )
+        self.assertAlmostEqual(result.value_b, 25.0)
+
+    def test_resolve_value_forward_declared_term(self):
+        """_resolve_value falls back to defn when term refs are forward-declared."""
+        s = make_system()
+        # Forward-declared terms (no definition — just name)
+        quiet(s.introduce_term, "revenue-q3-absolute", None, "test")
+        quiet(s.introduce_term, "revenue-prior-q3-implied", None, "test")
+        # Computed term referencing forward-declared terms
+        quiet(
+            s.introduce_term,
+            "growth-pct",
+            [
+                Symbol("*"),
+                [
+                    Symbol("/"),
+                    [Symbol("-"), Symbol("revenue-q3-absolute"), Symbol("revenue-prior-q3-implied")],
+                    Symbol("revenue-prior-q3-implied"),
+                ],
+                100,
+            ],
+            "test",
+        )
+        quiet(s.set_fact, "simple-growth", 15, "test")
+        quiet(s.introduce_term, "dep", [Symbol("+"), Symbol("simple-growth"), 1], "test")
+        quiet(s.register_diff, "d1", "simple-growth", "growth-pct")
+        result = s.eval_diff("d1")
+        self.assertEqual(result.value_a, 15)
+        # value_b is a list (unevaluated) because sub-terms are forward-declared
+        self.assertIsInstance(result.value_b, list, f"Expected list, got {type(result.value_b)}: {result.value_b}")
+
 
 # ==============================================================
 # Consistency

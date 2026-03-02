@@ -946,6 +946,9 @@ class System:
                 return self.evaluate(defn)
             except (NameError, TypeError):
                 return defn
+        if name in self.facts:
+            data = self.facts[name]
+            return data.get("value", data) if isinstance(data, dict) else data
         raise KeyError(f"Unknown symbol: {name}")
 
     def eval_diff(self, name: str) -> DiffResult:
@@ -1168,7 +1171,47 @@ class System:
         system.theorems = {n: _deserialize_theorem(n, d) for n, d in data.get("theorems", {}).items()}
         system.diffs = data.get("diffs", {})
         system.documents = data.get("documents", {})
+        system._rebuild_env()
         return system
+
+    def _rebuild_env(self) -> None:
+        """Rebuild the runtime env from deserialized facts, axioms, and terms.
+
+        During normal execution, ``env`` is populated incrementally as DSL
+        forms are evaluated.  After ``from_dict`` deserialization the env is
+        empty (only DEFAULT_OPERATORS), so ``evaluate`` / ``_resolve_value``
+        cannot resolve symbol references.  This method reconstructs env so
+        that the deserialized system behaves identically to the live one.
+        """
+        # 1. Facts — their values go straight into env
+        for name, data in self.facts.items():
+            val = data.get("value", data) if isinstance(data, dict) else data
+            self.env[Symbol(name)] = val
+
+        # 2. Axiom definitions — (= symbol expr) patterns
+        for _name, axiom in self.axioms.items():
+            wff = axiom.wff
+            if isinstance(wff, list) and len(wff) == 3 and wff[0] == EQ and isinstance(wff[1], Symbol):
+                try:
+                    self.env[wff[1]] = self.evaluate(wff[2])
+                except (NameError, TypeError):
+                    pass
+
+        # 3. Terms — evaluate definitions; may need multiple passes for
+        #    dependency chains (term A references term B which references a fact)
+        remaining = {n for n, t in self.terms.items() if t.definition is not None}
+        for _ in range(len(remaining) + 1):  # at most N passes
+            progress = False
+            for name in list(remaining):
+                try:
+                    val = self.evaluate(self.terms[name].definition)
+                    self.env[Symbol(name)] = val
+                    remaining.discard(name)
+                    progress = True
+                except (NameError, TypeError):
+                    pass
+            if not remaining or not progress:
+                break
 
     def consistency(self) -> ConsistencyReport:
         """Check full consistency state of the system.

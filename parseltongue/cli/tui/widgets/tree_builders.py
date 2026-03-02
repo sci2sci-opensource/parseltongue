@@ -8,15 +8,44 @@ SystemStateScreen, and ProvenanceTree.
 
 from __future__ import annotations
 
+from difflib import SequenceMatcher
 from typing import Any
 
 from rich.markup import escape as rich_escape
 
-from parseltongue.core.atoms import Evidence, to_sexp
+from parseltongue.core.atoms import Evidence, Symbol, to_sexp
 
 # ------------------------------------------------------------------
 # Color helpers
 # ------------------------------------------------------------------
+
+
+def _fmt_value(value: Any) -> str:
+    """Format a value for display — render S-expressions, str() everything else."""
+    if isinstance(value, (list, Symbol)):
+        return to_sexp(value)
+    return str(value)
+
+
+def _diff_highlight(a: str, b: str) -> tuple[str, str]:
+    """Return (a_markup, b_markup) with changed tokens highlighted green/red."""
+    a_tokens = a.split()
+    b_tokens = b.split()
+    sm = SequenceMatcher(None, a_tokens, b_tokens)
+    a_parts: list[str] = []
+    b_parts: list[str] = []
+    for op, a0, a1, b0, b1 in sm.get_opcodes():
+        if op == "equal":
+            a_parts.extend(rich_escape(t) for t in a_tokens[a0:a1])
+            b_parts.extend(rich_escape(t) for t in b_tokens[b0:b1])
+        elif op == "replace":
+            a_parts.extend(f"[green]{rich_escape(t)}[/green]" for t in a_tokens[a0:a1])
+            b_parts.extend(f"[red]{rich_escape(t)}[/red]" for t in b_tokens[b0:b1])
+        elif op == "delete":
+            a_parts.extend(f"[green]{rich_escape(t)}[/green]" for t in a_tokens[a0:a1])
+        elif op == "insert":
+            b_parts.extend(f"[red]{rich_escape(t)}[/red]" for t in b_tokens[b0:b1])
+    return " ".join(a_parts), " ".join(b_parts)
 
 
 def origin_color(origin: Any) -> str:
@@ -25,8 +54,11 @@ def origin_color(origin: Any) -> str:
         return "green" if origin.is_grounded else "red"
     if isinstance(origin, dict):
         return "green" if origin.get("grounded") else "red"
-    if isinstance(origin, str) and "potential fabrication" in origin:
-        return "red"
+    if isinstance(origin, str):
+        if "potential fabrication" in origin:
+            return "red"
+        if origin == "derived":
+            return "green"
     if origin:
         return "yellow"
     return "white"
@@ -63,10 +95,10 @@ def add_evidence_node(
             if ok:
                 conf = v.get("confidence", {})
                 level = conf.get("level", "?")
-                q_node = origin_node.add(f'[green]"{short_q}" ({level})[/green]')
+                q_node = origin_node.add(f'[green]"{short_q}" [bold]✓[/bold] {level}[/green]')
             else:
                 reason = v.get("reason", "no match")
-                q_node = origin_node.add(f'[red]"{short_q}" NOT verified ({rich_escape(reason)})[/red]')
+                q_node = origin_node.add(f'[red]"{short_q}" [bold]✗[/bold] {rich_escape(reason)}[/red]')
             if v.get("context"):
                 q_node.add_leaf(f"context: {rich_escape(str(v['context'])[:120])}")
             if len(q_str) > 80:
@@ -107,11 +139,19 @@ def add_origin_node(parent, origin: Any) -> None:
 # ------------------------------------------------------------------
 
 
-def add_term_node(parent, name: str, term: Any) -> None:
-    """Add a Term node with definition and origin."""
-    defn = to_sexp(term.definition) if term.definition is not None else "(primitive)"
+def add_term_node(parent, name: str, term: Any, system: Any = None) -> None:
+    """Add a Term node with evaluated value in title, definition as child."""
     color = origin_color(term.origin)
-    node = parent.add(f"[{color}]{rich_escape(name)}: {rich_escape(defn)}[/{color}]")
+    val_str = ""
+    if system is not None and term.definition is not None:
+        try:
+            val = system.evaluate(term.definition)
+            val_str = f" = {rich_escape(_fmt_value(val))}"
+        except (NameError, TypeError):
+            pass
+    node = parent.add(f"[{color}]{rich_escape(name)}{val_str} [dim](term)[/dim][/{color}]")
+    if term.definition is not None:
+        node.add_leaf(f"[dim]definition: {rich_escape(to_sexp(term.definition))}[/dim]")
     add_origin_node(node, term.origin)
 
 
@@ -120,7 +160,7 @@ def add_fact_node(parent, name: str, data: Any) -> None:
     val = data.get("value", data) if isinstance(data, dict) else data
     origin = data.get("origin") if isinstance(data, dict) else None
     color = origin_color(origin)
-    node = parent.add(f"[{color}]{rich_escape(str(name))} = {rich_escape(str(val))}[/{color}]")
+    node = parent.add(f"[{color}]{rich_escape(str(name))} = {rich_escape(_fmt_value(val))} [dim](fact)[/dim][/{color}]")
     if origin:
         add_origin_node(node, origin)
 
@@ -128,17 +168,81 @@ def add_fact_node(parent, name: str, data: Any) -> None:
 def add_axiom_node(parent, name: str, axiom: Any) -> None:
     """Add an Axiom node with wff and origin."""
     color = origin_color(axiom.origin)
-    node = parent.add(f"[{color}]{rich_escape(name)}: {rich_escape(to_sexp(axiom.wff))}[/{color}]")
+    node = parent.add(f"[{color}]{rich_escape(name)}: {rich_escape(to_sexp(axiom.wff))} [dim](axiom)[/dim][/{color}]")
     add_origin_node(node, axiom.origin)
 
 
-def add_theorem_node(parent, name: str, thm: Any) -> None:
+def add_theorem_node(parent, name: str, thm: Any, system: Any = None) -> None:
     """Add a Theorem node with wff, derivation chain, and origin."""
     color = origin_color(thm.origin)
-    node = parent.add(f"[{color}]{rich_escape(name)}: {rich_escape(to_sexp(thm.wff))}[/{color}]")
+    node = parent.add(f"[{color}]{rich_escape(name)}: {rich_escape(to_sexp(thm.wff))} [dim](theorem)[/dim][/{color}]")
     if thm.derivation:
-        node.add_leaf(f"derived from: {', '.join(rich_escape(d) for d in thm.derivation)}")
+        deriv_node = node.add(f"derived from: {', '.join(rich_escape(d) for d in thm.derivation)}")
+        if system is not None:
+            for d in thm.derivation:
+                _add_definition_leaf(deriv_node, d, system)
     add_origin_node(node, thm.origin)
+
+
+def _item_definition(name: str, system: Any) -> str | None:
+    """Look up the definition/formula for any system item by name."""
+    if name in system.terms:
+        defn = system.terms[name].definition
+        if defn is not None:
+            return to_sexp(defn)
+    if name in system.axioms:
+        return to_sexp(system.axioms[name].wff)
+    if name in system.theorems:
+        return to_sexp(system.theorems[name].wff)
+    if name in system.facts:
+        data = system.facts[name]
+        val = data.get("value", data) if isinstance(data, dict) else data
+        return _fmt_value(val)
+    return None
+
+
+def _add_definition_leaf(node, name: str, system: Any) -> None:
+    """Add a dim definition leaf for *name* if the system knows its formula."""
+    if system is None:
+        return
+    defn = _item_definition(name, system)
+    if defn:
+        node.add_leaf(f"[dim]definition: {rich_escape(defn)}[/dim]")
+
+
+def _add_named_leaf(node, label: str, name: str, system: Any = None) -> None:
+    """Add a leaf showing 'label: name' with definition as child if available."""
+    n = node.add(f"{label}: {rich_escape(name)}")
+    _add_definition_leaf(n, name, system)
+
+
+def _add_diff_result_leaves(node, result: Any, system: Any = None) -> None:
+    """Render an evaluated DiffResult's values and divergences into *node*."""
+    sa, sb = _fmt_value(result.value_a), _fmt_value(result.value_b)
+    ha, hb = _diff_highlight(sa, sb)
+    a_node = node.add(f"replace ({rich_escape(result.replace)}): {ha}")
+    _add_definition_leaf(a_node, result.replace, system)
+    b_node = node.add(f"with ({rich_escape(result.with_)}): {hb}")
+    _add_definition_leaf(b_node, result.with_, system)
+
+    if result.divergences:
+        div_node = node.add(f"[yellow]divergences ({len(result.divergences)})[/yellow]")
+        div_node.expand()
+        for term_name, (val_a, val_b) in result.divergences.items():
+            d = div_node.add(f"[yellow]{rich_escape(term_name)}[/yellow]")
+            _add_definition_leaf(d, term_name, system)
+            da, db = _diff_highlight(_fmt_value(val_a), _fmt_value(val_b))
+            d.add_leaf(f"original: {da}")
+            d.add_leaf(f"substituted: {db}")
+    else:
+        node.add_leaf("[green]no divergences[/green]")
+
+
+def add_diff_result_node(parent, result: Any, system: Any = None) -> None:
+    """Add a pre-evaluated DiffResult as a tree node (used by consistency screen)."""
+    color = "yellow" if result.divergences else "green"
+    node = parent.add(f"[{color}]Diff Divergence: {rich_escape(result.name)}[/{color}]")
+    _add_diff_result_leaves(node, result, system=system)
 
 
 def add_diff_node(parent, name: str, diff: dict, system: Any = None) -> None:
@@ -159,24 +263,12 @@ def add_diff_node(parent, name: str, diff: dict, system: Any = None) -> None:
     color = "yellow" if has_divergences else "green"
     label = f"[{color}]{rich_escape(name)}: {rich_escape(replace_name)} vs {rich_escape(with_name)}[/{color}]"
     node = parent.add(label)
-    node.add_leaf(f"replace: {rich_escape(replace_name)}")
-    node.add_leaf(f"with: {rich_escape(with_name)}")
 
-    if result is None:
-        return
-
-    node.add_leaf(f"value A: {rich_escape(str(result.value_a))}")
-    node.add_leaf(f"value B: {rich_escape(str(result.value_b))}")
-
-    if result.divergences:
-        div_node = node.add(f"[yellow]divergences ({len(result.divergences)})[/yellow]")
-        div_node.expand()
-        for term_name, (val_a, val_b) in result.divergences.items():
-            d = div_node.add(f"[yellow]{rich_escape(term_name)}[/yellow]")
-            d.add_leaf(f"original: {rich_escape(str(val_a))}")
-            d.add_leaf(f"substituted: {rich_escape(str(val_b))}")
+    if result is not None:
+        _add_diff_result_leaves(node, result, system=system)
     else:
-        node.add_leaf("[green]no divergences[/green]")
+        _add_named_leaf(node, "replace", replace_name, system)
+        _add_named_leaf(node, "with", with_name, system)
 
 
 # ------------------------------------------------------------------
@@ -189,7 +281,7 @@ def populate_system_tree(tree_root, system: Any) -> None:
     if system.terms:
         section = tree_root.add("[bold]Terms[/bold]", expand=True)
         for name, term in system.terms.items():
-            add_term_node(section, name, term)
+            add_term_node(section, name, term, system=system)
 
     if system.facts:
         section = tree_root.add("[bold]Facts[/bold]", expand=True)
@@ -204,7 +296,7 @@ def populate_system_tree(tree_root, system: Any) -> None:
     if system.theorems:
         section = tree_root.add("[bold]Theorems[/bold]", expand=True)
         for name, thm in system.theorems.items():
-            add_theorem_node(section, name, thm)
+            add_theorem_node(section, name, thm, system=system)
 
     if system.diffs:
         section = tree_root.add("[bold]Diffs[/bold]", expand=True)
