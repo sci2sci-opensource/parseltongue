@@ -56,10 +56,20 @@ AnswerScreen #markdown-panel {
     overflow-y: auto;
 }
 
+AnswerScreen #report-title {
+    text-style: bold;
+    margin-bottom: 1;
+}
+
 AnswerScreen #provenance-panel {
     border: round #1a5c2a;
     padding: 1 2;
     overflow-y: auto;
+}
+
+AnswerScreen #provenance-title {
+    text-style: bold;
+    margin-bottom: 1;
 }
 
 /* Passes screen */
@@ -129,19 +139,30 @@ ReferenceText Markdown {
     padding: 0;
 }
 
+ReferenceText Markdown MarkdownBlock {
+    & > .mark {
+        color: cyan;
+        text-style: bold;
+    }
+}
+
 ReferenceText Markdown MarkdownH1 {
     color: green;
     text-style: bold;
+    text-align: center;
+    margin: 1 0;
 }
 
 ReferenceText Markdown MarkdownH2 {
     color: green;
-    text-style: bold;
+    text-style: underline;
+    text-align: center;
+    margin: 1 0;
 }
 
 ReferenceText Markdown MarkdownH3 {
     color: green;
-    text-style: bold;
+    margin: 1 0;
 }
 
 ReferenceText Markdown MarkdownBulletList {
@@ -174,6 +195,17 @@ ReferenceText Markdown MarkdownTable {
 ReferenceText MarkdownTableContent > .header {
     color: #5faf5f;
     text-style: bold;
+}
+
+/* Footnotes */
+#footnote-divider {
+    height: 1;
+    color: $text-muted;
+    margin: 1 0 0 0;
+}
+
+FootnoteLabel {
+    height: auto;
 }
 
 /* Provenance tree */

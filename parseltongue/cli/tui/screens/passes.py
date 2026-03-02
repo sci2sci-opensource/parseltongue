@@ -28,8 +28,8 @@ class PassesScreen(ResizableSplitMixin, Screen):
 
     BINDINGS = [
         ("escape", "dismiss", "Back"),
-        ("f11", "grow_right", "F11 Grow right"),
-        ("f12", "grow_left", "F12 Grow left"),
+        ("shift+f11", "grow_right", "Shift+F11 Grow right"),
+        ("shift+f12", "grow_left", "Shift+F12 Grow left"),
     ]
 
     def __init__(self, result: PipelineResult, **kwargs) -> None:
@@ -61,7 +61,7 @@ class PassesScreen(ResizableSplitMixin, Screen):
             with Container(id="passes-state-panel"):
                 yield Label("Parseltongue State", id="passes-state-title")
                 yield Tree("State", id="passes-state-tree")
-        yield StatusBar(extra_hints=[("F11/F12", "Resize")])
+        yield StatusBar(extra_hints=[("Shift+F11/F12", "Resize")])
 
     def on_mount(self) -> None:
         self._refresh_state_tree(1)

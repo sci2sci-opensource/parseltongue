@@ -50,8 +50,8 @@ class LivePassScreen(ResizableSplitMixin, Screen):
         ("escape", "interrupt", "Interrupt"),
         ("ctrl+n", "skip", "Skip pass"),
         ("ctrl+a", "copy_log", "Copy log"),
-        ("f11", "grow_right", "F11 Grow right"),
-        ("f12", "grow_left", "F12 Grow left"),
+        ("shift+f11", "grow_right", "Shift+F11 Grow right"),
+        ("shift+f12", "grow_left", "Shift+F12 Grow left"),
     ]
 
     _SPINNER = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
@@ -85,7 +85,7 @@ class LivePassScreen(ResizableSplitMixin, Screen):
                 yield Button("Skip", id="skip-btn", variant="default")
             yield Static(
                 "[b]Enter[/b] Continue/Retry  [b]Ctrl+N[/b] Skip  [b]Esc[/b] Interrupt"
-                "  [b]Ctrl+A[/b] Copy log  [b]F11/F12[/b] Resize",
+                "  [b]Ctrl+A[/b] Copy log  [b]Shift+F11/F12[/b] Resize",
                 id="live-hints",
             )
 

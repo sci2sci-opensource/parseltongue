@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 from textual.app import ComposeResult
 from textual.containers import Container
 from textual.screen import Screen
+from textual.widgets import Label
 
 from ..widgets.provenance_tree import ProvenanceTree
 from ..widgets.reference_text import ReferenceClicked, ReferenceText
@@ -23,8 +24,8 @@ class AnswerScreen(ResizableSplitMixin, Screen):
     BINDINGS = [
         ("escape", "dismiss", "Back"),
         ("ctrl+a", "copy_answer", "Copy answer"),
-        ("f11", "grow_right", "F11 Grow right"),
-        ("f12", "grow_left", "F12 Grow left"),
+        ("shift+f11", "grow_right", "Shift+F11 Grow right"),
+        ("shift+f12", "grow_left", "Shift+F12 Grow left"),
     ]
 
     def __init__(self, result: PipelineResult, **kwargs) -> None:
@@ -33,13 +34,18 @@ class AnswerScreen(ResizableSplitMixin, Screen):
 
     def compose(self) -> ComposeResult:
         with Container(id="markdown-panel"):
+            yield Label("Report", id="report-title")
             yield ReferenceText(str(self._result.output))
         with Container(id="provenance-panel"):
+            yield Label("Parseltongue Provenance", id="provenance-title")
             yield ProvenanceTree(id="provenance-tree")
-        yield StatusBar(extra_hints=[("F11/F12", "Resize")])
+        yield StatusBar(extra_hints=[("Shift+F11/F12", "Resize")])
 
     def on_reference_clicked(self, event: ReferenceClicked) -> None:
         """When a reference tag is clicked, show its full provenance."""
+        ref_text = self.query_one(ReferenceText)
+        ref_text.highlight_ref(event.ref_type, event.ref_name)
+
         tree = self.query_one("#provenance-tree", ProvenanceTree)
         system = self._result.system
 
