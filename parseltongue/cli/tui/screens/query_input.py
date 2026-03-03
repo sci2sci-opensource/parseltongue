@@ -132,7 +132,7 @@ class QueryInput(Screen):
                 ("Shift+Enter", "Send"),
                 ("Ctrl+D", "Send"),
                 ("Enter", "Newline / Preview"),
-                ("Esc", "Back"),
+                ("Esc", "Back", "screen.dismiss"),
             ]
         )
 

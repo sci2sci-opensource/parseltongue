@@ -7,7 +7,7 @@ Terminal interface for running the [LLM pipeline](../llm/README.md) — includes
 ## Installation
 
 ```bash
-pip install parseltongue-dsl[cli]
+pip install 'parseltongue-dsl[cli]'
 ```
 
 This pulls in the LLM pipeline, [Textual](https://textual.textualize.io/) for the TUI, [Typer](https://typer.tiangolo.com/) for the CLI, and [Docling](https://ds4sd.github.io/docling/) for document conversion.

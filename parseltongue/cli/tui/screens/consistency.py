@@ -55,11 +55,11 @@ class ConsistencyScreen(Screen):
         yield tree
         yield HintsBar(
             [
-                ("F1", "Answer"),
-                ("F2", "Passes"),
-                ("F3", "System"),
-                ("F4", "Consistency"),
-                ("Esc", "Back"),
+                ("F1", "Answer", "app.switch_screen('answer')"),
+                ("F2", "Passes", "app.switch_screen('passes')"),
+                ("F3", "System", "app.switch_screen('system_state')"),
+                ("F4", "Consistency", "app.switch_screen('consistency')"),
+                ("Esc", "Back", "screen.dismiss"),
             ]
         )
 

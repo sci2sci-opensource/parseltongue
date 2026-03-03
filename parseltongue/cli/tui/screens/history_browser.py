@@ -32,7 +32,7 @@ class HistoryBrowser(Screen):
     def compose(self) -> ComposeResult:
         yield Label("Run History", id="history-title")
         yield DataTable(id="history-table")
-        yield HintsBar([("Enter", "Open"), ("Del", "Delete"), ("Esc", "Back")])
+        yield HintsBar([("Enter", "Open"), ("Del", "Delete", "screen.delete_run"), ("Esc", "Back", "screen.dismiss")])
 
     def on_mount(self) -> None:
         table = self.query_one("#history-table", DataTable)

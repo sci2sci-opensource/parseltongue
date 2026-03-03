@@ -5,7 +5,7 @@ The four-pass pipeline that turns documents + a question into a grounded, cross-
 ## Quick Start
 
 ```bash
-pip install parseltongue-dsl[llm]
+pip install 'parseltongue-dsl[llm]'
 export OPENROUTER_API_KEY=sk-...
 ```
 

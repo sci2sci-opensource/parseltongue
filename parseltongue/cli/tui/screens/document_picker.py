@@ -62,9 +62,9 @@ class DocumentPicker(Screen):
         yield HintsBar(
             [
                 ("Enter", "Add"),
-                ("Backspace", "Remove"),
+                ("Backspace", "Remove", "screen.remove_selected"),
                 ("Ctrl+D", "Done"),
-                ("Esc", "Back"),
+                ("Esc", "Back", "screen.dismiss"),
             ]
         )
 

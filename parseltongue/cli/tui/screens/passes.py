@@ -29,8 +29,8 @@ class PassesScreen(ResizableSplitMixin, Screen):
     BINDINGS = [
         ("escape", "dismiss", "Back"),
         ("ctrl+y", "copy_pass", "Copy pass"),
-        ("shift+f11", "grow_right", "Shift+F11 Grow right"),
-        ("shift+f12", "grow_left", "Shift+F12 Grow left"),
+        ("f9", "grow_right", "F9 Grow right"),
+        ("f10", "grow_left", "F10 Grow left"),
     ]
 
     def __init__(self, result: PipelineResult, **kwargs) -> None:
@@ -66,13 +66,14 @@ class PassesScreen(ResizableSplitMixin, Screen):
                 yield Tree("State", id="passes-state-tree")
         yield HintsBar(
             [
-                ("F1", "Answer"),
-                ("F2", "Passes"),
-                ("F3", "System"),
-                ("F4", "Consistency"),
-                ("Ctrl+Y", "Copy"),
-                ("Shift+F11/F12", "Resize"),
-                ("Esc", "Back"),
+                ("F1", "Answer", "app.switch_screen('answer')"),
+                ("F2", "Passes", "app.switch_screen('passes')"),
+                ("F3", "System", "app.switch_screen('system_state')"),
+                ("F4", "Consistency", "app.switch_screen('consistency')"),
+                ("Ctrl+Y", "Copy", "screen.copy_pass"),
+                ("F9", "Grow right", "screen.grow_right"),
+                ("F10", "Grow left", "screen.grow_left"),
+                ("Esc", "Back", "screen.dismiss"),
             ]
         )
 

@@ -12,7 +12,7 @@ A DSL for systems that refuse to speak falsehood.
 [![Python](https://img.shields.io/pypi/pyversions/parseltongue-dsl)](https://pypi.org/project/parseltongue-dsl/)
 [![License](https://img.shields.io/github/license/sci2sci-opensource/parseltongue)](https://github.com/sci2sci-opensource/parseltongue/blob/main/LICENSE)
 
-> **03.03 — CLI Tool Beta Released!** Install with `pip install parseltongue-dsl[cli]`
+> **03.03 — CLI Tool Beta Released!** Install with `pipx install 'parseltongue-dsl[cli]'`
 
 _Red facts are hallucinated by Claude 4.6 Sonnet:_
 ![CLI Overview](https://raw.githubusercontent.com/sci2sci-opensource/parseltongue/HEAD/cli_core_check_halucination.png)
@@ -39,8 +39,38 @@ And of course it's perfect for documentation or checking code.
 
 ## Quick Start
 
+We recommend `pipx` for global access. Alternatively, install with `pip` in a virtual environment.
+
+**macOS**
 ```bash
-pip install parseltongue-dsl[cli]
+brew install pipx
+pipx install 'parseltongue-dsl[cli]'
+```
+
+**Linux (Ubuntu 23.04+ / Debian 12+)**
+```bash
+sudo apt install pipx
+pipx install 'parseltongue-dsl[cli]'
+```
+
+**Linux (older)**
+```bash
+python3 -m pip install --user pipx
+pipx install 'parseltongue-dsl[cli]'
+```
+
+**Windows**
+```powershell
+pip install pipx
+pipx install "parseltongue-dsl[cli]"
+```
+
+**Or with pip directly**
+```bash
+pip install 'parseltongue-dsl[cli]'
+```
+
+```bash
 parseltongue
 ```
 
@@ -73,7 +103,7 @@ See the full [CLI documentation](parseltongue/cli/README.md) for TUI navigation,
 ## Python API
 
 ```bash
-pip install parseltongue-dsl[llm]
+pip install 'parseltongue-dsl[llm]'
 export OPENROUTER_API_KEY=sk-...
 ```
 

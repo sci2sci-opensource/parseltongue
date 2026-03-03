@@ -52,8 +52,8 @@ class LivePassScreen(ResizableSplitMixin, Screen):
         Binding("escape", "interrupt", "Interrupt", priority=True),
         ("ctrl+n", "skip", "Skip pass"),
         ("ctrl+y", "copy_log", "Copy log"),
-        ("shift+f11", "grow_right", "Shift+F11 Grow right"),
-        ("shift+f12", "grow_left", "Shift+F12 Grow left"),
+        ("f9", "grow_right", "F9 Grow right"),
+        ("f10", "grow_left", "F10 Grow left"),
     ]
 
     _SPINNER = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
@@ -91,10 +91,11 @@ class LivePassScreen(ResizableSplitMixin, Screen):
             yield HintsBar(
                 [
                     ("Enter", "Continue/Retry"),
-                    ("Ctrl+N", "Skip"),
-                    ("Ctrl+Y", "Copy"),
-                    ("Shift+F11/F12", "Resize"),
-                    ("Esc", "Interrupt"),
+                    ("Ctrl+N", "Skip", "screen.skip"),
+                    ("Ctrl+Y", "Copy", "screen.copy_log"),
+                    ("F9", "Grow right", "screen.grow_right"),
+                    ("F10", "Grow left", "screen.grow_left"),
+                    ("Esc", "Interrupt", "screen.interrupt"),
                 ]
             )
 
