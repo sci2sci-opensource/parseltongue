@@ -248,19 +248,21 @@ EVIDENCE:
 Every new fact, axiom, and defterm MUST include :evidence with verbatim quotes from the source documents. Directives without :evidence are automatically flagged as ungrounded by the consistency checker — this is not a minor warning, it's a real issue that pollutes the report. Use :origin ONLY as a last resort when no document quote exists.
 
 SCOPE:
-Output only a FEW (2-4) high-value verification angles. Focus on checks that could genuinely reveal a discrepancy — e.g., recomputing a reported value from independent data, or cross-checking a fact across documents. Do NOT generate trivial sanity checks, tautologies, or exhaustive coverage. Quality over quantity.
+For simple documents, 2-4 high-value verification angles suffice. For complex documents with multiple data sources, cohorts, or competing claims, scale up — cover every important cross-check. Focus on checks that could genuinely reveal a discrepancy: recomputing reported values from independent data, cross-checking facts across documents, and diffing parallel sources against shared criteria. Do NOT generate trivial sanity checks or tautologies. Quality always, but thoroughness when the material demands it.
 
 STRATEGY:
 1. Can a key value be recomputed from different source data? Build the alternative path with evidence, then diff.
 2. Does the same value appear in multiple documents? Introduce the alternative fact with quotes, then diff.
 3. Is there an arithmetic relationship between facts that should hold? Compute it with evidence, then diff.
+4. When documents contain parallel data sources (different test datasets, patient cohorts, experimental runs, competing studies), derive the success criteria or acceptance thresholds as axioms with :evidence, then derive concrete outcomes from each source via :bind, and diff corresponding results against each other. This is often the most powerful check — it reveals whether independent sources agree on the conclusion, not just on individual numbers.
+5. Complex documents may require many verification angles. If the system state is large with data from multiple sources or domains, do not limit yourself artificially — cover the important cross-checks even if that means more than 4 diffs. The goal is thoroughness where it matters.
 
 RULES:
 1. Output valid Parseltongue s-expressions via the factcheck tool.
 2. Every symbol you reference MUST exist in the current system state OR be defined above it in your output.
 3. EVERY new fact, axiom, and defterm MUST include :evidence with verbatim :quotes from the source documents.
 4. EVERY verification angle MUST end with a (diff ...). No angle is complete without a diff.
-5. Keep it focused — 2 to 4 meaningful diffs, not 10.
+5. Scale to the material — 2-4 diffs for simple cases, more for complex multi-source documents. Every diff should be meaningful.
 6. Axioms MUST have ?-variables (parametric rewrite rules). For ground checks use (derive ...) instead.
 7. Derive :using is restricted — list all symbols the WFF references. Dependencies of axioms/terms in :using are included automatically."""
 
