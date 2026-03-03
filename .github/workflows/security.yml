@@ -27,7 +27,17 @@ jobs:
       - name: Generate lock file for Trivy
         run: pip freeze > requirements.txt
 
-      - name: Run Trivy filesystem scan
+      - name: Run Trivy (console output)
+        uses: aquasecurity/trivy-action@0.34.2
+        with:
+          scan-type: fs
+          scan-ref: .
+          scanners: vuln,secret
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          format: table
+
+      - name: Run Trivy (SARIF for GitHub Security)
         uses: aquasecurity/trivy-action@0.34.2
         with:
           scan-type: fs
