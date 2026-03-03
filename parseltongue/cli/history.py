@@ -152,13 +152,13 @@ def fail_run(run_id: int, error: str) -> None:
         conn.close()
 
 
-def list_runs(limit: int = 20) -> list[dict[str, Any]]:
-    """Return recent runs (newest first)."""
+def list_runs(limit: int = 50, offset: int = 0) -> list[dict[str, Any]]:
+    """Return recent runs (newest first) with pagination."""
     conn = _connect()
     try:
         rows = conn.execute(
-            "SELECT id, timestamp, query, model, status FROM runs ORDER BY id DESC LIMIT ?",
-            (limit,),
+            "SELECT id, timestamp, query, model, status FROM runs ORDER BY id DESC LIMIT ? OFFSET ?",
+            (limit, offset),
         ).fetchall()
         return [dict(r) for r in rows]
     finally:
