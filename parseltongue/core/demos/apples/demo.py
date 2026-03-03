@@ -55,40 +55,40 @@ def main():
 
     load_source(
         s,
-        """
+        r"""
         (defterm zero
           :evidence (evidence "Counting Observations"
-            :quotes ("An empty basket contains zero apples")
-            :explanation "Zero: the count of an empty collection"))
+            :quotes ("We decided to mark an empty basket as \"zero\"")
+            :explanation "Zero: the label for an empty collection"))
 
         (defterm succ
           :evidence (evidence "Counting Observations"
-            :quotes ("Every count is reached by adding one to the previous count")
-            :explanation "Successor: produces the next natural number"))
+            :quotes ("every pile is reached by adding one more apple to the previous pile")
+            :explanation "Successor: produces the next pile"))
 
         (defterm =
           :evidence (evidence "Counting Observations"
-            :quotes ("If both baskets have 4 apples, after swapping they still each have 4")
-            :explanation "Equality: comparing whether two counts are the same"))
+            :quotes ("If both baskets have 🍎🍎🍎🍎 apples, after swapping they still each have 🍎🍎🍎🍎")
+            :explanation "Equality: two piles that look the same"))
 
         (defterm +
           :evidence (evidence "Counting Observations"
-            :quotes ("Combining 3 apples with 2 apples always gives 5 apples")
+            :quotes ("Combining 🍎🍎🍎 apples with 🍎🍎 apples always gives 🍎🍎🍎🍎🍎 apples")
             :explanation "Addition: combining two collections"))
 
         (defterm -
           :evidence (evidence "Counting Observations"
-            :quotes ("The difference is found by subtracting the smaller count from the larger")
+            :quotes ("The difference is found by removing apples from the larger pile until it matches the smaller")
             :explanation "Subtraction: finding the difference"))
 
         (defterm >
           :evidence (evidence "Counting Observations"
-            :quotes ("If basket A has 5 and basket B has 3, then basket A has more")
-            :explanation "Greater-than: comparing two counts"))
+            :quotes ("If basket A has 🍎🍎🍎🍎🍎 and basket B has 🍎🍎🍎, then basket A has more")
+            :explanation "Greater-than: heavier basket has more"))
 
         (defterm *
           :evidence (evidence "Counting Observations"
-            :quotes ("Multiplication is a shortcut for counting equal groups")
+            :quotes ("Multiplication is a shortcut for combining equal groups")
             :explanation "Multiplication: repeated addition"))
     """,
     )
@@ -103,20 +103,20 @@ def main():
 
     load_source(
         s,
-        """
+        r"""
         (axiom eq-reflexive (= ?x ?x)
           :evidence (evidence "Counting Observations"
-            :quotes ("If both baskets have 4 apples, after swapping they still each have 4")
-            :explanation "Equality is reflexive: any count equals itself"))
+            :quotes ("If both baskets have 🍎🍎🍎🍎 apples, after swapping they still each have 🍎🍎🍎🍎")
+            :explanation "Equality is reflexive: any pile equals itself"))
 
         (axiom add-identity (= (+ ?n zero) ?n)
           :evidence (evidence "Counting Observations"
-            :quotes ("Adding nothing to a basket does not change the count")
+            :quotes ("Adding nothing to a basket does not change the pile")
             :explanation "Additive identity: n + 0 = n"))
 
         (axiom add-succ (= (+ ?n (succ ?m)) (succ (+ ?n ?m)))
           :evidence (evidence "Counting Observations"
-            :quotes ("Every count is reached by adding one to the previous count")
+            :quotes ("every pile is reached by adding one more apple to the previous pile")
             :explanation "Addition step: n + S(m) = S(n + m)"))
 
         (axiom add-commutative (= (+ ?a ?b) (+ ?b ?a))
@@ -126,12 +126,12 @@ def main():
 
         (axiom mul-zero (= (* ?n zero) zero)
           :evidence (evidence "Counting Observations"
-            :quotes ("An empty basket contains zero apples")
+            :quotes ("We decided to mark an empty basket as \"zero\"")
             :explanation "Multiplication by zero: n * 0 = 0"))
 
         (axiom mul-succ (= (* ?n (succ ?m)) (+ (* ?n ?m) ?n))
           :evidence (evidence "Counting Observations"
-            :quotes ("Multiplication is a shortcut for counting equal groups")
+            :quotes ("Multiplication is a shortcut for combining equal groups")
             :explanation "Multiplication step: n * S(m) = n*m + n"))
     """,
     )
@@ -191,17 +191,17 @@ def main():
         """
         (defterm eve-morning (succ (succ (succ zero)))
           :evidence (evidence "Eden Inventory"
-            :quotes ("Eve picked 3 apples from the east grove")
+            :quotes ("Eve picked 🍎🍎🍎 apples from the east grove")
             :explanation "Eve's morning count: SSS0"))
 
         (defterm adam-morning (succ (succ (succ (succ (succ zero)))))
           :evidence (evidence "Eden Inventory"
-            :quotes ("Adam picked 5 apples from the west grove")
+            :quotes ("Adam picked 🍎🍎🍎🍎🍎 apples from the west grove")
             :explanation "Adam's morning count: SSSSS0"))
 
         (defterm morning-total (+ eve-morning adam-morning)
           :evidence (evidence "Eden Inventory"
-            :quotes ("Combined morning harvest was 8 apples")
+            :quotes ("Combined morning harvest was 🍎🍎🍎🍎🍎🍎🍎🍎 apples")
             :explanation "Sum of Eve and Adam's morning picks"))
 
         (defterm adam-picked-more (> adam-morning eve-morning)
@@ -226,7 +226,7 @@ def main():
             :bind ((?a eve-morning) (?b adam-morning))
             :using (add-commutative eve-morning adam-morning)
             :evidence (evidence "Eden Inventory"
-              :quotes ("Combined morning harvest was 8 apples")
+              :quotes ("Combined morning harvest was 🍎🍎🍎🍎🍎🍎🍎🍎 apples")
               :explanation "eve + adam = adam + eve"))
     """,
     )
@@ -244,32 +244,32 @@ def main():
         """
         (defterm serpent-afternoon (succ (succ (succ (succ zero))))
           :evidence (evidence "Eden Inventory"
-            :quotes ("Serpent picked 4 apples from the south grove")
+            :quotes ("Serpent picked 🍎🍎🍎🍎 apples from the south grove")
             :explanation "Serpent's afternoon count: SSSS0"))
 
         (defterm eve-afternoon (succ (succ zero))
           :evidence (evidence "Eden Inventory"
-            :quotes ("Eve picked 2 more apples from the east grove")
+            :quotes ("Eve picked 🍎🍎 more apples from the east grove")
             :explanation "Eve's afternoon count: SS0"))
 
         (defterm afternoon-total (+ serpent-afternoon eve-afternoon)
           :evidence (evidence "Eden Inventory"
-            :quotes ("Combined afternoon harvest was 6 apples")
+            :quotes ("Combined afternoon harvest was 🍎🍎🍎🍎🍎🍎 apples")
             :explanation "Sum of Serpent and Eve's afternoon picks"))
 
         (defterm eve-daily (+ eve-morning eve-afternoon)
           :evidence (evidence "Eden Inventory"
-            :quotes ("Eve's daily total is 5 apples")
+            :quotes ("Eve's daily total is 🍎🍎🍎🍎🍎 apples")
             :explanation "Eve's combined morning + afternoon"))
 
         (defterm daily-total (+ morning-total afternoon-total)
           :evidence (evidence "Eden Inventory"
-            :quotes ("Total harvest for the day was 14 apples")
+            :quotes ("Total harvest for the day was 🍎🍎🍎🍎🍎🍎🍎🍎🍎🍎🍎🍎🍎🍎 apples")
             :explanation "Grand total = morning + afternoon"))
 
         (defterm morning-advantage (- morning-total afternoon-total)
           :evidence (evidence "Eden Inventory"
-            :quotes ("The morning shift outproduced the afternoon by 2 apples")
+            :quotes ("The morning shift outproduced the afternoon by 🍎🍎 apples")
             :explanation "Difference between shift totals"))
     """,
     )
