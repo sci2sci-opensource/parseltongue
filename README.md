@@ -17,7 +17,7 @@ A DSL for systems that refuse to speak falsehood.
 _Red facts are hallucinated by Claude 4.6 Sonnet:_
 ![CLI Overview](https://raw.githubusercontent.com/sci2sci-opensource/parseltongue/HEAD/cli_core_check_halucination.png)
 
-
+*Explanation: You can see the critique which LLM provided in the markdown document for validation of the `core` module. The problem is that this critique has **no factual basis** and was **hallucinated** by one of the best LLMs on the market, which is shown by **ungrounded facts in red**.*
 
 ## Rationale - Why?
 
@@ -149,6 +149,18 @@ pytest                           # all tests
 pytest parseltongue/core/tests/  # core only
 pytest parseltongue/llm/tests/   # llm only
 ```
+
+## Acknowledgments
+
+Alan Turing — *On Computable Numbers* (1936), *Systems of Logic Based on Ordinals* (1939). For inspiration, formalisation, and the main principles of this work.
+
+Kurt Godel — incompleteness theorems, and the proof that no sufficiently powerful system can guarantee its own consistency. Without him we wouldn't know where to stop.
+
+Eliezer Yudkowsky — for the hint about the language and the name:
+
+> "There is a simple answer, and I would have enforced it upon you in any case. ***Ssnakes can't lie.*** And since I have a tremendous distaste for stupidity, I suggest you do not say anything like 'What do you mean?' You are smarter than that, and I do not have time for such conversations as ordinary people inflict on one another."
+>
+> Harry swallowed. Snakes can't lie. "***Two pluss two equalss four.***" Harry had tried to say that two plus two equalled three, and the word four had slipped out instead.
 
 ## License
 
