@@ -186,7 +186,7 @@ python -m parseltongue.llm.demos.revenue.demo            # LLM revenue reports
 # CLI demo — run the pipeline on the included PDF
 parseltongue run -d "parseltongue/cli/demo/nejm.pdf" -q "Find any inconsistencies or red flags."
 ```
-A sample PDF ([`cli/demo/nejm.pdf`](https://github.com/sci2sci-opensource/parseltongue/blob/HEAD/parseltongue/cli/demo/nejm.pdf)) is included for testing the CLI — it's the document used in the screenshots above.
+A sample PDF ([`cli/demo/nejm.pdf`](https://github.com/sci2sci-opensource/parseltongue/blob/HEAD/parseltongue/cli/demo/nejm.pdf)) is included for testing the CLI — it's the document used in the screenshots of CLI module.
 
 
 ## Tests
