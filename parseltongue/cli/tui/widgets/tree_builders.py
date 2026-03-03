@@ -88,23 +88,21 @@ def add_evidence_node(
                 verif_map[v.get("quote", "")] = v
     for q in quotes:
         q_str = str(q)
-        short_q = rich_escape(q_str[:80]) + ("..." if len(q_str) > 80 else "")
+        escaped_q = rich_escape(q_str)
         v = verif_map.get(q_str)
         if v:
             ok = v.get("verified", False)
             if ok:
                 conf = v.get("confidence", {})
                 level = conf.get("level", "?")
-                q_node = origin_node.add(f'[green]"{short_q}" [bold]✓[/bold] {level}[/green]')
+                q_node = origin_node.add(f'[green]"{escaped_q}" [bold]✓[/bold] {level}[/green]')
             else:
                 reason = v.get("reason", "no match")
-                q_node = origin_node.add(f'[red]"{short_q}" [bold]✗[/bold] {rich_escape(reason)}[/red]')
+                q_node = origin_node.add(f'[red]"{escaped_q}" [bold]✗[/bold] {rich_escape(reason)}[/red]')
             if v.get("context"):
                 q_node.add_leaf(f"context: {rich_escape(str(v['context']))}")
-            if len(q_str) > 80:
-                q_node.add_leaf(f'full: "{rich_escape(q_str)}"')
         else:
-            origin_node.add_leaf(f'"{short_q}"')
+            origin_node.add_leaf(f'"{escaped_q}"')
 
 
 def add_origin_node(parent, origin: Any) -> None:

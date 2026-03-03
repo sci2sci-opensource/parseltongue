@@ -334,20 +334,14 @@ class _HistoryResult:
 
         from parseltongue.core import System, load_source
 
-        # Register documents so verification works during replay
+        # Register documents from serialized system state
         system = System()
-        try:
-            docs = json.loads(self._documents) if self._documents else []
-            for doc in docs:
-                name, path = doc.get("name", ""), doc.get("path", "")
-                if name and path:
-                    from pathlib import Path
-
-                    p = Path(path)
-                    if p.exists():
-                        system.register_document(name, p.read_text())
-        except Exception:
-            pass
+        if self._system_state_json:
+            try:
+                for name, text in json.loads(self._system_state_json).get("documents", {}).items():
+                    system.register_document(name, text)
+            except Exception:
+                pass
 
         # Replay incrementally: each pass builds on the previous
         pass_systems: dict[int, System] = {}

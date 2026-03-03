@@ -1392,7 +1392,8 @@ class System:
         system.axioms = {n: _deserialize_axiom(n, d) for n, d in data.get("axioms", {}).items()}
         system.theorems = {n: _deserialize_theorem(n, d) for n, d in data.get("theorems", {}).items()}
         system.diffs = data.get("diffs", {})
-        system.documents = data.get("documents", {})
+        for name, text in data.get("documents", {}).items():
+            system.register_document(name, text)
         system._rebuild_env()
         return system
 
