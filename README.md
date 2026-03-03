@@ -14,7 +14,7 @@ A DSL for systems that refuse to speak falsehood.
 > **03.03 — CLI Tool Beta Released!** Install with `pip install parseltongue-dsl[cli]`
 
 _Red facts are hallucinated by Claude 4.6 Sonnet:_
-![CLI Overview](cli_core_check_halucination.png)
+![CLI Overview](https://raw.githubusercontent.com/sci2sci-opensource/parseltongue/HEAD/cli_core_check_halucination.png)
 
 
 
@@ -34,7 +34,7 @@ The result is a system where the LLM does what it's good at (reading documents, 
 
 And of course it's perfect for documentation or checking code.
 
-![Parseltongue checking itself](cli_self_check.png)
+![Parseltongue checking itself](https://raw.githubusercontent.com/sci2sci-opensource/parseltongue/HEAD/cli_self_check.png)
 
 ## Quick Start
 
