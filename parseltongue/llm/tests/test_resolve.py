@@ -184,7 +184,7 @@ class TestResolveOutput(unittest.TestCase):
         s = make_system()
 
         result = resolve_references("No tags", s)
-        self.assertIsInstance(result.consistency, str)
+        self.assertIsInstance(result.consistency, dict)
 
     def test_markdown_preserved(self):
         s = make_system()
