@@ -25,7 +25,7 @@ jobs:
         run: pip install -e ".[dev,llm,cli]"
 
       - name: Generate lock file for Trivy
-        run: pip freeze > requirements-lock.txt
+        run: pip freeze > requirements.txt
 
       - name: Run Trivy filesystem scan
         uses: aquasecurity/trivy-action@0.34.2
