@@ -283,15 +283,12 @@ DocumentPicker #selected-list {
 }
 
 DocumentPicker #ingest-status {
-    dock: bottom;
     height: 1;
     color: $text-muted;
-    margin-bottom: 0;
 }
 
 DocumentPicker #continue-btn {
-    dock: bottom;
-    margin-top: 1;
+    height: auto;
 }
 
 /* Query input screen */
@@ -299,20 +296,74 @@ QueryInput {
     padding: 1 2;
 }
 
+QueryInput #query-layout {
+    height: 1fr;
+}
+
+QueryInput #query-panel {
+    width: 3fr;
+    height: 1fr;
+    border: round $primary;
+    padding: 0 1;
+}
+
 QueryInput #query-label {
-    margin-bottom: 1;
     text-style: bold;
+    margin-bottom: 1;
 }
 
 QueryInput #query-field {
     height: 1fr;
     margin-bottom: 1;
+    border: round grey;
 }
 
-
 QueryInput #submit-btn {
-    dock: bottom;
-    margin-top: 1;
+    height: auto;
+}
+
+QueryInput #docs-panel {
+    width: 1fr;
+    height: 1fr;
+    border: round $accent;
+    padding: 0 1;
+    margin-left: 1;
+}
+
+QueryInput #docs-label {
+    text-style: bold;
+    margin-bottom: 1;
+}
+
+QueryInput #docs-list {
+    height: 1fr;
+}
+
+/* Document preview modal */
+DocPreviewModal {
+    align: center middle;
+}
+
+DocPreviewModal #doc-preview-container {
+    width: 90%;
+    height: 90%;
+    border: heavy $primary;
+    padding: 1 2;
+    background: $surface;
+}
+
+DocPreviewModal #doc-preview-header {
+    height: auto;
+    margin-bottom: 1;
+}
+
+DocPreviewModal #doc-preview-title {
+    text-style: bold;
+    width: 1fr;
+}
+
+DocPreviewModal #doc-preview-close {
+    width: auto;
 }
 
 /* History browser screen */

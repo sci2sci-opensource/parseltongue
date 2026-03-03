@@ -37,12 +37,15 @@ class DocumentPicker(Screen):
         ("ctrl+d", "confirm", "Done"),
     ]
 
+    _SPINNER = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
+
     def __init__(self, root: Path | None = None, selected: list[Path] | None = None, **kwargs) -> None:
         super().__init__(**kwargs)
         self._root = root or Path.cwd()
         self._selected: list[Path] = list(selected) if selected else []
         self._errors: dict[Path, str] = {}
         self._ingesting = False
+        self._current_file = ""
         self._spinner_timer: Timer | None = None
         self._spinner_idx = 0
 
@@ -104,7 +107,28 @@ class DocumentPicker(Screen):
         if event.button.id == "continue-btn":
             self._start_ingest()
 
-    _SPINNER = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
+    # ------------------------------------------------------------------
+    # Spinner — same pattern as LivePassScreen (set_interval + async worker)
+    # ------------------------------------------------------------------
+
+    def _start_spinner(self) -> None:
+        self._spinner_idx = 0
+        self._spinner_timer = self.set_interval(0.1, self._tick_spinner)
+
+    def _tick_spinner(self) -> None:
+        frame = self._SPINNER[self._spinner_idx % len(self._SPINNER)]
+        self._spinner_idx += 1
+        suffix = f" {self._current_file}" if self._current_file else ""
+        self.query_one("#ingest-status", Label).update(f"{frame} Ingesting{suffix}...")
+
+    def _stop_spinner(self) -> None:
+        if self._spinner_timer is not None:
+            self._spinner_timer.stop()
+            self._spinner_timer = None
+
+    # ------------------------------------------------------------------
+    # Ingestion — async worker with asyncio.to_thread (same as live_pass)
+    # ------------------------------------------------------------------
 
     def _start_ingest(self) -> None:
         if not self._selected:
@@ -115,42 +139,33 @@ class DocumentPicker(Screen):
         self._ingesting = True
         self._errors.clear()
         self.query_one("#continue-btn", Button).disabled = True
-        self._spinner_idx = 0
-        self._update_ingest_status("Ingesting...")
-        self._spinner_timer = self.set_interval(0.1, self._tick_spinner)
+        self._start_spinner()
         self.run_worker(self._do_ingest(), exclusive=True)
 
-    def _tick_spinner(self) -> None:
-        frame = self._SPINNER[self._spinner_idx % len(self._SPINNER)]
-        self._spinner_idx += 1
-        self._update_ingest_status(f"{frame} Ingesting...")
-
-    def _update_ingest_status(self, text: str) -> None:
-        self.query_one("#ingest-status", Label).update(text)
-
-    def _stop_spinner(self) -> None:
-        if self._spinner_timer is not None:
-            self._spinner_timer.stop()
-            self._spinner_timer = None
-        self._update_ingest_status("")
-
     async def _do_ingest(self) -> None:
+        """Async worker — matches LivePassScreen._execute_current_pass pattern."""
         from ...ingest import ingest_file
 
         ingested: dict[str, str] = {}
         errors: dict[Path, str] = {}
 
         for p in self._selected:
-            self._update_ingest_status(f"{self._SPINNER[self._spinner_idx % len(self._SPINNER)]} Ingesting {p.name}...")
+            self._current_file = p.name
             try:
                 text = await asyncio.to_thread(ingest_file, str(p))
                 ingested[p.stem] = text
             except Exception as exc:
                 errors[p] = str(exc)
 
+        self._current_file = ""
         self._stop_spinner()
         self._ingesting = False
-        self.query_one("#continue-btn", Button).disabled = False
+
+        try:
+            self.query_one("#ingest-status", Label).update("")
+            self.query_one("#continue-btn", Button).disabled = False
+        except Exception:
+            pass
 
         if errors:
             self._errors = errors

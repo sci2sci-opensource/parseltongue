@@ -111,7 +111,13 @@ class ParseltongueApp(App):
 
         self._selected_paths = list(event.paths)
         self._ingested_docs = event.ingested
-        self.push_screen(QueryInput(doc_count=len(event.paths)))
+        self.push_screen(
+            QueryInput(
+                doc_count=len(event.paths),
+                ingested=event.ingested,
+                doc_paths=self._selected_paths,
+            )
+        )
 
     def on_query_submitted(self, event) -> None:
         """Handle query submission → build RunConfig, run pipeline."""

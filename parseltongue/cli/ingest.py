@@ -125,16 +125,39 @@ def ingest_file(path: str) -> str:
         log.info("Reading plain text: %s", path)
         return p.read_text(encoding="utf-8")
 
-    # Try docling for rich document formats
+    # Rich document formats — run docling in a subprocess.
+    # pdfium is not thread-safe on macOS, so running it in-process via
+    # asyncio.to_thread (as the TUI does) causes crashes. A subprocess
+    # isolates pdfium and can be killed cleanly on Ctrl+C.
     try:
         log.info("Converting via docling: %s", path)
-        from docling.document_converter import DocumentConverter
-
-        converter = DocumentConverter()
-        result = converter.convert(str(p))
-        return result.document.export_to_markdown()
+        return _docling_convert(path)
     except Exception as exc:
         raise ValueError(f"Unsupported document format: {p.name} ({exc})") from exc
+
+
+def _docling_convert(path: str) -> str:
+    """Run docling conversion in a subprocess."""
+    import subprocess
+    import sys
+
+    script = (
+        "import sys; "
+        "from docling.document_converter import DocumentConverter; "
+        "r = DocumentConverter().convert(sys.argv[1]); "
+        "sys.stdout.write(r.document.export_to_markdown())"
+    )
+    result = subprocess.run(
+        [sys.executable, "-c", script, path],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        # Take only the last line of stderr (the actual error, not the traceback)
+        stderr = result.stderr.strip()
+        last_line = stderr.rsplit("\n", 1)[-1].strip() if stderr else ""
+        raise RuntimeError(last_line or f"docling exited with code {result.returncode}")
+    return result.stdout
 
 
 def parse_document_arg(arg: str) -> tuple[str, str]:
