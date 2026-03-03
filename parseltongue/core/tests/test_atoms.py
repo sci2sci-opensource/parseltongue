@@ -39,6 +39,83 @@ class TestTokenize(unittest.TestCase):
         self.assertEqual(tokens, [])
 
 
+class TestTokenizeEscapes(unittest.TestCase):
+    """Escaped quotes and backslashes inside strings."""
+
+    def test_escaped_quote_single_token(self):
+        tokens = tokenize(r'"\"Licensor\" shall mean"')
+        self.assertEqual(tokens, [r'"\"Licensor\" shall mean"'])
+
+    def test_escaped_quote_in_list(self):
+        tokens = tokenize(r'("\"hello\" world")')
+        self.assertEqual(tokens, ["(", r'"\"hello\" world"', ")"])
+
+    def test_escaped_backslash(self):
+        tokens = tokenize(r'"path\\to\\file"')
+        self.assertEqual(tokens, [r'"path\\to\\file"'])
+
+    def test_escaped_backslash_before_quote(self):
+        # \\" = escaped backslash then end-of-string
+        tokens = tokenize(r'"ends with backslash\\"')
+        self.assertEqual(tokens, [r'"ends with backslash\\"'])
+
+    def test_mixed_escapes(self):
+        tokens = tokenize(r'"a\"b\\c\"d"')
+        self.assertEqual(tokens, [r'"a\"b\\c\"d"'])
+
+    def test_evidence_quotes_form(self):
+        source = '(:quotes ("\\\"Licensor\\\" shall mean the copyright owner"))'
+        tokens = tokenize(source)
+        # Should be: ( :quotes ( "..." ) )
+        self.assertEqual(len(tokens), 6)
+        self.assertEqual(tokens[0], "(")
+        self.assertEqual(tokens[1], ":quotes")
+        self.assertEqual(tokens[2], "(")
+        self.assertTrue(tokens[3].startswith('"') and tokens[3].endswith('"'))
+        self.assertEqual(tokens[4], ")")
+        self.assertEqual(tokens[5], ")")
+
+
+class TestAtomEscapes(unittest.TestCase):
+    """Unescape sequences in string atoms."""
+
+    def test_escaped_quote_unescaped(self):
+        result = atom(r'"\"Licensor\""')
+        self.assertEqual(result, '"Licensor"')
+
+    def test_escaped_backslash_unescaped(self):
+        result = atom(r'"path\\to"')
+        self.assertEqual(result, "path\\to")
+
+    def test_no_escapes(self):
+        result = atom('"plain string"')
+        self.assertEqual(result, "plain string")
+
+
+class TestEscapeRoundTrip(unittest.TestCase):
+    """Parse → to_sexp → parse roundtrips with escapes."""
+
+    def test_roundtrip_escaped_quote(self):
+        source = r'("\"Licensor\" shall mean")'
+        parsed = parse(source)
+        self.assertEqual(parsed, ['"Licensor" shall mean'])
+        reparsed = parse(to_sexp(parsed))
+        self.assertEqual(reparsed, parsed)
+
+    def test_roundtrip_escaped_backslash(self):
+        source = r'("path\\to\\file")'
+        parsed = parse(source)
+        self.assertEqual(parsed, ["path\\to\\file"])
+        reparsed = parse(to_sexp(parsed))
+        self.assertEqual(reparsed, parsed)
+
+    def test_to_sexp_escapes_quotes(self):
+        self.assertEqual(to_sexp('say "hello"'), r'"say \"hello\""')
+
+    def test_to_sexp_escapes_backslashes(self):
+        self.assertEqual(to_sexp("a\\b"), r'"a\\b"')
+
+
 class TestAtom(unittest.TestCase):
     def test_integer(self):
         self.assertEqual(atom("42"), 42)

@@ -25,10 +25,12 @@ def tokenize(source: str) -> list[str]:
     tokens = []
     in_string = False
     in_comment = False
+    escaped = False
     current: list[str] = []
     for char in source:
         if char == "\n":
             in_comment = False
+            escaped = False
             if not in_string and current:
                 tokens.append("".join(current))
                 current = []
@@ -37,21 +39,29 @@ def tokenize(source: str) -> list[str]:
             continue
         if in_comment:
             continue
-        if char == ";" and not in_string:
+        if in_string:
+            if escaped:
+                current.append(char)
+                escaped = False
+            elif char == "\\":
+                current.append(char)
+                escaped = True
+            elif char == '"':
+                in_string = False
+                current.append(char)
+                tokens.append("".join(current))
+                current = []
+            else:
+                current.append(char)
+            continue
+        if char == ";":
             in_comment = True
             if current:
                 tokens.append("".join(current))
                 current = []
             continue
-        if char == '"' and not in_string:
+        if char == '"':
             in_string = True
-            current.append(char)
-        elif char == '"' and in_string:
-            in_string = False
-            current.append(char)
-            tokens.append("".join(current))
-            current = []
-        elif in_string:
             current.append(char)
         elif char in "()":
             if current:
@@ -105,7 +115,7 @@ def atom(token: str):
     if token == "false":
         return False
     if token.startswith('"') and token.endswith('"'):
-        return token[1:-1]
+        return token[1:-1].replace('\\"', '"').replace("\\\\", "\\")
     if token.startswith(":"):
         return token
     return Symbol(token)
@@ -133,7 +143,8 @@ def to_sexp(obj) -> str:
     elif isinstance(obj, bool):
         return "true" if obj else "false"
     elif isinstance(obj, str) and not isinstance(obj, Symbol):
-        return f'"{obj}"'
+        escaped = obj.replace("\\", "\\\\").replace('"', '\\"')
+        return f'"{escaped}"'
     else:
         return str(obj)
 
