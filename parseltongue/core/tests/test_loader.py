@@ -365,6 +365,29 @@ class TestBindDirective(unittest.TestCase):
         quiet(load_source, s, "(derive d1 gt-zero :bind ((?x rev)) :using (rev gt-zero))")
         self.assertIn("d1", s.theorems)
 
+    def test_derive_inline_wff_with_bind_crashes(self):
+        """Inline WFF + :bind is invalid syntax — :bind requires an axiom name, not a WFF."""
+        s = make_system()
+        quiet(s.set_fact, "impl-expiry", 3600, "test")
+        quiet(s.verify_manual, "impl-expiry")
+        quiet(s.set_fact, "spec-max", 7200, "test")
+        quiet(s.verify_manual, "spec-max")
+        quiet(
+            s.introduce_axiom,
+            "expiry-within-max",
+            [Symbol("<="), Symbol("?expiry"), Symbol("spec-max")],
+            "test",
+        )
+        quiet(s.verify_manual, "expiry-within-max")
+        with self.assertRaises(KeyError):
+            quiet(
+                load_source,
+                s,
+                "(derive d1 (<= impl-expiry spec-max) "
+                ":using (expiry-within-max impl-expiry spec-max) "
+                ":bind ((?expiry impl-expiry)))",
+            )
+
 
 class TestDefaultOrigin(unittest.TestCase):
     def test_fact_no_origin_defaults_to_unknown(self):

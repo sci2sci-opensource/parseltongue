@@ -95,9 +95,20 @@ class TestEvaluation(unittest.TestCase):
         self.assertFalse(self.s.evaluate([Symbol("and"), True, False]))
         self.assertTrue(self.s.evaluate([Symbol("and"), True, True]))
 
+    def test_and_variadic(self):
+        self.assertTrue(self.s.evaluate([Symbol("and"), True, True, True]))
+        self.assertFalse(self.s.evaluate([Symbol("and"), True, True, False]))
+        self.assertTrue(self.s.evaluate([Symbol("and"), True, True, True, True, True]))
+        self.assertFalse(self.s.evaluate([Symbol("and"), True, True, True, True, False]))
+
     def test_or(self):
         self.assertTrue(self.s.evaluate([Symbol("or"), False, True]))
         self.assertFalse(self.s.evaluate([Symbol("or"), False, False]))
+
+    def test_or_variadic(self):
+        self.assertFalse(self.s.evaluate([Symbol("or"), False, False, False]))
+        self.assertTrue(self.s.evaluate([Symbol("or"), False, False, True]))
+        self.assertTrue(self.s.evaluate([Symbol("or"), False, False, False, False, True]))
 
     def test_not(self):
         self.assertFalse(self.s.evaluate([Symbol("not"), True]))

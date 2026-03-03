@@ -1,0 +1,35 @@
+Limitations of Fecal Calprotectin Specificity in Differential Diagnosis:
+A Systematic Review and Meta-Analysis
+
+Abstract
+
+While fecal calprotectin has gained widespread use as a screening tool for
+inflammatory bowel disease, this meta-analysis examines its diagnostic
+limitations when applied to broader patient populations.
+
+Results
+
+Calprotectin is elevated in multiple non-IBD conditions, including NSAID
+enteropathy, gastrointestinal infections, colorectal cancer, and
+diverticulitis. This significantly reduces its diagnostic utility in
+unselected patient populations.
+
+Specificity of only 67% was observed when non-IBD inflammatory conditions
+were included in the analysis. This contrasts sharply with the higher
+specificity figures reported in studies that compared IBD exclusively
+against irritable bowel syndrome.
+
+Among patients taking regular NSAIDs, 43% had elevated calprotectin above
+the standard 50 µg/g cutoff despite no evidence of IBD. Similarly, acute
+gastrointestinal infections produced calprotectin elevations indistinguishable
+from mild IBD flares.
+
+Clinical Implications
+
+Calprotectin should not be used as a standalone diagnostic tool for IBD.
+Positive results must be interpreted in the clinical context, with
+consideration of medication history, recent infections, and other potential
+sources of intestinal inflammation.
+
+A two-step diagnostic approach combining calprotectin with a clinical risk
+score improved specificity to 84% without significantly reducing sensitivity.

@@ -2,6 +2,20 @@
 
 The formal language engine. No LLM dependency — pure logic, evidence grounding, and consistency checking.
 
+## Rationale
+
+LLMs hallucinate. They produce fluent, confident text that may have no basis in the source material. Traditional approaches treat this as a retrieval problem — feed the model better context and hope for the best. But even with perfect retrieval, nothing stops the model from inventing facts, misquoting sources, or drawing conclusions that don't follow from the evidence.
+
+Parseltongue takes a different approach: instead of asking an LLM to summarize documents, we ask it to encode each of the documents as a **logic system**. Every extracted fact must cite a verbatim quote. Every conclusion must derive from stated premises. And every derivation is checked.
+
+This gives us two things that prose summaries cannot:
+
+1. **Hallucination detection.** Every claim traces back to a quote in a source document. If the LLM fabricates a fact, the quote verification fails — and that failure propagates automatically to every conclusion that depends on it. You don't just catch the lie; you see everything it contaminates. This also gives the user the ability to verify only the foundation — the basic facts — conclusions are guaranteed to follow from them.
+
+2. **Cross-document consistency checking.** Speaking plainly — **we validate if the ground truth is trustable itself.** The formal system makes it possible to compute the same value via independent paths — say, a reported growth percentage vs. one calculated from absolute revenue figures in a different document. When these paths disagree, the system flags a divergence. This catches not only LLM errors, but genuine inconsistencies in the source documents.
+
+The result is a system where the LLM does what it's good at (reading documents, identifying relevant facts, understanding relationships) while the formal engine does what LLMs are bad at (tracking provenance, checking logical consistency, propagating uncertainty).
+
 ## Quick Start
 
 ```bash
@@ -296,3 +310,15 @@ python -m parseltongue.core.demos.biomarkers.demo
 ```bash
 pytest parseltongue/core/tests/ -v
 ```
+
+## Acknowledgments
+
+Alan Turing — *On Computable Numbers* (1936), *Systems of Logic Based on Ordinals* (1939). For inspiration, formalisation, and the main principles of this work.
+
+Kurt Godel — incompleteness theorems, and the proof that no sufficiently powerful system can guarantee its own consistency. Without him we wouldn't know where to stop.
+
+Eliezer Yudkowsky — for the hint about the language and the name:
+
+> "There is a simple answer, and I would have enforced it upon you in any case. ***Ssnakes can't lie.*** And since I have a tremendous distaste for stupidity, I suggest you do not say anything like 'What do you mean?' You are smarter than that, and I do not have time for such conversations as ordinary people inflict on one another."
+>
+> Harry swallowed. Snakes can't lie. "***Two pluss two equalss four.***" Harry had tried to say that two plus two equalled three, and the word four had slipped out instead.

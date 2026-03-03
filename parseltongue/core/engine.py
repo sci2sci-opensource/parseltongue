@@ -248,16 +248,16 @@ ENGINE_DOCS = {
     # Logic
     AND: {
         "category": "logic",
-        "description": "Logical AND.  True only if both operands are true.  "
-        "Used in compound conditions: "
-        "(and reliable-marker standalone-diagnostic).",
-        "example": "(and true false)",
+        "description": "Logical AND (variadic).  True only if all operands are true.  "
+        "Accepts 2 or more arguments: (and a b), (and a b c d).",
+        "example": "(and true true false)",
         "expected": False,
     },
     OR: {
         "category": "logic",
-        "description": "Logical OR.  True if at least one operand is true.",
-        "example": "(or false true)",
+        "description": "Logical OR (variadic).  True if at least one operand is true.  "
+        "Accepts 2 or more arguments: (or a b), (or a b c d).",
+        "example": "(or false false true)",
         "expected": True,
     },
     NOT: {
@@ -294,8 +294,8 @@ DEFAULT_OPERATORS: dict[Symbol, Any] = {
     EQ: operator.eq,
     NE: operator.ne,
     # Logic
-    AND: lambda a, b: a and b,
-    OR: lambda a, b: a or b,
+    AND: lambda *args: all(args),
+    OR: lambda *args: any(args),
     NOT: lambda a: not a,
     IMPLIES: lambda a, b: (not a) or b,
 }

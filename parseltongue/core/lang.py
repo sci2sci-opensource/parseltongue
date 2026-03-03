@@ -208,32 +208,48 @@ LANG_DOCS = {
         "description": "Derive a theorem from existing axioms, facts, or "
         "terms listed in :using.  Evaluation is restricted to "
         ":using sources; dependencies of axioms and terms are "
-        "expanded transitively.  Two modes:\n"
-        "  1. Direct — provide the WFF to prove.\n"
-        "  2. Instantiation — name a parameterised axiom and "
-        "supply :bind to substitute ?-variables.\n"
+        "expanded transitively.  Two modes:\n\n"
+        "  1. Direct — provide an expression (WFF) to prove:\n"
+        "     (derive name (expression) :using (sources...))\n"
+        "     The second element is the WFF expression.\n\n"
+        "  2. Instantiation — name a parameterised axiom and\n"
+        "     supply :bind to substitute ?-variables:\n"
+        "     (derive name axiom-name :bind ((?var val)...) :using (sources...))\n"
+        "     The second element MUST be an axiom name (a symbol),\n"
+        "     NOT an expression. :bind substitutes ?-variables in\n"
+        "     the axiom's template. :using must include the axiom\n"
+        "     name and all symbols referenced in :bind values.\n\n"
+        "  IMPORTANT: Do NOT combine an inline expression with :bind.\n"
+        "  If the expression is already ground (no ?-variables), use\n"
+        "  mode 1 (direct) without :bind. :bind is ONLY for\n"
+        "  instantiating a named axiom in mode 2.\n\n"
         "If any source has unverified evidence, the theorem is "
         'marked as a "potential fabrication".',
         "example": "(derive d1 (> x 0) :using (x))",
         "patterns": [
             # Direct derivation from facts (revenue demo)
+            ";; Mode 1: Direct — WFF expression, no :bind\n"
             "(derive target-exceeded\n"
             "    (> revenue-q3-growth growth-target)\n"
             "    :using (revenue-q3-growth growth-target))",
             # Instantiation via :bind — single variable (apples demo)
             # :using must include axiom + symbols from :bind values
+            ";; Mode 2: Instantiation — axiom name + :bind\n"
             "(derive three-plus-zero add-identity\n"
             "    :bind ((?n (succ (succ (succ zero)))))\n"
             "    :using (add-identity succ zero))",
             # Instantiation via :bind — multiple variables (apples demo)
+            ";; Mode 2: Multiple :bind variables\n"
             "(derive morning-commutes add-commutative\n"
             "    :bind ((?a eve-morning) (?b adam-morning))\n"
-            "    :using (add-commutative eve-morning adam-morning)\n"
-            '    :evidence (evidence "Eden Inventory"\n'
-            '      :quotes ("Combined morning harvest was 8 apples")\n'
-            '      :explanation "eve + adam = adam + eve"))',
+            "    :using (add-commutative eve-morning adam-morning))",
             # Derivation showing fabrication propagation (revenue demo)
+            ";; Fabrication propagation — unverified source taints the theorem\n"
             "(derive uses-fake\n    (> fake-metric 0)\n    :using (fake-metric))",
+            # WRONG — common LLM mistake
+            ";; WRONG — do NOT combine inline WFF with :bind:\n"
+            ";; (derive d1 (<= x y) :bind ((?a x)) :using (ax1 x y))\n"
+            ";; Use mode 1 (direct) or mode 2 (axiom name), never both.",
         ],
     },
     DIFF: {

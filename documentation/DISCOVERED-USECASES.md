@@ -12,8 +12,11 @@ Load source code as a document. The pipeline extracts facts about function signa
 
 In practice (run against Parseltongue's own core `engine.py`): the pipeline correctly extracted hundreds of facts from a single source file. Among them, the LLM fabricated several issues that had no basis in the actual code — and the quote verification caught every one. The hallucinated claims were flagged as unverified, and their taint propagated to every conclusion that depended on them. This saved enormous time — we could see immediately where the LLM's critique had no factual basis.
 
+The included demos audit a Python authentication module — catching MD5 usage for session IDs, missing expiry checks in token validation, and fabricated claims about bcrypt.
+
 Demos:
-- [Core demo](../parseltongue/core/demos/code_check/) — standalone, no LLM needed
+- [Core demo](../parseltongue/core/demos/code_check/) — auth module security audit, no LLM needed
+- [LLM demo](../parseltongue/llm/demos/code_check/) — auth module security audit, requires API key
 
 ### Code-Specification Cross-Validation
 
@@ -21,8 +24,11 @@ Load both the specification and the implementation as separate documents. The pi
 
 Tested by running the core README against `engine.py`: the system identified where documented behavior diverged from actual implementation, tracing each discrepancy to the specific README sentence and code passage.
 
+The included demos cross-validate an authentication API spec against its implementation — catching wrong token expiry (3600s vs 1800s), exceeding session limits (5 vs 3), and MD5 usage despite the spec prohibiting it.
+
 Demos:
-- [Core demo](../parseltongue/core/demos/spec_validation/) — standalone, no LLM needed
+- [Core demo](../parseltongue/core/demos/spec_validation/) — auth spec vs implementation, no LLM needed
+- [LLM demo](../parseltongue/llm/demos/spec_validation/) — auth spec vs implementation, requires API key
 
 ### Documentation Validation
 
@@ -35,8 +41,11 @@ In v0.3.1, the project's own README was validated this way. The pipeline caught 
 
 Both were caught by the LLM extracting install instructions as facts, then deriving platform-specific conclusions that evaluated to false.
 
+The included demos validate an authentication library README — catching a fabricated rate-limiting claim, unverifiable security audit assertions, and verifying that prose expiry matches the config table.
+
 Demos:
-- [Core demo](../parseltongue/core/demos/doc_validation/) — standalone, no LLM needed
+- [Core demo](../parseltongue/core/demos/doc_validation/) — auth library docs validation, no LLM needed
+- [LLM demo](../parseltongue/llm/demos/doc_validation/) — auth library docs validation, requires API key
 
 ### License and Policy Verification
 
@@ -55,6 +64,10 @@ Tested against a real [NEJM paper](../parseltongue/cli/demo/nejm.pdf) ("Are the 
 Load multiple papers studying the same phenomenon. The pipeline extracts facts from each independently, derives cross-paper conclusions, and flags contradictions.
 
 The [biomarkers demo](../parseltongue/core/demos/biomarkers/) demonstrates this with two medical papers on fecal calprotectin as an IBD diagnostic marker. Paper A reports 93% sensitivity and recommends it as a first-line test. Paper B reports only 67% specificity and warns against standalone use. Both are individually accurate — but the formal system makes the tension explicit: `reliable-marker` evaluates to true (93 > 90) while `standalone-diagnostic` evaluates to false (67 < 90). The synthesized clinical utility term resolves to `"use-with-confirmation"`, with full provenance tracing each conclusion back to specific quotes in each paper.
+
+Demos:
+- [Core demo](../parseltongue/core/demos/biomarkers/) — standalone, no LLM needed
+- [LLM demo](../parseltongue/llm/demos/biomarkers/) — full pipeline, requires API key
 
 ### Meta-Analysis Validation
 

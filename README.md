@@ -21,19 +21,17 @@ _Red facts are hallucinated by Claude 4.6 Sonnet:_
 
 ## Rationale - Why?
 
-LLMs hallucinate. They produce fluent, confident text that may have no basis in the source material. Traditional approaches treat this as a retrieval problem — feed the model better context and hope for the best. But even with perfect retrieval, nothing stops the model from inventing facts, misquoting sources, or drawing conclusions that don't follow from the evidence.
+LLMs are increasingly used for code review, security auditing, and documentation validation. The problem: they hallucinate. An LLM reviewing an authentication module might flag a "missing bcrypt implementation" that doesn't exist in the code, or miss the actual vulnerability — MD5 used for session IDs — while confidently producing a detailed critique. You get a fluent, plausible security report where some findings are real, some are fabricated, and you have no way to tell which is which without manually verifying every claim.
 
-Parseltongue takes a different approach: instead of asking an LLM to summarize documents, we ask it to encode each of the documents as a **logic system**. Every extracted fact must cite a verbatim quote. Every conclusion must derive from stated premises. And every derivation is checked.
+Parseltongue fixes this by making every claim **provable**. Instead of asking an LLM to produce a prose review, we ask it to encode the codebase as a **formal logic system**. Every extracted fact must cite a verbatim quote from the source code. Every conclusion must derive from stated premises. And every derivation is checked by a symbolic engine that doesn't hallucinate.
 
-This gives us two things that prose summaries cannot:
+This gives you three things that prose reviews cannot:
 
-1. **Hallucination detection.** Every claim traces back to a quote in a source document. If the LLM fabricates a fact, the quote verification fails — and that failure propagates automatically to every conclusion that depends on it. You don't just catch the lie; you see everything it contaminates. This also gives the user the ability to verify only the foundation — the basic facts — conclusions are guaranteed to follow from them.
+1. **Hallucination detection.** Every claim traces back to a quote in the source. If the LLM fabricates a security issue — "passwords are hashed using bcrypt" when there's no bcrypt anywhere in the code — the quote verification fails. That failure propagates automatically to every conclusion that depends on it. You don't just catch the fabrication; you see everything it contaminates.
 
-2. **Cross-document consistency checking.** Speaking plainly — **we validate if the ground truth is trustable itself.** The formal system makes it possible to compute the same value via independent paths — say, a reported growth percentage vs. one calculated from absolute revenue figures in a different document. When these paths disagree, the system flags a divergence. This catches not only LLM errors, but genuine inconsistencies in the source documents.
+2. **Specification compliance checking.** Load a security spec alongside the implementation. The engine extracts requirements from the spec and facts from the code independently, then cross-validates via `diff` directives. Wrong token expiry values, exceeded session limits, prohibited algorithms in use — every divergence is flagged with full provenance to both documents.
 
-The result is a system where the LLM does what it's good at (reading documents, identifying relevant facts, understanding relationships) while the formal engine does what LLMs are bad at (tracking provenance, checking logical consistency, propagating uncertainty). 
-
-And of course it's perfect for documentation or checking code.
+3. **Documentation validation.** Run the engine against a library's README or API docs. Internal contradictions between prose and config tables, unverifiable security audit claims, inconsistencies between documented and actual behavior — all surface automatically with traceable evidence.
 
 ![Parseltongue checking itself](https://raw.githubusercontent.com/sci2sci-opensource/parseltongue/HEAD/documentation/resources/cli_self_check.png)
 
@@ -158,7 +156,7 @@ parseltongue/
 │   ├── demos/           — apples, revenue, biomarkers, code_check, spec_validation, doc_validation
 │   └── tests/           — core unit tests (300+)
 ├── llm/                 — four-pass LLM pipeline: extract → derive → factcheck → answer
-│   ├── demos/           — end-to-end revenue demo
+│   ├── demos/           — code_check, spec_validation, doc_validation, biomarkers, revenue
 │   └── tests/           — llm unit tests (~100)
 └── cli/                 — terminal interface: TUI, document ingestion, history
     ├── tui/             — Textual screens, widgets, tree builders
@@ -169,17 +167,21 @@ parseltongue/
 
 ```bash
 # Software engineering — no LLM needed
-python -m parseltongue.core.demos.code_check.demo        # code implementation checks
-python -m parseltongue.core.demos.spec_validation.demo   # code vs specification
-python -m parseltongue.core.demos.doc_validation.demo    # documentation validation
+python -m parseltongue.core.demos.code_check.demo        # auth module security audit
+python -m parseltongue.core.demos.spec_validation.demo   # auth spec vs implementation
+python -m parseltongue.core.demos.doc_validation.demo    # auth library docs validation
 
 # Research & math — no LLM needed
 python -m parseltongue.core.demos.biomarkers.demo        # cross-paper scientific conflict
 python -m parseltongue.core.demos.revenue_reports.demo   # cross-document analysis
 python -m parseltongue.core.demos.apples.demo            # Peano arithmetic from field notes
 
-# LLM pipeline demo
-python -m parseltongue.llm.demos.revenue.demo
+# LLM pipeline demos — requires API key
+python -m parseltongue.llm.demos.code_check.demo         # LLM auth module security audit
+python -m parseltongue.llm.demos.spec_validation.demo    # LLM auth spec vs implementation
+python -m parseltongue.llm.demos.doc_validation.demo     # LLM auth library docs validation
+python -m parseltongue.llm.demos.biomarkers.demo         # LLM biomarker analysis
+python -m parseltongue.llm.demos.revenue.demo            # LLM revenue reports
 
 # CLI demo — run the pipeline on the included PDF
 parseltongue run -d "parseltongue/cli/demo/nejm.pdf" -q "Find any inconsistencies or red flags."
@@ -195,18 +197,6 @@ pytest                           # all tests
 pytest parseltongue/core/tests/  # core only
 pytest parseltongue/llm/tests/   # llm only
 ```
-
-## Acknowledgments
-
-Alan Turing — *On Computable Numbers* (1936), *Systems of Logic Based on Ordinals* (1939). For inspiration, formalisation, and the main principles of this work.
-
-Kurt Godel — incompleteness theorems, and the proof that no sufficiently powerful system can guarantee its own consistency. Without him we wouldn't know where to stop.
-
-Eliezer Yudkowsky — for the hint about the language and the name:
-
-> "There is a simple answer, and I would have enforced it upon you in any case. ***Ssnakes can't lie.*** And since I have a tremendous distaste for stupidity, I suggest you do not say anything like 'What do you mean?' You are smarter than that, and I do not have time for such conversations as ordinary people inflict on one another."
->
-> Harry swallowed. Snakes can't lie. "***Two pluss two equalss four.***" Harry had tried to say that two plus two equalled three, and the word four had slipped out instead.
 
 ## License
 

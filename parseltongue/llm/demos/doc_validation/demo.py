@@ -1,14 +1,14 @@
 """
-Demo: LLM four-pass pipeline on revenue reports.
+Demo: LLM four-pass pipeline on documentation validation.
 
-Runs the same revenue analysis as core/demos/revenue_reports — but
-instead of hand-crafting the DSL, the LLM extracts facts, builds
+Runs the same documentation analysis as core/demos/doc_validation —
+but instead of hand-crafting the DSL, the LLM extracts facts, builds
 derivations, and produces a grounded markdown answer autonomously.
 
 Usage:
-    python -m parseltongue.llm.demos.revenue.demo
-    python -m parseltongue.llm.demos.revenue.demo --no-thinking
-    python -m parseltongue.llm.demos.revenue.demo --reasoning-tokens 8000
+    python -m parseltongue.llm.demos.doc_validation.demo
+    python -m parseltongue.llm.demos.doc_validation.demo --no-thinking
+    python -m parseltongue.llm.demos.doc_validation.demo --reasoning-tokens 8000
 """
 
 import argparse
@@ -25,7 +25,7 @@ RESOURCE_DIR = os.path.join(os.path.dirname(__file__), "resources")
 
 
 def main():
-    parser = argparse.ArgumentParser(description="LLM pipeline demo — revenue reports")
+    parser = argparse.ArgumentParser(description="LLM pipeline demo — documentation validation")
     parser.add_argument("--no-thinking", action="store_true", help="Disable extended thinking")
     parser.add_argument(
         "--reasoning-tokens", type=int, default=None, help="Set explicit reasoning token budget (default: adaptive)"
@@ -50,7 +50,7 @@ def main():
         reasoning = True  # adaptive thinking
 
     print("=" * 60)
-    print("Parseltongue LLM Pipeline — Revenue Reports")
+    print("Parseltongue LLM Pipeline — Documentation Validation")
     print("=" * 60)
 
     provider = OpenRouterProvider(model=args.model, reasoning=reasoning)
@@ -60,18 +60,16 @@ def main():
     system = System(overridable=True)
 
     pipeline = Pipeline(system, provider)
-    pipeline.add_document("Q3 Report", path=os.path.join(RESOURCE_DIR, "q3_report.txt"))
-    pipeline.add_document("FY2024 Targets Memo", path=os.path.join(RESOURCE_DIR, "targets_memo.txt"))
-    pipeline.add_document("Bonus Policy Doc", path=os.path.join(RESOURCE_DIR, "bonus_policy.txt"))
+    pipeline.add_document("README", path=os.path.join(RESOURCE_DIR, "readme.txt"))
     print(f"  Documents: {list(system.documents.keys())}")
 
-    query = "Did the company beat its growth target in Q3? What is the bonus?"
+    query = "Validate this README for internal consistency. Are there any contradictions, unverifiable claims, or factual errors?"
     print(f"\n  Query: {query}")
     print("\n" + "-" * 60)
 
     result = pipeline.run(query)
 
-    print_result("Parseltongue LLM Pipeline — Revenue Reports", result, system)
+    print_result("Parseltongue LLM Pipeline — Documentation Validation", result, system)
 
 
 if __name__ == "__main__":
