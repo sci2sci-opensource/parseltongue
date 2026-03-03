@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/sci2sci-opensource/parseltongue/HEAD/parseltongue.svg" alt="Parseltongue" width="200">
+  <img src="https://raw.githubusercontent.com/sci2sci-opensource/parseltongue/HEAD/documentation/resources/parseltongue.svg" alt="Parseltongue" width="200">
 </p>
 
 # Parseltongue
@@ -15,7 +15,7 @@ A DSL for systems that refuse to speak falsehood.
 > **03.03 — CLI Tool Beta Released!** Install with `pipx install 'parseltongue-dsl[cli]'`
 
 _Red facts are hallucinated by Claude 4.6 Sonnet:_
-![CLI Overview](https://raw.githubusercontent.com/sci2sci-opensource/parseltongue/HEAD/cli_core_check_halucination.png)
+![CLI Overview](https://raw.githubusercontent.com/sci2sci-opensource/parseltongue/HEAD/documentation/resources/cli_core_check_halucination.png)
 
 *Explanation: You can see the critique which LLM provided in the markdown document for validation of the `core` module. The problem is that this critique has **no factual basis** and was **hallucinated** by one of the best LLMs on the market, which is shown by **ungrounded facts in red**.*
 
@@ -35,7 +35,9 @@ The result is a system where the LLM does what it's good at (reading documents, 
 
 And of course it's perfect for documentation or checking code.
 
-![Parseltongue checking itself](https://raw.githubusercontent.com/sci2sci-opensource/parseltongue/HEAD/cli_self_check.png)
+![Parseltongue checking itself](https://raw.githubusercontent.com/sci2sci-opensource/parseltongue/HEAD/documentation/resources/cli_self_check.png)
+
+See [Discovered Use Cases](https://github.com/sci2sci-opensource/parseltongue/blob/HEAD/documentation/DISCOVERED-USECASES.md) for more real-world applications.
 
 ## Quick Start
 
@@ -70,6 +72,11 @@ pipx install "parseltongue-dsl[cli]"
 pip install 'parseltongue-dsl[cli]'
 ```
 
+**Updating**
+```bash
+pipx install 'parseltongue-dsl[cli]==0.3.1' --force  # explicit version avoids pip cache issues
+```
+
 ```bash
 parseltongue
 ```
@@ -98,9 +105,11 @@ parseltongue run \
 
 Supports PDF, DOCX, PPTX, XLSX, HTML (via [Docling](https://ds4sd.github.io/docling/)), plus all plain text and code formats.
 
-See the full [CLI documentation](parseltongue/cli/README.md) for TUI navigation, keybindings, screenshots of every screen, and configuration details.
+See the full [CLI documentation](https://github.com/sci2sci-opensource/parseltongue/blob/HEAD/parseltongue/cli/README.md) for TUI navigation, keybindings, screenshots of every screen, and configuration details.
 
 ## Python API
+
+The LLM module extends Parseltongue to a neuro-symbolic approach over the symbolic formal reasoning core.
 
 ```bash
 pip install 'parseltongue-dsl[llm]'
@@ -126,7 +135,7 @@ result = pipeline.run("Did we beat the growth target? What is the bonus?")
 - **`result.output.consistency`** — unverified evidence, fabrication chains, diff divergences
 - **`result.system`** — the full formal system for inspection via `system.provenance(name)`, `system.eval_diff(name)`, etc.
 
-See the full [LLM pipeline documentation](parseltongue/llm/README.md) for the four-pass architecture, provider interface, extended thinking, and reference resolution.
+See the full [LLM pipeline documentation](https://github.com/sci2sci-opensource/parseltongue/blob/HEAD/parseltongue/llm/README.md) for the four-pass architecture, provider interface, extended thinking, and reference resolution.
 
 ## Core Engine
 
@@ -136,7 +145,7 @@ The DSL that the pipeline builds under the hood. Five directive types — `fact`
 pip install parseltongue-dsl
 ```
 
-See the full [core documentation](parseltongue/core/README.md) for directive types, evidence grounding, quote verification, custom environments, and consistency checking.
+See the full [core documentation](https://github.com/sci2sci-opensource/parseltongue/blob/HEAD/parseltongue/core/README.md) for directive types, evidence grounding, quote verification, custom environments, and consistency checking.
 
 ## Project Structure
 
@@ -168,7 +177,7 @@ python -m parseltongue.llm.demos.revenue.demo
 # CLI demo — run the pipeline on the included PDF
 parseltongue run -d "parseltongue/cli/demo/nejm.pdf" -q "Find any inconsistencies or red flags."
 ```
-A sample PDF ([`cli/demo/nejm.pdf`](parseltongue/cli/demo/nejm.pdf)) is included for testing the CLI — it's the document used in the screenshots above.
+A sample PDF ([`cli/demo/nejm.pdf`](https://github.com/sci2sci-opensource/parseltongue/blob/HEAD/parseltongue/cli/demo/nejm.pdf)) is included for testing the CLI — it's the document used in the screenshots above.
 
 
 ## Tests

@@ -1,6 +1,8 @@
 # Parseltongue LLM Pipeline
 
-The four-pass pipeline that turns documents + a question into a grounded, cross-validated answer. Built on the [core engine](../core/README.md).
+This module extends Parseltongue to a neuro-symbolic approach over the [symbolic formal reasoning core](../core/README.md).
+
+The four-pass pipeline turns documents + a question into a grounded, cross-validated answer.
 
 ## Quick Start
 
