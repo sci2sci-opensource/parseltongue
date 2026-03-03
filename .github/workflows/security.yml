@@ -28,7 +28,7 @@ jobs:
         run: pip freeze > requirements-lock.txt
 
       - name: Run Trivy filesystem scan
-        uses: aquasecurity/trivy-action@0.33.1
+        uses: aquasecurity/trivy-action@0.34.2
         with:
           scan-type: fs
           scan-ref: .
