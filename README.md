@@ -74,7 +74,7 @@ pip install 'parseltongue-dsl[cli]'
 
 **Updating**
 ```bash
-pipx install 'parseltongue-dsl[cli]==0.3.1' --force  # explicit version avoids pip cache issues
+pipx install 'parseltongue-dsl[cli]==0.3.2' --force  # explicit version avoids pip cache issues
 ```
 
 ```bash
