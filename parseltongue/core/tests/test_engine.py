@@ -1323,7 +1323,7 @@ class TestDoc(unittest.TestCase):
         result = s.doc()
         self.assertIn("(+ 2 3)", result)
         self.assertIn("(> 5 3)", result)
-        self.assertIn("(and true false)", result)
+        self.assertIn("(and true true false)", result)
 
     def test_doc_contains_expected(self):
         s = make_system()
