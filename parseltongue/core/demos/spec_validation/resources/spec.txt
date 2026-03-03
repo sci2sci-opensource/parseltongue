@@ -1,0 +1,41 @@
+API Specification: User Authentication Service v2.1
+
+1. Token Management
+
+1.1 Token Generation
+  - Tokens MUST be generated using SHA-256 hashing.
+  - Token payload MUST include user_id, timestamp, and application secret.
+  - Generated tokens MUST be 64 characters (hex-encoded).
+
+1.2 Token Expiry
+  - Default token lifetime MUST be 1800 seconds (30 minutes).
+  - Maximum allowed token lifetime is 7200 seconds.
+  - Expired tokens MUST be rejected with a 401 status code.
+
+1.3 Token Validation
+  - Validation MUST check token format, expiry, and user binding.
+  - Invalid tokens MUST return False, never raise exceptions.
+
+2. Session Management
+
+2.1 Session Creation
+  - Each session MUST have a unique session_id.
+  - Session MUST store user_id, created_at, and expires_at.
+  - Sessions MUST expire at the same interval as tokens.
+
+2.2 Session Limits
+  - Maximum 3 concurrent sessions per user.
+  - When the limit is reached, the oldest session MUST be revoked.
+
+2.3 Session Revocation
+  - revoke_session MUST return True on success, False if session not found.
+
+3. Security Requirements
+
+3.1 Hashing
+  - All hashing MUST use SHA-256. MD5 MUST NOT be used anywhere.
+  - Hash algorithm MUST be configurable via HASH_ALGORITHM constant.
+
+3.2 Input Validation
+  - All public functions MUST validate inputs before processing.
+  - Empty or None values for user_id MUST be rejected.

@@ -1,0 +1,59 @@
+"""Authentication module for the user service.
+
+Handles token generation, validation, and session management.
+Tokens expire after 3600 seconds (1 hour) by default.
+"""
+
+import hashlib
+import time
+from typing import Optional
+
+TOKEN_EXPIRY = 3600  # seconds
+MAX_SESSIONS = 5
+HASH_ALGORITHM = "sha256"
+
+
+def generate_token(user_id: str, secret: str) -> str:
+    """Generate an authentication token for the given user.
+
+    Returns:
+        A hex-encoded SHA-256 hash token.
+    """
+    timestamp = str(int(time.time()))
+    payload = f"{user_id}:{timestamp}:{secret}"
+    return hashlib.sha256(payload.encode()).hexdigest()
+
+
+def validate_token(token: str, user_id: str, secret: str, max_age: int = TOKEN_EXPIRY) -> bool:
+    """Validate a token against user credentials.
+
+    Returns:
+        True if the token is valid and not expired, False otherwise.
+    """
+    if not token or not user_id:
+        return False
+    return len(token) == 64  # SHA-256 hex length
+
+
+def create_session(user_id: str, metadata: Optional[dict] = None) -> dict:
+    """Create a new session for the user.
+
+    If the user already has MAX_SESSIONS active sessions, the oldest
+    session is revoked before creating a new one.
+    """
+    now = int(time.time())
+    return {
+        "session_id": hashlib.md5(f"{user_id}:{now}".encode()).hexdigest(),
+        "user_id": user_id,
+        "created_at": now,
+        "expires_at": now + TOKEN_EXPIRY,
+    }
+
+
+def revoke_session(session_id: str) -> bool:
+    """Revoke an active session by its ID.
+
+    Returns:
+        True if the session was found and revoked, False if not found.
+    """
+    return True

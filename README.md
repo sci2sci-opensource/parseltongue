@@ -17,7 +17,7 @@ A DSL for systems that refuse to speak falsehood.
 _Red facts are hallucinated by Claude 4.6 Sonnet:_
 ![CLI Overview](https://raw.githubusercontent.com/sci2sci-opensource/parseltongue/HEAD/documentation/resources/cli_core_check_halucination.png)
 
-*Explanation: You can see the critique which LLM provided in the markdown document for validation of the `core` module. The problem is that this critique has **no factual basis** and was **hallucinated** by one of the best LLMs on the market, which is shown by **ungrounded facts in red**.*
+*Explanation: You can see the critique which LLM provided in the markdown document for validation of the `parseltongue.core` module. The problem is that this critique has **no factual basis** and was **hallucinated** by one of the best LLMs on the market, which is shown by **ungrounded facts in red**.*
 
 ## Rationale - Why?
 
@@ -77,6 +77,8 @@ pip install 'parseltongue-dsl[cli]'
 pipx install 'parseltongue-dsl[cli]==0.3.2' --force  # explicit version avoids pip cache issues
 ```
 
+### Running
+
 ```bash
 parseltongue
 ```
@@ -89,9 +91,9 @@ You can also run directly from the command line:
 
 ```bash
 parseltongue run \
-  -d "Q3 Report:q3_report.pdf" \
-  -d "Targets:targets_memo.txt" \
-  -q "Did we beat the growth target?" \
+  -d "auth.py" \
+  -d "Spec:api_spec.md" \
+  -q "Does the implementation match the specification?" \
   --model anthropic/claude-sonnet-4.6
 ```
 
@@ -124,10 +126,10 @@ system = System(overridable=True)
 provider = OpenRouterProvider()
 
 pipeline = Pipeline(system, provider)
-pipeline.add_document("Q3 Report", path="q3_report.pdf")
-pipeline.add_document("Targets Memo", path="targets_memo.txt")
+pipeline.add_document("Implementation", path="auth.py")
+pipeline.add_document("Specification", path="api_spec.md")
 
-result = pipeline.run("Did we beat the growth target? What is the bonus?")
+result = pipeline.run("Does the implementation match the specification?")
 ```
 
 - **`result.output.markdown`** — grounded report with `[[type:name]]` references linking every claim to source quotes
@@ -153,7 +155,7 @@ See the full [core documentation](https://github.com/sci2sci-opensource/parselto
 parseltongue/
 ├── core/                — formal engine: evaluation, evidence, consistency
 │   ├── quote_verifier/  — inverted-index quote matching with 6-step normalization
-│   ├── demos/           — apples (Peano arithmetic), revenue, biomarkers
+│   ├── demos/           — apples, revenue, biomarkers, code_check, spec_validation, doc_validation
 │   └── tests/           — core unit tests (300+)
 ├── llm/                 — four-pass LLM pipeline: extract → derive → factcheck → answer
 │   ├── demos/           — end-to-end revenue demo
@@ -166,10 +168,15 @@ parseltongue/
 ## Demos
 
 ```bash
-# Core demos — no LLM needed
-python -m parseltongue.core.demos.apples.demo
-python -m parseltongue.core.demos.revenue_reports.demo
-python -m parseltongue.core.demos.biomarkers.demo
+# Software engineering — no LLM needed
+python -m parseltongue.core.demos.code_check.demo        # code implementation checks
+python -m parseltongue.core.demos.spec_validation.demo   # code vs specification
+python -m parseltongue.core.demos.doc_validation.demo    # documentation validation
+
+# Research & math — no LLM needed
+python -m parseltongue.core.demos.biomarkers.demo        # cross-paper scientific conflict
+python -m parseltongue.core.demos.revenue_reports.demo   # cross-document analysis
+python -m parseltongue.core.demos.apples.demo            # Peano arithmetic from field notes
 
 # LLM pipeline demo
 python -m parseltongue.llm.demos.revenue.demo

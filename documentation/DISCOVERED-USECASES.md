@@ -12,11 +12,17 @@ Load source code as a document. The pipeline extracts facts about function signa
 
 In practice (run against Parseltongue's own core `engine.py`): the pipeline correctly extracted hundreds of facts from a single source file. Among them, the LLM fabricated several issues that had no basis in the actual code — and the quote verification caught every one. The hallucinated claims were flagged as unverified, and their taint propagated to every conclusion that depended on them. This saved enormous time — we could see immediately where the LLM's critique had no factual basis.
 
+Demos:
+- [Core demo](../parseltongue/core/demos/code_check/) — standalone, no LLM needed
+
 ### Code-Specification Cross-Validation
 
 Load both the specification and the implementation as separate documents. The pipeline extracts requirements from the spec and facts from the code independently, then cross-validates via `diff` directives. When the implementation diverges from the spec — a missing edge case, a different default value, a mismatched interface — the divergence is flagged with full provenance to both documents.
 
 Tested by running the core README against `engine.py`: the system identified where documented behavior diverged from actual implementation, tracing each discrepancy to the specific README sentence and code passage.
+
+Demos:
+- [Core demo](../parseltongue/core/demos/spec_validation/) — standalone, no LLM needed
 
 ### Documentation Validation
 
@@ -28,6 +34,9 @@ In v0.3.1, the project's own README was validated this way. The pipeline caught 
 - **Windows**: single-quoted `pip install` commands break in `cmd.exe`
 
 Both were caught by the LLM extracting install instructions as facts, then deriving platform-specific conclusions that evaluated to false.
+
+Demos:
+- [Core demo](../parseltongue/core/demos/doc_validation/) — standalone, no LLM needed
 
 ### License and Policy Verification
 
