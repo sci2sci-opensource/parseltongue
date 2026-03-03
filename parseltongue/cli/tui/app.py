@@ -182,6 +182,10 @@ class ParseltongueApp(App):
         from .screens.passes import PassesScreen
         from .screens.system_state import SystemStateScreen
 
+        for name in ("answer", "passes", "system_state", "consistency"):
+            if name in self._installed_screens:
+                self.uninstall_screen(name)
+
         result = self._result
         self.install_screen(AnswerScreen(result), name="answer")  # type: ignore[arg-type]
         self.install_screen(PassesScreen(result), name="passes")  # type: ignore[arg-type]
