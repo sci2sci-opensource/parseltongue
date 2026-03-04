@@ -8,9 +8,10 @@ from typing import TYPE_CHECKING
 
 from textual.app import ComposeResult
 from textual.containers import Container, Horizontal
+from textual.markup import escape as textual_escape
 from textual.message import Message
 from textual.screen import Screen
-from textual.widgets import Button, DirectoryTree, Label, ListItem, ListView
+from textual.widgets import Button, DirectoryTree, Label, ListItem, ListView, Static
 
 from ..widgets.hints_bar import HintsBar
 
@@ -35,6 +36,7 @@ class DocumentPicker(Screen):
         ("backspace", "remove_selected", "Remove"),
         ("delete", "remove_selected", "Remove"),
         ("ctrl+d", "confirm", "Done"),
+        ("ctrl+u", "go_up", "Parent dir"),
     ]
 
     _SPINNER = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
@@ -52,7 +54,9 @@ class DocumentPicker(Screen):
     def compose(self) -> ComposeResult:
         with Horizontal(id="picker-layout"):
             with Container(id="browser-panel"):
-                yield Label("Space: expand/collapse  Enter: add", id="browser-label")
+                with Horizontal(id="browser-header"):
+                    yield Static(self._build_breadcrumb(), id="browser-path")
+                    yield Label("Space: expand/collapse  Enter: add", id="browser-label")
                 yield DirectoryTree(str(self._root), id="file-tree")
             with Container(id="selected-panel"):
                 yield Label("Selected documents:", id="selected-label")
@@ -62,8 +66,9 @@ class DocumentPicker(Screen):
         yield HintsBar(
             [
                 ("Enter", "Add"),
-                ("Backspace", "Remove", "screen.remove_selected"),
-                ("Ctrl+D", "Done"),
+                ("Backspace", "Remove selected"),
+                ("Ctrl+U", "Parent dir", "screen.go_up"),
+                ("Ctrl+D", "Done", "screen.confirm"),
                 ("Esc", "Back", "screen.dismiss"),
             ]
         )
@@ -71,6 +76,35 @@ class DocumentPicker(Screen):
     def on_mount(self) -> None:
         if self._selected:
             self._refresh_list()
+
+    def _build_breadcrumb(self) -> str:
+        """Build clickable path breadcrumb: / > Users > v_work > ..."""
+        parts = self._root.parts
+        segments = []
+        for i, part in enumerate(parts):
+            target = str(Path(*parts[: i + 1]))
+            escaped = textual_escape(part)
+            segments.append(f"[@click=screen.navigate_to('{target}')][bold cyan]{escaped}[/bold cyan][/]")
+        return " / ".join(segments)
+
+    def _navigate_to(self, target: str) -> None:
+        """Navigate the tree to a specific directory."""
+        path = Path(target)
+        if not path.is_dir() or path == self._root:
+            return
+        self._root = path
+        tree = self.query_one("#file-tree", DirectoryTree)
+        tree.path = str(path)
+        tree.reload()
+        self.query_one("#browser-path", Static).update(self._build_breadcrumb())
+
+    def action_navigate_to(self, target: str) -> None:
+        self._navigate_to(target)
+
+    def action_go_up(self) -> None:
+        parent = self._root.parent
+        if parent != self._root:
+            self._navigate_to(str(parent))
 
     def on_directory_tree_file_selected(self, event: DirectoryTree.FileSelected) -> None:
         """Add file to selected list."""
@@ -81,13 +115,7 @@ class DocumentPicker(Screen):
             self._refresh_list()
 
     def on_directory_tree_directory_selected(self, event: DirectoryTree.DirectorySelected) -> None:
-        """Add all direct child files from directory."""
-        dir_path = Path(event.path)
-        for child in sorted(dir_path.iterdir()):
-            if child.is_file() and child not in self._selected:
-                self._selected.append(child)
-        self._errors.clear()
-        self._refresh_list()
+        pass
 
     def action_remove_selected(self) -> None:
         """Remove the currently highlighted item in the selected list."""

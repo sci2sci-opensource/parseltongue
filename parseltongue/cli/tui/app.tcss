@@ -258,9 +258,22 @@ DocumentPicker #browser-panel {
     height: 1fr;
 }
 
-DocumentPicker #browser-label {
+DocumentPicker #browser-header {
+    height: 1;
     margin-bottom: 1;
-    text-style: bold;
+}
+
+DocumentPicker #browser-path {
+    width: 1fr;
+    height: 1;
+    link-color: cyan;
+    link-style: bold;
+}
+
+DocumentPicker #browser-label {
+    width: auto;
+    height: 1;
+    text-style: dim;
 }
 
 DocumentPicker #file-tree {
