@@ -27,6 +27,17 @@ def _setup_logging(verbose: bool) -> None:
         datefmt="%H:%M:%S",
     )
 
+    # Always write DEBUG logs to file
+    from datetime import datetime
+
+    log_dir = Path.home() / ".parseltongue" / "cli" / "logs"
+    log_dir.mkdir(parents=True, exist_ok=True)
+    log_file = log_dir / f"{datetime.now():%Y-%m-%d_%H%M%S}.log"
+    file_handler = logging.FileHandler(log_file)
+    file_handler.setLevel(logging.DEBUG)
+    file_handler.setFormatter(logging.Formatter("%(asctime)s %(name)s %(levelname)s: %(message)s", datefmt="%H:%M:%S"))
+    logging.getLogger().addHandler(file_handler)
+
 
 # ---------------------------------------------------------------------------
 # Default callback: bare `parseltongue` launches standalone TUI
