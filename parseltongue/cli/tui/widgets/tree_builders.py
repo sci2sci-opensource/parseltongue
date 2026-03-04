@@ -14,6 +14,7 @@ from typing import Any
 from rich.markup import escape as rich_escape
 
 from parseltongue.core.atoms import Evidence, Symbol, to_sexp
+from parseltongue.core.engine import Fact
 
 # ------------------------------------------------------------------
 # Color helpers
@@ -153,14 +154,14 @@ def add_term_node(parent, name: str, term: Any, system: Any = None) -> None:
     add_origin_node(node, term.origin)
 
 
-def add_fact_node(parent, name: str, data: Any) -> None:
+def add_fact_node(parent, name: str, fact: Fact) -> None:
     """Add a Fact node with value and origin."""
-    val = data.get("value", data) if isinstance(data, dict) else data
-    origin = data.get("origin") if isinstance(data, dict) else None
-    color = origin_color(origin)
-    node = parent.add(f"[{color}]{rich_escape(str(name))} = {rich_escape(_fmt_value(val))} [dim](fact)[/dim][/{color}]")
-    if origin:
-        add_origin_node(node, origin)
+    color = origin_color(fact.origin)
+    node = parent.add(
+        f"[{color}]{rich_escape(str(name))} = {rich_escape(_fmt_value(fact.wff))} [dim](fact)[/dim][/{color}]"
+    )
+    if fact.origin:
+        add_origin_node(node, fact.origin)
 
 
 def add_axiom_node(parent, name: str, axiom: Any) -> None:
@@ -195,9 +196,7 @@ def _item_definition(name: str, system: Any) -> str | None:
     if name in system.theorems:
         return to_sexp(system.theorems[name].wff)
     if name in system.facts:
-        data = system.facts[name]
-        val = data.get("value", data) if isinstance(data, dict) else data
-        return _fmt_value(val)
+        return _fmt_value(system.facts[name].wff)
     return None
 
 

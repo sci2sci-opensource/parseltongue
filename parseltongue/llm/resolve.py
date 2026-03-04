@@ -48,7 +48,7 @@ def _resolve_one(tag_type: str, name: str, system) -> Reference:
             if name not in system.facts:
                 ref.error = f"unknown fact: {name}"
             else:
-                ref.value = system.facts[name]["value"]
+                ref.value = system.facts[name].wff
                 ref.provenance = system.provenance(name)
 
         elif tag_type == "term":
@@ -82,7 +82,7 @@ def _resolve_one(tag_type: str, name: str, system) -> Reference:
             ref.provenance = system.provenance(name)
             # Pull the value from whatever store has it
             if name in system.facts:
-                ref.value = system.facts[name]["value"]
+                ref.value = system.facts[name].wff
             elif name in system.axioms:
                 ref.value = to_sexp(system.axioms[name].wff)
             elif name in system.theorems:

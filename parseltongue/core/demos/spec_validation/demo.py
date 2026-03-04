@@ -20,7 +20,7 @@ def _print_list(items):
         if isinstance(item, dict):
             origin = item.get("origin", "")
             tag = str(origin) if hasattr(origin, "is_grounded") else f"[origin: {origin}]"
-            print(f"  {item['name']} = {item['value']} {tag}")
+            print(f"  {item['name']} = {item.wff} {tag}")
         else:
             print(f"  {item}")
 
@@ -198,14 +198,10 @@ def main():
     # ----------------------------------------------------------
     print("\n" + "=" * 60)
     print("Divergences found:")
-    print(
-        f"  Token expiry:   spec={s.facts['spec-token-expiry']['value']}s, impl={s.facts['impl-token-expiry']['value']}s"
-    )
-    print(
-        f"  Max sessions:   spec={s.facts['spec-max-sessions']['value']}, impl={s.facts['impl-max-sessions']['value']}"
-    )
+    print(f"  Token expiry:   spec={s.facts['spec-token-expiry'].wff}s, impl={s.facts['impl-token-expiry'].wff}s")
+    print(f"  Max sessions:   spec={s.facts['spec-max-sessions'].wff}, impl={s.facts['impl-max-sessions'].wff}")
     print("  MD5 forbidden:  spec=True, impl uses MD5 for sessions")
-    print(f"  Token length:   MATCHES (both {s.facts['spec-token-length']['value']})")
+    print(f"  Token length:   MATCHES (both {s.facts['spec-token-length'].wff})")
     print(f"\nFinal system: {s}")
 
 

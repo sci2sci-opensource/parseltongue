@@ -128,7 +128,7 @@ def main():
 
     print("  Prose says 30 min, config table says 1800s:")
     print(f"  30 * 60 = {s.evaluate(s.terms['prose-expiry-seconds'].definition)}")
-    print(f"  Config table: {s.facts['default-expiry']['value']}")
+    print(f"  Config table: {s.facts['default-expiry'].wff}")
     print(f"  Match: {s.eval_diff('expiry-prose-vs-config')}")
 
     # ----------------------------------------------------------

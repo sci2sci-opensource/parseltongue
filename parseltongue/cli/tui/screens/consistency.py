@@ -210,8 +210,7 @@ class ConsistencyScreen(Screen):
                 origin = store[name].origin
                 return origin_color(origin), origin
         if name in system.facts:
-            item = system.facts[name]
-            origin = item.get("origin") if isinstance(item, dict) else None
+            origin = system.facts[name].origin
             return origin_color(origin), origin
         return "white", None
 

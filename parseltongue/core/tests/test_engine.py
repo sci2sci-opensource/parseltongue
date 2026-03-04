@@ -207,7 +207,7 @@ class TestFacts(unittest.TestCase):
     def test_set_and_retrieve_fact(self):
         s = make_system()
         quiet(s.set_fact, "x", 42, "test")
-        self.assertEqual(s.facts["x"]["value"], 42)
+        self.assertEqual(s.facts["x"].wff, 42)
         self.assertEqual(s.evaluate(Symbol("x")), 42)
 
     def test_duplicate_fact_strict_raises(self):
@@ -220,7 +220,7 @@ class TestFacts(unittest.TestCase):
         s = make_system(overridable=True)
         quiet(s.set_fact, "x", 1, "first")
         quiet(s.set_fact, "x", 2, "second")
-        self.assertEqual(s.facts["x"]["value"], 2)
+        self.assertEqual(s.facts["x"].wff, 2)
         self.assertEqual(s.evaluate(Symbol("x")), 2)
 
     def test_fact_with_evidence(self):
@@ -620,7 +620,7 @@ class TestVerification(unittest.TestCase):
         s = make_system()
         quiet(s.set_fact, "x", 1, "plain origin")
         quiet(s.verify_manual, "x")
-        origin = s.facts["x"]["origin"]
+        origin = s.facts["x"].origin
         self.assertIsInstance(origin, Evidence)
         self.assertTrue(origin.verify_manual)
         self.assertTrue(origin.is_grounded)

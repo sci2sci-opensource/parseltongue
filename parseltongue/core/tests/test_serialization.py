@@ -53,8 +53,8 @@ class TestBasicRoundtrip(unittest.TestCase):
         """,
         )
         s2 = roundtrip(s)
-        self.assertEqual(s2.facts["revenue"]["value"], 15)
-        self.assertEqual(s2.facts["margin"]["value"], 0.22)
+        self.assertEqual(s2.facts["revenue"].wff, 15)
+        self.assertEqual(s2.facts["margin"].wff, 0.22)
 
     def test_terms_preserved(self):
         s = make_system()
@@ -151,7 +151,7 @@ class TestEvidenceSerialization(unittest.TestCase):
         """,
         )
         s2 = roundtrip(s)
-        origin = s2.facts["revenue"]["origin"]
+        origin = s2.facts["revenue"].origin
         self.assertIsInstance(origin, Evidence)
         self.assertEqual(origin.document, "report")
         self.assertEqual(origin.quotes, ["Q3 revenue was $15M"])
@@ -197,7 +197,7 @@ class TestEvidenceSerialization(unittest.TestCase):
         s = make_system()
         quiet(load_source, s, '(fact x 42 :origin "manual entry")')
         s2 = roundtrip(s)
-        self.assertEqual(s2.facts["x"]["origin"], "manual entry")
+        self.assertEqual(s2.facts["x"].origin, "manual entry")
 
 
 # ==============================================================
@@ -449,6 +449,211 @@ class TestConsistencyAfterRoundtrip(unittest.TestCase):
         s2 = roundtrip(s)
         self.assertEqual(s2._resolve_value("x"), 42)
         self.assertEqual(s2._resolve_value("y"), 50)
+
+
+# ==============================================================
+# Legacy format — facts serialized with "value" key (pre-Fact)
+# ==============================================================
+
+
+def _legacy_serialize_fact(fact):
+    """Old _serialize_fact that used 'value' key and handled raw dicts."""
+    from ..engine import _serialize_origin, _serialize_sexp
+
+    if isinstance(fact, dict):
+        result = dict(fact)
+        if "origin" in result:
+            result["origin"] = _serialize_origin(result["origin"])
+        if "value" in result:
+            result["value"] = _serialize_sexp(result["value"])
+        return result
+    return {"value": _serialize_sexp(fact)}
+
+
+def _legacy_serialize_system(system: System) -> dict:
+    """Serialize a system using the old fact format (value key)."""
+
+    data = system.to_dict()
+    # Re-serialize facts using legacy format: convert Fact objects to old dicts
+    legacy_facts = {}
+    for name, fact in system.facts.items():
+        legacy_facts[name] = _legacy_serialize_fact({"value": fact.wff, "origin": fact.origin})
+    data["facts"] = legacy_facts
+    return data
+
+
+class TestLegacyFactFormat(unittest.TestCase):
+    """System.from_dict must restore facts from the old {"value": ...} format."""
+
+    def _roundtrip_legacy(self, system: System) -> System:
+        """Serialize with legacy format, deserialize with current from_dict."""
+        data = _legacy_serialize_system(system)
+        json_str = json.dumps(data)
+        return System.from_dict(json.loads(json_str))
+
+    def test_numeric_fact(self):
+        s = make_system()
+        quiet(load_source, s, '(fact revenue 15 :origin "report")')
+        s2 = self._roundtrip_legacy(s)
+        self.assertEqual(s2.facts["revenue"].wff, 15)
+        self.assertEqual(s2.facts["revenue"].origin, "report")
+        self.assertEqual(s2.facts["revenue"].name, "revenue")
+
+    def test_string_fact(self):
+        s = make_system()
+        quiet(load_source, s, '(fact algo "sha256" :origin "spec")')
+        s2 = self._roundtrip_legacy(s)
+        self.assertEqual(s2.facts["algo"].wff, "sha256")
+
+    def test_boolean_fact(self):
+        s = make_system()
+        quiet(load_source, s, '(fact flag true :origin "config")')
+        s2 = self._roundtrip_legacy(s)
+        self.assertIs(s2.facts["flag"].wff, True)
+
+    def test_float_fact(self):
+        s = make_system()
+        quiet(load_source, s, '(fact margin 0.22 :origin "report")')
+        s2 = self._roundtrip_legacy(s)
+        self.assertAlmostEqual(s2.facts["margin"].wff, 0.22)
+
+    def test_fact_in_env(self):
+        """Legacy-restored fact values are placed in env for evaluation."""
+        s = make_system()
+        quiet(load_source, s, '(fact x 42 :origin "test")')
+        s2 = self._roundtrip_legacy(s)
+        self.assertEqual(s2.env[Symbol("x")], 42)
+
+    def test_multiple_facts(self):
+        s = make_system()
+        quiet(
+            load_source,
+            s,
+            """
+            (fact a 10 :origin "test")
+            (fact b 20 :origin "test")
+        """,
+        )
+        s2 = self._roundtrip_legacy(s)
+        self.assertEqual(s2.facts["a"].wff, 10)
+        self.assertEqual(s2.facts["b"].wff, 20)
+
+    def test_evidence_origin(self):
+        """Evidence objects survive legacy serialization round-trip."""
+        s = make_system()
+        quiet(s.register_document, "report", SAMPLE_DOC)
+        quiet(
+            load_source,
+            s,
+            """
+            (fact revenue 15
+              :evidence (evidence "report"
+                :quotes ("Q3 revenue was $15M")
+                :explanation "revenue figure"))
+        """,
+        )
+        s2 = self._roundtrip_legacy(s)
+        origin = s2.facts["revenue"].origin
+        self.assertIsInstance(origin, Evidence)
+        self.assertEqual(origin.document, "report")
+        self.assertEqual(origin.quotes, ["Q3 revenue was $15M"])
+
+    def test_eval_diff_on_legacy(self):
+        """eval_diff works after restoring from legacy format."""
+        s = make_system()
+        quiet(
+            load_source,
+            s,
+            """
+            (fact rate-a 0.15 :origin "test")
+            (fact rate-b 0.20 :origin "test")
+            (diff d1 :replace rate-a :with rate-b)
+        """,
+        )
+        s2 = self._roundtrip_legacy(s)
+        result = s2.eval_diff("d1")
+        self.assertAlmostEqual(result.value_a, 0.15)
+        self.assertAlmostEqual(result.value_b, 0.20)
+
+    def test_term_depends_on_legacy_fact(self):
+        """A term referencing a legacy fact evaluates correctly."""
+        s = make_system()
+        quiet(
+            load_source,
+            s,
+            """
+            (fact base 100 :origin "test")
+            (defterm doubled (* base 2) :origin "test")
+        """,
+        )
+        s2 = self._roundtrip_legacy(s)
+        self.assertEqual(s2.env[Symbol("doubled")], 200)
+
+    def test_theorem_on_legacy_facts(self):
+        """Theorems derived from legacy facts are preserved."""
+        s = make_system()
+        quiet(
+            load_source,
+            s,
+            """
+            (fact x 5 :origin "test")
+            (derive bounded (> x 0) :using (x))
+        """,
+        )
+        s2 = self._roundtrip_legacy(s)
+        self.assertIn("bounded", s2.theorems)
+        self.assertEqual(s2.theorems["bounded"].derivation, ["x"])
+
+    def test_consistency_on_legacy(self):
+        """Consistency check works on a system restored from legacy format."""
+        s = make_system()
+        quiet(s.register_document, "report", SAMPLE_DOC)
+        quiet(
+            load_source,
+            s,
+            """
+            (fact revenue 15
+              :evidence (evidence "report"
+                :quotes ("Q3 revenue was $15M")
+                :explanation "revenue figure"))
+        """,
+        )
+        s2 = self._roundtrip_legacy(s)
+        report = s2.consistency()
+        self.assertTrue(report.consistent)
+
+    def test_legacy_payload_uses_value_key(self):
+        """Verify the legacy serializer actually emits 'value', not 'wff'."""
+        s = make_system()
+        quiet(load_source, s, '(fact x 42 :origin "test")')
+        data = _legacy_serialize_system(s)
+        self.assertIn("value", data["facts"]["x"])
+        self.assertNotIn("wff", data["facts"]["x"])
+
+
+class TestNewFactFormat(unittest.TestCase):
+    """Verify the new {"wff": ...} format serializes and deserializes correctly."""
+
+    def test_new_format_uses_wff_key(self):
+        """Current serializer emits 'wff', not 'value'."""
+        s = make_system()
+        quiet(load_source, s, '(fact x 42 :origin "test")')
+        data = s.to_dict()
+        self.assertIn("wff", data["facts"]["x"])
+        self.assertNotIn("value", data["facts"]["x"])
+
+    def test_new_format_roundtrips(self):
+        s = make_system()
+        quiet(load_source, s, '(fact x 42 :origin "test")')
+        s2 = roundtrip(s)
+        self.assertEqual(s2.facts["x"].wff, 42)
+        self.assertEqual(s2.facts["x"].name, "x")
+
+    def test_wff_takes_precedence_over_value(self):
+        """If both keys are present, wff wins (forward compat)."""
+        data = {"facts": {"x": {"wff": 100, "value": 999, "origin": "test"}}}
+        s = System.from_dict(data)
+        self.assertEqual(s.facts["x"].wff, 100)
 
 
 if __name__ == "__main__":

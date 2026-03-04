@@ -54,9 +54,9 @@ def check_consistency(system):
 
 def snapshot(system, name):
     name = str(name)
-    data = system.facts[name]
-    _snapshots[name] = (data["value"], data["origin"])
-    print(f"  [snapshot] Saved {name} = {data['value']}")
+    fact = system.facts[name]
+    _snapshots[name] = (fact.wff, fact.origin)
+    print(f"  [snapshot] Saved {name} = {fact.wff}")
     return True
 
 

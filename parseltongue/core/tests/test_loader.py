@@ -23,8 +23,8 @@ class TestFactDirective(unittest.TestCase):
         s = make_system()
         quiet(load_source, s, '(fact revenue 15 :origin "Q3 report")')
         self.assertIn("revenue", s.facts)
-        self.assertEqual(s.facts["revenue"]["value"], 15)
-        self.assertEqual(s.facts["revenue"]["origin"], "Q3 report")
+        self.assertEqual(s.facts["revenue"].wff, 15)
+        self.assertEqual(s.facts["revenue"].origin, "Q3 report")
 
     def test_fact_with_evidence(self):
         s = make_system()
@@ -40,19 +40,19 @@ class TestFactDirective(unittest.TestCase):
         """,
         )
         self.assertIn("rev", s.facts)
-        origin = s.facts["rev"]["origin"]
+        origin = s.facts["rev"].origin
         self.assertIsInstance(origin, Evidence)
         self.assertEqual(origin.document, "Doc")
 
     def test_fact_float_value(self):
         s = make_system()
         quiet(load_source, s, '(fact rate 0.15 :origin "test")')
-        self.assertAlmostEqual(s.facts["rate"]["value"], 0.15)
+        self.assertAlmostEqual(s.facts["rate"].wff, 0.15)
 
     def test_fact_boolean_value(self):
         s = make_system()
         quiet(load_source, s, '(fact flag true :origin "test")')
-        self.assertIs(s.facts["flag"]["value"], True)
+        self.assertIs(s.facts["flag"].wff, True)
 
     def test_fact_enters_env(self):
         s = make_system()
@@ -72,7 +72,7 @@ class TestFactDirective(unittest.TestCase):
                 :explanation "exact match"))
         """,
         )
-        self.assertTrue(s.facts["rev"]["origin"].verified)
+        self.assertTrue(s.facts["rev"].origin.verified)
 
     def test_fact_evidence_unverified(self):
         s = make_system()
@@ -87,7 +87,7 @@ class TestFactDirective(unittest.TestCase):
                 :explanation "no match"))
         """,
         )
-        self.assertFalse(s.facts["bad"]["origin"].verified)
+        self.assertFalse(s.facts["bad"].origin.verified)
 
     def test_fact_evidence_multiple_quotes(self):
         s = make_system()
@@ -103,7 +103,7 @@ class TestFactDirective(unittest.TestCase):
                 :explanation "two quotes"))
         """,
         )
-        origin = s.facts["x"]["origin"]
+        origin = s.facts["x"].origin
         self.assertEqual(len(origin.quotes), 2)
         self.assertTrue(origin.verified)
 
@@ -287,8 +287,8 @@ class TestMultipleDirectives(unittest.TestCase):
         )
         self.assertIn("x", s.facts)
         self.assertIn("y", s.facts)
-        self.assertEqual(s.facts["x"]["value"], 10)
-        self.assertEqual(s.facts["y"]["value"], 20)
+        self.assertEqual(s.facts["x"].wff, 10)
+        self.assertEqual(s.facts["y"].wff, 20)
 
     def test_comments_ignored(self):
         s = make_system()
@@ -393,7 +393,7 @@ class TestDefaultOrigin(unittest.TestCase):
     def test_fact_no_origin_defaults_to_unknown(self):
         s = make_system()
         quiet(load_source, s, "(fact x 10)")
-        self.assertEqual(s.facts["x"]["origin"], "unknown")
+        self.assertEqual(s.facts["x"].origin, "unknown")
 
 
 if __name__ == "__main__":

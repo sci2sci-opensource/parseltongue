@@ -99,9 +99,9 @@ class TestPipelineEndToEnd(unittest.TestCase):
         self.assertIn("revenue-q3", system.facts)
         self.assertIn("growth", system.facts)
         self.assertIn("target", system.facts)
-        self.assertEqual(system.facts["revenue-q3"]["value"], 15.0)
-        self.assertEqual(system.facts["growth"]["value"], 15)
-        self.assertEqual(system.facts["target"]["value"], 10)
+        self.assertEqual(system.facts["revenue-q3"].wff, 15.0)
+        self.assertEqual(system.facts["growth"].wff, 15)
+        self.assertEqual(system.facts["target"].wff, 10)
 
         # Term and theorem from pass 2
         self.assertIn("beat-target", system.terms)

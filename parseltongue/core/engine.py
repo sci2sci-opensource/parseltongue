@@ -307,6 +307,11 @@ DEFAULT_OPERATORS: dict[Symbol, Any] = {
 
 
 @dataclass
+class Fact(Axiom):
+    """A fact: non-parametric axiom — ground truth value with evidence."""
+
+
+@dataclass
 class DiffResult:
     """Result of evaluating a diff between two symbols."""
 
@@ -540,24 +545,19 @@ def _deserialize_term(name: str, d: dict) -> Term:
     )
 
 
-def _serialize_fact(fact: Any) -> dict:
-    if isinstance(fact, dict):
-        result = dict(fact)
-        if "origin" in result:
-            result["origin"] = _serialize_origin(result["origin"])
-        if "value" in result:
-            result["value"] = _serialize_sexp(result["value"])
-        return result
-    return {"value": _serialize_sexp(fact)}
+def _serialize_fact(fact: Fact) -> dict:
+    return {
+        "wff": _serialize_sexp(fact.wff),
+        "origin": _serialize_origin(fact.origin),
+    }
 
 
-def _deserialize_fact(d: dict) -> dict:
-    result = dict(d)
-    if "origin" in result:
-        result["origin"] = _deserialize_origin(result["origin"])
-    if "value" in result:
-        result["value"] = _deserialize_sexp(result["value"])
-    return result
+def _deserialize_fact(name: str, d: dict) -> Fact:
+    return Fact(
+        name=name,
+        wff=_deserialize_sexp(d.get("wff", d.get("value"))),
+        origin=_deserialize_origin(d.get("origin", "")),
+    )
 
 
 def _serialize_axiom(axiom: Axiom) -> dict:
@@ -606,7 +606,7 @@ class System:
         self.axioms: dict[str, Axiom] = {}
         self.theorems: dict[str, Theorem] = {}
         self.terms: dict[str, Term] = {}
-        self.facts: dict[str, Any] = {}
+        self.facts: dict[str, Fact] = {}
         self.env: dict = {}
         self.documents: dict[str, str] = {}
         self.overridable = overridable
@@ -683,7 +683,7 @@ class System:
         """
         origin = None
         if name in self.facts:
-            origin = self.facts[name].get("origin")
+            origin = self.facts[name].origin
         if name in self.axioms:
             origin = self.axioms[name].origin
         if name in self.theorems:
@@ -705,7 +705,7 @@ class System:
                 verify_manual=True,
             )
             if name in self.facts:
-                self.facts[name]["origin"] = ev
+                self.facts[name].origin = ev
             if name in self.axioms:
                 self.axioms[name].origin = ev
             if name in self.theorems:
@@ -769,12 +769,12 @@ class System:
                 raise ValueError(
                     f"Fact '{name}' already exists. Use retract() first, or create System(overridable=True)"
                 )
-            log.info("Overwriting fact '%s': %s → %s", name, self.facts[name]["value"], value)
+            log.info("Overwriting fact '%s': %s → %s", name, self.facts[name].wff, value)
 
         if isinstance(origin, Evidence):
             self._verify_evidence(origin)
 
-        self.facts[name] = {"value": value, "origin": origin}
+        self.facts[name] = Fact(name=name, wff=value, origin=origin)
         self.env[Symbol(name)] = value
 
     # ----------------------------------------------------------
@@ -807,7 +807,7 @@ class System:
         for src_name in using:
             origin = None
             if src_name in self.facts:
-                origin = self.facts[src_name].get("origin")
+                origin = self.facts[src_name].origin
             if src_name in self.axioms:
                 origin = self.axioms[src_name].origin
             if src_name in self.theorems:
@@ -872,9 +872,7 @@ class System:
                 env[sym] = val
         for src_name in expanded:
             if src_name in self.facts:
-                data = self.facts[src_name]
-                val = data.get("value", data) if isinstance(data, dict) else data
-                env[Symbol(src_name)] = val
+                env[Symbol(src_name)] = self.facts[src_name].wff
             elif src_name in self.terms:
                 term = self.terms[src_name]
                 if term.definition is not None:
@@ -1176,8 +1174,7 @@ class System:
             except (NameError, TypeError):
                 return defn
         if name in self.facts:
-            data = self.facts[name]
-            return data.get("value", data) if isinstance(data, dict) else data
+            return self.facts[name].wff
         raise KeyError(f"Unknown symbol: {name}")
 
     def eval_diff(self, name: str) -> DiffResult:
@@ -1291,7 +1288,7 @@ class System:
             return {
                 "name": name,
                 "type": "fact",
-                "origin": self._format_origin(self.facts[name].get("origin", "")),
+                "origin": self._format_origin(self.facts[name].origin),
             }
 
         if name in self.axioms:
@@ -1361,18 +1358,11 @@ class System:
             log.info("%s", term)
         return result
 
-    def list_facts(self) -> list[dict]:
+    def list_facts(self) -> list[Fact]:
         """Return all ground facts."""
-        result = []
-        for name, info in self.facts.items():
-            origin = info.get("origin", "")
-            entry = {"name": name, "value": info["value"], "origin": origin}
-            if isinstance(origin, Evidence):
-                tag = str(origin)
-            else:
-                tag = f"[origin: {origin}]"
-            log.info("%s = %s %s", name, info["value"], tag)
-            result.append(entry)
+        result = list(self.facts.values())
+        for fact in result:
+            log.info("%s", fact)
         return result
 
     # ----------------------------------------------------------
@@ -1395,7 +1385,7 @@ class System:
         """Reconstruct a System from a serialized dict."""
         system = cls()
         system.terms = {n: _deserialize_term(n, d) for n, d in data.get("terms", {}).items()}
-        system.facts = {n: _deserialize_fact(d) for n, d in data.get("facts", {}).items()}
+        system.facts = {n: _deserialize_fact(n, d) for n, d in data.get("facts", {}).items()}
         system.axioms = {n: _deserialize_axiom(n, d) for n, d in data.get("axioms", {}).items()}
         system.theorems = {n: _deserialize_theorem(n, d) for n, d in data.get("theorems", {}).items()}
         system.diffs = data.get("diffs", {})
@@ -1414,9 +1404,8 @@ class System:
         that the deserialized system behaves identically to the live one.
         """
         # 1. Facts — their values go straight into env
-        for name, data in self.facts.items():
-            val = data.get("value", data) if isinstance(data, dict) else data
-            self.env[Symbol(name)] = val
+        for name, fact in self.facts.items():
+            self.env[Symbol(name)] = fact.wff
 
         # 2. Axiom definitions — (= symbol expr) patterns
         for _name, axiom in self.axioms.items():
@@ -1459,11 +1448,8 @@ class System:
         manually_verified = []
         no_evidence = []
         for store in [self.facts, self.axioms, self.theorems, self.terms]:
-            for name, item in store.items():
-                if isinstance(item, dict):
-                    origin = item.get("origin")
-                else:
-                    origin = item.origin
+            for name, item in store.items():  # type: ignore[attr-defined]
+                origin = item.origin
                 if isinstance(origin, Evidence):
                     if not origin.verified and origin.verify_manual:
                         manually_verified.append(name)
@@ -1588,8 +1574,8 @@ class System:
         if self.facts:
             lines.append("  Facts")
             lines.append("  " + "-" * 5)
-            for name, info in self.facts.items():
-                lines.append(f"    {name} = {info['value']}")
+            for name, fact in self.facts.items():
+                lines.append(f"    {name} = {fact.wff}")
 
         if self.terms:
             lines.append("")

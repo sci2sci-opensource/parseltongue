@@ -25,7 +25,7 @@ def format_blinded_state(system) -> str:
     if system.facts:
         lines.append("Facts (names and types only — values hidden):")
         for name, info in system.facts.items():
-            type_name = type(info["value"]).__name__
+            type_name = type(info.wff).__name__
             lines.append(f"  {name}: {type_name}")
 
     if system.terms:
