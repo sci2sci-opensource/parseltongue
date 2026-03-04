@@ -99,7 +99,7 @@ Key Concepts
 import logging
 import operator
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Callable
 
 from .atoms import Symbol, free_vars, match, substitute
 from .lang import (
@@ -601,6 +601,7 @@ class System:
         initial_env: dict | None = None,
         docs: dict | None = None,
         strict_derive: bool = True,
+        effects: dict[str, Callable] | None = None,
     ):
         self.axioms: dict[str, Axiom] = {}
         self.theorems: dict[str, Theorem] = {}
@@ -617,6 +618,12 @@ class System:
             self.env.update(initial_env)
         else:
             self.env.update(DEFAULT_OPERATORS)
+
+        # Effects: side-effect operators that receive the system as first arg.
+        # fn(system, *args) — auto-wrapped so the DSL just calls (name ...).
+        if effects:
+            for name, fn in effects.items():
+                self.env[Symbol(name)] = lambda *args, _fn=fn: _fn(self, *args)
 
         if docs is not None:
             self._docs = docs
@@ -1775,3 +1782,7 @@ def _execute_directive(system: System, expr):
         replace = str(get_keyword(expr, KW_REPLACE))
         with_ = str(get_keyword(expr, KW_WITH))
         system.register_diff(name, replace, with_)
+
+    else:
+        # Unknown directive — evaluate as expression (side effects run)
+        system.evaluate(expr)
