@@ -48,6 +48,7 @@ def _setup_logging(verbose: bool) -> None:
 def default_callback(ctx: typer.Context) -> None:
     """Launch the interactive TUI when no subcommand is given."""
     if ctx.invoked_subcommand is None:
+        _setup_logging(verbose=False)
         from .config import ensure_config
 
         config = ensure_config()
