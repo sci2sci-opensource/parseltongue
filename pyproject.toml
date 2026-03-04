@@ -89,5 +89,5 @@ warn_unused_ignores = true
 warn_no_return = true
 
 [tool.pytest.ini_options]
-testpaths = ["parseltongue/core/tests", "parseltongue/llm/tests"]
+testpaths = ["parseltongue/core/tests", "parseltongue/llm/tests", "parseltongue/cli/tests"]
 addopts = "-v --tb=short"
