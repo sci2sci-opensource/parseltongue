@@ -54,9 +54,9 @@ def check_consistency(system):
 
 def snapshot(system, name):
     name = str(name)
-    fact = system.facts[name]
-    _snapshots[name] = (fact.wff, fact.origin)
-    print(f"  [snapshot] Saved {name} = {fact.wff}")
+    data = system.facts[name]
+    _snapshots[name] = (data.wff, data.origin)
+    print(f"  [snapshot] Saved {name} = {data.wff}")
     return True
 
 
@@ -104,7 +104,7 @@ SELF_HEAL_SCRIPT = r"""
 ; ── If divergent: snapshot + patch.  If consistent: rollback. ──
 (snapshot "session-hash-algorithm")
 
-(if (not (check-diff "hash-consistency"))
+(if (not (check-diff hash-consistency))
     (patch-fact "session-hash-algorithm" "sha256"
         "auth_module"
         "HASH_ALGORITHM = \"sha256\""

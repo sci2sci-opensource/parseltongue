@@ -1,0 +1,25 @@
+; ==========================================================
+; Entry Mocks Demo — run-on-entry as self-contained unit test
+; ==========================================================
+
+(print "============================================================")
+(print "Entry Mocks Demo — run-on-entry self-test with let + mocks")
+(print "============================================================")
+
+(print "\n--- Importing math (which imports primitives + axioms) ---")
+(print "  math's run-on-entry self-test: SKIPPED (not main)")
+
+(import (quote src.math))
+
+(print "\n--- Facts loaded (no test fact — math is not main) ---")
+(print-facts)
+
+(print "\n--- Theorems loaded ---")
+(print-theorems)
+
+(print "\n============================================================")
+(print "math.pltg's run-on-entry self-test did not fire.")
+(print "Run math.pltg directly to see let rebind primitives.zero")
+(print "(a forward-declared symbol with no body) to 0, making the")
+(print "formal expression computable as a unit test.")
+(print "============================================================")

@@ -1,0 +1,36 @@
+; Phase 1: Primitive symbols
+
+(defterm zero
+  :evidence (evidence "Counting Observations"
+    :quotes ("We decided to mark an empty basket as \"zero\"")
+    :explanation "Zero: the label for an empty collection"))
+
+(defterm succ
+  :evidence (evidence "Counting Observations"
+    :quotes ("every pile is reached by adding one more apple to the previous pile")
+    :explanation "Successor: produces the next pile"))
+
+(defterm =
+  :evidence (evidence "Counting Observations"
+    :quotes ("If both baskets have 🍎🍎🍎🍎 apples, after swapping they still each have 🍎🍎🍎🍎")
+    :explanation "Equality: two piles that look the same"))
+
+(defterm +
+  :evidence (evidence "Counting Observations"
+    :quotes ("Combining 🍎🍎🍎 apples with 🍎🍎 apples always gives 🍎🍎🍎🍎🍎 apples")
+    :explanation "Addition: combining two collections"))
+
+(defterm -
+  :evidence (evidence "Counting Observations"
+    :quotes ("The difference is found by removing apples from the larger pile until it matches the smaller")
+    :explanation "Subtraction: finding the difference"))
+
+(defterm >
+  :evidence (evidence "Counting Observations"
+    :quotes ("If basket A has 🍎🍎🍎🍎🍎 and basket B has 🍎🍎🍎, then basket A has more")
+    :explanation "Greater-than: heavier basket has more"))
+
+(defterm *
+  :evidence (evidence "Counting Observations"
+    :quotes ("Multiplication is a shortcut for combining equal groups")
+    :explanation "Multiplication: repeated addition"))

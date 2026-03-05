@@ -1,0 +1,51 @@
+; math.pltg — Reusable module with a self-contained unit test.
+;
+; Imports primitives (forward-declared, no concrete values),
+; defines axioms and derives a theorem — all purely formal.
+;
+; run-on-entry block rebinds the non-existent primitives
+; to concrete mock values via let, turning the formal theorem
+; into a computable self-test.
+
+(import (quote primitives))
+(import (quote axioms))
+
+; Aliases
+(defterm zero primitives.zero :origin "import")
+(defterm succ primitives.succ :origin "import")
+(defterm equals primitives.equals :origin "import")
+(defterm plus primitives.plus :origin "import")
+
+; Theorem: 3 + 0 = 3
+(derive three-plus-zero axioms.add-identity
+    :bind ((?n (succ (succ (succ zero)))))
+    :using (axioms.add-identity succ zero))
+
+; --- Self-test: only fires when math.pltg is the entry point ---
+; primitives are forward-declared (no body). let rebinds them
+; to concrete mocks, making the formal theorem computable.
+(run-on-entry
+    (quote (assert-true "add-identity: 5 + 0 = 5"
+        (let ((primitives.zero 0)
+              (primitives.plus +)
+              (primitives.equals =))
+            (primitives.equals (primitives.plus 5 primitives.zero) 5))))
+    (quote (print "  three-plus-zero evaluates to:"
+        (let ((primitives.zero 0)
+              (primitives.succ mock-succ)
+              (primitives.plus +)
+              (primitives.equals =))
+            three-plus-zero)))
+    (quote (assert-true "three-plus-zero: S(S(S(0))) + 0 = S(S(S(0)))"
+        (let ((primitives.zero 0)
+              (primitives.succ mock-succ)
+              (primitives.plus +)
+              (primitives.equals =))
+            three-plus-zero)))
+    (quote (print "  three-plus-zero with replaced zero with 1 evaluates to:"
+        (let ((primitives.zero 1)
+              (primitives.succ mock-succ)
+              (primitives.plus +)
+              (primitives.equals =))
+            three-plus-zero))))
+

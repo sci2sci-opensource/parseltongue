@@ -1,0 +1,11 @@
+; Axioms — imports primitives, defines Peano rules
+
+(import (quote primitives))
+
+(defterm zero primitives.zero :origin "import")
+(defterm succ primitives.succ :origin "import")
+(defterm equals primitives.equals :origin "import")
+(defterm plus primitives.plus :origin "import")
+
+(axiom add-identity (equals (plus ?n zero) ?n) :origin "Peano")
+(axiom add-commutative (equals (plus ?a ?b) (plus ?b ?a)) :origin "Peano")

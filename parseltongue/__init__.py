@@ -67,6 +67,7 @@ from .core import (  # noqa: F401
     substitute,
     to_sexp,
 )
+from .core import load_pltg as load_main  # noqa: F401
 from .llm import LLMProvider, Pipeline  # noqa: F401
 
 try:

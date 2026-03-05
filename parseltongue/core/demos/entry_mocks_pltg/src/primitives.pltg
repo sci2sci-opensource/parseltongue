@@ -1,0 +1,6 @@
+; Primitive symbols — forward declarations
+
+(defterm zero :origin "primitive")
+(defterm succ :origin "primitive")
+(defterm equals :origin "primitive")
+(defterm plus :origin "primitive")

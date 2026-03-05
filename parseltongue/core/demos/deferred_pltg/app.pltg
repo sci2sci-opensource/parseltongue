@@ -1,0 +1,12 @@
+; app.pltg — An application that imports lib.
+;
+; lib's regular facts load, but its run-on-entry facts are skipped
+; because lib is not the main entry point here.
+
+(import (quote lib))
+
+(fact app-name "deferred-demo" :origin "app config")
+
+; app's own run-on-entry — these DO fire because app.pltg is main:
+(run-on-entry
+    (quote (fact app-initialized true :origin "deferred — app is main")))

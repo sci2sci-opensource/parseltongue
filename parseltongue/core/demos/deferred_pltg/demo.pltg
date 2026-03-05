@@ -1,0 +1,34 @@
+; ==========================================================
+; Deferred Demo — run-on-entry only fires for the main file
+; ==========================================================
+
+(print "============================================================")
+(print "Deferred Demo — run-on-entry only fires for the main file")
+(print "============================================================")
+
+; --- Scenario: demo.pltg imports app, which imports lib ---
+; Neither lib nor app is the entry point — demo.pltg is.
+; So ALL run-on-entry blocks in imported modules are skipped.
+
+(print "\n--- Importing app (which imports lib) ---")
+(print "  lib's run-on-entry: SKIPPED (not main)")
+(print "  app's run-on-entry: SKIPPED (not main)")
+(print "  Only regular facts from both modules load.\n")
+
+(import (quote app))
+
+(print "\nFacts loaded (no deferred facts):")
+(print-facts)
+
+; --- demo's own run-on-entry — this DOES fire ---
+(print "\n--- demo's own run-on-entry ---")
+(run-on-entry
+    (quote (fact demo-ready true :origin "deferred — demo is main")))
+
+(print "\nFacts after run-on-entry:")
+(print-facts)
+
+(print "\n============================================================")
+(print "Only demo.pltg is main, so only its run-on-entry fires.")
+(print "To see lib's deferred facts, run lib.pltg directly.")
+(print "============================================================")

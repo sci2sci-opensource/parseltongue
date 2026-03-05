@@ -26,6 +26,7 @@ from .lang import (
     KW_USING,
     KW_WITH,
     LET,
+    QUOTE,
     SPECIAL_FORMS,
     Axiom,
     Term,
@@ -354,6 +355,8 @@ class Engine:
                 if defn is not None:
                     return self._eval(defn, env, axiom_scope, restricted)
                 return expr  # forward-declared / primitive term
+            if not restricted and name in self.theorems:
+                return self._eval(self.theorems[name].wff, env, axiom_scope, restricted)
             raise NameError(
                 f"Unresolved symbol: {expr} — not in :using"
                 if restricted
@@ -381,6 +384,9 @@ class Engine:
             for binding in bindings:
                 new_env[binding[0]] = self._eval(binding[1], new_env, axiom_scope, restricted)
             return self._eval(body, new_env, axiom_scope, restricted)
+
+        if head == QUOTE:
+            return expr[1]
 
         head_val = self._eval(head, env, axiom_scope, restricted)
         args = [self._eval(arg, env, axiom_scope, restricted) for arg in expr[1:]]

@@ -51,6 +51,7 @@ from .atoms import (  # noqa: F401 — re-export
 IF = Symbol("if")
 LET = Symbol("let")
 EQ = Symbol("=")
+QUOTE = Symbol("quote")
 
 # DSL keywords — structural symbols of the language
 AXIOM = Symbol("axiom")
@@ -60,7 +61,7 @@ DERIVE = Symbol("derive")
 DIFF = Symbol("diff")
 EVIDENCE = Symbol("evidence")
 
-SPECIAL_FORMS = (IF, LET)
+SPECIAL_FORMS = (IF, LET, QUOTE)
 DSL_KEYWORDS = (AXIOM, DEFTERM, FACT, DERIVE, DIFF, EVIDENCE)
 
 # Keyword arguments (plain strings, not Symbols — returned by atom() as-is)
@@ -111,6 +112,18 @@ LANG_DOCS = {
         "description": "Local bindings.  Binds names to values in a local scope, then evaluates the body.",
         "example": "(let ((x 10)) (+ x 5))",
         "expected": 15,
+    },
+    QUOTE: {
+        "category": "special",
+        "description": "Prevent evaluation.  Returns the expression exactly as "
+        "written, without evaluating it.  Useful for passing "
+        "raw symbols or expression trees to effects.",
+        "example": "(quote (+ 1 2))",
+        "expected": "(+ 1 2)  (unevaluated list)",
+        "patterns": [
+            "(quote some.module.name)",
+            "(quote (fact x 10 :origin \"test\"))",
+        ],
     },
     EQ: {
         "category": "special",

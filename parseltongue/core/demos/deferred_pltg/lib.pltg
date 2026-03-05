@@ -1,0 +1,12 @@
+; lib.pltg — A reusable library with deferred directives.
+;
+; Regular facts load when imported by any file.
+; run-on-entry facts only execute when this file is the entry point.
+
+(fact api-version 3 :origin "library constant")
+(fact max-retries 5 :origin "library constant")
+
+; These only fire when lib.pltg is run directly (not imported):
+(run-on-entry
+    (quote (fact standalone-mode true :origin "deferred — only when main"))
+    (quote (fact self-test-passed true :origin "deferred — only when main")))

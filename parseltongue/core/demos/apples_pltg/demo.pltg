@@ -1,0 +1,154 @@
+; ==========================================================
+; Parseltongue DSL — Counting Observations & Apple Arithmetic
+; ==========================================================
+
+(print "============================================================")
+(print "Parseltongue DSL — Counting Observations & Apple Arithmetic")
+(print "============================================================")
+
+(print "\n--- Environment check ---")
+(dump-env)
+
+; --- Phase 0: Load source documents ---
+(print "\n--- Phase 0: Load source documents ---")
+(load-document "Counting Observations" "resources/counting_observations.txt")
+(load-document "Eden Inventory" "resources/eden_inventory.txt")
+
+; --- Phase 1: Introduce primitive symbols ---
+(print "\n--- Phase 1: Introduce primitive symbols ---")
+(print "  Starting with:")
+(state)
+
+(import (quote src.primitives))
+(defterm local-zero src.primitives.zero :origin "import")
+(defterm local-succ src.primitives.succ :origin "import")
+
+(print "  Introduced: zero, succ, =, +, -, >, *")
+(state)
+
+
+
+; --- Phase 2: Axioms of Peano arithmetic ---
+(print "\n--- Phase 2: Axioms of Peano arithmetic ---")
+(import (quote src.axioms))
+(print "  Axioms:")
+(list-axioms)
+
+; --- Phase 3: Concrete theorems via :bind ---
+(print "\n--- Phase 3: Concrete theorems via :bind ---")
+
+(derive three-plus-zero src.axioms.add-identity
+    :bind ((?n (local-succ (local-succ (local-succ local-zero)))))
+    :using (src.axioms.add-identity local-succ local-zero))
+
+(derive commute-3-2 src.axioms.add-commutative
+    :bind ((?a (local-succ (local-succ (local-succ local-zero))))
+           (?b (local-succ (local-succ local-zero))))
+    :using (src.axioms.add-commutative local-succ local-zero))
+
+(derive add-step-3-1 src.axioms.add-succ
+    :bind ((?n (local-succ (local-succ (local-succ local-zero))))
+           (?m local-zero))
+    :using (src.axioms.add-succ local-zero local-succ))
+
+(print "  Concrete theorems:")
+(print-theorem "three-plus-zero")
+(print-theorem "commute-3-2")
+(print-theorem "add-step-3-1")
+
+; --- Phase 4: Orchard inventory — morning ---
+(print "\n--- Phase 4: Orchard inventory — morning ---")
+(import (quote src.morning))
+
+(defterm morning-total (+ src.morning.eve-morning src.morning.adam-morning)
+  :evidence (evidence "Eden Inventory"
+    :quotes ("Combined morning harvest was 🍎🍎🍎🍎🍎🍎🍎🍎 apples")
+    :explanation "Sum of Eve and Adam's morning picks"))
+
+(defterm adam-picked-more (> src.morning.adam-morning src.morning.eve-morning)
+  :evidence (evidence "Eden Inventory"
+    :quotes ("Adam picked more apples than Eve in the morning")
+    :explanation "Adam's count exceeds Eve's"))
+
+(print "  Terms:")
+(list-terms)
+
+; --- Phase 5: Morning commutativity ---
+(print "\n--- Phase 5: Morning commutativity ---")
+
+(derive morning-commutes src.axioms.add-commutative
+    :bind ((?a src.morning.eve-morning) (?b src.morning.adam-morning))
+    :using (src.axioms.add-commutative src.morning.eve-morning src.morning.adam-morning)
+    :evidence (evidence "Eden Inventory"
+      :quotes ("Combined morning harvest was 🍎🍎🍎🍎🍎🍎🍎🍎 apples")
+      :explanation "eve + adam = adam + eve"))
+
+(print-theorem "morning-commutes")
+
+; --- Phase 6: Afternoon harvest ---
+(print "\n--- Phase 6: Afternoon harvest ---")
+(import (quote src.afternoon))
+
+(defterm afternoon-total (+ src.afternoon.serpent-afternoon src.afternoon.eve-afternoon)
+  :evidence (evidence "Eden Inventory"
+    :quotes ("Combined afternoon harvest was 🍎🍎🍎🍎🍎🍎 apples")
+    :explanation "Sum of Serpent and Eve's afternoon picks"))
+
+(defterm eve-daily (+ src.morning.eve-morning src.afternoon.eve-afternoon)
+  :evidence (evidence "Eden Inventory"
+    :quotes ("Eve's daily total is 🍎🍎🍎🍎🍎 apples")
+    :explanation "Eve's combined morning + afternoon"))
+
+(defterm daily-total (+ morning-total afternoon-total)
+  :evidence (evidence "Eden Inventory"
+    :quotes ("Total harvest for the day was 🍎🍎🍎🍎🍎🍎🍎🍎🍎🍎🍎🍎🍎🍎 apples")
+    :explanation "Grand total = morning + afternoon"))
+
+(defterm morning-advantage (- morning-total afternoon-total)
+  :evidence (evidence "Eden Inventory"
+    :quotes ("The morning shift outproduced the afternoon by 🍎🍎 apples")
+    :explanation "Difference between shift totals"))
+
+; --- Phase 7: Diff — what if Eve tried the forbidden apple? ---
+(print "\n--- Phase 7: Diff — what if Eve tried the forbidden apple? ---")
+
+(defterm eve-morning-alt (succ (succ zero))
+  :origin "Hypothetical: Eve tried the forbidden apple — SS0 instead of SSS0")
+
+(diff eve-check
+    :replace src.morning.eve-morning
+    :with eve-morning-alt)
+
+; --- Phase 8: Provenance ---
+(print "\n--- Phase 8: Provenance ---")
+(print "  Provenance of morning-commutes:")
+(provenance "morning-commutes")
+
+; --- Phase 9: Consistency report ---
+(print "\n--- Phase 9: Consistency report ---")
+(consistency)
+
+(print "\n  Resolving unverified items...")
+(verify "eve-morning-alt")
+(verify "src.axioms.eq-reflexive")
+(verify "src.primitives.=")
+
+(print "\n  After verification:")
+(consistency)
+
+; --- Summary ---
+(print "\n============================================================")
+(state)
+(print "\nAll axioms:")
+(list-axioms)
+(print "\nAll theorems:")
+(list-theorems)
+
+(print "\n============================================================")
+(print "Peano arithmetic built from observational field notes.")
+(print "Every symbol introduced as a term, every property stated")
+(print "as a parameterized axiom, concrete theorems via :bind.")
+(print "All in successor notation — no numeric primitives.")
+(print "============================================================")
+(print "\n--- Environment check ---")
+(dump-env)

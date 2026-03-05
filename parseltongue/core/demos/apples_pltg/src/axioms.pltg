@@ -1,0 +1,39 @@
+; Phase 2: Axioms of Peano arithmetic
+
+(defterm zero src.primitives.zero :origin "import")
+(defterm succ src.primitives.succ :origin "import")
+(defterm = (quote src.primitives.=) :origin "import lazy") ; Check the lazy alias works
+(defterm + (quote src.primitives.+) :origin "import lazy")
+(defterm - src.primitives.- :origin "import")
+(defterm > src.primitives.> :origin "import")
+(defterm * src.primitives.* :origin "import")
+
+(axiom eq-reflexive (= ?x ?x)
+  :evidence (evidence "Counting Observations"
+    :quotes ("If both baskets have 🍎🍎🍎🍎 apples, after swapping they still each have 🍎🍎🍎🍎")
+    :explanation "Equality is reflexive: any pile equals itself"))
+
+(axiom add-identity (= (+ ?n zero) ?n)
+  :evidence (evidence "Counting Observations"
+    :quotes ("Adding nothing to a basket does not change the pile")
+    :explanation "Additive identity: n + 0 = n"))
+
+(axiom add-succ (= (+ ?n (succ ?m)) (succ (+ ?n ?m)))
+  :evidence (evidence "Counting Observations"
+    :quotes ("every pile is reached by adding one more apple to the previous pile")
+    :explanation "Addition step: n + S(m) = S(n + m)"))
+
+(axiom add-commutative (= (+ ?a ?b) (+ ?b ?a))
+  :evidence (evidence "Counting Observations"
+    :quotes ("The order of combining does not matter")
+    :explanation "Commutativity: a + b = b + a"))
+
+(axiom mul-zero (= (* ?n zero) zero)
+  :evidence (evidence "Counting Observations"
+    :quotes ("We decided to mark an empty basket as \"zero\"")
+    :explanation "Multiplication by zero: n * 0 = 0"))
+
+(axiom mul-succ (= (* ?n (succ ?m)) (+ (* ?n ?m) ?n))
+  :evidence (evidence "Counting Observations"
+    :quotes ("Multiplication is a shortcut for combining equal groups")
+    :explanation "Multiplication step: n * S(m) = n*m + n"))

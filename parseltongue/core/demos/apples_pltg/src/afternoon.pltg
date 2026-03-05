@@ -1,0 +1,17 @@
+; Phase 6: Afternoon harvest
+
+; Note: succ/zero are used here without explicit imports. This works because
+; they are forward-declared primitives — evaluation returns them as bare
+; Symbols, producing formal expressions like (succ (succ zero)). If these
+; were computed terms requiring real evaluation, imports would be needed.
+
+
+(defterm serpent-afternoon (succ (succ (succ (succ zero))))
+  :evidence (evidence "Eden Inventory"
+    :quotes ("Serpent picked 🍎🍎🍎🍎 apples from the south grove")
+    :explanation "Serpent's afternoon count: SSSS0"))
+
+(defterm eve-afternoon (succ (succ zero))
+  :evidence (evidence "Eden Inventory"
+    :quotes ("Eve picked 🍎🍎 more apples from the east grove")
+    :explanation "Eve's afternoon count: SS0"))

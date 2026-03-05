@@ -1,0 +1,11 @@
+; Phase 4: Morning harvest
+
+(defterm eve-morning (succ (succ (succ zero)))
+  :evidence (evidence "Eden Inventory"
+    :quotes ("Eve picked 🍎🍎🍎 apples from the east grove")
+    :explanation "Eve's morning count: SSS0"))
+
+(defterm adam-morning (succ (succ (succ (succ (succ zero)))))
+  :evidence (evidence "Eden Inventory"
+    :quotes ("Adam picked 🍎🍎🍎🍎🍎 apples from the west grove")
+    :explanation "Adam's morning count: SSSSS0"))

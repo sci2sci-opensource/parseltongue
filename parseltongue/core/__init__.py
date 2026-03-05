@@ -79,9 +79,11 @@ from .lang import (  # noqa: F401
     KW_WITH,
     LANG_DOCS,
     LET,
+    QUOTE,
     SPECIAL_FORMS,
     parse_evidence,
 )
+from .loader import Context, Loader, LoaderContext, ModuleContext, load_pltg  # noqa: F401
 
 # System & loader
 from .system import System, load_source  # noqa: F401

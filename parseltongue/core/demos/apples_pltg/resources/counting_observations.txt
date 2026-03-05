@@ -1,0 +1,42 @@
+Field Notes: Observations on Shuffling Apples
+Researcher: E. Peano, Fruit Laboratory
+
+Observation 1: Piling Up
+
+When placing apples into a basket one by one, every pile is reached by
+adding one more apple to the previous pile. We decided to mark an empty
+basket as "zero".
+
+Observation 2: Combining Collections
+
+When we pour one basket into another, the resulting pile is the union of
+both. Combining 🍎🍎🍎 apples with 🍎🍎 apples always gives 🍎🍎🍎🍎🍎 apples.
+We repeated this trial many times with identical results.
+
+Observation 3: Order Independence
+
+The order of combining does not matter — pouring basket A into basket B gives
+the same pile as pouring basket B into basket A. We confirmed this by
+swapping the pour direction across all trials.
+
+Observation 4: Adding Nothing
+
+Adding nothing to a basket does not change the pile. A basket of apples
+still has the same apples after we pretend to pour an empty basket into it.
+
+Observation 5: Comparing Collections
+
+The basket with more apples is always heavier. If basket A has 🍎🍎🍎🍎🍎 and
+basket B has 🍎🍎🍎, then basket A has more. The difference is found by
+removing apples from the larger pile until it matches the smaller.
+
+Observation 6: Swap Invariance
+
+Swapping all apples between two equal baskets does not change either pile.
+If both baskets have 🍎🍎🍎🍎 apples, after swapping they still each have 🍎🍎🍎🍎.
+
+Observation 7: Equal Groups
+
+Having several baskets each holding the same pile of apples is the same as
+adding that pile repeatedly. Multiplication is a shortcut for combining
+equal groups.
