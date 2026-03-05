@@ -1,133 +1,36 @@
 """
-Parseltongue DSL — Runtime Engine.
+Parseltongue Engine — evaluation core.
 
-Stateful system: evaluation, axiom store, document registry,
-quote verification, derivation with fabrication propagation.
-
-Building a System — Step by Step
----------------------------------
-
-1. Create a System::
-
-    s = System()                          # default operators loaded
-    s = System(initial_env={})            # empty — introduce everything yourself
-    s = System(overridable=True)          # allow fact overwriting
-
-2. Register source documents for quote verification::
-
-    s.load_document("Q3 Report", "path/to/q3_report.txt")
-    s.register_document("Notes", "inline text...")
-
-3. Build statements via load_source() — five directives:
-
-  fact — ground truth value::
-
-    (fact revenue-q3 15.0
-        :evidence (evidence "Q3 Report"
-          :quotes ("Q3 revenue was $15M")
-          :explanation "Dollar revenue figure from Q3 report"))
-
-  defterm — named concept (forward declaration, computed, or conditional)::
-
-    ;; Forward declaration (primitive symbol)
-    (defterm zero
-        :evidence (evidence "Counting Observations"
-          :quotes ("An empty basket contains zero apples")
-          :explanation "Zero: the count of an empty collection"))
-
-    ;; Computed expression
-    (defterm morning-total (+ eve-morning adam-morning)
-        :evidence (evidence "Eden Inventory"
-          :quotes ("Combined morning harvest was 8 apples")
-          :explanation "Sum of Eve and Adam's morning picks"))
-
-    ;; Conditional
-    (defterm bonus-amount
-        (if (> revenue-q3-growth growth-target)
-            (* base-salary bonus-rate)
-            0)
-        :evidence (evidence "Bonus Policy Doc"
-          :quotes ("Bonus is 20% of base salary if growth target is exceeded")
-          :explanation "Bonus calculation formula"))
-
-  axiom — parametric rewrite rule (MUST have ?-variables)::
-
-    (axiom add-commutative (= (+ ?a ?b) (+ ?b ?a))
-        :evidence (evidence "Counting Observations"
-          :quotes ("The order of combining does not matter")
-          :explanation "Commutativity: a + b = b + a"))
-
-  derive — theorem from existing statements; use :bind to instantiate::
-
-    ;; Direct derivation — :using lists all referenced symbols
-    (derive target-exceeded
-        (> revenue-q3-growth growth-target)
-        :using (revenue-q3-growth growth-target))
-
-    ;; Instantiate a parameterised axiom via :bind
-    ;; :using must include the axiom AND any symbols from :bind values
-    (derive morning-commutes add-commutative
-        :bind ((?a eve-morning) (?b adam-morning))
-        :using (add-commutative eve-morning adam-morning))
-
-  diff — lazy what-if comparison::
-
-    (diff growth-check
-        :replace revenue-q3-growth
-        :with revenue-q3-growth-computed)
-
-4. Inspect the system::
-
-    s.consistency()           # full consistency report
-    s.provenance("name")      # trace evidence chain
-    s.eval_diff("name")       # evaluate a diff
-    s.doc()                   # generated documentation
-
-Key Concepts
-~~~~~~~~~~~~~
-
-- **Evidence grounding**: every statement traces back to quoted text from a
-  registered source document.  Unverified quotes are flagged, not rejected.
-- **Fabrication propagation**: if a derivation depends on unverified evidence,
-  the theorem inherits the taint as "potential fabrication".
-- **Diff divergence**: register a diff to compare what happens when one
-  symbol is swapped for another across all dependent terms.
-- **Overridable facts**: System(overridable=True) lets facts be overwritten;
-  dependent diffs are recomputed automatically.
+Accepts an env dict and provides: evaluation, rewriting, derivation,
+diffs, consistency checking, document management, evidence verification,
+and DSL loading.
 """
 
 import logging
-import operator
 from dataclasses import dataclass, field
-from typing import Any, Callable
+from typing import Any
 
-from .atoms import Symbol, free_vars, match, substitute
+from .atoms import Evidence, Symbol, free_vars, match, substitute
 from .lang import (
-    # DSL keywords
     AXIOM,
     DEFTERM,
     DERIVE,
     DIFF,
+    EQ,
     FACT,
-    # Special forms
     IF,
     KW_BIND,
     KW_EVIDENCE,
-    # Keyword arguments
     KW_ORIGIN,
     KW_REPLACE,
     KW_USING,
     KW_WITH,
-    # Documentation
-    LANG_DOCS,
     LET,
     SPECIAL_FORMS,
     Axiom,
-    Evidence,
     Term,
     Theorem,
     get_keyword,
-    parse,
     parse_evidence,
     read_tokens,
     to_sexp,
@@ -136,169 +39,6 @@ from .lang import (
 from .quote_verifier import QuoteVerifier
 
 log = logging.getLogger("parseltongue")
-
-# ============================================================
-# Operator Constants (engine-level)
-# ============================================================
-
-# Arithmetic
-ADD = Symbol("+")
-SUB = Symbol("-")
-MUL = Symbol("*")
-DIV = Symbol("/")
-MOD = Symbol("mod")
-
-# Comparison
-GT = Symbol(">")
-LT = Symbol("<")
-GE = Symbol(">=")
-LE = Symbol("<=")
-EQ = Symbol("=")
-NE = Symbol("!=")
-
-# Logic
-AND = Symbol("and")
-OR = Symbol("or")
-NOT = Symbol("not")
-IMPLIES = Symbol("implies")
-
-ARITHMETIC_OPS = (ADD, SUB, MUL, DIV, MOD)
-COMPARISON_OPS = (GT, LT, GE, LE, EQ, NE)
-LOGIC_OPS = (AND, OR, NOT, IMPLIES)
-
-
-# ============================================================
-# Engine Documentation
-# ============================================================
-
-ENGINE_DOCS = {
-    # Arithmetic
-    ADD: {
-        "category": "arithmetic",
-        "description": "Add two numbers.  Also used symbolically in formal terms: (+ eve-morning adam-morning).",
-        "example": "(+ 2 3)",
-        "expected": 5,
-    },
-    SUB: {
-        "category": "arithmetic",
-        "description": "Subtract second from first.  Useful for computing "
-        "differences between terms: (- morning-total afternoon-total).",
-        "example": "(- 10 4)",
-        "expected": 6,
-    },
-    MUL: {
-        "category": "arithmetic",
-        "description": "Multiply two numbers.  Used in computed terms like "
-        "bonus calculations: (* base-salary bonus-rate).",
-        "example": "(* 3 7)",
-        "expected": 21,
-    },
-    DIV: {
-        "category": "arithmetic",
-        "description": "Divide first by second (true division).  Used for computing ratios: (/ (- q3 q2) q2).",
-        "example": "(/ 10 2)",
-        "expected": 5.0,
-    },
-    MOD: {
-        "category": "arithmetic",
-        "description": "Remainder of first divided by second.",
-        "example": "(mod 10 3)",
-        "expected": 1,
-    },
-    # Comparison
-    GT: {
-        "category": "comparison",
-        "description": "True if first is strictly greater than second.  "
-        "Common in term definitions: (> sensitivity 90).",
-        "example": "(> 5 3)",
-        "expected": True,
-    },
-    LT: {
-        "category": "comparison",
-        "description": "True if first is strictly less than second.",
-        "example": "(< 2 8)",
-        "expected": True,
-    },
-    GE: {
-        "category": "comparison",
-        "description": "True if first is greater than or equal to second.",
-        "example": "(>= 5 5)",
-        "expected": True,
-    },
-    LE: {
-        "category": "comparison",
-        "description": "True if first is less than or equal to second.",
-        "example": "(<= 3 5)",
-        "expected": True,
-    },
-    EQ: {
-        "category": "comparison",
-        "description": "True if both values are equal.  Also the core of "
-        "rewrite rules — axioms of the form (= LHS RHS) are "
-        "applied as left-to-right rewrites during evaluation.",
-        "example": "(= 5 5)",
-        "expected": True,
-    },
-    NE: {
-        "category": "comparison",
-        "description": "True if values are not equal.",
-        "example": "(!= 5 6)",
-        "expected": True,
-    },
-    # Logic
-    AND: {
-        "category": "logic",
-        "description": "Logical AND (variadic).  True only if all operands are true.  "
-        "Accepts 2 or more arguments: (and a b), (and a b c d).",
-        "example": "(and true true false)",
-        "expected": False,
-    },
-    OR: {
-        "category": "logic",
-        "description": "Logical OR (variadic).  True if at least one operand is true.  "
-        "Accepts 2 or more arguments: (or a b), (or a b c d).",
-        "example": "(or false false true)",
-        "expected": True,
-    },
-    NOT: {
-        "category": "logic",
-        "description": "Logical NOT.  Negates a boolean.  Used in derivations: (not (> specificity 90)).",
-        "example": "(not true)",
-        "expected": False,
-    },
-    IMPLIES: {
-        "category": "logic",
-        "description": "Logical implication.  False only when antecedent is true and consequent is false.",
-        "example": "(implies true false)",
-        "expected": False,
-    },
-}
-
-
-# ============================================================
-# Default Operator Mapping
-# ============================================================
-
-DEFAULT_OPERATORS: dict[Symbol, Any] = {
-    # Arithmetic
-    ADD: operator.add,
-    SUB: operator.sub,
-    MUL: operator.mul,
-    DIV: operator.truediv,
-    MOD: operator.mod,
-    # Comparison
-    GT: operator.gt,
-    LT: operator.lt,
-    GE: operator.ge,
-    LE: operator.le,
-    EQ: operator.eq,
-    NE: operator.ne,
-    # Logic
-    AND: lambda *args: all(args),
-    OR: lambda *args: any(args),
-    NOT: lambda a: not a,
-    IMPLIES: lambda a, b: (not a) or b,
-}
 
 
 # ============================================================
@@ -330,6 +70,17 @@ class DiffResult:
     def values_diverge(self) -> bool:
         return self.value_a != self.value_b
 
+    def to_dict(self) -> dict:
+        from .serialization import serialize_diff_result
+
+        return serialize_diff_result(self)
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "DiffResult":
+        from .serialization import deserialize_diff_result
+
+        return deserialize_diff_result(data)
+
     def __str__(self):
         va = to_sexp(self.value_a) if isinstance(self.value_a, (list, Symbol)) else self.value_a
         vb = to_sexp(self.value_b) if isinstance(self.value_b, (list, Symbol)) else self.value_b
@@ -345,29 +96,6 @@ class DiffResult:
             lines.append(f"{term}: {a_s} → {b_s}")
         return "\n".join(lines)
 
-    def to_dict(self) -> dict:
-        return {
-            "name": self.name,
-            "replace": self.replace,
-            "with": self.with_,
-            "value_a": _serialize_sexp(self.value_a),
-            "value_b": _serialize_sexp(self.value_b),
-            "divergences": {k: [_serialize_sexp(a), _serialize_sexp(b)] for k, (a, b) in self.divergences.items()},
-        }
-
-    @classmethod
-    def from_dict(cls, data: dict) -> "DiffResult":
-        return cls(
-            name=data["name"],
-            replace=data["replace"],
-            with_=data["with"],
-            value_a=_deserialize_sexp(data["value_a"]),
-            value_b=_deserialize_sexp(data["value_b"]),
-            divergences={
-                k: [_deserialize_sexp(a), _deserialize_sexp(b)] for k, (a, b) in data.get("divergences", {}).items()
-            },
-        )
-
 
 @dataclass
 class ConsistencyIssue:
@@ -375,6 +103,17 @@ class ConsistencyIssue:
 
     type: str
     items: list
+
+    def to_dict(self) -> dict:
+        from .serialization import serialize_consistency_issue
+
+        return serialize_consistency_issue(self)
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "ConsistencyIssue":
+        from .serialization import deserialize_consistency_issue
+
+        return deserialize_consistency_issue(data)
 
     def __str__(self):
         labels = {
@@ -395,20 +134,6 @@ class ConsistencyIssue:
                 parts.append(f"  {item}")
         return "\n".join(parts)
 
-    def to_dict(self) -> dict:
-        if self.type in ("diff_divergence", "diff_value_divergence"):
-            return {"type": self.type, "items": [d.to_dict() for d in self.items]}
-        return {"type": self.type, "items": [str(i) for i in self.items]}
-
-    @classmethod
-    def from_dict(cls, data: dict) -> "ConsistencyIssue":
-        t = data["type"]
-        if t in ("diff_divergence", "diff_value_divergence"):
-            items = [DiffResult.from_dict(d) for d in data["items"]]
-        else:
-            items = data["items"]
-        return cls(type=t, items=items)
-
 
 @dataclass
 class ConsistencyWarning:
@@ -417,17 +142,21 @@ class ConsistencyWarning:
     type: str
     items: list[str]
 
+    def to_dict(self) -> dict:
+        from .serialization import serialize_consistency_warning
+
+        return serialize_consistency_warning(self)
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "ConsistencyWarning":
+        from .serialization import deserialize_consistency_warning
+
+        return deserialize_consistency_warning(data)
+
     def __str__(self):
         if self.type == "manually_verified":
             return f"Manually verified: {', '.join(self.items)}"
         return f"{self.type}: {', '.join(self.items)}"
-
-    def to_dict(self) -> dict:
-        return {"type": self.type, "items": self.items}
-
-    @classmethod
-    def from_dict(cls, data: dict) -> "ConsistencyWarning":
-        return cls(type=data["type"], items=data["items"])
 
 
 @dataclass
@@ -437,6 +166,17 @@ class ConsistencyReport:
     consistent: bool
     issues: list[ConsistencyIssue] = field(default_factory=list)
     warnings: list[ConsistencyWarning] = field(default_factory=list)
+
+    def to_dict(self) -> dict:
+        from .serialization import serialize_consistency_report
+
+        return serialize_consistency_report(self)
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "ConsistencyReport":
+        from .serialization import deserialize_consistency_report
+
+        return deserialize_consistency_report(data)
 
     def __str__(self):
         if self.consistent and not self.warnings:
@@ -454,208 +194,46 @@ class ConsistencyReport:
             lines.append(f"  [warning] {w}")
         return "\n".join(lines)
 
-    def to_dict(self) -> dict:
-        return {
-            "consistent": self.consistent,
-            "issues": [i.to_dict() for i in self.issues],
-            "warnings": [w.to_dict() for w in self.warnings],
-        }
-
-    @classmethod
-    def from_dict(cls, data: dict) -> "ConsistencyReport":
-        return cls(
-            consistent=data["consistent"],
-            issues=[ConsistencyIssue.from_dict(i) for i in data.get("issues", [])],
-            warnings=[ConsistencyWarning.from_dict(w) for w in data.get("warnings", [])],
-        )
-
 
 # ============================================================
-# Serialization Helpers
+# Engine
 # ============================================================
 
 
-def _serialize_sexp(obj) -> Any:
-    """Convert an s-expression (with Symbols) to JSON-safe form."""
-    if isinstance(obj, list):
-        return [_serialize_sexp(x) for x in obj]
-    if isinstance(obj, Symbol):
-        return {"__symbol__": str(obj)}
-    if isinstance(obj, bool):
-        return obj
-    return obj
+class Engine:
+    """Pure evaluation engine. No serialization, no document management."""
 
-
-def _deserialize_sexp(obj) -> Any:
-    """Reconstruct an s-expression from JSON-safe form."""
-    if isinstance(obj, list):
-        return [_deserialize_sexp(x) for x in obj]
-    if isinstance(obj, dict) and "__symbol__" in obj:
-        return Symbol(obj["__symbol__"])
-    return obj
-
-
-def _serialize_evidence(ev: Evidence) -> dict:
-    return {
-        "__evidence__": True,
-        "document": ev.document,
-        "quotes": ev.quotes,
-        "explanation": ev.explanation,
-        "verification": ev.verification,
-        "verified": ev.verified,
-        "verify_manual": ev.verify_manual,
-    }
-
-
-def _deserialize_evidence(d: dict) -> Evidence:
-    return Evidence(
-        document=d["document"],
-        quotes=d.get("quotes", []),
-        explanation=d.get("explanation", ""),
-        verification=d.get("verification", []),
-        verified=d.get("verified", False),
-        verify_manual=d.get("verify_manual", False),
-    )
-
-
-def _serialize_origin(origin) -> Any:
-    if isinstance(origin, Evidence):
-        return _serialize_evidence(origin)
-    return origin
-
-
-def _deserialize_origin(origin) -> Any:
-    if isinstance(origin, dict) and origin.get("__evidence__"):
-        return _deserialize_evidence(origin)
-    return origin
-
-
-def _serialize_term(term: Term) -> dict:
-    return {
-        "definition": _serialize_sexp(term.definition),
-        "origin": _serialize_origin(term.origin),
-    }
-
-
-def _deserialize_term(name: str, d: dict) -> Term:
-    return Term(
-        name=name,
-        definition=_deserialize_sexp(d["definition"]),
-        origin=_deserialize_origin(d["origin"]),
-    )
-
-
-def _serialize_fact(fact: Fact) -> dict:
-    return {
-        "wff": _serialize_sexp(fact.wff),
-        "origin": _serialize_origin(fact.origin),
-    }
-
-
-def _deserialize_fact(name: str, d: dict) -> Fact:
-    return Fact(
-        name=name,
-        wff=_deserialize_sexp(d.get("wff", d.get("value"))),
-        origin=_deserialize_origin(d.get("origin", "")),
-    )
-
-
-def _serialize_axiom(axiom: Axiom) -> dict:
-    return {
-        "wff": _serialize_sexp(axiom.wff),
-        "origin": _serialize_origin(axiom.origin),
-    }
-
-
-def _deserialize_axiom(name: str, d: dict) -> Axiom:
-    return Axiom(
-        name=name,
-        wff=_deserialize_sexp(d["wff"]),
-        origin=_deserialize_origin(d["origin"]),
-    )
-
-
-def _serialize_theorem(thm: Theorem) -> dict:
-    return {
-        "wff": _serialize_sexp(thm.wff),
-        "derivation": thm.derivation,
-        "origin": _serialize_origin(thm.origin),
-    }
-
-
-def _deserialize_theorem(name: str, d: dict) -> Theorem:
-    return Theorem(
-        name=name,
-        wff=_deserialize_sexp(d["wff"]),
-        derivation=d.get("derivation", []),
-        origin=_deserialize_origin(d["origin"]),
-    )
-
-
-class System:
-    """The Parseltongue formal system. Grows via axiom introduction."""
-
-    def __init__(
-        self,
-        overridable: bool = False,
-        initial_env: dict | None = None,
-        docs: dict | None = None,
-        strict_derive: bool = True,
-        effects: dict[str, Callable] | None = None,
-    ):
+    def __init__(self, env: dict, overridable: bool = False, strict_derive: bool = True):
         self.axioms: dict[str, Axiom] = {}
         self.theorems: dict[str, Theorem] = {}
         self.terms: dict[str, Term] = {}
         self.facts: dict[str, Fact] = {}
-        self.env: dict = {}
+        self.env: dict = dict(env)
+        self.diffs: dict[str, dict] = {}
         self.documents: dict[str, str] = {}
+        self._verifier = QuoteVerifier()
         self.overridable = overridable
         self.strict_derive = strict_derive
-        self.diffs: dict[str, dict] = {}  # name -> {replace, with} — evaluated lazily
-        self._verifier = QuoteVerifier()
-
-        if initial_env is not None:
-            self.env.update(initial_env)
-        else:
-            self.env.update(DEFAULT_OPERATORS)
-
-        # Effects: side-effect operators that receive the system as first arg.
-        # fn(system, *args) — auto-wrapped so the DSL just calls (name ...).
-        if effects:
-            for name, fn in effects.items():
-                self.env[Symbol(name)] = lambda *args, _fn=fn: _fn(self, *args)
-
-        if docs is not None:
-            self._docs = docs
-        else:
-            self._docs = ENGINE_DOCS
 
     # ----------------------------------------------------------
     # Document Registry
     # ----------------------------------------------------------
 
     def register_document(self, name: str, text: str):
-        """Register a source document by name for quote verification."""
         self.documents[name] = text
         self._verifier.index.add(name, text)
 
     def load_document(self, name: str, path: str):
-        """Load a source document from a file path."""
         with open(path) as f:
             text = f.read()
         self.documents[name] = text
         self._verifier.index.add(name, text)
 
     # ----------------------------------------------------------
-    # Quote Verification
+    # Evidence Verification
     # ----------------------------------------------------------
 
     def _verify_evidence(self, evidence: Evidence) -> Evidence:
-        """Verify all quotes in an Evidence object against the registered document.
-
-        Does NOT reject on failure — flags mismatches via logging.
-        Sets evidence.verified and populates evidence.verification.
-        """
         if evidence.document not in self.documents:
             log.warning("Document '%s' not registered — skipping verification", evidence.document)
             return evidence
@@ -676,285 +254,38 @@ class System:
         evidence.verified = all_verified
         return evidence
 
-    def verify_manual(self, name: str):
-        """Manually verify evidence for a fact, axiom, or term.
-
-        Use when the LLM paraphrased correctly but didn't quote exactly.
-        """
-        origin = None
+    def _lookup(self, name: str) -> Axiom | Theorem | Term | None:
+        """Find a named item across all stores."""
         if name in self.facts:
-            origin = self.facts[name].origin
+            return self.facts[name]
         if name in self.axioms:
-            origin = self.axioms[name].origin
+            return self.axioms[name]
         if name in self.theorems:
-            origin = self.theorems[name].origin
+            return self.theorems[name]
         if name in self.terms:
-            origin = self.terms[name].origin
+            return self.terms[name]
+        return None
 
-        if origin is None:
+    def verify_manual(self, name: str):
+        item = self._lookup(name)
+        if item is None:
             raise KeyError(f"Unknown: {name}")
 
+        origin = item.origin
         if isinstance(origin, Evidence):
             origin.verify_manual = True
         else:
-            # Plain string origin — wrap in Evidence and mark manually verified
-            ev = Evidence(
+            item.origin = Evidence(
                 document="manual",
                 quotes=[],
                 explanation=origin if isinstance(origin, str) else str(origin),
                 verify_manual=True,
             )
-            if name in self.facts:
-                self.facts[name].origin = ev
-            if name in self.axioms:
-                self.axioms[name].origin = ev
-            if name in self.theorems:
-                self.theorems[name].origin = ev
-            if name in self.terms:
-                self.terms[name].origin = ev
 
         log.info("'%s' manually marked as grounded", name)
 
     # ----------------------------------------------------------
-    # Axiom Introduction
-    # ----------------------------------------------------------
-
-    def introduce_axiom(self, name: str, wff, origin: "str | Evidence") -> Axiom:
-        """Introduce a new axiom from evidence. Extends the system.
-
-        Axioms must contain at least one pattern variable (?-prefixed symbol).
-        Ground statements should use ``fact`` or ``derive`` instead.
-        """
-        if isinstance(wff, str):
-            wff = parse(wff)
-
-        if not free_vars(wff):
-            raise ValueError(
-                f"Axiom '{name}' has no ?-variables — it is a ground statement. "
-                f"Use (fact ...) for ground values or (derive ...) for provable claims."
-            )
-
-        self._check_wff(wff)
-        self._check_consistency(wff)
-
-        if isinstance(origin, Evidence):
-            self._verify_evidence(origin)
-
-        ax = Axiom(name=name, wff=wff, origin=origin)
-        self.axioms[name] = ax
-        self._register_if_definition(name, wff)
-        return ax
-
-    def introduce_term(self, name: str, definition, origin: "str | Evidence") -> Term:
-        """Introduce a new term/concept. Extends the grammar."""
-        if isinstance(definition, str):
-            definition = parse(definition)
-
-        if isinstance(origin, Evidence):
-            self._verify_evidence(origin)
-
-        term = Term(name=name, definition=definition, origin=origin)
-        self.terms[name] = term
-        return term
-
-    def set_fact(self, name: str, value: Any, origin: "str | Evidence"):
-        """Set a ground truth value with evidence.
-
-        If the fact already exists:
-          - overridable=False (default): raises ValueError, use retract first
-          - overridable=True: overwrites and auto-recomputes dependent diffs
-        """
-        if name in self.facts:
-            if not self.overridable:
-                raise ValueError(
-                    f"Fact '{name}' already exists. Use retract() first, or create System(overridable=True)"
-                )
-            log.info("Overwriting fact '%s': %s → %s", name, self.facts[name].wff, value)
-
-        if isinstance(origin, Evidence):
-            self._verify_evidence(origin)
-
-        self.facts[name] = Fact(name=name, wff=value, origin=origin)
-        self.env[Symbol(name)] = value
-
-    # ----------------------------------------------------------
-    # Instantiation
-    # ----------------------------------------------------------
-
-    def instantiate(self, name: str, bindings: dict):
-        """Look up a parameterized axiom or term, substitute ?-vars, return concrete expression."""
-        if name in self.axioms:
-            template = self.axioms[name].wff
-        elif name in self.theorems:
-            template = self.theorems[name].wff
-        elif name in self.terms:
-            template = self.terms[name].definition
-        else:
-            raise KeyError(f"Unknown axiom, theorem, or term: {name}")
-
-        return substitute(template, bindings)
-
-    # ----------------------------------------------------------
-    # Derivation
-    # ----------------------------------------------------------
-
-    def _check_sources_grounded(self, using: list[str]) -> list[str]:
-        """Check if any source in `:using` has unverified evidence.
-
-        Returns list of ungrounded source names.
-        """
-        ungrounded = []
-        for src_name in using:
-            origin = None
-            if src_name in self.facts:
-                origin = self.facts[src_name].origin
-            if src_name in self.axioms:
-                origin = self.axioms[src_name].origin
-            if src_name in self.theorems:
-                origin = self.theorems[src_name].origin
-            if src_name in self.terms:
-                origin = self.terms[src_name].origin
-
-            if isinstance(origin, Evidence) and not origin.is_grounded:
-                ungrounded.append(src_name)
-            # If origin is "potential fabrication" string from a prior derive
-            if isinstance(origin, str) and "potential fabrication" in origin:
-                ungrounded.append(src_name)
-
-        return ungrounded
-
-    @staticmethod
-    def _expr_symbols(expr) -> set[str]:
-        """Extract all non-?-prefixed symbol names from an expression."""
-        if isinstance(expr, Symbol) and not str(expr).startswith("?"):
-            return {str(expr)}
-        if isinstance(expr, list):
-            result: set[str] = set()
-            for sub in expr:
-                result |= System._expr_symbols(sub)
-            return result
-        return set()
-
-    def _expand_using(self, using: list[str]) -> list[str]:
-        """Transitively expand :using by pulling in symbols referenced by axioms/terms."""
-        resolved: set[str] = set()
-        pending = set(using)
-        while pending:
-            name = pending.pop()
-            if name in resolved:
-                continue
-            resolved.add(name)
-            # Collect symbols from axiom/theorem WFFs
-            if name in self.axioms:
-                deps = self._expr_symbols(self.axioms[name].wff)
-                pending |= deps - resolved
-            if name in self.theorems:
-                deps = self._expr_symbols(self.theorems[name].wff)
-                pending |= deps - resolved
-            # Collect symbols from term definitions
-            if name in self.terms and self.terms[name].definition is not None:
-                deps = self._expr_symbols(self.terms[name].definition)
-                pending |= deps - resolved
-        return list(resolved)
-
-    def _build_restricted_env(self, using: list[str]) -> dict:
-        """Build an evaluation environment restricted to :using sources.
-
-        Transitively expands :using — symbols referenced in axiom WFFs
-        and term definitions are automatically included.
-        """
-        expanded = self._expand_using(using)
-        log.debug("_build_restricted_env: %r expanded to %r", using, expanded)
-        env: dict = {}
-        # Include callable operators (arithmetic, comparison, logic)
-        for sym, val in self.env.items():
-            if callable(val):
-                env[sym] = val
-        for src_name in expanded:
-            if src_name in self.facts:
-                env[Symbol(src_name)] = self.facts[src_name].wff
-            elif src_name in self.terms:
-                term = self.terms[src_name]
-                if term.definition is not None:
-                    try:
-                        env[Symbol(src_name)] = self.evaluate(term.definition)
-                    except (NameError, TypeError):
-                        env[Symbol(src_name)] = Symbol(src_name)
-                else:
-                    # Forward-declared: resolve to own symbol for rewriting
-                    env[Symbol(src_name)] = Symbol(src_name)
-        return env
-
-    def _collect_using_rules(self, using: list[str]) -> list[Axiom | Theorem]:
-        """Collect axiom/theorem objects from :using (expanded transitively)."""
-        expanded = self._expand_using(using)
-        rules: list[Axiom | Theorem] = []
-        for src_name in expanded:
-            if src_name in self.axioms:
-                rules.append(self.axioms[src_name])
-            if src_name in self.theorems:
-                rules.append(self.theorems[src_name])
-        return rules
-
-    def derive(self, name: str, wff, using: list[str]) -> Theorem:
-        """Derive a theorem from existing axioms/terms.
-
-        Evaluation is restricted to facts/terms listed in :using.
-        Axiom rewrite rules are scoped to axioms/theorems in :using.
-        If any source has unverified evidence, the theorem is
-        marked as 'potential fabrication' with a trace to the unverified sources.
-        """
-        if isinstance(wff, str):
-            wff = parse(wff)
-
-        for ax_name in using:
-            if (
-                ax_name not in self.axioms
-                and ax_name not in self.facts
-                and ax_name not in self.terms
-                and ax_name not in self.theorems
-            ):
-                raise ValueError(f"Unknown axiom, fact, term, or theorem: {ax_name}")
-
-        # Evaluate: restricted (strict) or global (legacy) mode
-        if self.strict_derive:
-            restricted_env = self._build_restricted_env(using)
-            axiom_scope = self._collect_using_rules(using)
-            try:
-                result = self._eval(wff, restricted_env, axiom_scope=axiom_scope, restricted=True)
-            except NameError as e:
-                raise NameError(f"Derivation '{name}' references symbols not in :using: {e}") from e
-        else:
-            result = self.evaluate(wff)
-        does_not_hold = result is False or result is None
-
-        if does_not_hold:
-            log.warning("Derivation '%s' does not hold: %s evaluated to False", name, to_sexp(wff))
-
-        # Check fabrication propagation
-        ungrounded = self._check_sources_grounded(using)
-        issues = []
-        if does_not_hold:
-            issues.append("does not hold (evaluated to False)")
-        if ungrounded:
-            issues.append(f"derived from unverified: {', '.join(ungrounded)}")
-            log.warning(
-                "Derivation '%s' marked as potential fabrication (unverified sources: %s)",
-                name,
-                ", ".join(ungrounded),
-            )
-
-        if issues:
-            origin = f"potential fabrication — {'; '.join(issues)}"
-        else:
-            origin = "derived"
-
-        thm = Theorem(name=name, wff=wff, derivation=using, origin=origin)
-        self.theorems[name] = thm
-        return thm
-
-    # ----------------------------------------------------------
-    # Evaluator
+    # Evaluation
     # ----------------------------------------------------------
 
     def evaluate(self, expr, local_env=None) -> Any:
@@ -1127,6 +458,167 @@ class System:
                 pass
 
     # ----------------------------------------------------------
+    # Derivation
+    # ----------------------------------------------------------
+
+    def _check_sources_grounded(self, using: list[str]) -> list[str]:
+        """Check if any source in `:using` has unverified evidence.
+
+        Returns list of ungrounded source names.
+        """
+        ungrounded = []
+        for src_name in using:
+            origin = None
+            if src_name in self.facts:
+                origin = self.facts[src_name].origin
+            if src_name in self.axioms:
+                origin = self.axioms[src_name].origin
+            if src_name in self.theorems:
+                origin = self.theorems[src_name].origin
+            if src_name in self.terms:
+                origin = self.terms[src_name].origin
+
+            if isinstance(origin, Evidence) and not origin.is_grounded:
+                ungrounded.append(src_name)
+            # If origin is "potential fabrication" string from a prior derive
+            if isinstance(origin, str) and "potential fabrication" in origin:
+                ungrounded.append(src_name)
+
+        return ungrounded
+
+    @staticmethod
+    def _expr_symbols(expr) -> set[str]:
+        """Extract all non-?-prefixed symbol names from an expression."""
+        if isinstance(expr, Symbol) and not str(expr).startswith("?"):
+            return {str(expr)}
+        if isinstance(expr, list):
+            result: set[str] = set()
+            for sub in expr:
+                result |= Engine._expr_symbols(sub)
+            return result
+        return set()
+
+    def _expand_using(self, using: list[str]) -> list[str]:
+        """Transitively expand :using by pulling in symbols referenced by axioms/terms."""
+        resolved: set[str] = set()
+        pending = set(using)
+        while pending:
+            name = pending.pop()
+            if name in resolved:
+                continue
+            resolved.add(name)
+            # Collect symbols from axiom/theorem WFFs
+            if name in self.axioms:
+                deps = self._expr_symbols(self.axioms[name].wff)
+                pending |= deps - resolved
+            if name in self.theorems:
+                deps = self._expr_symbols(self.theorems[name].wff)
+                pending |= deps - resolved
+            # Collect symbols from term definitions
+            if name in self.terms and self.terms[name].definition is not None:
+                deps = self._expr_symbols(self.terms[name].definition)
+                pending |= deps - resolved
+        return list(resolved)
+
+    def _build_restricted_env(self, using: list[str]) -> dict:
+        """Build an evaluation environment restricted to :using sources.
+
+        Transitively expands :using — symbols referenced in axiom WFFs
+        and term definitions are automatically included.
+        """
+        expanded = self._expand_using(using)
+        log.debug("_build_restricted_env: %r expanded to %r", using, expanded)
+        env: dict = {}
+        # Include callable operators (arithmetic, comparison, logic)
+        for sym, val in self.env.items():
+            if callable(val):
+                env[sym] = val
+        for src_name in expanded:
+            if src_name in self.facts:
+                env[Symbol(src_name)] = self.facts[src_name].wff
+            elif src_name in self.terms:
+                term = self.terms[src_name]
+                if term.definition is not None:
+                    try:
+                        env[Symbol(src_name)] = self.evaluate(term.definition)
+                    except (NameError, TypeError):
+                        env[Symbol(src_name)] = Symbol(src_name)
+                else:
+                    # Forward-declared: resolve to own symbol for rewriting
+                    env[Symbol(src_name)] = Symbol(src_name)
+        return env
+
+    def _collect_using_rules(self, using: list[str]) -> list[Axiom | Theorem]:
+        """Collect axiom/theorem objects from :using (expanded transitively)."""
+        expanded = self._expand_using(using)
+        rules: list[Axiom | Theorem] = []
+        for src_name in expanded:
+            if src_name in self.axioms:
+                rules.append(self.axioms[src_name])
+            if src_name in self.theorems:
+                rules.append(self.theorems[src_name])
+        return rules
+
+    def derive(self, name: str, wff, using: list[str]) -> Theorem:
+        """Derive a theorem from existing axioms/terms.
+
+        Evaluation is restricted to facts/terms listed in :using.
+        Axiom rewrite rules are scoped to axioms/theorems in :using.
+        If any source has unverified evidence, the theorem is
+        marked as 'potential fabrication' with a trace to the unverified sources.
+        """
+        from .lang import parse
+
+        if isinstance(wff, str):
+            wff = parse(wff)
+
+        for ax_name in using:
+            if (
+                ax_name not in self.axioms
+                and ax_name not in self.facts
+                and ax_name not in self.terms
+                and ax_name not in self.theorems
+            ):
+                raise ValueError(f"Unknown axiom, fact, term, or theorem: {ax_name}")
+
+        # Evaluate: restricted (strict) or global (legacy) mode
+        if self.strict_derive:
+            restricted_env = self._build_restricted_env(using)
+            axiom_scope = self._collect_using_rules(using)
+            try:
+                result = self._eval(wff, restricted_env, axiom_scope=axiom_scope, restricted=True)
+            except NameError as e:
+                raise NameError(f"Derivation '{name}' references symbols not in :using: {e}") from e
+        else:
+            result = self.evaluate(wff)
+        does_not_hold = result is False or result is None
+
+        if does_not_hold:
+            log.warning("Derivation '%s' does not hold: %s evaluated to False", name, to_sexp(wff))
+
+        # Check fabrication propagation
+        ungrounded = self._check_sources_grounded(using)
+        issues = []
+        if does_not_hold:
+            issues.append("does not hold (evaluated to False)")
+        if ungrounded:
+            issues.append(f"derived from unverified: {', '.join(ungrounded)}")
+            log.warning(
+                "Derivation '%s' marked as potential fabrication (unverified sources: %s)",
+                name,
+                ", ".join(ungrounded),
+            )
+
+        if issues:
+            origin = f"potential fabrication — {'; '.join(issues)}"
+        else:
+            origin = "derived"
+
+        thm = Theorem(name=name, wff=wff, derivation=using, origin=origin)
+        self.theorems[name] = thm
+        return thm
+
+    # ----------------------------------------------------------
     # Diff
     # ----------------------------------------------------------
 
@@ -1175,6 +667,10 @@ class System:
                 return defn
         if name in self.facts:
             return self.facts[name].wff
+        if name in self.theorems:
+            return self.theorems[name].wff
+        if name in self.axioms:
+            return self.axioms[name].wff
         raise KeyError(f"Unknown symbol: {name}")
 
     def eval_diff(self, name: str) -> DiffResult:
@@ -1199,10 +695,8 @@ class System:
                 result_b = self.evaluate(defn, {Symbol(replace): substitute_val})
             except (NameError, TypeError):
                 # Formal terms — compare structurally via substitution
-                from .atoms import substitute as subst
-
                 result_a = defn
-                result_b = subst(defn, {Symbol(replace): substitute_val})
+                result_b = substitute(defn, {Symbol(replace): substitute_val})
             if result_a != result_b:
                 divergences[term_name] = [result_a, result_b]
 
@@ -1263,174 +757,8 @@ class System:
             log.info("Rederive '%s': sources now verified — cleared", name)
 
     # ----------------------------------------------------------
-    # Introspection
+    # Consistency
     # ----------------------------------------------------------
-
-    def _format_origin(self, origin) -> dict | str:
-        """Format an origin for display/serialization."""
-        if isinstance(origin, Evidence):
-            result = {
-                "document": origin.document,
-                "quotes": origin.quotes,
-                "explanation": origin.explanation,
-                "verified": origin.verified,
-                "verify_manual": origin.verify_manual,
-                "grounded": origin.is_grounded,
-            }
-            if origin.verification:
-                result["verification"] = origin.verification
-            return result
-        return origin
-
-    def provenance(self, name: str) -> dict:
-        """Trace the full provenance chain of a statement."""
-        if name in self.facts:
-            return {
-                "name": name,
-                "type": "fact",
-                "origin": self._format_origin(self.facts[name].origin),
-            }
-
-        if name in self.axioms:
-            ax = self.axioms[name]
-            return {
-                "name": name,
-                "type": "axiom",
-                "wff": to_sexp(ax.wff),
-                "origin": self._format_origin(ax.origin),
-            }
-
-        if name in self.terms:
-            term = self.terms[name]
-            defn = to_sexp(term.definition) if term.definition is not None else "(forward declaration)"
-            return {
-                "name": name,
-                "type": "term",
-                "definition": defn,
-                "origin": self._format_origin(term.origin),
-            }
-
-        if name in self.theorems:
-            thm = self.theorems[name]
-            return {
-                "name": name,
-                "type": "theorem",
-                "wff": to_sexp(thm.wff),
-                "origin": self._format_origin(thm.origin),
-                "derivation_chain": [self.provenance(dep) for dep in thm.derivation],
-            }
-
-        if name in self.diffs:
-            diff = self.diffs[name]
-            result = self.eval_diff(name)
-            return {
-                "name": name,
-                "type": "diff",
-                "replace": diff["replace"],
-                "with": diff["with"],
-                "value_a": result.value_a,
-                "value_b": result.value_b,
-                "divergences": result.divergences,
-                "provenance_a": self.provenance(diff["replace"]),
-                "provenance_b": self.provenance(diff["with"]),
-            }
-
-        raise KeyError(f"Unknown: {name}")
-
-    def list_axioms(self) -> list[Axiom]:
-        """Return all axioms in the system."""
-        result = list(self.axioms.values())
-        for ax in result:
-            log.info("%s", ax)
-        return result
-
-    def list_theorems(self) -> list[Theorem]:
-        """Return all theorems in the system."""
-        result = list(self.theorems.values())
-        for thm in result:
-            log.info("%s", thm)
-        return result
-
-    def list_terms(self) -> list[Term]:
-        """Return all terms in the system."""
-        result = list(self.terms.values())
-        for term in result:
-            log.info("%s", term)
-        return result
-
-    def list_facts(self) -> list[Fact]:
-        """Return all ground facts."""
-        result = list(self.facts.values())
-        for fact in result:
-            log.info("%s", fact)
-        return result
-
-    # ----------------------------------------------------------
-    # Serialization
-    # ----------------------------------------------------------
-
-    def to_dict(self) -> dict:
-        """Serialize the full system state to a JSON-safe dict."""
-        return {
-            "terms": {n: _serialize_term(t) for n, t in self.terms.items()},
-            "facts": {n: _serialize_fact(f) for n, f in self.facts.items()},
-            "axioms": {n: _serialize_axiom(a) for n, a in self.axioms.items()},
-            "theorems": {n: _serialize_theorem(t) for n, t in self.theorems.items()},
-            "diffs": dict(self.diffs),
-            "documents": dict(self.documents),
-        }
-
-    @classmethod
-    def from_dict(cls, data: dict) -> "System":
-        """Reconstruct a System from a serialized dict."""
-        system = cls()
-        system.terms = {n: _deserialize_term(n, d) for n, d in data.get("terms", {}).items()}
-        system.facts = {n: _deserialize_fact(n, d) for n, d in data.get("facts", {}).items()}
-        system.axioms = {n: _deserialize_axiom(n, d) for n, d in data.get("axioms", {}).items()}
-        system.theorems = {n: _deserialize_theorem(n, d) for n, d in data.get("theorems", {}).items()}
-        system.diffs = data.get("diffs", {})
-        for name, text in data.get("documents", {}).items():
-            system.register_document(name, text)
-        system._rebuild_env()
-        return system
-
-    def _rebuild_env(self) -> None:
-        """Rebuild the runtime env from deserialized facts, axioms, and terms.
-
-        During normal execution, ``env`` is populated incrementally as DSL
-        forms are evaluated.  After ``from_dict`` deserialization the env is
-        empty (only DEFAULT_OPERATORS), so ``evaluate`` / ``_resolve_value``
-        cannot resolve symbol references.  This method reconstructs env so
-        that the deserialized system behaves identically to the live one.
-        """
-        # 1. Facts — their values go straight into env
-        for name, fact in self.facts.items():
-            self.env[Symbol(name)] = fact.wff
-
-        # 2. Axiom definitions — (= symbol expr) patterns
-        for _name, axiom in self.axioms.items():
-            wff = axiom.wff
-            if isinstance(wff, list) and len(wff) == 3 and wff[0] == EQ and isinstance(wff[1], Symbol):
-                try:
-                    self.env[wff[1]] = self.evaluate(wff[2])
-                except (NameError, TypeError):
-                    pass
-
-        # 3. Terms — evaluate definitions; may need multiple passes for
-        #    dependency chains (term A references term B which references a fact)
-        remaining = {n for n, t in self.terms.items() if t.definition is not None}
-        for _ in range(len(remaining) + 1):  # at most N passes
-            progress = False
-            for name in list(remaining):
-                try:
-                    val = self.evaluate(self.terms[name].definition)
-                    self.env[Symbol(name)] = val
-                    remaining.discard(name)
-                    progress = True
-                except (NameError, TypeError):
-                    pass
-            if not remaining or not progress:
-                break
 
     def consistency(self) -> ConsistencyReport:
         """Check full consistency state of the system.
@@ -1497,130 +825,75 @@ class System:
         log.info("%s", report) if report.consistent else log.warning("%s", report)
         return report
 
-    def doc(self) -> str:
-        """Generate DSL documentation: syntax reference and available operators.
+    # ----------------------------------------------------------
+    # Axiom / Term / Fact introduction (engine-level)
+    # ----------------------------------------------------------
 
-        Shows the language constructs (directives, keywords, special forms)
-        and the operators loaded into this system's environment.
-        Does NOT include runtime state — use state() for that.
-        """
-        all_docs = {**LANG_DOCS, **self._docs}
-        lines = []
-        lines.append("Parseltongue System Documentation")
-        lines.append("=" * 40)
+    def introduce_axiom(self, name: str, wff, origin) -> Axiom:
+        """Introduce a new axiom. Validates WFF and checks consistency."""
+        from .lang import parse
 
-        # Group env symbols by category
-        categories: dict[str, list] = {}
-        documented = set()
-        for sym in self.env:
-            if isinstance(sym, Symbol) and sym in all_docs:
-                doc = all_docs[sym]
-                cat = doc["category"]
-                categories.setdefault(cat, []).append((sym, doc))
-                documented.add(sym)
+        if isinstance(wff, str):
+            wff = parse(wff)
 
-        # Add special forms and directives (not in env but part of the language)
-        for sym, doc in all_docs.items():
-            if sym not in documented and doc["category"] in ("special", "directive", "structural", "keyword"):
-                categories.setdefault(doc["category"], []).append((sym, doc))
-                documented.add(sym)
+        if isinstance(origin, Evidence):
+            self._verify_evidence(origin)
 
-        # Category display order
-        order = ["special", "arithmetic", "comparison", "logic", "directive", "structural", "keyword"]
-        titles = {
-            "special": "Special Forms",
-            "arithmetic": "Arithmetic Operators",
-            "comparison": "Comparison Operators",
-            "logic": "Logic Operators",
-            "directive": "DSL Directives",
-            "structural": "Structural",
-            "keyword": "Keyword Arguments",
-        }
+        if not free_vars(wff):
+            raise ValueError(
+                f"Axiom '{name}' has no ?-variables — it is a ground statement. "
+                f"Use (fact ...) for ground values or (derive ...) for provable claims."
+            )
 
-        # Include any custom categories not in the default order
-        all_cats = order + [c for c in categories if c not in order]
+        self._check_wff(wff)
+        self._check_consistency(wff)
 
-        for cat in all_cats:
-            entries = categories.get(cat, [])
-            if not entries:
-                continue
-            lines.append("")
-            title = titles.get(cat, cat.replace("_", " ").title())
-            lines.append(f"  {title}")
-            lines.append(f"  {'-' * len(title)}")
-            for sym, doc in entries:
-                lines.append(f"    {sym}")
-                # First line of description only for compact display
-                desc = doc["description"]
-                first_line = desc.split("\n")[0]
-                lines.append(f"      {first_line}")
-                lines.append(f"      Example: {doc['example']}")
-                if "expected" in doc:
-                    lines.append(f"      => {doc['expected']}")
-                # Show patterns if available
-                if "patterns" in doc:
-                    lines.append("      Patterns:")
-                    for pattern in doc["patterns"]:
-                        for pline in pattern.split("\n"):
-                            lines.append(f"        {pline}")
-                        lines.append("")
+        ax = Axiom(name=name, wff=wff, origin=origin)
+        self.axioms[name] = ax
+        self._register_if_definition(name, wff)
+        return ax
 
-        return "\n".join(lines)
+    def introduce_term(self, name: str, definition, origin) -> Term:
+        """Introduce a new term/concept."""
+        from .lang import parse
 
-    def state(self) -> str:
-        """Show the current runtime state: facts, terms, axioms, theorems, diffs."""
-        lines = []
+        if isinstance(definition, str):
+            definition = parse(definition)
 
-        if self.facts:
-            lines.append("  Facts")
-            lines.append("  " + "-" * 5)
-            for name, fact in self.facts.items():
-                lines.append(f"    {name} = {fact.wff}")
+        if isinstance(origin, Evidence):
+            self._verify_evidence(origin)
 
-        if self.terms:
-            lines.append("")
-            lines.append("  Terms")
-            lines.append("  " + "-" * 5)
-            for name, term in self.terms.items():
-                defn = to_sexp(term.definition) if term.definition is not None else "(forward declaration)"
-                lines.append(f"    {name} := {defn}")
+        term = Term(name=name, definition=definition, origin=origin)
+        self.terms[name] = term
+        return term
 
-        if self.axioms:
-            lines.append("")
-            lines.append("  Axioms")
-            lines.append("  " + "-" * 6)
-            for name, ax in self.axioms.items():
-                lines.append(f"    {name}: {to_sexp(ax.wff)}")
+    def set_fact(self, name: str, value: Any, origin):
+        """Set a ground truth value with evidence."""
+        if isinstance(origin, Evidence):
+            self._verify_evidence(origin)
 
-        if self.theorems:
-            lines.append("")
-            lines.append("  Theorems")
-            lines.append("  " + "-" * 8)
-            for name, thm in self.theorems.items():
-                sources = ", ".join(thm.derivation)
-                lines.append(f"    {name}: {to_sexp(thm.wff)}  [from: {sources}]")
+        if name in self.facts:
+            if not self.overridable:
+                raise ValueError(
+                    f"Fact '{name}' already exists. Use retract() first, or create System(overridable=True)"
+                )
+            log.info("Overwriting fact '%s': %s → %s", name, self.facts[name].wff, value)
 
-        if self.diffs:
-            lines.append("")
-            lines.append("  Diffs")
-            lines.append("  " + "-" * 5)
-            for name, params in self.diffs.items():
-                lines.append(f"    {name}: {params['replace']} vs {params['with']}")
+        self.facts[name] = Fact(name=name, wff=value, origin=origin)
+        self.env[Symbol(name)] = value
 
-        if not lines:
-            return "  (empty)"
+    def instantiate(self, name: str, bindings: dict):
+        """Look up a parameterized axiom or term, substitute ?-vars, return concrete expression."""
+        if name in self.axioms:
+            template = self.axioms[name].wff
+        elif name in self.theorems:
+            template = self.theorems[name].wff
+        elif name in self.terms:
+            template = self.terms[name].definition
+        else:
+            raise KeyError(f"Unknown axiom, theorem, or term: {name}")
 
-        return "\n".join(lines)
-
-    def __repr__(self):
-        return (
-            f"System({len(self.axioms)} axioms, "
-            f"{len(self.theorems)} theorems, "
-            f"{len(self.terms)} terms, "
-            f"{len(self.facts)} facts, "
-            f"{len(self.diffs)} diffs, "
-            f"{len(self.documents)} docs)"
-        )
+        return substitute(template, bindings)
 
 
 # ============================================================
@@ -1628,65 +901,21 @@ class System:
 # ============================================================
 
 
-def load_source(system: System, source: str):
-    """Load a multi-expression source string into the system.
-
-    Parses and executes directives sequentially.  Comments start with ``;``.
-
-    Directive reference::
-
-      (fact name value
-          :origin "string"                        ;; plain origin
-          | :evidence (evidence "Doc"             ;; or structured evidence
-              :quotes ("exact quote" ...)
-              :explanation "why"))
-
-      (defterm name                               ;; forward declaration
-          :evidence (...))
-      (defterm name expression                    ;; computed term
-          :evidence (...))
-      (defterm name (if cond then else)           ;; conditional term
-          :origin "...")
-
-      (axiom name wff                             ;; concrete
-          :evidence (...))
-      (axiom name (= (+ ?a ?b) (+ ?b ?a))        ;; parameterised (with ?-vars)
-          :evidence (...))
-
-      (derive name wff                            ;; direct derivation
-          :using (source1 source2 ...))
-      (derive name template-name                  ;; instantiation
-          :bind ((?var value) ...)
-          :using (template-name ...))
-
-      (diff name
-          :replace symbol
-          :with symbol)
-    """
+def load_source(engine: Engine, source: str):
     tokens = tokenize(source)
     while tokens:
         expr = read_tokens(tokens)
-        _execute_directive(system, expr)
+        _execute_directive(engine, expr)
 
 
 def _resolve_origin(expr) -> "str | Evidence":
-    """Extract origin from an expression — either :origin string or :evidence."""
     evidence_raw = get_keyword(expr, KW_EVIDENCE, None)
     if evidence_raw is not None:
         return parse_evidence(evidence_raw)
-
-    origin = get_keyword(expr, KW_ORIGIN, "unknown")
-    return origin
+    return get_keyword(expr, KW_ORIGIN, "unknown")
 
 
-def _parse_bindings(system, bind_raw):
-    """Convert ((?var val) ...) into {Symbol('?var'): val}.
-
-    Substitution is symbolic — binding values are expression trees,
-    not evaluated results.
-
-    Skips malformed pairs (empty lists, singletons, non-list items).
-    """
+def _parse_bindings(bind_raw):
     bindings = {}
     for pair in bind_raw:
         if not isinstance(pair, list) or len(pair) < 2:
@@ -1696,8 +925,7 @@ def _parse_bindings(system, bind_raw):
     return bindings
 
 
-def _execute_directive(system: System, expr):
-    """Execute a single top-level directive."""
+def _execute_directive(engine: Engine, expr):
     if not isinstance(expr, list) or not expr:
         return
 
@@ -1708,33 +936,27 @@ def _execute_directive(system: System, expr):
         bind_raw = get_keyword(expr, KW_BIND, None)
         if bind_raw is not None:
             ref = str(expr[2])
-            bindings = _parse_bindings(system, bind_raw)
-            wff = system.instantiate(ref, bindings)
+            bindings = _parse_bindings(bind_raw)
+            wff = engine.instantiate(ref, bindings)
         else:
             wff = expr[2]
-        origin = _resolve_origin(expr)
-        system.introduce_axiom(name, wff, origin)
+        engine.introduce_axiom(name, wff, _resolve_origin(expr))
 
     elif head == DEFTERM:
         name = str(expr[1])
         bind_raw = get_keyword(expr, KW_BIND, None)
         if bind_raw is not None:
             ref = str(expr[2])
-            bindings = _parse_bindings(system, bind_raw)
-            defn = system.instantiate(ref, bindings)
+            bindings = _parse_bindings(bind_raw)
+            defn = engine.instantiate(ref, bindings)
         elif len(expr) < 3 or (isinstance(expr[2], str) and expr[2].startswith(":")):
-            # Forward declaration — no definition body
             defn = None
         else:
             defn = expr[2]
-        origin = _resolve_origin(expr)
-        system.introduce_term(name, defn, origin)
+        engine.introduce_term(name, defn, _resolve_origin(expr))
 
     elif head == FACT:
-        name = str(expr[1])
-        value = expr[2]
-        origin = _resolve_origin(expr)
-        system.set_fact(name, value, origin)
+        engine.set_fact(str(expr[1]), expr[2], _resolve_origin(expr))
 
     elif head == DERIVE:
         name = str(expr[1])
@@ -1744,31 +966,22 @@ def _execute_directive(system: System, expr):
         bind_raw = get_keyword(expr, KW_BIND, None)
         if bind_raw is not None:
             ref = str(expr[2])
-            bindings = _parse_bindings(system, bind_raw)
+            bindings = _parse_bindings(bind_raw)
             if not bindings:
-                # Empty :bind — treat as direct axiom reference
                 log.warning("Empty :bind in derive '%s' — expanding axiom '%s' directly", name, ref)
-                if ref in system.axioms:
-                    wff = system.axioms[ref].wff
-                else:
-                    wff = expr[2]
+                wff = engine.axioms[ref].wff if ref in engine.axioms else expr[2]
             else:
-                wff = system.instantiate(ref, bindings)
+                wff = engine.instantiate(ref, bindings)
         else:
             wff = expr[2]
-            # Auto-expand axiom names used as bare WFF
-            if isinstance(wff, Symbol) and str(wff) in system.axioms:
+            if isinstance(wff, Symbol) and str(wff) in engine.axioms:
                 axiom_name = str(wff)
-                log.warning("Derive '%s' used axiom name '%s' as WFF — auto-expanding to axiom body", name, axiom_name)
-                wff = system.axioms[axiom_name].wff
-        system.derive(name, wff, using)
+                log.warning("Derive '%s' used axiom name '%s' as WFF — auto-expanding", name, axiom_name)
+                wff = engine.axioms[axiom_name].wff
+        engine.derive(name, wff, using)
 
     elif head == DIFF:
-        name = str(expr[1])
-        replace = str(get_keyword(expr, KW_REPLACE))
-        with_ = str(get_keyword(expr, KW_WITH))
-        system.register_diff(name, replace, with_)
+        engine.register_diff(str(expr[1]), str(get_keyword(expr, KW_REPLACE)), str(get_keyword(expr, KW_WITH)))
 
     else:
-        # Unknown directive — evaluate as expression (side effects run)
-        system.evaluate(expr)
+        engine.evaluate(expr)

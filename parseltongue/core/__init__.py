@@ -26,8 +26,8 @@ from .atoms import (  # noqa: F401
     tokenize,
 )
 
-# Engine & loader
-from .engine import (  # noqa: F401
+# Default operators & docs
+from .default_system_settings import (  # noqa: F401
     ADD,
     AND,
     ARITHMETIC_OPS,
@@ -35,7 +35,6 @@ from .engine import (  # noqa: F401
     DEFAULT_OPERATORS,
     DIV,
     ENGINE_DOCS,
-    EQ,
     GE,
     GT,
     IMPLIES,
@@ -48,12 +47,15 @@ from .engine import (  # noqa: F401
     NOT,
     OR,
     SUB,
+)
+
+# Engine types
+from .engine import (  # noqa: F401
     ConsistencyIssue,
     ConsistencyReport,
     ConsistencyWarning,
     DiffResult,
-    System,
-    load_source,
+    Fact,
 )
 
 # Language constants & evidence parsing
@@ -63,6 +65,7 @@ from .lang import (  # noqa: F401
     DERIVE,
     DIFF,
     DSL_KEYWORDS,
+    EQ,
     EVIDENCE,
     FACT,
     IF,
@@ -79,3 +82,6 @@ from .lang import (  # noqa: F401
     SPECIAL_FORMS,
     parse_evidence,
 )
+
+# System & loader
+from .system import System, load_source  # noqa: F401

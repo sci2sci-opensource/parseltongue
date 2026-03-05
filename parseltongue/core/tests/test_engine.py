@@ -162,11 +162,11 @@ class TestEvaluation(unittest.TestCase):
 
     def test_let_shadows_outer(self):
         """Let bindings shadow the outer environment."""
-        self.s.env[Symbol("x")] = 100
+        self.s.engine.env[Symbol("x")] = 100
         expr = [Symbol("let"), [[Symbol("x"), 1]], Symbol("x")]
         self.assertEqual(self.s.evaluate(expr), 1)
         # Outer env unchanged
-        self.assertEqual(self.s.env[Symbol("x")], 100)
+        self.assertEqual(self.s.engine.env[Symbol("x")], 100)
 
     def test_let_nested(self):
         expr = [
@@ -492,7 +492,7 @@ class TestRestrictedDerive(unittest.TestCase):
     def test_strict_default(self):
         """System defaults to strict_derive=True."""
         s = make_system()
-        self.assertTrue(s.strict_derive)
+        self.assertTrue(s.engine.strict_derive)
 
 
 # ==============================================================
@@ -687,7 +687,7 @@ class TestRetract(unittest.TestCase):
         quiet(s.set_fact, "x", 1, "test")
         quiet(s.retract, "x")
         self.assertNotIn("x", s.facts)
-        self.assertNotIn(Symbol("x"), s.env)
+        self.assertNotIn(Symbol("x"), s.engine.env)
 
     def test_retract_axiom(self):
         s = make_system()
@@ -1268,15 +1268,15 @@ class TestDefaultOperators(unittest.TestCase):
     def test_default_init_has_all_operators(self):
         s = make_system()
         for sym in DEFAULT_OPERATORS:
-            self.assertIn(sym, s.env, f"{sym} missing from default env")
+            self.assertIn(sym, s.engine.env, f"{sym} missing from default env")
 
     def test_custom_initial_env_replaces(self):
         """initial_env replaces defaults entirely — only the provided symbols exist."""
         s = make_system(initial_env={ADD: operator.add})
-        self.assertIn(ADD, s.env)
-        self.assertNotIn(SUB, s.env)
-        self.assertNotIn(GT, s.env)
-        self.assertNotIn(AND, s.env)
+        self.assertIn(ADD, s.engine.env)
+        self.assertNotIn(SUB, s.engine.env)
+        self.assertNotIn(GT, s.engine.env)
+        self.assertNotIn(AND, s.engine.env)
 
     def test_custom_initial_env_extend(self):
         """Extending defaults by merging with DEFAULT_OPERATORS."""
@@ -1285,9 +1285,9 @@ class TestDefaultOperators(unittest.TestCase):
         s = make_system(initial_env={**DEFAULT_OPERATORS, custom_sym: custom_fn})
         # Has all defaults
         for sym in DEFAULT_OPERATORS:
-            self.assertIn(sym, s.env)
+            self.assertIn(sym, s.engine.env)
         # Plus custom
-        self.assertIn(custom_sym, s.env)
+        self.assertIn(custom_sym, s.engine.env)
         self.assertEqual(s.evaluate([custom_sym, 5]), 10)
 
     def test_custom_env_evaluation(self):

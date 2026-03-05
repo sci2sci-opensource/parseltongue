@@ -245,7 +245,7 @@ class TestEnvRebuild(unittest.TestCase):
         s = make_system()
         quiet(load_source, s, '(fact rate 0.15 :origin "test")')
         s2 = roundtrip(s)
-        self.assertEqual(s2.env[Symbol("rate")], 0.15)
+        self.assertEqual(s2.engine.env[Symbol("rate")], 0.15)
 
     def test_term_evaluated_in_env(self):
         s = make_system()
@@ -258,7 +258,7 @@ class TestEnvRebuild(unittest.TestCase):
         """,
         )
         s2 = roundtrip(s)
-        self.assertEqual(s2.env[Symbol("doubled")], 200)
+        self.assertEqual(s2.engine.env[Symbol("doubled")], 200)
 
     def test_chained_terms_evaluated(self):
         """Term A depends on term B depends on fact — all resolve."""
@@ -273,9 +273,9 @@ class TestEnvRebuild(unittest.TestCase):
         """,
         )
         s2 = roundtrip(s)
-        self.assertEqual(s2.env[Symbol("x")], 10)
-        self.assertEqual(s2.env[Symbol("y")], 15)
-        self.assertEqual(s2.env[Symbol("z")], 30)
+        self.assertEqual(s2.engine.env[Symbol("x")], 10)
+        self.assertEqual(s2.engine.env[Symbol("y")], 15)
+        self.assertEqual(s2.engine.env[Symbol("z")], 30)
 
     def test_axiom_definition_in_env(self):
         """Term definition populates env after round-trip."""
@@ -289,14 +289,14 @@ class TestEnvRebuild(unittest.TestCase):
         """,
         )
         s2 = roundtrip(s)
-        self.assertEqual(s2.env[Symbol("b")], 10)
+        self.assertEqual(s2.engine.env[Symbol("b")], 10)
 
     def test_forward_declared_term_not_in_env(self):
         """Term with no definition should not crash env rebuild."""
         s = make_system()
         quiet(load_source, s, '(defterm placeholder :origin "test")')
         s2 = roundtrip(s)
-        self.assertNotIn(Symbol("placeholder"), s2.env)
+        self.assertNotIn(Symbol("placeholder"), s2.engine.env)
 
 
 # ==============================================================
@@ -447,8 +447,8 @@ class TestConsistencyAfterRoundtrip(unittest.TestCase):
         """,
         )
         s2 = roundtrip(s)
-        self.assertEqual(s2._resolve_value("x"), 42)
-        self.assertEqual(s2._resolve_value("y"), 50)
+        self.assertEqual(s2.engine._resolve_value("x"), 42)
+        self.assertEqual(s2.engine._resolve_value("y"), 50)
 
 
 # ==============================================================
@@ -458,7 +458,8 @@ class TestConsistencyAfterRoundtrip(unittest.TestCase):
 
 def _legacy_serialize_fact(fact):
     """Old _serialize_fact that used 'value' key and handled raw dicts."""
-    from ..engine import _serialize_origin, _serialize_sexp
+    from ..serialization import serialize_origin as _serialize_origin
+    from ..serialization import serialize_sexp as _serialize_sexp
 
     if isinstance(fact, dict):
         result = dict(fact)
@@ -522,7 +523,7 @@ class TestLegacyFactFormat(unittest.TestCase):
         s = make_system()
         quiet(load_source, s, '(fact x 42 :origin "test")')
         s2 = self._roundtrip_legacy(s)
-        self.assertEqual(s2.env[Symbol("x")], 42)
+        self.assertEqual(s2.engine.env[Symbol("x")], 42)
 
     def test_multiple_facts(self):
         s = make_system()
@@ -587,7 +588,7 @@ class TestLegacyFactFormat(unittest.TestCase):
         """,
         )
         s2 = self._roundtrip_legacy(s)
-        self.assertEqual(s2.env[Symbol("doubled")], 200)
+        self.assertEqual(s2.engine.env[Symbol("doubled")], 200)
 
     def test_theorem_on_legacy_facts(self):
         """Theorems derived from legacy facts are preserved."""

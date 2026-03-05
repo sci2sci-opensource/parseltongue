@@ -50,6 +50,7 @@ from .atoms import (  # noqa: F401 — re-export
 # Special forms — evaluated directly by the interpreter, not via env
 IF = Symbol("if")
 LET = Symbol("let")
+EQ = Symbol("=")
 
 # DSL keywords — structural symbols of the language
 AXIOM = Symbol("axiom")
@@ -110,6 +111,20 @@ LANG_DOCS = {
         "description": "Local bindings.  Binds names to values in a local scope, then evaluates the body.",
         "example": "(let ((x 10)) (+ x 5))",
         "expected": 15,
+    },
+    EQ: {
+        "category": "special",
+        "description": "Equality / rewrite operator.  Axioms of the form (= LHS RHS) "
+        "are applied as left-to-right rewrite rules during evaluation.  "
+        "The engine uses EQ structurally to identify rewrite rules, "
+        "register value definitions, and trigger rewrite fallback "
+        "when formal expressions cannot be compared directly.",
+        "example": "(= (+ ?a ?b) (+ ?b ?a))",
+        "expected": "rewrite rule (commutativity)",
+        "patterns": [
+            "(axiom add-identity (= (+ ?n zero) ?n)\n" '    :origin "Additive identity")',
+            "(axiom add-commutative (= (+ ?a ?b) (+ ?b ?a))\n" '    :origin "Commutativity")',
+        ],
     },
     # ----------------------------------------------------------
     # DSL directives

@@ -222,12 +222,12 @@ class InteractivePipeline:
 
     def _restore_system(self, snapshot) -> None:
         """Replace current system's mutable state from a snapshot."""
-        self.system.axioms = snapshot.axioms
-        self.system.theorems = snapshot.theorems
-        self.system.terms = snapshot.terms
-        self.system.facts = snapshot.facts
-        self.system.env = snapshot.env
-        self.system.diffs = snapshot.diffs
+        self.system.engine.axioms = snapshot.engine.axioms
+        self.system.engine.theorems = snapshot.engine.theorems
+        self.system.engine.terms = snapshot.engine.terms
+        self.system.engine.facts = snapshot.engine.facts
+        self.system.engine.env = snapshot.engine.env
+        self.system.engine.diffs = snapshot.engine.diffs
 
     def _set_result(self, pass_num: int, result: PassResult) -> None:
         self._pass_results = [pr for pr in self._pass_results if pr.pass_num != pass_num]
