@@ -19,24 +19,28 @@ app = typer.Typer(
 log = logging.getLogger("parseltongue.cli")
 
 
-def _setup_logging(verbose: bool) -> None:
-    level = logging.DEBUG if verbose else logging.WARNING
-    logging.basicConfig(
-        level=level,
-        format="%(asctime)s %(name)s %(levelname)s: %(message)s",
-        datefmt="%H:%M:%S",
-    )
-
-    # Always write DEBUG logs to file
+def _setup_logging(verbose: bool, *, tui: bool = False) -> None:
     from datetime import datetime
 
+    root = logging.getLogger()
+    root.setLevel(logging.DEBUG)
+    fmt = logging.Formatter("%(asctime)s %(name)s %(levelname)s: %(message)s", datefmt="%H:%M:%S")
+
+    # Console handler — only when NOT in TUI (TUI captures its own output)
+    if not tui:
+        console_handler = logging.StreamHandler()
+        console_handler.setLevel(logging.DEBUG if verbose else logging.WARNING)
+        console_handler.setFormatter(fmt)
+        root.addHandler(console_handler)
+
+    # Always write DEBUG logs to file
     log_dir = Path.home() / ".parseltongue" / "cli" / "logs"
     log_dir.mkdir(parents=True, exist_ok=True)
     log_file = log_dir / f"{datetime.now():%Y-%m-%d_%H%M%S}.log"
     file_handler = logging.FileHandler(log_file)
     file_handler.setLevel(logging.DEBUG)
-    file_handler.setFormatter(logging.Formatter("%(asctime)s %(name)s %(levelname)s: %(message)s", datefmt="%H:%M:%S"))
-    logging.getLogger().addHandler(file_handler)
+    file_handler.setFormatter(fmt)
+    root.addHandler(file_handler)
 
 
 # ---------------------------------------------------------------------------
@@ -48,7 +52,7 @@ def _setup_logging(verbose: bool) -> None:
 def default_callback(ctx: typer.Context) -> None:
     """Launch the interactive TUI when no subcommand is given."""
     if ctx.invoked_subcommand is None:
-        _setup_logging(verbose=False)
+        _setup_logging(verbose=False, tui=True)
         from .config import ensure_config
 
         config = ensure_config()
@@ -81,7 +85,7 @@ def start(
     ] = False,
 ) -> None:
     """Launch the interactive TUI (file browser → query → pipeline)."""
-    _setup_logging(verbose)
+    _setup_logging(verbose, tui=True)
 
     from .config import ensure_config
 
@@ -138,7 +142,7 @@ def run(
     ] = False,
 ) -> None:
     """Run the pipeline on one or more documents."""
-    _setup_logging(verbose)
+    _setup_logging(verbose, tui=not no_tui)
 
     from .config import ensure_config, merge_overrides
     from .runner import RunConfig
@@ -267,6 +271,8 @@ def history_show(
     ] = False,
 ) -> None:
     """Re-open a cached run result."""
+    _setup_logging(verbose=False, tui=not no_tui)
+
     from rich.console import Console
     from rich.markdown import Markdown
 
