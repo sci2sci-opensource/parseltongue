@@ -209,7 +209,7 @@ class Theorem:
 
 @dataclass
 class Term:
-    """A term/concept introduced into the system."""
+    """A term/concept/primitive introduced into the system."""
 
     name: str
     definition: Any

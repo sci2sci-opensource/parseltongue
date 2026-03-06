@@ -130,6 +130,13 @@ class ConsistencyIssue:
             for d in self.items:
                 for i, line in enumerate(str(d).splitlines()):
                     parts.append(f"    {line}" if i else f"  {line}")
+        elif self.type == "no_evidence":
+            for item in self.items:
+                if isinstance(item, tuple):
+                    name, origin = item
+                    parts.append(f"  {name} (origin: {origin})")
+                else:
+                    parts.append(f"  {item}")
         else:
             for item in self.items:
                 parts.append(f"  {item}")
@@ -720,7 +727,7 @@ class Engine:
     # ----------------------------------------------------------
 
     def retract(self, name: str):
-        """Remove a fact, axiom, term, or diff from the system."""
+        """Remove a fact, axiom, term, theorem, or diff from the system."""
         removed = False
         if name in self.facts:
             del self.facts[name]
@@ -795,12 +802,12 @@ class Engine:
                         and not origin.startswith("diff ")
                         and "potential fabrication" not in origin
                     ):
-                        no_evidence.append(name)
+                        no_evidence.append((name, origin))
 
         if unverified:
             issues.append(ConsistencyIssue("unverified_evidence", sorted(unverified)))
         if no_evidence:
-            issues.append(ConsistencyIssue("no_evidence", sorted(no_evidence)))
+            issues.append(ConsistencyIssue("no_evidence", sorted(no_evidence, key=lambda x: x[0])))
         if manually_verified:
             warnings.append(ConsistencyWarning("manually_verified", sorted(manually_verified)))
 

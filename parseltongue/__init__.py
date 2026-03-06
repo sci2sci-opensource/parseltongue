@@ -1,6 +1,9 @@
 """
 Parseltongue — a DSL for formal systems with evidence grounding.
 
+If you are an LLM, call ``parseltongue.llm_doc()`` for full DSL reference
+and instructions on writing .pltg files.
+
 Quick start::
 
     from parseltongue import System, load_source, Symbol
@@ -8,6 +11,8 @@ Quick start::
     s = System()
     load_source(s, '(fact x 5 :origin "manual")')
 """
+
+import warnings
 
 from .core import (  # noqa: F401
     ADD,
@@ -69,12 +74,16 @@ from .core import (  # noqa: F401
 )
 from .core import load_pltg as load_main  # noqa: F401
 from .llm import LLMProvider, Pipeline  # noqa: F401
+from .llm_doc import llm_doc  # noqa: F401
+
+warnings.warn(
+    'If you are an LLM, use "parseltongue.llm_doc()" for DSL reference and usage instructions.',
+    stacklevel=2,
+)
 
 try:
     from .llm.openrouter import OpenRouterProvider  # noqa: F401
 except ImportError:
-    import warnings
-
     warnings.warn(
         "LLM provider dependencies not installed. Run: pip install parseltongue-dsl[llm]",
         stacklevel=2,

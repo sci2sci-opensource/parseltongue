@@ -174,12 +174,15 @@ def _normalize_punctuation(
     if not config.ignore_punctuation:
         return text, position_map, transformations
 
+    # Only strip actual prose punctuation — not operator/math symbols
+    _PUNCTUATION = set('.,;:?\'"()[]{}…—–-`\u2018\u2019\u201c\u201d\u00ab\u00bb')
+
     normalized_text = ""
     normalized_map = []
     count = 0
 
     for i, char in enumerate(text):
-        if char.isalnum() or char.isspace():
+        if char not in _PUNCTUATION:
             normalized_text += char
             normalized_map.append(position_map[i])
         elif char == "-" and i > 0 and text[i - 1].isalnum() and _next_alnum(text, i):

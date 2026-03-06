@@ -216,7 +216,7 @@ from parseltongue.core.quote_verifier import QuoteVerifier
 document_text = "Very big doc with Q3 revenue..."
 v = QuoteVerifier(confidence_threshold=0.7)
 result = v.verify_quote(document_text, "Q3 revenue was $15M")
-# result: {verified: True, confidence: 0.95, position: 42, context: "..."}
+# result: {verified: True, confidence: {score: 0.95, level: "high"}, original_position: 0, context: {...}}
 ```
 
 Both the document and the quote pass through a six-step normalization pipeline (case, lists, hyphenation, punctuation, stopwords, whitespace) before matching. The verifier handles PDF artifacts, line-break hyphens, formatted numbers (`$150,000`), dotted identifiers (`parseltongue.core`), and OCR noise. A space-collapsed fallback catches cases where source documents split words across lines.
@@ -278,7 +278,7 @@ Diffs are the primary mechanism for cross-validation. Register a diff, and the s
 **Arithmetic**: `+`, `-`, `*`, `/`, `mod`
 **Comparison**: `>`, `<`, `>=`, `<=`, `=`, `!=`
 **Logic**: `and`, `or`, `not`, `implies`
-**Special forms**: `if`, `let`
+**Special forms**: `if`, `let`, `quote`
 
 ```python
 s.evaluate([Symbol('+'), 2, 3])          # 5
@@ -287,23 +287,89 @@ s.evaluate([Symbol('if'), True, 42, 0])  # 42
 
 ## Demos
 
+11 demos covering the full feature set. Each is a standalone script:
+
 **Apples** ([`demos/apples/`](demos/apples/)) — Peano arithmetic grounded in observational field notes. Introduces primitive symbols (zero, successor), states axioms with `:evidence`, and derives theorems via `:bind` instantiation.
 
-```bash
-python -m parseltongue.core.demos.apples.demo
-```
+**Apples (.pltg)** ([`demos/apples_pltg/`](demos/apples_pltg/)) — The same apple arithmetic demo, written as a `.pltg` module file instead of Python.
 
 **Revenue Reports** ([`demos/revenue_reports/`](demos/revenue_reports/)) — Company performance analysis from Q3 reports, targets memos, and bonus policy documents. Shows quote verification, fabrication propagation, diffs, and manual override.
 
-```bash
-python -m parseltongue.core.demos.revenue_reports.demo
-```
-
 **Biomarkers** ([`demos/biomarkers/`](demos/biomarkers/)) — Diagnostic marker analysis from competing medical papers. Encodes sensitivity, specificity, and clinical claims, then cross-checks for contradictions between studies.
 
+**Code Check** ([`demos/code_check/`](demos/code_check/)) — Code implementation checks against documented contracts.
+
+**Doc Validation** ([`demos/doc_validation/`](demos/doc_validation/)) — Documentation validation against source code.
+
+**Spec Validation** ([`demos/spec_validation/`](demos/spec_validation/)) — Code-specification cross-validation with diff-based divergence detection.
+
+**Extensibility** ([`demos/extensibility/`](demos/extensibility/)) — System extensibility via custom effects.
+
+**Self-Healing** ([`demos/self_healing/`](demos/self_healing/)) — Self-healing probes via effects that detect and recover from inconsistencies.
+
+**Deferred (.pltg)** ([`demos/deferred_pltg/`](demos/deferred_pltg/)) — `run-on-entry` — deferred directives that only fire for the main file.
+
+**Entry Mocks (.pltg)** ([`demos/entry_mocks_pltg/`](demos/entry_mocks_pltg/)) — `run-on-entry` as a self-contained unit test with `let` and mocks.
+
 ```bash
+# Run any demo, e.g.:
+python -m parseltongue.core.demos.apples.demo
+python -m parseltongue.core.demos.revenue_reports.demo
 python -m parseltongue.core.demos.biomarkers.demo
 ```
+
+## Module System
+
+Parseltongue programs can be split across multiple `.pltg` files using the built-in module system. The `Loader` class handles import resolution, circular import detection, per-module namespacing, and runtime context.
+
+### Loading `.pltg` Files
+
+```python
+from parseltongue import load_pltg
+
+# Load a .pltg file — returns a fully-loaded System
+system = load_pltg("path/to/main.pltg")
+```
+
+Or for more control:
+
+```python
+from parseltongue.core.loader import Loader
+
+loader = Loader()
+system = loader.load_main("path/to/main.pltg", effects=custom_effects)
+```
+
+### Built-in Effects
+
+The loader provides 7 built-in effects available in any `.pltg` file:
+
+| Effect | Syntax | Description |
+|---|---|---|
+| `import` | `(import (quote module.name))` | Import another `.pltg` module |
+| `run-on-entry` | `(run-on-entry (quote (directive ...)))` | Execute directives only when file is the main entry point |
+| `load-document` | `(load-document "name" "relative/path.txt")` | Register a source document for evidence grounding |
+| `context` | `(context :file)` | Access per-module context (`:file`, `:dir`, `:name`, `:main`) |
+| `print` | `(print "label" value ...)` | Print computed values from the system |
+| `consistency` | `(consistency)` | Run and print the full consistency report |
+| `verify-manual` | `(verify-manual name)` | Manually verify a fact, term, or axiom |
+
+### Imports and Namespacing
+
+Modules are resolved from dot-separated names to file paths (`utils.math` → `utils/math.pltg`). Imported definitions are automatically namespaced with their module name to prevent collisions:
+
+```scheme
+; main.pltg
+(import (quote lib))
+; lib.pltg defines (fact total 42 ...) → accessible as lib.total
+(print "Library total:" lib.total)
+```
+
+Circular imports are detected and raise an error. Duplicate imports are skipped.
+
+### Context
+
+Each loaded file gets an immutable `ModuleContext` following an onion model — inner modules link to the outer loader context. Context keys are namespaced per-module so `(context :file)` in `lib.pltg` resolves to the library's file path, not the main file's.
 
 ## Running Tests
 

@@ -237,11 +237,30 @@ class Loader:
                 return ctx.is_main
             raise ValueError(f"Unknown context key: {prop}")
 
+        def print_effect(_system: System, *args) -> bool:
+            """Effect: (print "hello" value ...)"""
+            print(*[str(a).replace("\\n", "\n") for a in args])
+            return True
+
+        def consistency_effect(system: System) -> bool:
+            """Effect: (consistency) — print the full consistency report."""
+            report = system.consistency()
+            print(report)
+            return True
+
+        def verify_manual_effect(system: System, name) -> bool:
+            """Effect: (verify-manual name) — manually verify a fact/term/axiom."""
+            system.verify_manual(str(name))
+            return True
+
         return {
             "import": import_effect,
             "run-on-entry": run_on_entry_effect,
             "load-document": load_document_effect,
             "context": context_effect,
+            "print": print_effect,
+            "consistency": consistency_effect,
+            "verify-manual": verify_manual_effect,
         }
 
     # ----------------------------------------------------------
