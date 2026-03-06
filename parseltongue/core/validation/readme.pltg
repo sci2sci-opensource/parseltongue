@@ -257,4 +257,62 @@
         :quotes ("load_pltg")
         :explanation "README documents load_pltg entry point"))
 
+; =====================================================================
+; Module system patterns
+; =====================================================================
+
+(fact readme-documents-local-aliasing true
+    :evidence (evidence "README"
+        :quotes ("### Local Aliasing")
+        :explanation "README has a Local Aliasing section documenting defterm aliases"))
+
+(fact readme-documents-forward-decl true
+    :evidence (evidence "README"
+        :quotes ("### Forward-Declared Primitives")
+        :explanation "README has a Forward-Declared Primitives section"))
+
+(fact readme-documents-run-on-entry-gating true
+    :evidence (evidence "README"
+        :quotes ("### run-on-entry Gating")
+        :explanation "README has a run-on-entry Gating section"))
+
+(fact readme-documents-let-mock true
+    :evidence (evidence "README"
+        :quotes ("### let-mock Unit Testing")
+        :explanation "README has a let-mock Unit Testing section"))
+
+(fact readme-documents-import-chains true
+    :evidence (evidence "README"
+        :quotes ("### Import Chains")
+        :explanation "README has an Import Chains section"))
+
+(fact readme-documents-cross-module-bind true
+    :evidence (evidence "README"
+        :quotes ("### Cross-Module Bind")
+        :explanation "README has a Cross-Module Bind section"))
+
+(fact readme-documents-defterm-lazy true
+    :evidence (evidence "README"
+        :quotes ("### Lazy Evaluation")
+        :explanation "README has a Lazy Evaluation section documenting that all defterm definitions are lazy"))
+
+; =====================================================================
+; Packaging
+; =====================================================================
+
+(fact readme-documents-pltg-shipped true
+    :evidence (evidence "README"
+        :quotes ("ships .pltg module files")
+        :explanation "README documents that .pltg files are shipped in the package"))
+
+(fact readme-documents-txt-shipped true
+    :evidence (evidence "README"
+        :quotes (".txt resource documents alongside Python code")
+        :explanation "README documents that .txt resources are shipped"))
+
+(fact readme-documents-tests-configured true
+    :evidence (evidence "README"
+        :quotes ("parseltongue/core/tests directory is included in pytest testpaths")
+        :explanation "README documents that core tests are in pytest testpaths"))
+
 ; Cross-module diff (readme vs loader effect count) lives in core.pltg

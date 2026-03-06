@@ -45,7 +45,7 @@ class TestResolveValue(unittest.TestCase):
         quiet(load_source, self.s, '(fact x 5 :origin "test")')
         quiet(load_source, self.s, "(derive d1 (> x 0) :using (x))")
         result = self.s.engine._resolve_value("d1")
-        self.assertEqual(result, self.s.engine.theorems["d1"].wff)
+        self.assertEqual(result, True)
 
     def test_resolve_axiom(self):
         quiet(load_source, self.s, '(axiom a1 (= (+ ?a ?b) (+ ?b ?a)) :origin "test")')

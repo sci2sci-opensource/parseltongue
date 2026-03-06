@@ -683,7 +683,10 @@ class Engine:
         if name in self.facts:
             return self.facts[name].wff
         if name in self.theorems:
-            return self.theorems[name].wff
+            try:
+                return self.evaluate(self.theorems[name].wff)
+            except (NameError, TypeError):
+                return self.theorems[name].wff
         if name in self.axioms:
             return self.axioms[name].wff
         raise KeyError(f"Unknown symbol: {name}")

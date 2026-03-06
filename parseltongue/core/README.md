@@ -371,6 +371,88 @@ Circular imports are detected and raise an error. Duplicate imports are skipped.
 
 Each loaded file gets an immutable `ModuleContext` following an onion model — inner modules link to the outer loader context. Context keys are namespaced per-module so `(context :file)` in `lib.pltg` resolves to the library's file path, not the main file's.
 
+### Local Aliasing
+
+Modules can create local aliases for namespaced symbols using `defterm`. This avoids repeating the full namespace in expressions:
+
+```scheme
+(import (quote src.primitives))
+(defterm = src.primitives.= :origin "import")
+(defterm + src.primitives.+ :origin "import")
+
+; Now use short names in axioms
+(axiom add-comm (= (+ ?a ?b) (+ ?b ?a)) :origin "commutativity")
+```
+
+### Lazy Evaluation
+
+All `defterm` definitions are lazy — the body expression is stored unevaluated and resolved only when the term is referenced. This means bare aliases like `(defterm x some-symbol)` work without a `quote` wrapper; the target is resolved at use time, not definition time.
+
+### Forward-Declared Primitives
+
+A `defterm` with no body introduces a forward-declared primitive symbol. These primitives are available to any module that imports the defining module:
+
+```scheme
+; primitives.pltg
+(defterm zero :origin "Peano base case")
+(defterm succ :origin "Peano successor")
+
+; afternoon.pltg — uses primitives without re-importing
+(import (quote primitives))
+(derive three-exists (= (succ (succ (succ primitives.zero))) (succ (succ (succ primitives.zero))))
+  :using (primitives.zero primitives.succ))
+```
+
+### Import Chains
+
+Imports are transitive through the module graph. If `demo` imports `app` and `app` imports `lib`, then all of `lib`'s namespaced definitions are accessible from `demo`:
+
+```scheme
+; lib.pltg:   (fact base-value 1 ...)
+; app.pltg:   (import (quote lib))   → lib.base-value accessible
+; demo.pltg:  (import (quote app))   → app.lib.base-value accessible
+```
+
+### Cross-Module Bind
+
+Axioms defined in one module can be instantiated with `:bind` using terms from another module. The namespaces mix freely:
+
+```scheme
+; math.pltg defines (axiom add-identity ...)
+; main.pltg:
+(import (quote math))
+(derive result math.add-identity
+  :bind ((?n my-local-term))
+  :using (math.add-identity my-local-term))
+```
+
+### run-on-entry Gating
+
+`run-on-entry` directives execute only when the file is the main entry point. When a module is imported, its `run-on-entry` blocks are skipped — this prevents side effects from firing during import:
+
+```scheme
+(fact data 42 :origin "base data")
+(run-on-entry (quote
+  (derive sanity-check (= data 42) :using (data))))
+; On import: only 'data' is loaded. The derive is skipped.
+```
+
+### let-mock Unit Testing
+
+Combine `run-on-entry` with `let` to create self-contained unit tests that mock dependencies:
+
+```scheme
+(run-on-entry (quote
+  (let ((mock-value 0))
+    (derive test-passes (= mock-value 0) :using (mock-value)))))
+```
+
+This pattern keeps test assertions inside the module but only runs them when the file is executed directly.
+
+## Packaging
+
+The installed package ships `.pltg` module files and `.txt` resource documents alongside Python code via `package-data`. This ensures that demos, validation modules, and the self-validation consistency test all work from an installed package. The `parseltongue/core/tests` directory is included in pytest `testpaths` so that the consistency test runs in CI.
+
 ## Running Tests
 
 ```bash
