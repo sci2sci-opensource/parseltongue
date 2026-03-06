@@ -264,21 +264,21 @@
         :quotes ("Convenience function")
         :explanation "load_pltg is a convenience wrapper"))
 
-; load_pltg docstring says it returns "(system, loader) tuple" but it returns just system
-(fact load-pltg-docstring-claims-tuple true
+; Both facts answer: "does load_pltg return a tuple?"
+(fact load-pltg-docstring-claims-tuple false
     :evidence (evidence "loader.py"
-        :quotes ("(system, loader) tuple")
-        :explanation "Docstring says tuple return"))
+        :quotes ("The loaded System with all modules resolved.")
+        :explanation "Docstring correctly says it returns a System"))
 
-(fact load-pltg-returns-system-only true
+(fact load-pltg-actually-returns-tuple false
     :evidence (evidence "loader.py"
         :quotes ("return system")
-        :explanation "Actually returns just the system"))
+        :explanation "Implementation returns just the system"))
 
-; Internal diff: load_pltg docstring lies about return type
+; Verify docstring and implementation agree on return type
 (diff load-pltg-return-type-doc-vs-impl
     :replace load-pltg-docstring-claims-tuple
-    :with load-pltg-returns-system-only)
+    :with load-pltg-actually-returns-tuple)
 
 ; =====================================================================
 ; Derivations
@@ -298,3 +298,75 @@
 (derive circular-detection-mechanism
     (and loader-detects-circular-imports loader-tracks-file-stack)
     :using (loader-detects-circular-imports loader-tracks-file-stack))
+
+; =====================================================================
+; Code vs Docs — two-branch-then-diff
+; =====================================================================
+
+; --- 1. Effect documentation ---
+
+(defterm effect-docs-doc-count
+    (+ (+ (+ (+ (if effect-import-doc 1 0) (if effect-run-on-entry-doc 1 0)) (if effect-load-document-doc 1 0)) (if effect-print-doc 1 0)) (if effect-context-keys 1 0))
+    :origin "Count effect doc facts from docstring evidence")
+
+(defterm effect-docs-impl-count 5
+    :evidence (evidence "loader.py"
+        :quotes ("Effect: (import (quote some.module))" "Effect: (run-on-entry (quote (directive1)) ...)" "load-document \"name\" \"relative/path.txt\"" "Effect: (print \"hello\" value ...)" ":file" ":dir" ":name" ":main")
+        :explanation "5 effect documentation features in source"))
+
+(diff effect-docs-coverage
+    :replace effect-docs-doc-count
+    :with effect-docs-impl-count)
+
+; --- 2. Context architecture ---
+
+(defterm context-arch-doc-count
+    (+ (+ (+ (+ (if context-is-abc 1 0) (if loader-context-frozen 1 0)) (if loader-context-model 1 0)) (if module-context-doc 1 0)) (if module-context-has-parent 1 0))
+    :origin "Count context architecture facts from docstring evidence")
+
+(defterm context-arch-impl-count 5
+    :evidence (evidence "loader.py"
+        :quotes ("class Context(ABC):" "@dataclass(frozen=True)" "Context follows an onion model" "Immutable per-module context, created once per file load." "parent: \"Context | None\" = None")
+        :explanation "5 context architecture features in source"))
+
+(diff context-arch-coverage
+    :replace context-arch-doc-count
+    :with context-arch-impl-count)
+
+; --- 3. Loader internals ---
+
+(defterm loader-internals-doc-count
+    (+ (+ (+ (+ (+ (if loader-class-doc 1 0) (if loader-module-doc 1 0)) (if loader-has-registry 1 0)) (if loader-deduplicates-imports 1 0)) (if loader-patches-symbols 1 0)) (if loader-patches-context 1 0))
+    :origin "Count loader internal facts from docstring evidence")
+
+(defterm loader-internals-impl-count 6
+    :evidence (evidence "loader.py"
+        :quotes ("Loads .pltg files with import resolution" "Parseltongue Loader" "self.modules_contexts: dict[str, ModuleContext] = {}" "self._imported: set[str] = set()" "Recursively namespace bare symbols" "Recursively patch (context :key)")
+        :explanation "6 loader internal features in source"))
+
+(diff loader-internals-coverage
+    :replace loader-internals-doc-count
+    :with loader-internals-impl-count)
+
+; --- 4. Entry points ---
+
+(defterm entry-points-doc-count
+    (+ (+ (if load-main-doc 1 0) (if load-main-passes-kwargs 1 0)) (+ (if load-pltg-doc 1 0) (if import-resolves-dots-to-sep 1 0)))
+    :origin "Count entry point facts from docstring evidence")
+
+(defterm entry-points-impl-count 4
+    :evidence (evidence "loader.py"
+        :quotes ("Load a .pltg file as a standalone entry point." "**system_kwargs: Passed through to System() constructor." "Convenience function" "module_name.replace(\".\", os.sep) + \".pltg\"")
+        :explanation "4 entry point features in source"))
+
+(diff entry-points-coverage
+    :replace entry-points-doc-count
+    :with entry-points-impl-count)
+
+; --- 5. Consistency modes ---
+
+(derive consistency-modes-doc-count
+    (+ (+ (+ (if effect-consistency-has-raise 1 0) (if effect-consistency-has-bool 1 0)) (if effect-consistency-has-report 1 0)) (if effect-consistency-default-prints 1 0))
+    :using (effect-consistency-has-raise effect-consistency-has-bool effect-consistency-has-report effect-consistency-default-prints
+            consistency-no-args-prints consistency-raise-on-inconsistent consistency-bool-no-print consistency-report-returns-object
+            consistency-mode-count))

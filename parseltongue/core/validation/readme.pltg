@@ -341,3 +341,142 @@
         :explanation "README documents that core tests are in pytest testpaths"))
 
 ; Cross-module diff (readme vs loader effect count) lives in core.pltg
+
+; =====================================================================
+; Code vs Docs — two-branch-then-diff
+; =====================================================================
+
+; --- 1. Top-level claims ---
+
+(defterm readme-identity-doc-count
+    (+ (if readme-title 1 0) (if readme-tagline 1 0))
+    :origin "Count top-level claims from README facts")
+
+(defterm readme-identity-impl-count 2
+    :evidence (evidence "README"
+        :quotes ("# Parseltongue Core" "The formal language engine. No LLM dependency")
+        :explanation "2 top-level claims in README"))
+
+(diff readme-identity-coverage
+    :replace readme-identity-doc-count
+    :with readme-identity-impl-count)
+
+; --- 2. Directives ---
+
+(defterm readme-directives-doc-count
+    (+ (+ (+ (+ (+ (if readme-directive-count 1 0) (if readme-has-fact-directive 1 0)) (if readme-has-axiom-directive 1 0)) (if readme-has-defterm-directive 1 0)) (if readme-has-derive-directive 1 0)) (if readme-has-diff-directive 1 0))
+    :origin "Count directive documentation from README facts")
+
+(defterm readme-directives-impl-count 6
+    :evidence (evidence "README"
+        :quotes ("Five directive types" "fact" "axiom" "defterm" "derive" "diff")
+        :explanation "6 directive documentation features in README"))
+
+(diff readme-directives-coverage
+    :replace readme-directives-doc-count
+    :with readme-directives-impl-count)
+
+; --- 3. Built-in operators ---
+
+(defterm readme-operators-doc-count
+    (+ (+ (if readme-arithmetic 1 0) (if readme-comparison 1 0)) (if readme-logic 1 0))
+    :origin "Count operator documentation from README facts")
+
+(defterm readme-operators-impl-count 3
+    :evidence (evidence "README"
+        :quotes ("+, -, *, /, mod" ">, <, >=, <=, =, !=" "and, or, not, implies")
+        :explanation "3 operator categories in README"))
+
+(diff readme-operators-coverage
+    :replace readme-operators-doc-count
+    :with readme-operators-impl-count)
+
+; --- 4. Evidence system ---
+
+(defterm readme-evidence-doc-count
+    (+ (+ (if readme-evidence-first-class 1 0) (if readme-verify-manual-described 1 0)) (if readme-binary-threshold 1 0))
+    :origin "Count evidence system documentation from README facts")
+
+(defterm readme-evidence-impl-count 3
+    :evidence (evidence "README"
+        :quotes ("Evidence is a first-class citizen" "system.verify_manual" "a confidence score with a binary threshold")
+        :explanation "3 evidence system features in README"))
+
+(diff readme-evidence-coverage
+    :replace readme-evidence-doc-count
+    :with readme-evidence-impl-count)
+
+; --- 5. Issue types ---
+
+(defterm readme-issue-types-doc-count
+    (+ (+ (+ (+ (if readme-issue-type-1 1 0) (if readme-issue-type-2 1 0)) (if readme-issue-type-3 1 0)) (if readme-issue-type-4 1 0)) (if readme-issue-type-5 1 0))
+    :origin "Count issue type documentation from README facts")
+
+(defterm readme-issue-types-impl-count 5
+    :evidence (evidence "README"
+        :quotes ("unverified_evidence" "no_evidence" "potential_fabrication" "diff_divergence" "diff_value_divergence")
+        :explanation "5 issue types in README"))
+
+(diff readme-issue-types-coverage
+    :replace readme-issue-types-doc-count
+    :with readme-issue-types-impl-count)
+
+; --- 6. Custom environments ---
+
+(defterm readme-custom-env-doc-count
+    (+ (if readme-docs-param-described 1 0) (if readme-initial-env-described 1 0))
+    :origin "Count custom env documentation from README facts")
+
+(defterm readme-custom-env-impl-count 2
+    :evidence (evidence "README"
+        :quotes ("The docs= parameter controls what system.doc() returns" "initial_env={}")
+        :explanation "2 custom env features in README"))
+
+(diff readme-custom-env-coverage
+    :replace readme-custom-env-doc-count
+    :with readme-custom-env-impl-count)
+
+; --- 7. Demo examples ---
+
+(defterm readme-demo-examples-doc-count
+    (+ (+ (if readme-demo-apples 1 0) (if readme-demo-revenue 1 0)) (if readme-demo-biomarkers 1 0))
+    :origin "Count demo examples from README facts")
+
+(defterm readme-demo-examples-impl-count 3
+    :evidence (evidence "README"
+        :quotes ("Apples" "Revenue Reports" "Biomarkers")
+        :explanation "3 demo examples in README"))
+
+(diff readme-demo-examples-coverage
+    :replace readme-demo-examples-doc-count
+    :with readme-demo-examples-impl-count)
+
+; --- 8. Loader effects in README ---
+
+(defterm readme-loader-effects-doc-count
+    (+ (+ (+ (+ (+ (if readme-loader-import-effect 1 0) (if readme-loader-run-on-entry-effect 1 0)) (if readme-loader-load-document-effect 1 0)) (if readme-loader-context-effect 1 0)) (if readme-loader-print-effect 1 0)) (if readme-loader-load-pltg 1 0))
+    :origin "Count loader effect documentation from README facts")
+
+(defterm readme-loader-effects-impl-count 6
+    :evidence (evidence "README"
+        :quotes ("(import (quote module.name))" "(run-on-entry (quote (directive ...)))" "(load-document \"name\" \"relative/path.txt\")" "(context :file)" "(print \"label\" value ...)" "load_pltg")
+        :explanation "6 loader effect features in README"))
+
+(diff readme-loader-effects-coverage
+    :replace readme-loader-effects-doc-count
+    :with readme-loader-effects-impl-count)
+
+; --- 9. Loader architecture ---
+
+(defterm readme-loader-arch-doc-count
+    (+ (if readme-loader-context-onion 1 0) (if readme-documents-consistency-modes 1 0))
+    :origin "Count loader architecture documentation from README facts")
+
+(defterm readme-loader-arch-impl-count 2
+    :evidence (evidence "README"
+        :quotes ("immutable ModuleContext following an onion model" "(consistency :raise)" "(consistency :bool)" "(consistency :report)")
+        :explanation "2 loader architecture features in README"))
+
+(diff readme-loader-arch-coverage
+    :replace readme-loader-arch-doc-count
+    :with readme-loader-arch-impl-count)

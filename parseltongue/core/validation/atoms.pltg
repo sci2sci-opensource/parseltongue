@@ -94,9 +94,9 @@
 ; Theorem class
 ; =====================================================================
 
-(fact theorem-docstring "A theorem: a WFF derived from axioms/terms via substitution."
+(fact theorem-docstring "A theorem: a WFF derived from facts, axioms, terms, or other theorems."
     :evidence (evidence "atoms.py"
-        :quotes ("A theorem: a WFF derived from axioms/terms via substitution.")
+        :quotes ("A theorem: a WFF derived from facts, axioms, terms, or other theorems.")
         :explanation "Theorem's self-description"))
 
 (fact theorem-default-origin "derived"
@@ -111,8 +111,20 @@
 
 ; Theorem docstring says "derived from axioms/terms via substitution"
 ; but derivation list can also include facts and other theorems
-; (engine.py derive() accepts facts, terms, axioms, theorems in :using)
-; This is an internal inconsistency in the documented contract
+; Both facts answer: "does the docstring document all derivation sources?"
+(fact theorem-doc-covers-all-sources true
+    :evidence (evidence "atoms.py"
+        :quotes ("A theorem: a WFF derived from facts, axioms, terms, or other theorems.")
+        :explanation "Docstring lists all derivation source types"))
+
+(fact theorem-impl-accepts-all-sources true
+    :evidence (evidence "atoms.py"
+        :quotes ("derivation: list")
+        :explanation "Derivation list accepts any source type"))
+
+(diff theorem-derivation-sources
+    :replace theorem-doc-covers-all-sources
+    :with theorem-impl-accepts-all-sources)
 
 ; =====================================================================
 ; Term class
@@ -306,4 +318,119 @@
 (derive term-display-documented
     (and term-definition-check term-docstring-says-primitive)
     :using (term-definition-check term-docstring-says-primitive))
+
+; =====================================================================
+; Code vs Docs — two-branch-then-diff
+; =====================================================================
+
+; --- 1. Reader pipeline function count ---
+
+(defterm reader-doc-count
+    (+ (+ (+ (+ (+ (if tokenize-doc 1 0) (if read-tokens-doc 1 0)) (if atom-doc 1 0)) (if parse-doc 1 0)) (if parse-all-doc 1 0)) (if comment-char 1 0))
+    :origin "Count reader pipeline features from docstring facts")
+
+(defterm reader-impl-count 6
+    :evidence (evidence "atoms.py"
+        :quotes ("def tokenize(" "def read_tokens(" "def atom(" "def parse(" "def parse_all(" "if char == \";\":")
+        :explanation "6 reader pipeline features in source"))
+
+(diff reader-pipeline-coverage
+    :replace reader-doc-count
+    :with reader-impl-count)
+
+; --- 2. Atom conversion chain ---
+
+(defterm atom-conv-doc-count
+    (+ (+ (+ (+ (if atom-tries-int-first 1 0) (if atom-tries-float-second 1 0)) (if atom-keyword-prefix 1 0)) (if atom-false-token 1 0)) (if atom-fallback-is-symbol 1 0))
+    :origin "Count atom() conversion branches from docstring facts")
+
+(defterm atom-conv-impl-count 5
+    :evidence (evidence "atoms.py"
+        :quotes ("return int(token)" "return float(token)" "if token.startswith(\":\"):" "if token == \"false\":" "return Symbol(token)")
+        :explanation "5 conversion branches in atom()"))
+
+(diff atom-conversion-coverage
+    :replace atom-conv-doc-count
+    :with atom-conv-impl-count)
+
+; --- 3. Core type documentation ---
+
+(defterm core-types-doc-count
+    (+ (+ (+ (+ (+ (if symbol-docstring 1 0) (if symbol-base-class 1 0)) (if evidence-docstring 1 0)) (if axiom-docstring 1 0)) (if theorem-docstring 1 0)) (if term-docstring 1 0))
+    :origin "Count documented core type properties from docstring facts")
+
+(defterm core-types-impl-count 6
+    :evidence (evidence "atoms.py"
+        :quotes ("class Symbol(str):" "Just a string with a distinct type" "Structured evidence with verifiable quotes" "An axiom: a foundational WFF" "A theorem: a WFF derived from" "A term/concept/primitive")
+        :explanation "6 core type properties in source"))
+
+(diff core-types-coverage
+    :replace core-types-doc-count
+    :with core-types-impl-count)
+
+; --- 4. Evidence/provenance mechanism ---
+
+(derive evidence-mechanism-doc-count
+    (+ (+ (+ (+ (if evidence-grounded-doc 1 0) (if evidence-grounded-impl 1 0)) (if axiom-has-origin 1 0)) (if theorem-has-derivation 1 0)) (if theorem-default-origin 1 0))
+    :using (evidence-grounded-doc evidence-grounded-impl axiom-has-origin theorem-has-derivation theorem-default-origin grounding-rule origin-is-provenance))
+
+(defterm evidence-mechanism-impl-count 5
+    :evidence (evidence "atoms.py"
+        :quotes ("def is_grounded" "return self.verified or self.verify_manual" "origin: \"str | Evidence\"" "derivation: list" "origin: \"str | Evidence\" = \"derived\"")
+        :explanation "5 evidence/provenance features in source"))
+
+(diff evidence-mechanism-coverage
+    :replace evidence-mechanism-doc-count
+    :with evidence-mechanism-impl-count)
+
+; --- 5. Evidence status labels ---
+; String-valued defterms — diff each against its code-branch counterpart
+
+(defterm evidence-unverified-code "UNVERIFIED"
+    :evidence (evidence "atoms.py"
+        :quotes ("status = \"grounded\" if self.is_grounded else \"UNVERIFIED\"")
+        :explanation "Unverified status label in Evidence.__str__"))
+
+(diff evidence-unverified-label
+    :replace evidence-unverified-status
+    :with evidence-unverified-code)
+
+(defterm evidence-grounded-code "grounded"
+    :evidence (evidence "atoms.py"
+        :quotes ("status = \"grounded\" if self.is_grounded else \"UNVERIFIED\"")
+        :explanation "Grounded status label in Evidence.__str__"))
+
+(diff evidence-grounded-label
+    :replace evidence-grounded-status
+    :with evidence-grounded-code)
+
+; --- 6. DSL helpers ---
+
+(derive dsl-helpers-doc-count
+    (+ (+ (+ (if match-doc 1 0) (if free-vars-doc 1 0)) (if substitute-doc 1 0)) (if to-sexp-doc 1 0))
+    :using (match-doc free-vars-doc substitute-doc to-sexp-doc match-substitute-roundtrip))
+
+(defterm dsl-helpers-impl-count 4
+    :evidence (evidence "atoms.py"
+        :quotes ("def match(" "def free_vars(" "def substitute(" "def to_sexp(")
+        :explanation "4 DSL helper functions in source"))
+
+(diff dsl-helpers-coverage
+    :replace dsl-helpers-doc-count
+    :with dsl-helpers-impl-count)
+
+; --- 7. Term display paths ---
+
+(derive term-display-doc-count
+    (+ (if term-forward-decl-display 1 0) (if term-has-body-display 1 0))
+    :using (term-forward-decl-display term-has-body-display term-display-rule))
+
+(defterm term-display-impl-count 2
+    :evidence (evidence "atoms.py"
+        :quotes ("(primitive)" "to_sexp(self.definition)")
+        :explanation "2 display paths in Term.__str__"))
+
+(diff term-display-coverage
+    :replace term-display-doc-count
+    :with term-display-impl-count)
 

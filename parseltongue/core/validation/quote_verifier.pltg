@@ -211,3 +211,83 @@
     :evidence (evidence "config.py"
         :quotes ("\"collapsed_space_match\": 0.03")
         :explanation "Penalty for collapsed space match"))
+
+; =====================================================================
+; Code vs Docs — two-branch-then-diff
+; =====================================================================
+
+; --- 1. Normalizer pipeline ---
+
+(defterm normalizer-steps-doc-count
+    (+ (+ (+ (+ (+ (if normalizer-step-1 1 0) (if normalizer-step-2 1 0)) (if normalizer-step-3 1 0)) (if normalizer-step-4 1 0)) (if normalizer-step-5 1 0)) (if normalizer-step-6 1 0))
+    :origin "Count normalizer steps from docstring facts")
+
+(diff normalizer-pipeline-coverage
+    :replace normalizer-steps-doc-count
+    :with normalizer-step-count)
+
+; --- 2. Verifier defaults ---
+
+(defterm verifier-defaults-doc-count
+    (+ (+ (+ (if verifier-docstring 1 0) (if (= verifier-default-case-sensitive false) 1 0)) (if verifier-default-ignore-punctuation 1 0)) (if (= verifier-default-remove-stopwords false) 1 0))
+    :origin "Count verifier default facts from docstring evidence")
+
+(defterm verifier-defaults-impl-count 4
+    :evidence (evidence "verifier.py"
+        :quotes ("Verify if quotes appear in source documents" "case_sensitive: bool = False" "ignore_punctuation: bool = True" "remove_stopwords: bool = False")
+        :explanation "4 verifier default properties in source"))
+
+(diff verifier-defaults-coverage
+    :replace verifier-defaults-doc-count
+    :with verifier-defaults-impl-count)
+
+; --- 3. Confidence return shape ---
+
+(defterm confidence-shape-doc-count
+    (+ (+ (if verifier-confidence-has-score 1 0) (if verifier-confidence-has-level 1 0)) (if high-confidence-threshold 1 0))
+    :origin "Count confidence shape facts from docstring evidence")
+
+(defterm confidence-shape-impl-count 3
+    :evidence (evidence "verifier.py"
+        :quotes ("\"score\": confidence_info[\"score\"]" "\"level\": confidence_info[\"level\"]")
+        :explanation "3 confidence shape features in source (score, level, threshold)"))
+
+(diff confidence-shape-coverage
+    :replace confidence-shape-doc-count
+    :with confidence-shape-impl-count)
+
+; --- 4. Dangerous stopwords ---
+
+(defterm dangerous-stopwords-doc-count
+    (+ (+ (if dangerous-includes-not 1 0) (if dangerous-includes-never 1 0)) (if dangerous-includes-without 1 0))
+    :origin "Count dangerous stopword facts from docstring evidence")
+
+(defterm dangerous-stopwords-impl-count 3
+    :evidence (evidence "config.py"
+        :quotes ("\"not\"" "\"never\"" "\"without\"")
+        :explanation "3 dangerous stopwords in source"))
+
+(diff dangerous-stopwords-coverage
+    :replace dangerous-stopwords-doc-count
+    :with dangerous-stopwords-impl-count)
+
+; --- 5. Match strategies ---
+
+(defterm match-strategies-doc-count
+    (+ (+ (if match-strategy-exact 1 0) (if match-strategy-collapsed 1 0)) (if penalty-collapsed-space 1 0))
+    :origin "Count match strategy facts from docstring evidence")
+
+(defterm match-strategies-impl-count 3
+    :evidence (evidence "config.py"
+        :quotes ("EXACT = \"exact\"" "COLLAPSED = \"collapsed\"" "\"collapsed_space_match\": 0.03")
+        :explanation "3 match strategy features in source"))
+
+(diff match-strategies-coverage
+    :replace match-strategies-doc-count
+    :with match-strategies-impl-count)
+
+; --- 6. Penalty ordering ---
+
+(derive penalty-ordering-doc-count
+    (+ (if (> penalty-dangerous-stopword penalty-whitespace) 1 0) (if (> penalty-stopword penalty-punctuation) 1 0))
+    :using (penalty-dangerous-stopword penalty-whitespace penalty-stopword penalty-punctuation penalty-ordering))

@@ -179,3 +179,82 @@
     :evidence (evidence "system.py"
         :quotes ("def load_source(system: System, source: str):")
         :explanation "load_source is a standalone function"))
+
+; =====================================================================
+; Code vs Docs — two-branch-then-diff
+; =====================================================================
+
+; --- 1. Constructor parameters ---
+
+(defterm constructor-params-doc-count
+    (+ (+ (+ (+ (if system-docstring 1 0) (if (= system-overridable-default false) 1 0)) (if system-strict-derive-default 1 0)) (if system-effects-param 1 0)) (+ (if system-initial-env-default 1 0) (if system-docs-default 1 0)))
+    :origin "Count constructor params from docstring facts")
+
+(defterm constructor-params-impl-count 6
+    :evidence (evidence "system.py"
+        :quotes ("Composes Engine with default operators" "overridable: bool = False" "strict_derive: bool = True" "effects: dict[str, Callable] | None = None" "initial_env: dict | None = None" "docs: dict | None = None")
+        :explanation "6 constructor features in source"))
+
+(diff constructor-params-coverage
+    :replace constructor-params-doc-count
+    :with constructor-params-impl-count)
+
+; --- 2. Delegation ---
+
+(defterm delegation-doc-count
+    (+ (+ (if system-delegates-evaluate 1 0) (if system-delegates-consistency 1 0)) (if system-delegates-derive 1 0))
+    :origin "Count delegation methods from docstring facts")
+
+(defterm delegation-impl-count 3
+    :evidence (evidence "system.py"
+        :quotes ("return self.engine.evaluate(expr, local_env)" "return self.engine.consistency()" "return self.engine.derive(name, wff, using)")
+        :explanation "3 delegation methods in source"))
+
+(diff delegation-coverage
+    :replace delegation-doc-count
+    :with delegation-impl-count)
+
+; --- 3. Exposed properties ---
+
+(defterm properties-doc-count
+    (+ (+ (+ (+ (+ (if system-exposes-facts 1 0) (if system-exposes-axioms 1 0)) (if system-exposes-theorems 1 0)) (if system-exposes-terms 1 0)) (if system-exposes-diffs 1 0)) (if system-exposes-documents 1 0))
+    :origin "Count exposed properties from docstring facts")
+
+(defterm properties-impl-count 6
+    :evidence (evidence "system.py"
+        :quotes ("return self.engine.facts" "return self.engine.axioms" "return self.engine.theorems" "return self.engine.terms" "return self.engine.diffs" "return self.engine.documents")
+        :explanation "6 property accessors in source"))
+
+(diff properties-coverage
+    :replace properties-doc-count
+    :with properties-impl-count)
+
+; --- 4. Provenance ---
+
+(defterm provenance-doc-count
+    (+ (+ (+ (+ (+ (+ (if provenance-returns-dict 1 0) (if provenance-checks-facts 1 0)) (if provenance-checks-axioms 1 0)) (if provenance-checks-terms 1 0)) (if provenance-checks-theorems 1 0)) (if provenance-checks-diffs 1 0)) (if provenance-recurses-for-theorems 1 0))
+    :origin "Count provenance features from docstring facts")
+
+(defterm provenance-impl-count 7
+    :evidence (evidence "system.py"
+        :quotes ("def provenance(self, name: str) -> dict:" "if name in self.engine.facts:" "if name in self.engine.axioms:" "if name in self.engine.terms:" "if name in self.engine.theorems:" "if name in self.engine.diffs:" "\"derivation_chain\": [self.provenance(dep) for dep in thm.derivation]")
+        :explanation "7 provenance features in source"))
+
+(diff provenance-coverage
+    :replace provenance-doc-count
+    :with provenance-impl-count)
+
+; --- 5. Effects + load_source ---
+
+(defterm effects-doc-count
+    (+ (if effects-auto-inject-system 1 0) (if load-source-is-module-fn 1 0))
+    :origin "Count effects features from docstring facts")
+
+(defterm effects-impl-count 2
+    :evidence (evidence "system.py"
+        :quotes ("self.engine.env[Symbol(name)] = lambda *args, _fn=fn: _fn(self, *args)" "def load_source(system: System, source: str):")
+        :explanation "2 effects features in source"))
+
+(diff effects-coverage
+    :replace effects-doc-count
+    :with effects-impl-count)

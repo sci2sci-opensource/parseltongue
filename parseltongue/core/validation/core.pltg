@@ -11,13 +11,7 @@
 (import (quote demos))
 (import (quote loader))
 (import (quote pyproject))
-
-; Manually verify computed defterms that have no document source
-(verify-manual (quote default_system_settings.total-default-operators))
-(verify-manual (quote demos.demo-total-count))
-(verify-manual (quote demos.actual-lazy-count))
-(verify-manual (quote demos.labeled-lazy-count))
-(verify-manual (quote engine.consistency-layer-count))
+(import (quote verify_manual))
 
 (print "")
 (print "========================================")
@@ -84,16 +78,16 @@
 (print "")
 (print "--- Engine docstring ---")
 (print "  Module doc claims doc mgmt:" engine.module-doc-claims-doc-mgmt)
-(print "  Class doc claims no doc mgmt:" engine.class-doc-claims-no-doc-mgmt)
+(print "  Class doc claims no doc mgmt:" engine.class-doc-claims-doc-mgmt)
 (print "  Has register_document:" engine.engine-has-register-document)
 (print "  Has load_document:" engine.engine-has-load-document)
 (print "  Has documents dict:" engine.engine-has-documents-dict)
 
 (diff engine-doc-mgmt-claim
     :replace engine.module-doc-claims-doc-mgmt
-    :with engine.class-doc-claims-no-doc-mgmt)
+    :with engine.class-doc-claims-doc-mgmt)
 
-(derive engine-class-docstring-is-wrong
+(derive engine-doc-mgmt-confirmed
     (and engine.engine-has-register-document engine.engine-has-load-document engine.engine-has-documents-dict)
     :using (engine.engine-has-register-document engine.engine-has-load-document engine.engine-has-documents-dict))
 
@@ -116,8 +110,8 @@
 
 (print "")
 (print "--- load_pltg return type ---")
-(print "  Docstring claims tuple:" loader.load-pltg-docstring-claims-tuple)
-(print "  Returns system only:" loader.load-pltg-returns-system-only)
+(print "  Docstring claims tuple return:" loader.load-pltg-docstring-claims-tuple)
+(print "  Actually returns tuple:" loader.load-pltg-actually-returns-tuple)
 
 ; =====================================================================
 ; README mentions loader?

@@ -78,8 +78,8 @@ def llm_doc() -> str:
             _example_minimal(),
             _example_with_modules(),
             _example_entry_mocks(),
-            _workflow(),
             _llm_pipeline(),
+            _workflow(),
             _tips(),
             "\n## Built-in System Reference\n",
             system_doc,
@@ -443,108 +443,178 @@ expressions compute to True."""
 
 def _workflow() -> str:
     return """
-## Workflow: How to Structure a Parseltongue Project
+## Workflow: Standard Verification Sequence
 
-### Single Document Analysis
+### Step 0: Decide Source Tuples
 
-For a single document, create one self-contained module:
+Identify which sources must be mutually consistent. A "source tuple"
+is a group of documents/artifacts that should agree with each other.
 
-1. **Load the document** and extract all facts with evidence
-2. **Define terms** for computed values referencing those facts
-3. **Derive theorems** to prove relationships
-4. **Add diffs** for what-if analysis and consistency checks
-5. **Run consistency** to verify everything is grounded
+Examples:
+- **Feature verification**: `(feature_docstrings, feature_readme, feature_code)`
+- **Literature review**: `(paper_A_methods, paper_B_methods, meta_analysis)`
+- **API audit**: `(openapi_spec, handler_code, integration_tests)`
 
-```
-project/
-  run.py
-  analysis.pltg
-  resources/
-    report.txt
-```
+### Step 1: Build Leaf Modules (one per source)
 
-### Multi-Document / Multi-Source Analysis
+For each source in the tuple, create a module that:
 
-Process documents bottom-up. Each source gets its own module,
-then a top-level file cross-checks across sources.
+1. **Load the document** and extract facts with evidence (:quotes)
+2. **Define terms** for computed/derived values
+3. **Internal consistency check** — within a single source, verify
+   that its own claims don't contradict each other
 
-**Step 1: Process each document independently.**
-Create a module per source with its own facts, terms, and internal
-consistency checks.
+**Minimum for an internal check:**
+- At least 2 theorems (derives) or terms that express the same
+  concept from different angles
+- At least 1 diff that exposes whether those angles agree
 
-```
-project/
-  run.py
-  verify.pltg              ← top-level cross-check
-  src/
-    code_module.pltg        ← facts from source code
-    readme.pltg             ← facts from README
-    spec.pltg               ← facts from spec document
-```
-
-**Step 2: Start with the most concrete sources.**
-Code files and raw data first — these are ground truth.
-Then documentation, READMEs, specs — these make claims about
-the concrete sources.
+You can also diff on "lower-value" facts or terms to surface
+contradictions that propagate upward into theorems. Structure:
+one top-level diff per check, plus optional supporting diffs below.
 
 ```scheme
-; src/code_module.pltg — extract from source code
-(defterm auth-uses-bcrypt true
+; src/feature_code.pltg — leaf module for source code
+(load-document "auth_module" "resources/auth_module.py.txt")
+
+(fact uses-bcrypt true
     :evidence (evidence "auth_module"
         :quotes ("password = bcrypt.hashpw(password, salt)")
-        :explanation "Code uses bcrypt for password hashing"))
+        :explanation "Code uses bcrypt for hashing"))
 
-(defterm session-timeout 3600
+(fact session-timeout 3600
     :evidence (evidence "auth_module"
         :quotes ("SESSION_TIMEOUT = 3600")
-        :explanation "Session timeout constant in seconds"))
+        :explanation "Timeout constant in seconds"))
+
+; Internal check: timeout is within sane range
+(derive timeout-minutes (/ session-timeout 60) :using (session-timeout))
+(derive timeout-reasonable (and (> timeout-minutes 5) (< timeout-minutes 120))
+    :using (timeout-minutes))
+
+; Diff: what if timeout were the common default?
+(defterm common-default-timeout 1800 :origin "industry standard")
+(diff timeout-vs-default :replace session-timeout :with common-default-timeout)
 ```
 
 ```scheme
-; src/readme.pltg — extract from documentation
-(defterm readme-claims-argon2 true
-    :evidence (evidence "README"
-        :quotes ("Uses Argon2 for password hashing")
-        :explanation "README claims Argon2 is used"))
-
-(defterm readme-claims-timeout 1800
-    :evidence (evidence "README"
-        :quotes ("Sessions expire after 30 minutes")
-        :explanation "README claims 30-minute timeout"))
-```
-
-**Step 3: Cross-check in the top-level file.**
-Import all modules, then diff claims against ground truth.
-
-```scheme
-; verify.pltg — cross-source validation
-(load-document "auth_module" "resources/auth_module.py.txt")
+; src/feature_readme.pltg — leaf module for README
 (load-document "README" "resources/readme.txt")
 
-(import (quote src.code_module))
-(import (quote src.readme))
+(fact readme-hashing "argon2"
+    :evidence (evidence "README"
+        :quotes ("Uses Argon2 for password hashing")
+        :explanation "README claims Argon2"))
 
-; Diff: does the README match the code?
-(diff hashing-check
-    :replace src.code_module.auth-uses-bcrypt
-    :with src.readme.readme-claims-argon2)
+(fact readme-timeout 1800
+    :evidence (evidence "README"
+        :quotes ("Sessions expire after 30 minutes")
+        :explanation "README claims 30min timeout"))
 
-(diff timeout-check
-    :replace src.code_module.session-timeout
-    :with src.readme.readme-claims-timeout)
+; Internal check: README claims are self-consistent
+(derive readme-timeout-minutes (/ readme-timeout 60) :using (readme-timeout))
+(derive readme-timeout-matches-prose (= readme-timeout-minutes 30)
+    :using (readme-timeout-minutes))
+```
+
+### Step 2: Cross-Check Module (one per source tuple)
+
+Import all leaf modules. Create **local aliases** for namespaced
+symbols to keep expressions readable — `defterm` with another term
+as body acts as a lazy alias:
+
+```scheme
+; feature_main.pltg — cross-check module
+(import (quote src.feature_code))
+(import (quote src.feature_readme))
+
+; Aliases — short local names for imported symbols
+(defterm code-hashing src.feature_code.uses-bcrypt :origin "import")
+(defterm code-timeout src.feature_code.session-timeout :origin "import")
+(defterm readme-hashing src.feature_readme.readme-hashing :origin "import")
+(defterm readme-timeout src.feature_readme.readme-timeout :origin "import")
+```
+
+Work **only at the level of theorems and diffs** — do not re-extract
+facts. Apply the same rules: at least 2 theorems/terms + at least
+1 diff per cross-check.
+
+```scheme
+; Cross-check: do code and README agree on timeout?
+(derive code-timeout-minutes (/ code-timeout 60) :using (code-timeout))
+(derive readme-timeout-minutes (/ readme-timeout 60) :using (readme-timeout))
+
+; Top-level diff: swap code's timeout for README's claim
+(diff timeout-mismatch
+    :replace code-timeout
+    :with readme-timeout)
+
+; Cross-check: hashing algorithm
+; README says argon2, code says bcrypt — diff exposes the contradiction
+(diff hashing-mismatch
+    :replace code-hashing
+    :with readme-hashing)
 
 (consistency)
 ```
 
-This pattern scales: add more source modules, each self-contained
-with their own facts and evidence, then cross-check at the top level.
+Aliases are lazy — `(defterm code-timeout src.feature_code.session-timeout)`
+stores the reference, not the value. The alias resolves at evaluation
+time, so diffs that replace the underlying symbol propagate correctly
+through the alias chain.
 
-### Key Principle: Bottom-Up, Then Cross-Check
+### Step 3: Compose Higher-Level Abstractions
 
-1. **Leaf modules** — one per source document, self-contained facts
-2. **Intermediate modules** — combine related sources, derive terms
-3. **Top-level** — imports everything, runs diffs across sources
-4. **run-on-entry** — each module can self-test when run standalone"""
+Cross-check modules are themselves composable. Once you have verified
+modules for individual units, import them into a higher-level module
+for system-wide verification. Same rules apply at every level.
+
+```
+project/
+  run.py
+  system_verify.pltg          ← imports feature mains
+  features/
+    auth/
+      auth_main.pltg           ← cross-check for auth
+      src/
+        auth_code.pltg         ← leaf: auth source code
+        auth_readme.pltg       ← leaf: auth docs
+    billing/
+      billing_main.pltg        ← cross-check for billing
+      src/
+        billing_code.pltg
+        billing_spec.pltg
+```
+
+At each level:
+- Import child modules
+- Create aliases for their exported theorems/terms
+- Work with theorems and diffs (not raw facts)
+- Create cross-cutting diffs to expose inter-module contradictions
+
+### Summary: The Verification Pyramid
+
+```
+            ┌─────────────────┐
+            │  system_verify  │  system-wide cross-checks
+            └────────┬────────┘
+         ┌───────────┴───────────┐
+    ┌────┴─────┐           ┌────┴─────┐
+    │auth_main │           │bill_main │  per-unit cross-checks
+    └────┬─────┘           └────┬─────┘
+    ┌────┴────┐           ┌────┴────┐
+  ┌─┴──┐  ┌──┴─┐       ┌─┴──┐  ┌──┴─┐
+  │code│  │docs│       │code│  │spec│   leaf modules (1 per source)
+  └────┘  └────┘       └────┘  └────┘
+```
+
+Each leaf: facts + terms + internal diffs.
+Each cross-check: aliases + theorems + diffs across children.
+Each higher level: same pattern, composing cross-checks.
+
+This works for code verification, literature review, compliance
+auditing, multi-source journalism, and any domain where claims
+from multiple sources must be reconciled."""
 
 
 def _llm_pipeline() -> str:
@@ -607,7 +677,8 @@ def _tips() -> str:
 ## Tips for LLMs
 
 1. **Always ground claims** — use :evidence with :quotes from loaded documents.
-   :origin is for imports, hypotheticals, and synthesized conclusions only.
+   :origin is for imports, hypotheticals, and synthesized conclusions only. 
+   Grounding MUST make the quote unique for the doc.
 
 2. **Axioms need ?-variables** — `(axiom name (= ?x ?x))` not `(axiom name (= 1 1))`.
    Ground claims use `(fact ...)` or `(derive ...)`.

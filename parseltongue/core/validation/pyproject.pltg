@@ -99,3 +99,38 @@
 (derive packaging-consistent
     (and pltg-shipping-ok txt-shipping-ok ci-runs-consistency)
     :using (pltg-shipping-ok txt-shipping-ok ci-runs-consistency))
+
+; =====================================================================
+; Code vs Docs — two-branch-then-diff
+; =====================================================================
+
+; --- 1. Package data file types ---
+
+(defterm package-data-doc-count
+    (+ (+ (if demos-use-pltg 1 0) (if package-data-includes-md 1 0)) (if demos-use-txt-resources 1 0))
+    :origin "Count package data facts from docstring evidence")
+
+(defterm package-data-impl-count 3
+    :evidence (evidence "pyproject"
+        :quotes ("*.pltg" "*.md" "*.txt")
+        :explanation "3 file types in package-data glob"))
+
+(diff package-data-coverage
+    :replace package-data-doc-count
+    :with package-data-impl-count)
+
+; --- 2. Breakage axioms ---
+
+(derive breakage-axioms-doc-count
+    (+ (+ (if project-ships-pltg-modules 1 0) (if validation-uses-pltg 1 0)) (if demos-use-txt-resources 1 0))
+    :using (project-ships-pltg-modules validation-uses-pltg demos-use-txt-resources
+            missing-pltg-breaks-install missing-txt-breaks-demos missing-tests-breaks-ci))
+
+(defterm breakage-axioms-impl-count 3
+    :evidence (evidence "pyproject"
+        :quotes ("*.pltg" "*.txt" "parseltongue/core/tests")
+        :explanation "3 file types that would break install if missing"))
+
+(diff breakage-axioms-coverage
+    :replace breakage-axioms-doc-count
+    :with breakage-axioms-impl-count)

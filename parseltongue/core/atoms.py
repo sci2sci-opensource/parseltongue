@@ -195,7 +195,7 @@ class Axiom:
 
 @dataclass
 class Theorem:
-    """A theorem: a WFF derived from axioms/terms via substitution."""
+    """A theorem: a WFF derived from facts, axioms, terms, or other theorems."""
 
     name: str
     wff: Any

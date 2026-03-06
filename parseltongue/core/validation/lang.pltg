@@ -201,3 +201,92 @@
 
 ; Derive doc forbids mixing modes but engine.py _execute_directive
 ; doesn't enforce this at parse level — it's a documentation contract only
+
+; =====================================================================
+; Code vs Docs — two-branch-then-diff
+; =====================================================================
+
+; --- 1. DSL keyword symbols ---
+
+(defterm dsl-symbols-doc-count
+    (+ (+ (+ (+ (+ (if fact-symbol 1 0) (if axiom-symbol 1 0)) (if defterm-symbol 1 0)) (if derive-symbol 1 0)) (if diff-symbol 1 0)) (if evidence-symbol 1 0))
+    :origin "Count DSL keyword symbols from docstring facts")
+
+(diff dsl-keywords-coverage
+    :replace dsl-symbols-doc-count
+    :with dsl-keywords-tuple-size)
+
+; --- 2. Special forms ---
+
+(defterm special-forms-doc-count
+    (+ (+ (+ (if if-symbol 1 0) (if let-symbol 1 0)) (if quote-symbol 1 0)) (if eq-symbol 1 0))
+    :origin "Count special form symbols from docstring facts")
+
+(defterm special-forms-impl-count 4
+    :evidence (evidence "lang.py"
+        :quotes ("IF = Symbol(\"if\")" "LET = Symbol(\"let\")" "QUOTE = Symbol(\"quote\")" "EQ = Symbol(\"=\")")
+        :explanation "4 special form symbols in source"))
+
+(diff special-forms-coverage
+    :replace special-forms-doc-count
+    :with special-forms-impl-count)
+
+; --- 3. Keyword arguments ---
+
+(defterm keyword-args-doc-count
+    (+ (+ (+ (+ (+ (+ (+ (if kw-quotes 1 0) (if kw-explanation 1 0)) (if kw-origin 1 0)) (if kw-evidence 1 0)) (if kw-using 1 0)) (if kw-replace 1 0)) (if kw-with 1 0)) (if kw-bind 1 0))
+    :origin "Count keyword arg symbols from docstring facts")
+
+(defterm keyword-args-impl-count 8
+    :evidence (evidence "lang.py"
+        :quotes ("KW_QUOTES = \":quotes\"" "KW_EXPLANATION = \":explanation\"" "KW_ORIGIN = \":origin\"" "KW_EVIDENCE = \":evidence\"" "KW_USING = \":using\"" "KW_REPLACE = \":replace\"" "KW_WITH = \":with\"" "KW_BIND = \":bind\"")
+        :explanation "8 keyword arg constants in source"))
+
+(diff keyword-args-coverage
+    :replace keyword-args-doc-count
+    :with keyword-args-impl-count)
+
+; --- 4. Derive modes ---
+
+(defterm derive-modes-doc-count
+    (+ (+ (if derive-doc-mode-1 1 0) (if derive-doc-mode-2 1 0)) (if derive-doc-no-mix 1 0))
+    :origin "Count derive mode documentation from docstring facts")
+
+(defterm derive-modes-impl-count 3
+    :evidence (evidence "lang.py"
+        :quotes ("1. Direct" "2. Instantiation" "IMPORTANT: Do NOT combine an inline expression with :bind.")
+        :explanation "3 derive mode properties in source"))
+
+(diff derive-modes-coverage
+    :replace derive-modes-doc-count
+    :with derive-modes-impl-count)
+
+; --- 5. Defterm forms ---
+
+(defterm defterm-forms-doc-count
+    (+ (+ (if defterm-doc-form-1 1 0) (if defterm-doc-form-2 1 0)) (if defterm-doc-form-3 1 0))
+    :origin "Count defterm form documentation from docstring facts")
+
+(defterm defterm-forms-impl-count 3
+    :evidence (evidence "lang.py"
+        :quotes ("1. Forward declaration (no body)" "2. Computed expression" "3. Conditional")
+        :explanation "3 defterm forms in source"))
+
+(diff defterm-forms-coverage
+    :replace defterm-forms-doc-count
+    :with defterm-forms-impl-count)
+
+; --- 6. Axiom + evidence parsing ---
+
+(derive axiom-evidence-doc-count
+    (+ (+ (if axiom-doc-rejects-ground 1 0) (if parse-evidence-doc 1 0)) (if parse-evidence-expected-form 1 0))
+    :using (axiom-doc-rejects-ground parse-evidence-doc parse-evidence-expected-form keywords-are-strings))
+
+(defterm axiom-evidence-impl-count 3
+    :evidence (evidence "lang.py"
+        :quotes ("ground statements (no ?-variables) are rejected" "Parse an evidence s-expression into an Evidence object." "(evidence \"document-name\"")
+        :explanation "3 axiom/evidence features in source"))
+
+(diff axiom-evidence-coverage
+    :replace axiom-evidence-doc-count
+    :with axiom-evidence-impl-count)

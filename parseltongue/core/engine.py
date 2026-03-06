@@ -209,7 +209,7 @@ class ConsistencyReport:
 
 
 class Engine:
-    """Pure evaluation engine. No serialization, no document management."""
+    """Pure evaluation engine with document management. No serialization."""
 
     def __init__(self, env: dict, overridable: bool = False, strict_derive: bool = True):
         self.axioms: dict[str, Axiom] = {}

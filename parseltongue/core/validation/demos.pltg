@@ -612,3 +612,191 @@
         :quotes ("(import (quote primitives))"
                  "(import (quote axioms))")
         :explanation "Single-segment imports resolve to sibling files without dots"))
+
+; =====================================================================
+; Code vs Docs — two-branch-then-diff
+; =====================================================================
+
+; --- 1. Apples demo features ---
+
+(defterm apples-features-doc-count
+    (+ (if apples-starts-empty 1 0) (if apples-uses-successor-notation 1 0))
+    :origin "Count apples demo features from docstring facts")
+
+(defterm apples-features-impl-count 2
+    :evidence (evidence "apples"
+        :quotes ("Starts with a completely empty system" "all in successor notation")
+        :explanation "2 apples demo features in source"))
+
+(diff apples-features-coverage
+    :replace apples-features-doc-count
+    :with apples-features-impl-count)
+
+; --- 2. Biomarkers demo features ---
+
+(defterm biomarkers-features-doc-count
+    (+ (+ (if biomarkers-topic 1 0) (if biomarkers-uses-two-papers 1 0)) (if biomarkers-flags-conflict 1 0))
+    :origin "Count biomarkers demo features from docstring facts")
+
+(defterm biomarkers-features-impl-count 3
+    :evidence (evidence "biomarkers"
+        :quotes ("Biomarker Evidence Conflict" "Two papers report on fecal calprotectin" "flags the conflict")
+        :explanation "3 biomarkers demo features in source"))
+
+(diff biomarkers-features-coverage
+    :replace biomarkers-features-doc-count
+    :with biomarkers-features-impl-count)
+
+; --- 3. Code check demo features ---
+
+(defterm code-check-features-doc-count
+    (+ (if code-check-topic 1 0) (if code-check-catches-fabrication 1 0))
+    :origin "Count code check demo features from docstring facts")
+
+(defterm code-check-features-impl-count 2
+    :evidence (evidence "code_check"
+        :quotes ("Code Implementation Checks" "fabricated claims about behavior that")
+        :explanation "2 code check demo features in source"))
+
+(diff code-check-features-coverage
+    :replace code-check-features-doc-count
+    :with code-check-features-impl-count)
+
+; --- 4. Deferred demo features ---
+
+(defterm deferred-features-doc-count
+    (if deferred-pltg-topic 1 0)
+    :origin "Count deferred demo features from docstring facts")
+
+(defterm deferred-features-impl-count 1
+    :evidence (evidence "deferred_pltg"
+        :quotes ("run-on-entry")
+        :explanation "1 deferred demo feature in source"))
+
+(diff deferred-features-coverage
+    :replace deferred-features-doc-count
+    :with deferred-features-impl-count)
+
+; --- 5. Doc validation demo features ---
+
+(defterm doc-validation-features-doc-count
+    (+ (if doc-validation-topic 1 0) (if doc-validation-catches-inconsistency 1 0))
+    :origin "Count doc validation demo features from docstring facts")
+
+(defterm doc-validation-features-impl-count 2
+    :evidence (evidence "doc_validation"
+        :quotes ("Documentation Validation" "catches every inconsistency")
+        :explanation "2 doc validation demo features in source"))
+
+(diff doc-validation-features-coverage
+    :replace doc-validation-features-doc-count
+    :with doc-validation-features-impl-count)
+
+; --- 6. Entry mocks demo features ---
+
+(defterm entry-mocks-features-doc-count
+    (+ (if entry-mocks-topic 1 0) (if entry-mocks-primitives-forward-declared 1 0))
+    :origin "Count entry mocks demo features from docstring facts")
+
+(defterm entry-mocks-features-impl-count 2
+    :evidence (evidence "entry_mocks_pltg"
+        :quotes ("run-on-entry as a self-contained unit test with let + mocks" "rebinds forward-declared primitives")
+        :explanation "2 entry mocks demo features in source"))
+
+(diff entry-mocks-features-coverage
+    :replace entry-mocks-features-doc-count
+    :with entry-mocks-features-impl-count)
+
+; --- 7. Extensibility demo features ---
+
+(defterm extensibility-features-doc-count
+    (+ (+ (if extensibility-topic 1 0) (if extensibility-uses-effects 1 0)) (if extensibility-effects-receive-system 1 0))
+    :origin "Count extensibility demo features from docstring facts")
+
+(defterm extensibility-features-impl-count 3
+    :evidence (evidence "extensibility"
+        :quotes ("System Extensibility" "load-data" "Effects are callables that receive (system, *args)")
+        :explanation "3 extensibility demo features in source"))
+
+(diff extensibility-features-coverage
+    :replace extensibility-features-doc-count
+    :with extensibility-features-impl-count)
+
+; --- 8. Revenue demo features ---
+
+(defterm revenue-features-doc-count
+    (+ (if revenue-topic 1 0) (if revenue-shows-manual-override 1 0))
+    :origin "Count revenue demo features from docstring facts")
+
+(defterm revenue-features-impl-count 2
+    :evidence (evidence "revenue_reports"
+        :quotes ("Analyzing company performance" "manual override")
+        :explanation "2 revenue demo features in source"))
+
+(diff revenue-features-coverage
+    :replace revenue-features-doc-count
+    :with revenue-features-impl-count)
+
+; --- 9. Self-healing demo features ---
+
+(defterm self-healing-features-doc-count
+    (+ (if self-healing-topic 1 0) (if self-healing-all-dsl 1 0))
+    :origin "Count self-healing demo features from docstring facts")
+
+(defterm self-healing-features-impl-count 2
+    :evidence (evidence "self_healing"
+        :quotes ("Self-Healing Probes via Effects" "The entire flow is written in Parseltongue DSL")
+        :explanation "2 self-healing demo features in source"))
+
+(diff self-healing-features-coverage
+    :replace self-healing-features-doc-count
+    :with self-healing-features-impl-count)
+
+; --- 10. Spec validation demo features ---
+
+(defterm spec-validation-features-doc-count
+    (if spec-validation-topic 1 0)
+    :origin "Count spec validation demo features from docstring facts")
+
+(defterm spec-validation-features-impl-count 1
+    :evidence (evidence "spec_validation"
+        :quotes ("Code-Specification Cross-Validation")
+        :explanation "1 spec validation demo feature in source"))
+
+(diff spec-validation-features-coverage
+    :replace spec-validation-features-doc-count
+    :with spec-validation-features-impl-count)
+
+; --- 11. Module system axioms ---
+
+(derive module-axioms-doc-count
+    (+ (+ (+ (+ (+ (+ (if alias-local-zero-exists 1 0) (if let-rebinds-bare-alias 1 0)) (if primitives-are-forward-declared 1 0)) (if lib-has-run-on-entry 1 0)) (if let-mock-rebinds-zero 1 0)) (if chain-demo-imports-app 1 0)) (if cross-bind-mixes-namespaces 1 0))
+    :using (alias-local-zero-exists let-rebinds-bare-alias primitives-are-forward-declared
+            lib-has-run-on-entry let-mock-rebinds-zero chain-demo-imports-app cross-bind-mixes-namespaces
+            alias-resolves defterm-alias-is-lazy forward-decl-produces-formal
+            run-on-entry-gate let-rebind-proves-lazy let-rebinds-forward-decl
+            import-transitive cross-module-bind dot-import-resolves))
+
+(defterm module-axioms-impl-count 7
+    :evidence (evidence "apples_demo_pltg"
+        :quotes ("(defterm local-zero src.primitives.zero :origin \"import\")")
+        :explanation "7 module system axiom proof facts across demo sources"))
+
+(diff module-axioms-coverage
+    :replace module-axioms-doc-count
+    :with module-axioms-impl-count)
+
+; --- 12. Import patterns ---
+
+(defterm import-patterns-doc-count
+    (if flat-import-also-works 1 0)
+    :origin "Count import pattern facts from docstring evidence")
+
+(defterm import-patterns-impl-count 1
+    :evidence (evidence "entry_mocks_math_pltg"
+        :quotes ("(import (quote primitives))")
+        :explanation "1 flat import pattern in source"))
+
+(diff import-patterns-coverage
+    :replace import-patterns-doc-count
+    :with import-patterns-impl-count)

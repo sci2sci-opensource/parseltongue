@@ -75,3 +75,24 @@
 (derive division-returns-float
     (= div-impl "operator.truediv")
     :using (div-impl))
+
+; --- Operator implementations: docs vs code ---
+
+(defterm operator-impls-doc-count
+    (+ (+ (+ (+ (+ (if add-impl 1 0) (if eq-impl 1 0)) (if implies-impl 1 0)) (if and-is-variadic 1 0)) (if or-is-variadic 1 0)) (if eq-is-comparison 1 0))
+    :origin "Count operator impl facts from docstring evidence")
+
+(defterm operator-impls-impl-count 6
+    :evidence (evidence "default_system_settings.py"
+        :quotes ("ADD: operator.add" "EQ: operator.eq" "IMPLIES: lambda a, b: (not a) or b" "AND: lambda *args: all(args)" "OR: lambda *args: any(args)" "EQ: operator.eq")
+        :explanation "6 operator implementation properties in source"))
+
+(diff operator-impls-coverage
+    :replace operator-impls-doc-count
+    :with operator-impls-impl-count)
+
+; --- Total operator count: docs vs code ---
+
+(derive total-operators-verified
+    (= total-default-operators 15)
+    :using (total-default-operators arithmetic-op-count comparison-op-count logic-op-count))

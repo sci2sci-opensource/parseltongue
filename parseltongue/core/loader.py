@@ -342,8 +342,7 @@ def load_pltg(path: str, effects: dict[str, Any] | None = None, **system_kwargs)
     """Convenience function — creates a Loader and loads the file.
 
     Returns:
-        (system, loader) tuple.  Use loader.evaluate(system, name)
-        for context-aware evaluation of definitions.
+        The loaded System with all modules resolved.
     """
     loader = Loader()
     system = loader.load_main(path, effects=effects, **system_kwargs)

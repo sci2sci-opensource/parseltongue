@@ -11,10 +11,10 @@
         :quotes ("document management, evidence verification")
         :explanation "Module docstring says engine provides document management"))
 
-(fact class-doc-claims-no-doc-mgmt true
+(fact class-doc-claims-doc-mgmt true
     :evidence (evidence "engine.py"
-        :quotes ("Pure evaluation engine. No serialization, no document management.")
-        :explanation "Class docstring says NO document management"))
+        :quotes ("Pure evaluation engine with document management.")
+        :explanation "Class docstring confirms document management"))
 
 (fact engine-has-register-document true
     :evidence (evidence "engine.py"
@@ -31,14 +31,14 @@
         :quotes ("self.documents: dict[str, str] = {}")
         :explanation "Engine stores documents in a dict"))
 
-; The class docstring contradicts the module docstring AND the actual implementation
-(derive class-docstring-wrong
+; Both docstrings now agree — and implementation confirms
+(derive engine-has-doc-mgmt
     (and engine-has-register-document engine-has-load-document engine-has-documents-dict)
     :using (engine-has-register-document engine-has-load-document engine-has-documents-dict))
 
 (diff module-vs-class-docstring
     :replace module-doc-claims-doc-mgmt
-    :with class-doc-claims-no-doc-mgmt)
+    :with class-doc-claims-doc-mgmt)
 
 ; =====================================================================
 ; Fact class
@@ -280,3 +280,150 @@
     :evidence (evidence "engine.py"
         :quotes ("engine.evaluate(expr)")
         :explanation "Unknown directives fall through to evaluate"))
+
+; =====================================================================
+; Code vs Docs — two-branch-then-diff
+; =====================================================================
+
+; --- 1. Consistency layers ---
+
+(defterm consistency-layers-doc-count
+    (+ (+ (if consistency-layer-1 1 0) (if consistency-layer-2 1 0)) (if consistency-layer-3 1 0))
+    :origin "Count consistency layers from docstring facts")
+
+(diff consistency-layers-coverage
+    :replace consistency-layers-doc-count
+    :with consistency-layer-count)
+
+; consistency-doc: docs say method exists, code confirms
+(defterm consistency-has-docstring (if consistency-doc 1 0)
+    :origin "Docs branch: consistency method has docstring")
+
+(defterm consistency-has-impl 1
+    :evidence (evidence "engine.py"
+        :quotes ("def consistency(self) -> ConsistencyReport:")
+        :explanation "consistency method exists in source"))
+
+(diff consistency-method-documented
+    :replace consistency-has-docstring
+    :with consistency-has-impl)
+
+; --- 2. Issue types ---
+
+(defterm issue-types-doc-count
+    (+ (+ (+ (+ (if issue-type-unverified 1 0) (if issue-type-no-evidence 1 0)) (if issue-type-fabrication 1 0)) (if issue-type-diff-divergence 1 0)) (if issue-type-diff-value 1 0))
+    :origin "Count issue types from docstring facts")
+
+(defterm issue-types-impl-count 5
+    :evidence (evidence "engine.py"
+        :quotes ("ConsistencyIssue(\"unverified_evidence\"" "ConsistencyIssue(\"no_evidence\"" "ConsistencyIssue(\"potential_fabrication\"" "ConsistencyIssue(\"diff_divergence\"" "ConsistencyIssue(\"diff_value_divergence\"")
+        :explanation "5 issue types in source"))
+
+(diff issue-types-coverage
+    :replace issue-types-doc-count
+    :with issue-types-impl-count)
+
+; --- 3. Directive loader ---
+
+(defterm directive-loader-doc-count
+    (+ (+ (+ (+ (+ (if load-source-handles-axiom 1 0) (if load-source-handles-defterm 1 0)) (if load-source-handles-fact 1 0)) (if load-source-handles-derive 1 0)) (if load-source-handles-diff 1 0)) (if load-source-fallback-evaluates 1 0))
+    :origin "Count directive handlers from docstring facts")
+
+(defterm directive-loader-impl-count 6
+    :evidence (evidence "engine.py"
+        :quotes ("if head == AXIOM:" "elif head == DEFTERM:" "elif head == FACT:" "elif head == DERIVE:" "elif head == DIFF:" "engine.evaluate(expr)")
+        :explanation "6 directive handler branches in source"))
+
+(diff directive-loader-coverage
+    :replace directive-loader-doc-count
+    :with directive-loader-impl-count)
+
+; --- 4. Evaluation mechanism ---
+
+(defterm eval-mechanism-doc-count
+    (+ (+ (+ (if eval-doc 1 0) (if rewrite-direction 1 0)) (if rewrite-depth-limit 1 0)) (if eq-has-rewrite-fallback 1 0))
+    :origin "Count evaluation features from docstring facts")
+
+(defterm eval-mechanism-impl-count 4
+    :evidence (evidence "engine.py"
+        :quotes ("def evaluate(" "Axioms of the form (= LHS RHS) are used left-to-right" "if depth > 100:" "if result is False and head == EQ")
+        :explanation "4 evaluation features in source"))
+
+(diff eval-mechanism-coverage
+    :replace eval-mechanism-doc-count
+    :with eval-mechanism-impl-count)
+
+; --- 5. Derivation mechanism ---
+
+(defterm derivation-doc-count
+    (+ (+ (+ (if derive-doc 1 0) (if derive-restricted-eval 1 0)) (if derive-fabrication-propagation 1 0)) (+ (if axiom-requires-free-vars 1 0) (if axiom-rejection-message 1 0)))
+    :origin "Count derivation features from docstring facts")
+
+(defterm derivation-impl-count 5
+    :evidence (evidence "engine.py"
+        :quotes ("def derive(" "Evaluation is restricted to facts/terms listed in :using." "If any source has unverified evidence, the theorem is" "if not free_vars(wff):" "has no ?-variables")
+        :explanation "5 derivation features in source"))
+
+(diff derivation-mechanism-coverage
+    :replace derivation-doc-count
+    :with derivation-impl-count)
+
+; --- 6. Diff mechanism ---
+
+(defterm diff-mechanism-doc-count
+    (+ (+ (if register-diff-doc 1 0) (if eval-diff-doc 1 0)) (if diff-is-lazy 1 0))
+    :origin "Count diff features from docstring facts")
+
+(defterm diff-mechanism-impl-count 3
+    :evidence (evidence "engine.py"
+        :quotes ("def register_diff(" "def eval_diff(" "Stores only the parameters. The result is computed fresh on")
+        :explanation "3 diff features in source"))
+
+(diff diff-mechanism-coverage
+    :replace diff-mechanism-doc-count
+    :with diff-mechanism-impl-count)
+
+; --- 7. Fact/set_fact mechanism ---
+
+(defterm fact-mechanism-doc-count
+    (+ (+ (+ (+ (if fact-docstring 1 0) (if fact-extends-axiom 1 0)) (if set-fact-checks-overridable 1 0)) (if set-fact-error-on-duplicate 1 0)) (if set-fact-updates-env 1 0))
+    :origin "Count fact mechanism features from docstring facts")
+
+(defterm fact-mechanism-impl-count 5
+    :evidence (evidence "engine.py"
+        :quotes ("class Fact(Axiom):" "A fact: non-parametric axiom" "if not self.overridable:" "already exists. Use retract() first" "self.env[Symbol(name)] = value")
+        :explanation "5 fact mechanism features in source"))
+
+(diff fact-mechanism-coverage
+    :replace fact-mechanism-doc-count
+    :with fact-mechanism-impl-count)
+
+; --- 8. Retract/rederive lifecycle ---
+
+(defterm lifecycle-doc-count
+    (+ (if retract-doc 1 0) (if rederive-doc 1 0))
+    :origin "Count lifecycle features from docstring facts")
+
+(defterm lifecycle-impl-count 2
+    :evidence (evidence "engine.py"
+        :quotes ("def retract(" "def rederive(")
+        :explanation "2 lifecycle methods in source"))
+
+(diff lifecycle-coverage
+    :replace lifecycle-doc-count
+    :with lifecycle-impl-count)
+
+; --- 9. Constructor defaults ---
+
+(defterm defaults-doc-count
+    (+ (if (= overridable-default false) 1 0) (if strict-derive-default 1 0))
+    :origin "Count constructor defaults from docstring facts")
+
+(defterm defaults-impl-count 2
+    :evidence (evidence "engine.py"
+        :quotes ("overridable: bool = False" "strict_derive: bool = True")
+        :explanation "2 constructor defaults in source"))
+
+(diff defaults-coverage
+    :replace defaults-doc-count
+    :with defaults-impl-count)
