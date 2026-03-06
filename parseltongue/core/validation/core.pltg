@@ -10,11 +10,13 @@
 (import (quote readme))
 (import (quote demos))
 (import (quote loader))
+(import (quote pyproject))
 
 ; Manually verify computed defterms that have no document source
 (verify-manual (quote default_system_settings.total-default-operators))
 (verify-manual (quote demos.demo-total-count))
 (verify-manual (quote demos.actual-lazy-count))
+(verify-manual (quote demos.labeled-lazy-count))
 (verify-manual (quote engine.consistency-layer-count))
 
 (print "")
@@ -209,6 +211,85 @@
 (derive readme-loader-consistent
     (and readme.readme-loader-section readme.readme-loader-namespacing loader.loader-namespaces-definitions readme.readme-loader-circular-detection loader.loader-detects-circular-imports)
     :using (readme.readme-loader-section readme.readme-loader-namespacing loader.loader-namespaces-definitions readme.readme-loader-circular-detection loader.loader-detects-circular-imports))
+
+; =====================================================================
+; Module system patterns: README coverage vs demos
+; (stubs until README is updated)
+; =====================================================================
+
+(print "")
+(print "--- Module system patterns ---")
+
+(fact readme-documents-local-aliasing false :origin "stub — README does not yet document local aliasing")
+(print "  README documents local aliasing:" readme-documents-local-aliasing)
+(print "  Demos prove local aliasing:" demos.alias-used-in-practice)
+(diff local-aliasing :replace readme-documents-local-aliasing :with demos.alias-used-in-practice)
+
+(fact readme-documents-forward-decl false :origin "stub — README does not yet document forward-declared primitives")
+(print "  README documents forward-decl:" readme-documents-forward-decl)
+(print "  Demos prove forward-decl:" demos.forward-decl-proven-by-afternoon)
+(diff forward-decl :replace readme-documents-forward-decl :with demos.forward-decl-proven-by-afternoon)
+
+(fact readme-documents-run-on-entry-gating false :origin "stub — README does not yet document run-on-entry gating")
+(print "  README documents gating:" readme-documents-run-on-entry-gating)
+(print "  Demos prove gating:" demos.run-on-entry-gating-proven)
+(diff run-on-entry-gating :replace readme-documents-run-on-entry-gating :with demos.run-on-entry-gating-proven)
+
+(fact readme-documents-let-mock false :origin "stub — README does not yet document let-mock unit testing")
+(print "  README documents let-mock:" readme-documents-let-mock)
+(print "  Demos prove let-mock:" demos.let-mock-unit-test-proven)
+(diff let-mock-testing :replace readme-documents-let-mock :with demos.let-mock-unit-test-proven)
+
+(fact readme-documents-import-chains false :origin "stub — README does not yet document import chain transitivity")
+(print "  README documents import chains:" readme-documents-import-chains)
+(print "  Demos prove import chains:" demos.import-chain-proven)
+(diff import-chains :replace readme-documents-import-chains :with demos.import-chain-proven)
+
+(fact readme-documents-cross-module-bind false :origin "stub — README does not yet document cross-module :bind")
+(print "  README documents cross-module bind:" readme-documents-cross-module-bind)
+(print "  Demos prove cross-module bind:" demos.cross-module-bind-proven)
+(diff cross-module-bind :replace readme-documents-cross-module-bind :with demos.cross-module-bind-proven)
+
+; =====================================================================
+; Defterm laziness: README coverage vs proof chain
+; =====================================================================
+
+(print "")
+(print "--- Defterm laziness ---")
+
+(fact readme-documents-defterm-lazy false :origin "stub — README does not yet document that defterm is always lazy")
+(print "  README documents defterm lazy:" readme-documents-defterm-lazy)
+(print "  Proven lazy:" demos.every-defterm-is-lazy)
+(diff defterm-laziness :replace readme-documents-defterm-lazy :with demos.every-defterm-is-lazy)
+
+(print "  Laziness is default:" demos.laziness-is-default)
+(print "  Labeled lazy:" demos.labeled-lazy-count)
+(print "  Actual lazy:" demos.actual-lazy-count)
+(diff lazy-count-match :replace demos.labeled-lazy-count :with demos.actual-lazy-count)
+
+; =====================================================================
+; Packaging: README coverage vs pyproject.toml
+; =====================================================================
+
+(print "")
+(print "--- Packaging ---")
+
+(fact readme-documents-pltg-shipped false :origin "stub — README does not yet document .pltg files are shipped")
+(print "  README documents pltg shipped:" readme-documents-pltg-shipped)
+(print "  pyproject ships pltg:" pyproject.package-data-includes-pltg)
+(diff pltg-shipped :replace readme-documents-pltg-shipped :with pyproject.package-data-includes-pltg)
+
+(fact readme-documents-txt-shipped false :origin "stub — README does not yet document .txt resources are shipped")
+(print "  README documents txt shipped:" readme-documents-txt-shipped)
+(print "  pyproject ships txt:" pyproject.package-data-includes-txt)
+(diff txt-shipped :replace readme-documents-txt-shipped :with pyproject.package-data-includes-txt)
+
+(fact readme-documents-tests-configured false :origin "stub — README does not yet document consistency test in testpaths")
+(print "  README documents tests configured:" readme-documents-tests-configured)
+(print "  pyproject has core tests:" pyproject.core-tests-in-testpaths)
+(diff tests-configured :replace readme-documents-tests-configured :with pyproject.core-tests-in-testpaths)
+
+(print "  Packaging consistent:" pyproject.packaging-consistent)
 
 (print "")
 (print "========================================")

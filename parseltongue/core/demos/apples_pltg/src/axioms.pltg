@@ -2,8 +2,8 @@
 
 (defterm zero src.primitives.zero :origin "import")
 (defterm succ src.primitives.succ :origin "import")
-(defterm = (quote src.primitives.=) :origin "import lazy") ; Check the lazy alias works
-(defterm + (quote src.primitives.+) :origin "import lazy")
+(defterm = src.primitives.= :origin "import")
+(defterm + src.primitives.+ :origin "import")
 (defterm - src.primitives.- :origin "import")
 (defterm > src.primitives.> :origin "import")
 (defterm * src.primitives.* :origin "import")

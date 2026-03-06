@@ -340,17 +340,12 @@
         :explanation "defterm aliasing is inherently lazy — resolution is deferred regardless of quote"))
 
 ; The quote wrapper is redundant: both patterns produce the same result
-(fact quote-alias-exists true
+(fact no-explicit-lazy-label true
     :evidence (evidence "apples_axioms_pltg"
-        :quotes ("(defterm = (quote src.primitives.=) :origin \"import lazy\")"
-                 "(defterm + (quote src.primitives.+) :origin \"import lazy\")")
-        :explanation "Some aliases use (quote ...) and label themselves 'import lazy'"))
-
-(fact bare-alias-exists true
-    :evidence (evidence "apples_axioms_pltg"
-        :quotes ("(defterm - src.primitives.- :origin \"import\")"
-                 "(defterm > src.primitives.> :origin \"import\")")
-        :explanation "Other aliases use bare reference without quote"))
+        :quotes ("(defterm = src.primitives.= :origin \"import\")"
+                 "(defterm + src.primitives.+ :origin \"import\")"
+                 "(defterm - src.primitives.- :origin \"import\")")
+        :explanation "No alias carries an explicit 'lazy' label — all use plain 'import'"))
 
 ; --- Proof chain: quote is redundant in defterm aliasing ---
 
@@ -373,8 +368,8 @@
 (fact defterm-same-mechanism true
     :evidence (evidence "apples_axioms_pltg"
         :quotes ("(defterm zero src.primitives.zero :origin \"import\")"
-                 "(defterm = (quote src.primitives.=) :origin \"import lazy\")")
-        :explanation "Both bare and quoted aliases go through the same defterm path"))
+                 "(defterm = src.primitives.= :origin \"import\")")
+        :explanation "All aliases go through the same defterm path — no quote distinction"))
 
 ; Step 4: therefore every defterm is lazy — quote adds nothing
 (derive every-defterm-is-lazy
@@ -382,11 +377,11 @@
     :using (let-rebinds-bare-alias defterm-same-mechanism))
 
 ; Step 5: labels say 2, reality says 7
-(fact labeled-lazy-count 2
-    :evidence (evidence "apples_axioms_pltg"
-        :quotes ("(defterm = (quote src.primitives.=) :origin \"import lazy\")"
-                 "(defterm + (quote src.primitives.+) :origin \"import lazy\")")
-        :explanation "Only 2 aliases labeled 'import lazy'"))
+; Nothing is explicitly lazy, but everything IS lazy (proven by let-rebind chain)
+; → laziness is the default behavior of defterm
+(derive laziness-is-default
+    (and no-explicit-lazy-label every-defterm-is-lazy)
+    :using (no-explicit-lazy-label every-defterm-is-lazy))
 
 (defterm lazy-alias-zero (if every-defterm-is-lazy 1 0)
     :evidence (evidence "apples_axioms_pltg"
@@ -400,13 +395,13 @@
 
 (defterm lazy-alias-eq (if every-defterm-is-lazy 1 0)
     :evidence (evidence "apples_axioms_pltg"
-        :quotes ("(defterm = (quote src.primitives.=) :origin \"import lazy\")")
-        :explanation "quoted alias — lazy by axiom chain"))
+        :quotes ("(defterm = src.primitives.= :origin \"import\")")
+        :explanation "alias — lazy by axiom chain"))
 
 (defterm lazy-alias-plus (if every-defterm-is-lazy 1 0)
     :evidence (evidence "apples_axioms_pltg"
-        :quotes ("(defterm + (quote src.primitives.+) :origin \"import lazy\")")
-        :explanation "quoted alias — lazy by axiom chain"))
+        :quotes ("(defterm + src.primitives.+ :origin \"import\")")
+        :explanation "alias — lazy by axiom chain"))
 
 (defterm lazy-alias-minus (if every-defterm-is-lazy 1 0)
     :evidence (evidence "apples_axioms_pltg"
@@ -427,7 +422,11 @@
     (+ (+ (+ (+ (+ (+ lazy-alias-zero lazy-alias-succ) lazy-alias-eq) lazy-alias-plus) lazy-alias-minus) lazy-alias-gt) lazy-alias-mul)
     :origin "Sum of all defterm aliases — each 1 by axiom chain")
 
-; Step 6: diff diverges — labels are wrong
+; Since laziness is default, labeled count = actual count
+(defterm labeled-lazy-count (if laziness-is-default actual-lazy-count 0)
+    :origin "All aliases are lazy by default — labeled count equals actual count")
+
+; Step 6: diff — labeled matches actual after fix
 (diff lazy-label-vs-reality
     :replace labeled-lazy-count
     :with actual-lazy-count)

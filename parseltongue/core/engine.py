@@ -559,6 +559,8 @@ class Engine:
                 else:
                     # Forward-declared: resolve to own symbol for rewriting
                     env[Symbol(src_name)] = Symbol(src_name)
+            elif src_name in self.theorems:
+                env[Symbol(src_name)] = self.evaluate(self.theorems[src_name].wff)
         return env
 
     def _collect_using_rules(self, using: list[str]) -> list[Axiom | Theorem]:

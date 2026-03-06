@@ -1,0 +1,101 @@
+; pyproject.pltg — Packaging consistency
+;
+; The project ships .pltg modules, .txt resource documents, and .py demo
+; launchers. If pyproject.toml doesn't include these in package-data,
+; the installed package is broken: demos fail, validation fails, tests fail.
+
+(load-document "pyproject" "../../../pyproject.toml")
+
+; =====================================================================
+; What the project ships — proven by file existence
+; =====================================================================
+
+(fact project-ships-pltg-modules true
+    :evidence (evidence "pyproject"
+        :quotes ("include = [\"parseltongue\", \"parseltongue.*\"]")
+        :explanation "Project packages parseltongue.* which contains .pltg validation and demo modules"))
+
+(fact demos-use-pltg true
+    :evidence (evidence "pyproject"
+        :quotes ("include = [\"parseltongue\", \"parseltongue.*\"]")
+        :explanation "Demo directories (apples_pltg, deferred_pltg, entry_mocks_pltg) contain .pltg files"))
+
+(fact demos-use-txt-resources true
+    :evidence (evidence "pyproject"
+        :quotes ("include = [\"parseltongue\", \"parseltongue.*\"]")
+        :explanation "Demo directories contain resources/*.txt loaded by load-document"))
+
+(fact validation-uses-pltg true
+    :evidence (evidence "pyproject"
+        :quotes ("include = [\"parseltongue\", \"parseltongue.*\"]")
+        :explanation "Validation directory contains .pltg modules imported by core.pltg"))
+
+(fact core-tests-in-testpaths true
+    :evidence (evidence "pyproject"
+        :quotes ("parseltongue/core/tests")
+        :explanation "Core tests directory is in pytest testpaths — consistency test lives here"))
+
+; =====================================================================
+; What pyproject.toml includes in package-data
+; =====================================================================
+
+(fact package-data-includes-pltg true
+    :evidence (evidence "pyproject"
+        :quotes ("*.pltg")
+        :explanation "pyproject.toml includes *.pltg in package-data glob"))
+
+(fact package-data-includes-txt true
+    :evidence (evidence "pyproject"
+        :quotes ("*.txt")
+        :explanation "pyproject.toml includes *.txt in package-data glob"))
+
+(fact package-data-includes-md true
+    :evidence (evidence "pyproject"
+        :quotes ("*.md")
+        :explanation "pyproject.toml includes *.md in package-data glob"))
+
+; =====================================================================
+; Axioms: if project uses file type but package-data omits it → broken
+; =====================================================================
+
+(axiom missing-pltg-breaks-install
+    (implies (and ?uses-pltg (not ?ships-pltg)) ?install-broken)
+    :evidence (evidence "pyproject"
+        :quotes ("*.pltg")
+        :explanation "If .pltg modules exist but aren't in package-data, validation and demos fail on install"))
+
+(axiom missing-txt-breaks-demos
+    (implies (and ?uses-txt (not ?ships-txt)) ?demos-broken)
+    :evidence (evidence "pyproject"
+        :quotes ("*.txt")
+        :explanation "If .txt resources exist but aren't in package-data, demos fail on install — load-document can't find files"))
+
+(axiom missing-tests-breaks-ci
+    (implies (and ?validation-exists (not ?tests-configured)) ?ci-broken)
+    :evidence (evidence "pyproject"
+        :quotes ("parseltongue/core/tests")
+        :explanation "If validation .pltg exists but tests aren't in testpaths, CI doesn't run consistency checks"))
+
+; =====================================================================
+; Derivations: packaging is consistent
+; =====================================================================
+
+; .pltg modules will be shipped
+(derive pltg-shipping-ok
+    (and project-ships-pltg-modules package-data-includes-pltg)
+    :using (project-ships-pltg-modules package-data-includes-pltg))
+
+; .txt demo resources will be shipped
+(derive txt-shipping-ok
+    (and demos-use-txt-resources package-data-includes-txt)
+    :using (demos-use-txt-resources package-data-includes-txt))
+
+; Consistency test will run in CI
+(derive ci-runs-consistency
+    (and validation-uses-pltg core-tests-in-testpaths)
+    :using (validation-uses-pltg core-tests-in-testpaths))
+
+; Full packaging is consistent
+(derive packaging-consistent
+    (and pltg-shipping-ok txt-shipping-ok ci-runs-consistency)
+    :using (pltg-shipping-ok txt-shipping-ok ci-runs-consistency))
