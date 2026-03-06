@@ -97,7 +97,7 @@ class HistoryBrowser(Screen):
                 self._refresh_table()
                 self.notify(f"Run {run_id} deleted.")
 
-        self.app.push_screen(ConfirmModal(f"Delete run {run_id}?"), callback=on_confirm)
+        self.app.push_screen(ConfirmModal(f"Delete run {run_id}?"), callback=on_confirm)  # type: ignore[arg-type]
 
     def _refresh_table(self) -> None:
         table = self.query_one("#history-table", DataTable)

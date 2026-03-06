@@ -31,13 +31,13 @@ def _mark_rule(state: StateInline, silent: bool) -> bool:
             return False
         if not silent:
             state.push("mark_open", "mark", 1).markup = "=="
-            state._mark_open = True
+            state._mark_open = True  # type: ignore[attr-defined]
         state.pos = start + 2
         return True
     # Closing ==
     if not silent:
         state.push("mark_close", "mark", -1).markup = "=="
-        state._mark_open = False
+        state._mark_open = False  # type: ignore[attr-defined]
     state.pos = start + 2
     return True
 
@@ -122,7 +122,7 @@ def _token_to_content_with_mark(self, token):  # noqa: ANN001
     return Content("".join(tokens), spans=spans)
 
 
-MarkdownBlock._token_to_content = _token_to_content_with_mark
+MarkdownBlock._token_to_content = _token_to_content_with_mark  # type: ignore[method-assign]
 
 
 # ---------------------------------------------------------------------------

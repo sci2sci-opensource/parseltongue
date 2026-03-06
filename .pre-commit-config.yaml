@@ -16,3 +16,4 @@ repos:
       - id: mypy
         args: [--ignore-missing-imports, --exclude, 'demos|tests', parseltongue/]
         pass_filenames: false
+        additional_dependencies: [textual>=0.50.0]

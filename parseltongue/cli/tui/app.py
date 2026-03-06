@@ -228,7 +228,7 @@ class ParseltongueApp(App):
                         hist.output.consistency = fresh_report.to_dict()
                     self._finish_install_history(hist, then_go_to_answer)
 
-                self.push_screen(ConsistencyAlert(cached_text, fresh_text), callback=on_alert)
+                self.push_screen(ConsistencyAlert(cached_text, fresh_text), callback=on_alert)  # type: ignore[arg-type]
                 return
 
         self._finish_install_history(hist, then_go_to_answer)

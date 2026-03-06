@@ -30,14 +30,14 @@ class ResizableSplitMixin:
     _split_right: float = 1.0
 
     def _get_grid(self) -> Widget:
-        self_widget: Widget = self
+        self_widget: Widget = self  # type: ignore[assignment]
         if self._split_grid_id is not None:
             return self_widget.query_one(f"#{self._split_grid_id}")
         return self_widget
 
     def _apply_split(self) -> None:
         grid = self._get_grid()
-        grid.styles.grid_columns = (_fr(self._split_left), _fr(self._split_right))
+        grid.styles.grid_columns = (_fr(self._split_left), _fr(self._split_right))  # type: ignore[assignment]
 
     def action_grow_left(self) -> None:
         self._split_left = min(self._split_left + _STEP, 6.0)
