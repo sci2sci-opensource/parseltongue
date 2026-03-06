@@ -1,0 +1,14 @@
+; counting.pltg — Variadic existence counter via ?... splats
+;
+; count-exists counts how many of its boolean arguments are truthy.
+; Replaces all nested (+ (+ ... (if x 1 0) ...)) patterns.
+
+(defterm count-exists :origin "variadic existence counter")
+
+(axiom count-exists-base (= (count-exists ?x) (+ (if ?x 1 0) 0))
+    :origin "base: single argument")
+
+(axiom count-exists-step
+    (= (count-exists ?x ?y ?...rest)
+       (+ (if ?x 1 0) (count-exists ?y ?...rest)))
+    :origin "step: peel first, count rest")

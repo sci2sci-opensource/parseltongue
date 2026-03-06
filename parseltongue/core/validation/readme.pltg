@@ -1,6 +1,8 @@
 ; readme.pltg — Claims extracted from core/README.md
 
 (load-document "README" "../README.md")
+(import (quote counting))
+(defterm count-exists counting.count-exists :origin "import")
 
 ; =====================================================================
 ; Top-level claims
@@ -340,6 +342,13 @@
         :quotes ("parseltongue/core/tests directory is included in pytest testpaths")
         :explanation "README documents that core tests are in pytest testpaths"))
 
+; =====================================================================
+; Splat patterns — README coverage gap
+; =====================================================================
+
+(fact readme-documents-splat-patterns false
+    :origin "README has no mention of ?... splat patterns")
+
 ; Cross-module diff (readme vs loader effect count) lives in core.pltg
 
 ; =====================================================================
@@ -348,9 +357,10 @@
 
 ; --- 1. Top-level claims ---
 
-(defterm readme-identity-doc-count
-    (+ (if readme-title 1 0) (if readme-tagline 1 0))
-    :origin "Count top-level claims from README facts")
+(derive readme-identity-doc-count
+    (count-exists readme-title readme-tagline)
+    :using (count-exists counting.count-exists-base counting.count-exists-step
+            readme-title readme-tagline))
 
 (defterm readme-identity-impl-count 2
     :evidence (evidence "README"
@@ -363,9 +373,10 @@
 
 ; --- 2. Directives ---
 
-(defterm readme-directives-doc-count
-    (+ (+ (+ (+ (+ (if readme-directive-count 1 0) (if readme-has-fact-directive 1 0)) (if readme-has-axiom-directive 1 0)) (if readme-has-defterm-directive 1 0)) (if readme-has-derive-directive 1 0)) (if readme-has-diff-directive 1 0))
-    :origin "Count directive documentation from README facts")
+(derive readme-directives-doc-count
+    (count-exists readme-directive-count readme-has-fact-directive readme-has-axiom-directive readme-has-defterm-directive readme-has-derive-directive readme-has-diff-directive)
+    :using (count-exists counting.count-exists-base counting.count-exists-step
+            readme-directive-count readme-has-fact-directive readme-has-axiom-directive readme-has-defterm-directive readme-has-derive-directive readme-has-diff-directive))
 
 (defterm readme-directives-impl-count 6
     :evidence (evidence "README"
@@ -378,9 +389,10 @@
 
 ; --- 3. Built-in operators ---
 
-(defterm readme-operators-doc-count
-    (+ (+ (if readme-arithmetic 1 0) (if readme-comparison 1 0)) (if readme-logic 1 0))
-    :origin "Count operator documentation from README facts")
+(derive readme-operators-doc-count
+    (count-exists readme-arithmetic readme-comparison readme-logic)
+    :using (count-exists counting.count-exists-base counting.count-exists-step
+            readme-arithmetic readme-comparison readme-logic))
 
 (defterm readme-operators-impl-count 3
     :evidence (evidence "README"
@@ -393,9 +405,10 @@
 
 ; --- 4. Evidence system ---
 
-(defterm readme-evidence-doc-count
-    (+ (+ (if readme-evidence-first-class 1 0) (if readme-verify-manual-described 1 0)) (if readme-binary-threshold 1 0))
-    :origin "Count evidence system documentation from README facts")
+(derive readme-evidence-doc-count
+    (count-exists readme-evidence-first-class readme-verify-manual-described readme-binary-threshold)
+    :using (count-exists counting.count-exists-base counting.count-exists-step
+            readme-evidence-first-class readme-verify-manual-described readme-binary-threshold))
 
 (defterm readme-evidence-impl-count 3
     :evidence (evidence "README"
@@ -408,9 +421,10 @@
 
 ; --- 5. Issue types ---
 
-(defterm readme-issue-types-doc-count
-    (+ (+ (+ (+ (if readme-issue-type-1 1 0) (if readme-issue-type-2 1 0)) (if readme-issue-type-3 1 0)) (if readme-issue-type-4 1 0)) (if readme-issue-type-5 1 0))
-    :origin "Count issue type documentation from README facts")
+(derive readme-issue-types-doc-count
+    (count-exists readme-issue-type-1 readme-issue-type-2 readme-issue-type-3 readme-issue-type-4 readme-issue-type-5)
+    :using (count-exists counting.count-exists-base counting.count-exists-step
+            readme-issue-type-1 readme-issue-type-2 readme-issue-type-3 readme-issue-type-4 readme-issue-type-5))
 
 (defterm readme-issue-types-impl-count 5
     :evidence (evidence "README"
@@ -423,9 +437,10 @@
 
 ; --- 6. Custom environments ---
 
-(defterm readme-custom-env-doc-count
-    (+ (if readme-docs-param-described 1 0) (if readme-initial-env-described 1 0))
-    :origin "Count custom env documentation from README facts")
+(derive readme-custom-env-doc-count
+    (count-exists readme-docs-param-described readme-initial-env-described)
+    :using (count-exists counting.count-exists-base counting.count-exists-step
+            readme-docs-param-described readme-initial-env-described))
 
 (defterm readme-custom-env-impl-count 2
     :evidence (evidence "README"
@@ -438,9 +453,10 @@
 
 ; --- 7. Demo examples ---
 
-(defterm readme-demo-examples-doc-count
-    (+ (+ (if readme-demo-apples 1 0) (if readme-demo-revenue 1 0)) (if readme-demo-biomarkers 1 0))
-    :origin "Count demo examples from README facts")
+(derive readme-demo-examples-doc-count
+    (count-exists readme-demo-apples readme-demo-revenue readme-demo-biomarkers)
+    :using (count-exists counting.count-exists-base counting.count-exists-step
+            readme-demo-apples readme-demo-revenue readme-demo-biomarkers))
 
 (defterm readme-demo-examples-impl-count 3
     :evidence (evidence "README"
@@ -453,9 +469,10 @@
 
 ; --- 8. Loader effects in README ---
 
-(defterm readme-loader-effects-doc-count
-    (+ (+ (+ (+ (+ (if readme-loader-import-effect 1 0) (if readme-loader-run-on-entry-effect 1 0)) (if readme-loader-load-document-effect 1 0)) (if readme-loader-context-effect 1 0)) (if readme-loader-print-effect 1 0)) (if readme-loader-load-pltg 1 0))
-    :origin "Count loader effect documentation from README facts")
+(derive readme-loader-effects-doc-count
+    (count-exists readme-loader-import-effect readme-loader-run-on-entry-effect readme-loader-load-document-effect readme-loader-context-effect readme-loader-print-effect readme-loader-load-pltg)
+    :using (count-exists counting.count-exists-base counting.count-exists-step
+            readme-loader-import-effect readme-loader-run-on-entry-effect readme-loader-load-document-effect readme-loader-context-effect readme-loader-print-effect readme-loader-load-pltg))
 
 (defterm readme-loader-effects-impl-count 6
     :evidence (evidence "README"
@@ -468,9 +485,10 @@
 
 ; --- 9. Loader architecture ---
 
-(defterm readme-loader-arch-doc-count
-    (+ (if readme-loader-context-onion 1 0) (if readme-documents-consistency-modes 1 0))
-    :origin "Count loader architecture documentation from README facts")
+(derive readme-loader-arch-doc-count
+    (count-exists readme-loader-context-onion readme-documents-consistency-modes)
+    :using (count-exists counting.count-exists-base counting.count-exists-step
+            readme-loader-context-onion readme-documents-consistency-modes))
 
 (defterm readme-loader-arch-impl-count 2
     :evidence (evidence "README"

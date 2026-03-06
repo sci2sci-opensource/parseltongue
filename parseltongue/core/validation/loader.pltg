@@ -1,6 +1,8 @@
 ; loader.pltg — Ground truth from loader.py
 
 (load-document "loader.py" "../loader.py")
+(import (quote counting))
+(defterm count-exists counting.count-exists :origin "import")
 
 ; =====================================================================
 ; Module contract
@@ -305,9 +307,10 @@
 
 ; --- 1. Effect documentation ---
 
-(defterm effect-docs-doc-count
-    (+ (+ (+ (+ (if effect-import-doc 1 0) (if effect-run-on-entry-doc 1 0)) (if effect-load-document-doc 1 0)) (if effect-print-doc 1 0)) (if effect-context-keys 1 0))
-    :origin "Count effect doc facts from docstring evidence")
+(derive effect-docs-doc-count
+    (count-exists effect-import-doc effect-run-on-entry-doc effect-load-document-doc effect-print-doc effect-context-keys)
+    :using (count-exists counting.count-exists-base counting.count-exists-step
+            effect-import-doc effect-run-on-entry-doc effect-load-document-doc effect-print-doc effect-context-keys))
 
 (defterm effect-docs-impl-count 5
     :evidence (evidence "loader.py"
@@ -320,9 +323,10 @@
 
 ; --- 2. Context architecture ---
 
-(defterm context-arch-doc-count
-    (+ (+ (+ (+ (if context-is-abc 1 0) (if loader-context-frozen 1 0)) (if loader-context-model 1 0)) (if module-context-doc 1 0)) (if module-context-has-parent 1 0))
-    :origin "Count context architecture facts from docstring evidence")
+(derive context-arch-doc-count
+    (count-exists context-is-abc loader-context-frozen loader-context-model module-context-doc module-context-has-parent)
+    :using (count-exists counting.count-exists-base counting.count-exists-step
+            context-is-abc loader-context-frozen loader-context-model module-context-doc module-context-has-parent))
 
 (defterm context-arch-impl-count 5
     :evidence (evidence "loader.py"
@@ -335,9 +339,10 @@
 
 ; --- 3. Loader internals ---
 
-(defterm loader-internals-doc-count
-    (+ (+ (+ (+ (+ (if loader-class-doc 1 0) (if loader-module-doc 1 0)) (if loader-has-registry 1 0)) (if loader-deduplicates-imports 1 0)) (if loader-patches-symbols 1 0)) (if loader-patches-context 1 0))
-    :origin "Count loader internal facts from docstring evidence")
+(derive loader-internals-doc-count
+    (count-exists loader-class-doc loader-module-doc loader-has-registry loader-deduplicates-imports loader-patches-symbols loader-patches-context)
+    :using (count-exists counting.count-exists-base counting.count-exists-step
+            loader-class-doc loader-module-doc loader-has-registry loader-deduplicates-imports loader-patches-symbols loader-patches-context))
 
 (defterm loader-internals-impl-count 6
     :evidence (evidence "loader.py"
@@ -350,9 +355,10 @@
 
 ; --- 4. Entry points ---
 
-(defterm entry-points-doc-count
-    (+ (+ (if load-main-doc 1 0) (if load-main-passes-kwargs 1 0)) (+ (if load-pltg-doc 1 0) (if import-resolves-dots-to-sep 1 0)))
-    :origin "Count entry point facts from docstring evidence")
+(derive entry-points-doc-count
+    (count-exists load-main-doc load-main-passes-kwargs load-pltg-doc import-resolves-dots-to-sep)
+    :using (count-exists counting.count-exists-base counting.count-exists-step
+            load-main-doc load-main-passes-kwargs load-pltg-doc import-resolves-dots-to-sep))
 
 (defterm entry-points-impl-count 4
     :evidence (evidence "loader.py"
@@ -366,7 +372,8 @@
 ; --- 5. Consistency modes ---
 
 (derive consistency-modes-doc-count
-    (+ (+ (+ (if effect-consistency-has-raise 1 0) (if effect-consistency-has-bool 1 0)) (if effect-consistency-has-report 1 0)) (if effect-consistency-default-prints 1 0))
-    :using (effect-consistency-has-raise effect-consistency-has-bool effect-consistency-has-report effect-consistency-default-prints
+    (count-exists effect-consistency-has-raise effect-consistency-has-bool effect-consistency-has-report effect-consistency-default-prints)
+    :using (count-exists counting.count-exists-base counting.count-exists-step
+            effect-consistency-has-raise effect-consistency-has-bool effect-consistency-has-report effect-consistency-default-prints
             consistency-no-args-prints consistency-raise-on-inconsistent consistency-bool-no-print consistency-report-returns-object
             consistency-mode-count))

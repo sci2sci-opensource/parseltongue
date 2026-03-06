@@ -1,6 +1,8 @@
 ; system.pltg — Ground truth and internal validation for system.py
 
 (load-document "system.py" "../system.py")
+(import (quote counting))
+(defterm count-exists counting.count-exists :origin "import")
 
 ; =====================================================================
 ; System class — documented contract
@@ -186,9 +188,10 @@
 
 ; --- 1. Constructor parameters ---
 
-(defterm constructor-params-doc-count
-    (+ (+ (+ (+ (if system-docstring 1 0) (if (= system-overridable-default false) 1 0)) (if system-strict-derive-default 1 0)) (if system-effects-param 1 0)) (+ (if system-initial-env-default 1 0) (if system-docs-default 1 0)))
-    :origin "Count constructor params from docstring facts")
+(derive constructor-params-doc-count
+    (count-exists system-docstring (= system-overridable-default false) system-strict-derive-default system-effects-param system-initial-env-default system-docs-default)
+    :using (count-exists counting.count-exists-base counting.count-exists-step
+            system-docstring system-overridable-default system-strict-derive-default system-effects-param system-initial-env-default system-docs-default))
 
 (defterm constructor-params-impl-count 6
     :evidence (evidence "system.py"
@@ -201,9 +204,10 @@
 
 ; --- 2. Delegation ---
 
-(defterm delegation-doc-count
-    (+ (+ (if system-delegates-evaluate 1 0) (if system-delegates-consistency 1 0)) (if system-delegates-derive 1 0))
-    :origin "Count delegation methods from docstring facts")
+(derive delegation-doc-count
+    (count-exists system-delegates-evaluate system-delegates-consistency system-delegates-derive)
+    :using (count-exists counting.count-exists-base counting.count-exists-step
+            system-delegates-evaluate system-delegates-consistency system-delegates-derive))
 
 (defterm delegation-impl-count 3
     :evidence (evidence "system.py"
@@ -216,9 +220,10 @@
 
 ; --- 3. Exposed properties ---
 
-(defterm properties-doc-count
-    (+ (+ (+ (+ (+ (if system-exposes-facts 1 0) (if system-exposes-axioms 1 0)) (if system-exposes-theorems 1 0)) (if system-exposes-terms 1 0)) (if system-exposes-diffs 1 0)) (if system-exposes-documents 1 0))
-    :origin "Count exposed properties from docstring facts")
+(derive properties-doc-count
+    (count-exists system-exposes-facts system-exposes-axioms system-exposes-theorems system-exposes-terms system-exposes-diffs system-exposes-documents)
+    :using (count-exists counting.count-exists-base counting.count-exists-step
+            system-exposes-facts system-exposes-axioms system-exposes-theorems system-exposes-terms system-exposes-diffs system-exposes-documents))
 
 (defterm properties-impl-count 6
     :evidence (evidence "system.py"
@@ -231,9 +236,10 @@
 
 ; --- 4. Provenance ---
 
-(defterm provenance-doc-count
-    (+ (+ (+ (+ (+ (+ (if provenance-returns-dict 1 0) (if provenance-checks-facts 1 0)) (if provenance-checks-axioms 1 0)) (if provenance-checks-terms 1 0)) (if provenance-checks-theorems 1 0)) (if provenance-checks-diffs 1 0)) (if provenance-recurses-for-theorems 1 0))
-    :origin "Count provenance features from docstring facts")
+(derive provenance-doc-count
+    (count-exists provenance-returns-dict provenance-checks-facts provenance-checks-axioms provenance-checks-terms provenance-checks-theorems provenance-checks-diffs provenance-recurses-for-theorems)
+    :using (count-exists counting.count-exists-base counting.count-exists-step
+            provenance-returns-dict provenance-checks-facts provenance-checks-axioms provenance-checks-terms provenance-checks-theorems provenance-checks-diffs provenance-recurses-for-theorems))
 
 (defterm provenance-impl-count 7
     :evidence (evidence "system.py"
@@ -246,9 +252,10 @@
 
 ; --- 5. Effects + load_source ---
 
-(defterm effects-doc-count
-    (+ (if effects-auto-inject-system 1 0) (if load-source-is-module-fn 1 0))
-    :origin "Count effects features from docstring facts")
+(derive effects-doc-count
+    (count-exists effects-auto-inject-system load-source-is-module-fn)
+    :using (count-exists counting.count-exists-base counting.count-exists-step
+            effects-auto-inject-system load-source-is-module-fn))
 
 (defterm effects-impl-count 2
     :evidence (evidence "system.py"

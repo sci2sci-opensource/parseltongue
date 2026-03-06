@@ -1,0 +1,94 @@
+; Phase 2: Axioms — Peano arithmetic + variadic splat reductions
+
+(defterm zero src.primitives.zero :origin "import")
+(defterm succ src.primitives.succ :origin "import")
+(defterm = src.primitives.= :origin "import")
+(defterm + src.primitives.+ :origin "import")
+(defterm - src.primitives.- :origin "import")
+(defterm > src.primitives.> :origin "import")
+(defterm * src.primitives.* :origin "import")
+(defterm and src.primitives.and :origin "import")
+
+; --- Classic Peano axioms ---
+
+(axiom eq-reflexive (= ?x ?x)
+  :evidence (evidence "Counting Observations"
+    :quotes ("If both baskets have 🍎🍎🍎🍎 apples, after swapping they still each have 🍎🍎🍎🍎")
+    :explanation "Equality is reflexive: any pile equals itself"))
+
+(axiom add-identity (= (+ ?n zero) ?n)
+  :evidence (evidence "Counting Observations"
+    :quotes ("Adding nothing to a basket does not change the pile")
+    :explanation "Additive identity: n + 0 = n"))
+
+(axiom add-succ (= (+ ?n (succ ?m)) (succ (+ ?n ?m)))
+  :evidence (evidence "Counting Observations"
+    :quotes ("every pile is reached by adding one more apple to the previous pile")
+    :explanation "Addition step: n + S(m) = S(n + m)"))
+
+(axiom add-commutative (= (+ ?a ?b) (+ ?b ?a))
+  :evidence (evidence "Counting Observations"
+    :quotes ("The order of combining does not matter")
+    :explanation "Commutativity: a + b = b + a"))
+
+(axiom mul-zero (= (* ?n zero) zero)
+  :evidence (evidence "Counting Observations"
+    :quotes ("We decided to mark an empty basket as \"zero\"")
+    :explanation "Multiplication by zero: n * 0 = 0"))
+
+(axiom mul-succ (= (* ?n (succ ?m)) (+ (* ?n ?m) ?n))
+  :evidence (evidence "Counting Observations"
+    :quotes ("Multiplication is a shortcut for combining equal groups")
+    :explanation "Multiplication step: n * S(m) = n*m + n"))
+
+; --- Variadic axioms via ?... splats ---
+; These enable working with arbitrary numbers of piles at once,
+; instead of nesting binary operations by hand.
+
+; sum-all: combine any number of piles
+; Base: a single pile is itself
+(defterm sum-all :origin "variadic sum")
+(axiom sum-all-base (= (sum-all ?x) ?x)
+  :evidence (evidence "Counting Observations"
+    :quotes ("Combining 🍎🍎🍎 apples with 🍎🍎 apples always gives 🍎🍎🍎🍎🍎 apples")
+    :explanation "A single pile needs no combining"))
+
+; Step: peel off first pile, add to sum of remaining
+(axiom sum-all-step (= (sum-all ?x ?y ?...rest) (+ ?x (sum-all ?y ?...rest)))
+  :evidence (evidence "Counting Observations"
+    :quotes ("Combining 🍎🍎🍎 apples with 🍎🍎 apples always gives 🍎🍎🍎🍎🍎 apples"
+             "The order of combining does not matter")
+    :explanation "Combine first pile with the sum of the rest"))
+
+; count-gt: count how many piles exceed a threshold
+; Base: single pile — is it greater?
+(defterm count-gt :origin "variadic count")
+(axiom count-gt-base (= (count-gt ?t ?x) (+ (if (> ?x ?t) 1 0) 0))
+  :evidence (evidence "Counting Observations"
+    :quotes ("If basket A has 🍎🍎🍎🍎🍎 and basket B has 🍎🍎🍎, then basket A has more")
+    :explanation "Check one pile against the threshold"))
+
+; Step: check first, add to count of remaining
+(axiom count-gt-step
+    (= (count-gt ?t ?x ?y ?...rest)
+       (+ (if (> ?x ?t) 1 0) (count-gt ?t ?y ?...rest)))
+  :evidence (evidence "Counting Observations"
+    :quotes ("If basket A has 🍎🍎🍎🍎🍎 and basket B has 🍎🍎🍎, then basket A has more"
+             "Combining 🍎🍎🍎 apples with 🍎🍎 apples always gives 🍎🍎🍎🍎🍎 apples")
+    :explanation "Check first pile, count the rest"))
+
+; all-gt: are ALL piles above a threshold?
+; Base: single pile
+(defterm all-gt :origin "variadic check")
+(axiom all-gt-base (= (all-gt ?t ?x) (> ?x ?t))
+  :evidence (evidence "Counting Observations"
+    :quotes ("If basket A has 🍎🍎🍎🍎🍎 and basket B has 🍎🍎🍎, then basket A has more")
+    :explanation "Check one pile against the threshold"))
+
+; Step: all must pass
+(axiom all-gt-step
+    (= (all-gt ?t ?x ?y ?...rest)
+       (and (> ?x ?t) (all-gt ?t ?y ?...rest)))
+  :evidence (evidence "Counting Observations"
+    :quotes ("If basket A has 🍎🍎🍎🍎🍎 and basket B has 🍎🍎🍎, then basket A has more")
+    :explanation "First pile must pass, and all remaining must too"))

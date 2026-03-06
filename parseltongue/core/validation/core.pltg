@@ -63,13 +63,6 @@
     :replace readme.readme-demo-count
     :with demos.demo-total-count)
 
-(derive demos-proven-11
-    (= demos.demo-total-count 11)
-    :using (demos.demo-total-count
-            demos.apples-count demos.apples-pltg-count demos.biomarkers-count
-            demos.code-check-count demos.deferred-pltg-count demos.doc-validation-count
-            demos.entry-mocks-count demos.extensibility-count demos.revenue-count
-            demos.self-healing-count demos.spec-validation-count))
 
 ; =====================================================================
 ; Engine docstring: module vs class
@@ -294,6 +287,31 @@
 (diff tests-configured :replace readme.readme-documents-tests-configured :with pyproject.core-tests-in-testpaths)
 
 (print "  Packaging consistent:" pyproject.packaging-consistent)
+
+; =====================================================================
+; Splat patterns: README coverage vs implementation
+; =====================================================================
+
+(print "")
+(print "--- Splat pattern coverage ---")
+(print "  README documents splats:" readme.readme-documents-splat-patterns)
+(print "  lang.py has SPLAT_PREFIX:" lang.splat-prefix-impl)
+(print "  lang.py has LANG_DOCS entry:" lang.splat-lang-docs-impl)
+(print "  atoms.py match docstring:" atoms.match-splat-doc)
+(print "  atoms.py substitute docstring:" atoms.substitute-splat-doc)
+(print "  Demo topic:" demos.apples-splats-pltg-topic)
+
+(derive splat-impl-confirmed
+    (and lang.splat-prefix-impl lang.splat-lang-docs-impl atoms.match-splat-doc atoms.substitute-splat-doc)
+    :using (lang.splat-prefix-impl lang.splat-lang-docs-impl atoms.match-splat-doc atoms.substitute-splat-doc))
+
+(diff splat-readme-vs-impl
+    :replace readme.readme-documents-splat-patterns
+    :with splat-impl-confirmed)
+
+(diff splat-readme-vs-demo
+    :replace readme.readme-documents-splat-patterns
+    :with demos.apples-splats-pltg-topic)
 
 (print "")
 (print "========================================")

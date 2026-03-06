@@ -234,7 +234,11 @@ def get_keyword(expr, keyword, default=None):
 
 
 def match(pattern, expr, bindings=None):
-    """Match pattern against expr. ?-prefixed symbols are pattern variables."""
+    """Match pattern against expr. ?-prefixed symbols are pattern variables.
+
+    A ``?...name`` symbol as the last element of a list pattern matches
+    zero or more remaining elements, bound as a list.
+    """
     if bindings is None:
         bindings = {}
     if isinstance(pattern, Symbol) and str(pattern).startswith("?"):
@@ -242,6 +246,20 @@ def match(pattern, expr, bindings=None):
             return bindings if bindings[pattern] == expr else None
         return {**bindings, pattern: expr}
     if isinstance(pattern, list) and isinstance(expr, list):
+        # Splat: ?...name as last element matches remaining items
+        if pattern and isinstance(pattern[-1], Symbol) and str(pattern[-1]).startswith("?..."):
+            splat = pattern[-1]
+            fixed = pattern[:-1]
+            if len(expr) < len(fixed):
+                return None
+            for p, e in zip(fixed, expr[: len(fixed)]):
+                bindings = match(p, e, bindings)
+                if bindings is None:
+                    return None
+            rest = expr[len(fixed) :]
+            if splat in bindings:
+                return bindings if bindings[splat] == rest else None
+            return {**bindings, splat: rest}
         if len(pattern) != len(expr):
             return None
         for p, e in zip(pattern, expr):
@@ -267,9 +285,23 @@ def free_vars(expr) -> set:
 
 
 def substitute(expr, bindings: dict):
-    """Replace symbols with their bound values in an expression tree."""
+    """Replace symbols with their bound values in an expression tree.
+
+    ``?...name`` bindings are spliced into the parent list rather than
+    inserted as a nested list.
+    """
     if isinstance(expr, Symbol) and expr in bindings:
         return bindings[expr]
     if isinstance(expr, list):
-        return [substitute(sub, bindings) for sub in expr]
+        result = []
+        for sub in expr:
+            if isinstance(sub, Symbol) and str(sub).startswith("?...") and sub in bindings:
+                val = bindings[sub]
+                if isinstance(val, list):
+                    result.extend(val)
+                else:
+                    result.append(val)
+            else:
+                result.append(substitute(sub, bindings))
+        return result
     return expr

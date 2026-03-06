@@ -6,6 +6,7 @@
 
 (load-document "apples" "../demos/apples/demo.py")
 (load-document "apples_pltg" "../demos/apples_pltg/demo.py")
+(load-document "apples_splats_pltg" "../demos/apples_splats_pltg/demo.py")
 (load-document "biomarkers" "../demos/biomarkers/demo.py")
 (load-document "code_check" "../demos/code_check/demo.py")
 (load-document "deferred_pltg" "../demos/deferred_pltg/demo.py")
@@ -15,8 +16,12 @@
 (load-document "revenue_reports" "../demos/revenue_reports/demo.py")
 (load-document "self_healing" "../demos/self_healing/demo.py")
 (load-document "spec_validation" "../demos/spec_validation/demo.py")
+(import (quote counting))
+(defterm count-exists counting.count-exists :origin "import")
 
 ; .pltg source files — module system patterns
+(load-document "splats_demo_pltg" "../demos/apples_splats_pltg/demo.pltg")
+(load-document "splats_axioms_pltg" "../demos/apples_splats_pltg/src/axioms.pltg")
 (load-document "apples_demo_pltg" "../demos/apples_pltg/demo.pltg")
 (load-document "apples_primitives_pltg" "../demos/apples_pltg/src/primitives.pltg")
 (load-document "apples_axioms_pltg" "../demos/apples_pltg/src/axioms.pltg")
@@ -50,6 +55,22 @@
     :evidence (evidence "apples_pltg"
         :quotes ("Counting Observations & Apple Arithmetic")
         :explanation "Same topic as apples, but as .pltg module"))
+
+(fact apples-splats-pltg-topic "Apple Arithmetic with Variadic Splats"
+    :evidence (evidence "apples_splats_pltg"
+        :quotes ("Demo: Apple Arithmetic with Variadic Splats (?...).")
+        :explanation "Splats demo topic"))
+
+(fact apples-splats-uses-splat-patterns true
+    :evidence (evidence "apples_splats_pltg"
+        :quotes ("axioms now use ?... splat
+patterns for variadic operations: sum-all, count-gt, all-gt.")
+        :explanation "Demo uses ?... splat patterns for variadic axioms"))
+
+(fact apples-splats-replaces-nested-ops true
+    :evidence (evidence "apples_splats_pltg"
+        :quotes ("No more nested binary ops: (sum-all a b c d) replaces (+ (+ (+ a b) c) d).")
+        :explanation "Flat variadic calls replace nested binary operations"))
 
 (fact biomarkers-topic "Biomarker Evidence Conflict"
     :evidence (evidence "biomarkers"
@@ -210,6 +231,11 @@
         :quotes ("Demo: Parseltongue DSL")
         :explanation "apples_pltg demo exists"))
 
+(fact apples-splats-pltg-count 1
+    :evidence (evidence "apples_splats_pltg"
+        :quotes ("Demo: Apple Arithmetic with Variadic Splats (?...).")
+        :explanation "apples_splats_pltg demo exists"))
+
 (fact biomarkers-count 1
     :evidence (evidence "biomarkers"
         :quotes ("Demo: Parseltongue DSL")
@@ -255,13 +281,9 @@
         :quotes ("Demo: Code-Specification Cross-Validation")
         :explanation "spec_validation demo exists"))
 
-(defterm demo-total-count
-    (+ (+ (+ (+ (+ (+ (+ (+ (+ (+ apples-count apples-pltg-count) biomarkers-count) code-check-count) deferred-pltg-count) doc-validation-count) entry-mocks-count) extensibility-count) revenue-count) self-healing-count) spec-validation-count)
-    :origin "Sum of all individual demo counts")
-
-(derive demo-count-is-11
-    (= demo-total-count 11)
-    :using (demo-total-count apples-count apples-pltg-count biomarkers-count code-check-count deferred-pltg-count doc-validation-count entry-mocks-count extensibility-count revenue-count self-healing-count spec-validation-count))
+(derive demo-total-count
+    (count-exists apples-count apples-pltg-count apples-splats-pltg-count biomarkers-count code-check-count deferred-pltg-count doc-validation-count entry-mocks-count extensibility-count revenue-count self-healing-count spec-validation-count)
+    :using (count-exists apples-count apples-pltg-count apples-splats-pltg-count biomarkers-count code-check-count deferred-pltg-count doc-validation-count entry-mocks-count extensibility-count revenue-count self-healing-count spec-validation-count))
 
 ; =====================================================================
 ; Spec validation — intentional demo divergences expressed as implies
@@ -418,13 +440,14 @@
         :quotes ("(defterm * src.primitives.* :origin \"import\")")
         :explanation "bare alias — lazy by axiom chain"))
 
-(defterm actual-lazy-count
-    (+ (+ (+ (+ (+ (+ lazy-alias-zero lazy-alias-succ) lazy-alias-eq) lazy-alias-plus) lazy-alias-minus) lazy-alias-gt) lazy-alias-mul)
-    :origin "Sum of all defterm aliases — each 1 by axiom chain")
+(derive actual-lazy-count
+    (count-exists lazy-alias-zero lazy-alias-succ lazy-alias-eq lazy-alias-plus lazy-alias-minus lazy-alias-gt lazy-alias-mul)
+    :using (count-exists lazy-alias-zero lazy-alias-succ lazy-alias-eq lazy-alias-plus lazy-alias-minus lazy-alias-gt lazy-alias-mul))
 
 ; Since laziness is default, labeled count = actual count
-(defterm labeled-lazy-count (if laziness-is-default actual-lazy-count 0)
-    :origin "All aliases are lazy by default — labeled count equals actual count")
+(derive labeled-lazy-count
+    (if laziness-is-default actual-lazy-count 0)
+    :using (laziness-is-default actual-lazy-count))
 
 ; Step 6: diff — labeled matches actual after fix
 (diff lazy-label-vs-reality
@@ -619,9 +642,10 @@
 
 ; --- 1. Apples demo features ---
 
-(defterm apples-features-doc-count
-    (+ (if apples-starts-empty 1 0) (if apples-uses-successor-notation 1 0))
-    :origin "Count apples demo features from docstring facts")
+(derive apples-features-doc-count
+    (count-exists apples-starts-empty apples-uses-successor-notation)
+    :using (count-exists counting.count-exists-base counting.count-exists-step
+            apples-starts-empty apples-uses-successor-notation))
 
 (defterm apples-features-impl-count 2
     :evidence (evidence "apples"
@@ -632,11 +656,51 @@
     :replace apples-features-doc-count
     :with apples-features-impl-count)
 
-; --- 2. Biomarkers demo features ---
+; --- 2. Apples splats demo features ---
 
-(defterm biomarkers-features-doc-count
-    (+ (+ (if biomarkers-topic 1 0) (if biomarkers-uses-two-papers 1 0)) (if biomarkers-flags-conflict 1 0))
-    :origin "Count biomarkers demo features from docstring facts")
+(fact apples-splats-uses-splat-patterns-impl true
+    :evidence (evidence "splats_axioms_pltg"
+        :quotes ("; --- Variadic axioms via ?... splats ---
+; These enable working with arbitrary numbers of piles at once,
+; instead of nesting binary operations by hand."
+                 "(axiom sum-all-step (= (sum-all ?x ?y ?...rest) (+ ?x (sum-all ?y ?...rest)))"
+                 "(axiom count-gt-step
+    (= (count-gt ?t ?x ?y ?...rest)
+       (+ (if (> ?x ?t) 1 0) (count-gt ?t ?y ?...rest))))"
+                 "(axiom all-gt-step
+    (= (all-gt ?t ?x ?y ?...rest)
+       (and (> ?x ?t) (all-gt ?t ?y ?...rest))))")
+        :explanation "axioms.pltg defines sum-all, count-gt, all-gt using ?...rest splat patterns"))
+
+(fact apples-splats-replaces-nested-ops-impl true
+    :evidence (evidence "splats_demo_pltg"
+        :quotes ("; OLD way: (+ (+ eve-morning adam-morning) (+ serpent-afternoon eve-afternoon))
+; NEW way: just list them all"
+                 "(defterm daily-total
+    (sum-all src.morning.eve-morning src.morning.adam-morning
+             src.afternoon.serpent-afternoon src.afternoon.eve-afternoon)")
+        :explanation "demo.pltg replaces nested (+ (+ ...)) with flat (sum-all ...) call"))
+
+(derive apples-splats-paired-count
+    (count-exists (and apples-splats-uses-splat-patterns apples-splats-uses-splat-patterns-impl)
+                  (and apples-splats-replaces-nested-ops apples-splats-replaces-nested-ops-impl))
+    :using (count-exists apples-splats-uses-splat-patterns apples-splats-uses-splat-patterns-impl
+                         apples-splats-replaces-nested-ops apples-splats-replaces-nested-ops-impl))
+
+(diff apples-splats-splat-pair
+    :replace apples-splats-uses-splat-patterns
+    :with apples-splats-uses-splat-patterns-impl)
+
+(diff apples-splats-nested-ops-pair
+    :replace apples-splats-replaces-nested-ops
+    :with apples-splats-replaces-nested-ops-impl)
+
+; --- 3. Biomarkers demo features ---
+
+(derive biomarkers-features-doc-count
+    (count-exists biomarkers-topic biomarkers-uses-two-papers biomarkers-flags-conflict)
+    :using (count-exists counting.count-exists-base counting.count-exists-step
+            biomarkers-topic biomarkers-uses-two-papers biomarkers-flags-conflict))
 
 (defterm biomarkers-features-impl-count 3
     :evidence (evidence "biomarkers"
@@ -647,11 +711,12 @@
     :replace biomarkers-features-doc-count
     :with biomarkers-features-impl-count)
 
-; --- 3. Code check demo features ---
+; --- 4. Code check demo features ---
 
-(defterm code-check-features-doc-count
-    (+ (if code-check-topic 1 0) (if code-check-catches-fabrication 1 0))
-    :origin "Count code check demo features from docstring facts")
+(derive code-check-features-doc-count
+    (count-exists code-check-topic code-check-catches-fabrication)
+    :using (count-exists counting.count-exists-base counting.count-exists-step
+            code-check-topic code-check-catches-fabrication))
 
 (defterm code-check-features-impl-count 2
     :evidence (evidence "code_check"
@@ -662,11 +727,12 @@
     :replace code-check-features-doc-count
     :with code-check-features-impl-count)
 
-; --- 4. Deferred demo features ---
+; --- 5. Deferred demo features ---
 
-(defterm deferred-features-doc-count
-    (if deferred-pltg-topic 1 0)
-    :origin "Count deferred demo features from docstring facts")
+(derive deferred-features-doc-count
+    (count-exists deferred-pltg-topic)
+    :using (count-exists counting.count-exists-base
+            deferred-pltg-topic))
 
 (defterm deferred-features-impl-count 1
     :evidence (evidence "deferred_pltg"
@@ -677,11 +743,12 @@
     :replace deferred-features-doc-count
     :with deferred-features-impl-count)
 
-; --- 5. Doc validation demo features ---
+; --- 6. Doc validation demo features ---
 
-(defterm doc-validation-features-doc-count
-    (+ (if doc-validation-topic 1 0) (if doc-validation-catches-inconsistency 1 0))
-    :origin "Count doc validation demo features from docstring facts")
+(derive doc-validation-features-doc-count
+    (count-exists doc-validation-topic doc-validation-catches-inconsistency)
+    :using (count-exists counting.count-exists-base counting.count-exists-step
+            doc-validation-topic doc-validation-catches-inconsistency))
 
 (defterm doc-validation-features-impl-count 2
     :evidence (evidence "doc_validation"
@@ -692,11 +759,12 @@
     :replace doc-validation-features-doc-count
     :with doc-validation-features-impl-count)
 
-; --- 6. Entry mocks demo features ---
+; --- 7. Entry mocks demo features ---
 
-(defterm entry-mocks-features-doc-count
-    (+ (if entry-mocks-topic 1 0) (if entry-mocks-primitives-forward-declared 1 0))
-    :origin "Count entry mocks demo features from docstring facts")
+(derive entry-mocks-features-doc-count
+    (count-exists entry-mocks-topic entry-mocks-primitives-forward-declared)
+    :using (count-exists counting.count-exists-base counting.count-exists-step
+            entry-mocks-topic entry-mocks-primitives-forward-declared))
 
 (defterm entry-mocks-features-impl-count 2
     :evidence (evidence "entry_mocks_pltg"
@@ -707,11 +775,12 @@
     :replace entry-mocks-features-doc-count
     :with entry-mocks-features-impl-count)
 
-; --- 7. Extensibility demo features ---
+; --- 8. Extensibility demo features ---
 
-(defterm extensibility-features-doc-count
-    (+ (+ (if extensibility-topic 1 0) (if extensibility-uses-effects 1 0)) (if extensibility-effects-receive-system 1 0))
-    :origin "Count extensibility demo features from docstring facts")
+(derive extensibility-features-doc-count
+    (count-exists extensibility-topic extensibility-uses-effects extensibility-effects-receive-system)
+    :using (count-exists counting.count-exists-base counting.count-exists-step
+            extensibility-topic extensibility-uses-effects extensibility-effects-receive-system))
 
 (defterm extensibility-features-impl-count 3
     :evidence (evidence "extensibility"
@@ -722,11 +791,12 @@
     :replace extensibility-features-doc-count
     :with extensibility-features-impl-count)
 
-; --- 8. Revenue demo features ---
+; --- 9. Revenue demo features ---
 
-(defterm revenue-features-doc-count
-    (+ (if revenue-topic 1 0) (if revenue-shows-manual-override 1 0))
-    :origin "Count revenue demo features from docstring facts")
+(derive revenue-features-doc-count
+    (count-exists revenue-topic revenue-shows-manual-override)
+    :using (count-exists counting.count-exists-base counting.count-exists-step
+            revenue-topic revenue-shows-manual-override))
 
 (defterm revenue-features-impl-count 2
     :evidence (evidence "revenue_reports"
@@ -737,11 +807,12 @@
     :replace revenue-features-doc-count
     :with revenue-features-impl-count)
 
-; --- 9. Self-healing demo features ---
+; --- 10. Self-healing demo features ---
 
-(defterm self-healing-features-doc-count
-    (+ (if self-healing-topic 1 0) (if self-healing-all-dsl 1 0))
-    :origin "Count self-healing demo features from docstring facts")
+(derive self-healing-features-doc-count
+    (count-exists self-healing-topic self-healing-all-dsl)
+    :using (count-exists counting.count-exists-base counting.count-exists-step
+            self-healing-topic self-healing-all-dsl))
 
 (defterm self-healing-features-impl-count 2
     :evidence (evidence "self_healing"
@@ -752,11 +823,12 @@
     :replace self-healing-features-doc-count
     :with self-healing-features-impl-count)
 
-; --- 10. Spec validation demo features ---
+; --- 11. Spec validation demo features ---
 
-(defterm spec-validation-features-doc-count
-    (if spec-validation-topic 1 0)
-    :origin "Count spec validation demo features from docstring facts")
+(derive spec-validation-features-doc-count
+    (count-exists spec-validation-topic)
+    :using (count-exists counting.count-exists-base
+            spec-validation-topic))
 
 (defterm spec-validation-features-impl-count 1
     :evidence (evidence "spec_validation"
@@ -767,11 +839,12 @@
     :replace spec-validation-features-doc-count
     :with spec-validation-features-impl-count)
 
-; --- 11. Module system axioms ---
+; --- 12. Module system axioms ---
 
 (derive module-axioms-doc-count
-    (+ (+ (+ (+ (+ (+ (if alias-local-zero-exists 1 0) (if let-rebinds-bare-alias 1 0)) (if primitives-are-forward-declared 1 0)) (if lib-has-run-on-entry 1 0)) (if let-mock-rebinds-zero 1 0)) (if chain-demo-imports-app 1 0)) (if cross-bind-mixes-namespaces 1 0))
-    :using (alias-local-zero-exists let-rebinds-bare-alias primitives-are-forward-declared
+    (count-exists alias-local-zero-exists let-rebinds-bare-alias primitives-are-forward-declared lib-has-run-on-entry let-mock-rebinds-zero chain-demo-imports-app cross-bind-mixes-namespaces)
+    :using (count-exists counting.count-exists-base counting.count-exists-step
+            alias-local-zero-exists let-rebinds-bare-alias primitives-are-forward-declared
             lib-has-run-on-entry let-mock-rebinds-zero chain-demo-imports-app cross-bind-mixes-namespaces
             alias-resolves defterm-alias-is-lazy forward-decl-produces-formal
             run-on-entry-gate let-rebind-proves-lazy let-rebinds-forward-decl
@@ -786,11 +859,12 @@
     :replace module-axioms-doc-count
     :with module-axioms-impl-count)
 
-; --- 12. Import patterns ---
+; --- 13. Import patterns ---
 
-(defterm import-patterns-doc-count
-    (if flat-import-also-works 1 0)
-    :origin "Count import pattern facts from docstring evidence")
+(derive import-patterns-doc-count
+    (count-exists flat-import-also-works)
+    :using (count-exists counting.count-exists-base
+            flat-import-also-works))
 
 (defterm import-patterns-impl-count 1
     :evidence (evidence "entry_mocks_math_pltg"

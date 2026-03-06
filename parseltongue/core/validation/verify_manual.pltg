@@ -3,82 +3,25 @@
 ; Computed defterms use :origin (a string) instead of :evidence.
 ; The consistency checker flags these as "no_evidence".
 ; verify-manual marks them as manually verified so they pass.
+;
+; All *-doc-count entries are now self-verifying derives via count-exists.
 
-; --- atoms.pltg ---
-(verify-manual (quote atoms.reader-doc-count))
-(verify-manual (quote atoms.atom-conv-doc-count))
-(verify-manual (quote atoms.core-types-doc-count))
+; --- counting.pltg (axioms have :origin) ---
+(verify-manual (quote counting.count-exists))
+(verify-manual (quote counting.count-exists-base))
+(verify-manual (quote counting.count-exists-step))
 
-; --- engine.pltg ---
-(verify-manual (quote engine.consistency-layers-doc-count))
-(verify-manual (quote engine.consistency-has-docstring))
-(verify-manual (quote engine.issue-types-doc-count))
-(verify-manual (quote engine.directive-loader-doc-count))
-(verify-manual (quote engine.eval-mechanism-doc-count))
-(verify-manual (quote engine.derivation-doc-count))
-(verify-manual (quote engine.diff-mechanism-doc-count))
-(verify-manual (quote engine.fact-mechanism-doc-count))
-(verify-manual (quote engine.lifecycle-doc-count))
-(verify-manual (quote engine.defaults-doc-count))
-(verify-manual (quote engine.consistency-layer-count))
+; --- count-exists aliases (defterm :origin "import") ---
+(verify-manual (quote atoms.count-exists))
+(verify-manual (quote engine.count-exists))
+(verify-manual (quote lang.count-exists))
+(verify-manual (quote system.count-exists))
+(verify-manual (quote quote_verifier.count-exists))
+(verify-manual (quote loader.count-exists))
+(verify-manual (quote default_system_settings.count-exists))
+(verify-manual (quote demos.count-exists))
+(verify-manual (quote readme.count-exists))
+(verify-manual (quote pyproject.count-exists))
 
-; --- lang.pltg ---
-(verify-manual (quote lang.dsl-symbols-doc-count))
-(verify-manual (quote lang.special-forms-doc-count))
-(verify-manual (quote lang.keyword-args-doc-count))
-(verify-manual (quote lang.derive-modes-doc-count))
-(verify-manual (quote lang.defterm-forms-doc-count))
-
-; --- system.pltg ---
-(verify-manual (quote system.constructor-params-doc-count))
-(verify-manual (quote system.delegation-doc-count))
-(verify-manual (quote system.properties-doc-count))
-(verify-manual (quote system.provenance-doc-count))
-(verify-manual (quote system.effects-doc-count))
-
-; --- quote_verifier.pltg ---
-(verify-manual (quote quote_verifier.normalizer-steps-doc-count))
-(verify-manual (quote quote_verifier.verifier-defaults-doc-count))
-(verify-manual (quote quote_verifier.confidence-shape-doc-count))
-(verify-manual (quote quote_verifier.dangerous-stopwords-doc-count))
-(verify-manual (quote quote_verifier.match-strategies-doc-count))
-
-; --- loader.pltg ---
-(verify-manual (quote loader.effect-docs-doc-count))
-(verify-manual (quote loader.context-arch-doc-count))
-(verify-manual (quote loader.loader-internals-doc-count))
-(verify-manual (quote loader.entry-points-doc-count))
-
-; --- default_system_settings.pltg ---
-(verify-manual (quote default_system_settings.total-default-operators))
-(verify-manual (quote default_system_settings.operator-impls-doc-count))
-
-; --- demos.pltg ---
-(verify-manual (quote demos.demo-total-count))
-(verify-manual (quote demos.actual-lazy-count))
-(verify-manual (quote demos.labeled-lazy-count))
-(verify-manual (quote demos.apples-features-doc-count))
-(verify-manual (quote demos.biomarkers-features-doc-count))
-(verify-manual (quote demos.code-check-features-doc-count))
-(verify-manual (quote demos.deferred-features-doc-count))
-(verify-manual (quote demos.doc-validation-features-doc-count))
-(verify-manual (quote demos.entry-mocks-features-doc-count))
-(verify-manual (quote demos.extensibility-features-doc-count))
-(verify-manual (quote demos.revenue-features-doc-count))
-(verify-manual (quote demos.self-healing-features-doc-count))
-(verify-manual (quote demos.spec-validation-features-doc-count))
-(verify-manual (quote demos.import-patterns-doc-count))
-
-; --- readme.pltg ---
-(verify-manual (quote readme.readme-identity-doc-count))
-(verify-manual (quote readme.readme-directives-doc-count))
-(verify-manual (quote readme.readme-operators-doc-count))
-(verify-manual (quote readme.readme-evidence-doc-count))
-(verify-manual (quote readme.readme-issue-types-doc-count))
-(verify-manual (quote readme.readme-custom-env-doc-count))
-(verify-manual (quote readme.readme-demo-examples-doc-count))
-(verify-manual (quote readme.readme-loader-effects-doc-count))
-(verify-manual (quote readme.readme-loader-arch-doc-count))
-
-; --- pyproject.pltg ---
-(verify-manual (quote pyproject.package-data-doc-count))
+; --- non-doc-count origins that remain ---
+(verify-manual (quote readme.readme-documents-splat-patterns))

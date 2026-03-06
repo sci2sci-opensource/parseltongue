@@ -64,6 +64,10 @@ EVIDENCE = Symbol("evidence")
 SPECIAL_FORMS = (IF, LET, QUOTE)
 DSL_KEYWORDS = (AXIOM, DEFTERM, FACT, DERIVE, DIFF, EVIDENCE)
 
+# Pattern variable prefixes — used in axiom ?-variables and splat patterns
+VAR_PREFIX = "?"
+SPLAT_PREFIX = "?..."
+
 # Keyword arguments (plain strings, not Symbols — returned by atom() as-is)
 KW_QUOTES = ":quotes"
 KW_EXPLANATION = ":explanation"
@@ -316,6 +320,39 @@ LANG_DOCS = {
             '    :quotes ("Bonus is 20% of base salary if growth target is exceeded"\n'
             '             "Eligibility requires that the quarterly revenue growth exceeds the stated annual growth target")\n'  # noqa: E501
             '    :explanation "Bonus calculation formula and eligibility criteria")',
+        ],
+    },
+    # ----------------------------------------------------------
+    # Pattern variables
+    # ----------------------------------------------------------
+    VAR_PREFIX: {
+        "category": "structural",
+        "description": "Pattern variable prefix.  Symbols starting with ? are "
+        "pattern variables in expressions.  During matching, each "
+        "?-variable binds to the corresponding sub-expression.  "
+        "During substitution, bound values replace the variable.  "
+        "Used in axioms (required), rewrite-rule theorems, and "
+        ":bind clauses.",
+        "example": "?x, ?n, ?pattern",
+        "patterns": [
+            "(axiom add-identity (= (+ ?n zero) ?n))",
+            "(derive d1 ax1 :bind ((?x 42)))",
+        ],
+    },
+    SPLAT_PREFIX: {
+        "category": "structural",
+        "description": "Splat/rest pattern prefix.  A ?...name symbol as the "
+        "last element of a list pattern matches zero or more "
+        "remaining elements as a list.  During substitution the "
+        "bound list is spliced into the parent expression.  "
+        "Enables variadic rewrite rules — e.g. recursive "
+        "reduce/fold over arbitrary-length argument lists.",
+        "example": "?...rest, ?...args, ?...tail",
+        "patterns": [
+            "; Variadic counting via recursive rewrite\n"
+            "(axiom count-base (= (count-true) 0))\n"
+            "(axiom count-step (= (count-true ?x ?...rest)\n"
+            "    (+ (if ?x 1 0) (count-true ?...rest))))",
         ],
     },
     # ----------------------------------------------------------

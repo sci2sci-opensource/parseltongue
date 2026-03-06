@@ -1,0 +1,11 @@
+; Afternoon harvest (same as apples_pltg)
+
+(defterm serpent-afternoon (succ (succ (succ (succ zero))))
+  :evidence (evidence "Eden Inventory"
+    :quotes ("Serpent picked 🍎🍎🍎🍎 apples from the south grove")
+    :explanation "Serpent's afternoon count: SSSS0"))
+
+(defterm eve-afternoon (succ (succ zero))
+  :evidence (evidence "Eden Inventory"
+    :quotes ("Eve picked 🍎🍎 more apples from the east grove")
+    :explanation "Eve's afternoon count: SS0"))

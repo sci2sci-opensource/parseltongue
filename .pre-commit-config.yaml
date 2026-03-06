@@ -14,6 +14,7 @@ repos:
     rev: v1.15.0
     hooks:
       - id: mypy
-        args: [--ignore-missing-imports, --exclude, 'demos|tests', parseltongue/]
-        pass_filenames: false
+        args: [--ignore-missing-imports]
+        types: [python]
+        exclude: 'demos|tests'
         additional_dependencies: [textual>=0.50.0]

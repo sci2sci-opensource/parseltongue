@@ -1,6 +1,8 @@
 ; engine.pltg — Ground truth and internal validation for engine.py
 
 (load-document "engine.py" "../engine.py")
+(import (quote counting))
+(defterm count-exists counting.count-exists :origin "import")
 
 ; =====================================================================
 ; Module docstring vs class docstring
@@ -149,8 +151,10 @@
         :quotes ("3. Diff agreement")
         :explanation "Third consistency layer"))
 
-(fact consistency-layer-count 3
-    :origin "Counted from documented layers 1-3")
+(derive consistency-layer-count
+    (count-exists consistency-layer-1 consistency-layer-2 consistency-layer-3)
+    :using (count-exists counting.count-exists-base counting.count-exists-step
+            consistency-layer-1 consistency-layer-2 consistency-layer-3))
 
 ; Issue type strings — exactly what the code creates
 (fact issue-type-unverified "unverified_evidence"
@@ -287,17 +291,20 @@
 
 ; --- 1. Consistency layers ---
 
-(defterm consistency-layers-doc-count
-    (+ (+ (if consistency-layer-1 1 0) (if consistency-layer-2 1 0)) (if consistency-layer-3 1 0))
-    :origin "Count consistency layers from docstring facts")
+(derive consistency-layers-doc-count
+    (count-exists consistency-layer-1 consistency-layer-2 consistency-layer-3)
+    :using (count-exists counting.count-exists-base counting.count-exists-step
+            consistency-layer-1 consistency-layer-2 consistency-layer-3))
 
 (diff consistency-layers-coverage
     :replace consistency-layers-doc-count
     :with consistency-layer-count)
 
 ; consistency-doc: docs say method exists, code confirms
-(defterm consistency-has-docstring (if consistency-doc 1 0)
-    :origin "Docs branch: consistency method has docstring")
+(derive consistency-has-docstring
+    (count-exists consistency-doc)
+    :using (count-exists counting.count-exists-base
+            consistency-doc))
 
 (defterm consistency-has-impl 1
     :evidence (evidence "engine.py"
@@ -310,9 +317,10 @@
 
 ; --- 2. Issue types ---
 
-(defterm issue-types-doc-count
-    (+ (+ (+ (+ (if issue-type-unverified 1 0) (if issue-type-no-evidence 1 0)) (if issue-type-fabrication 1 0)) (if issue-type-diff-divergence 1 0)) (if issue-type-diff-value 1 0))
-    :origin "Count issue types from docstring facts")
+(derive issue-types-doc-count
+    (count-exists issue-type-unverified issue-type-no-evidence issue-type-fabrication issue-type-diff-divergence issue-type-diff-value)
+    :using (count-exists counting.count-exists-base counting.count-exists-step
+            issue-type-unverified issue-type-no-evidence issue-type-fabrication issue-type-diff-divergence issue-type-diff-value))
 
 (defterm issue-types-impl-count 5
     :evidence (evidence "engine.py"
@@ -325,9 +333,10 @@
 
 ; --- 3. Directive loader ---
 
-(defterm directive-loader-doc-count
-    (+ (+ (+ (+ (+ (if load-source-handles-axiom 1 0) (if load-source-handles-defterm 1 0)) (if load-source-handles-fact 1 0)) (if load-source-handles-derive 1 0)) (if load-source-handles-diff 1 0)) (if load-source-fallback-evaluates 1 0))
-    :origin "Count directive handlers from docstring facts")
+(derive directive-loader-doc-count
+    (count-exists load-source-handles-axiom load-source-handles-defterm load-source-handles-fact load-source-handles-derive load-source-handles-diff load-source-fallback-evaluates)
+    :using (count-exists counting.count-exists-base counting.count-exists-step
+            load-source-handles-axiom load-source-handles-defterm load-source-handles-fact load-source-handles-derive load-source-handles-diff load-source-fallback-evaluates))
 
 (defterm directive-loader-impl-count 6
     :evidence (evidence "engine.py"
@@ -340,9 +349,10 @@
 
 ; --- 4. Evaluation mechanism ---
 
-(defterm eval-mechanism-doc-count
-    (+ (+ (+ (if eval-doc 1 0) (if rewrite-direction 1 0)) (if rewrite-depth-limit 1 0)) (if eq-has-rewrite-fallback 1 0))
-    :origin "Count evaluation features from docstring facts")
+(derive eval-mechanism-doc-count
+    (count-exists eval-doc rewrite-direction rewrite-depth-limit eq-has-rewrite-fallback)
+    :using (count-exists counting.count-exists-base counting.count-exists-step
+            eval-doc rewrite-direction rewrite-depth-limit eq-has-rewrite-fallback))
 
 (defterm eval-mechanism-impl-count 4
     :evidence (evidence "engine.py"
@@ -355,9 +365,10 @@
 
 ; --- 5. Derivation mechanism ---
 
-(defterm derivation-doc-count
-    (+ (+ (+ (if derive-doc 1 0) (if derive-restricted-eval 1 0)) (if derive-fabrication-propagation 1 0)) (+ (if axiom-requires-free-vars 1 0) (if axiom-rejection-message 1 0)))
-    :origin "Count derivation features from docstring facts")
+(derive derivation-doc-count
+    (count-exists derive-doc derive-restricted-eval derive-fabrication-propagation axiom-requires-free-vars axiom-rejection-message)
+    :using (count-exists counting.count-exists-base counting.count-exists-step
+            derive-doc derive-restricted-eval derive-fabrication-propagation axiom-requires-free-vars axiom-rejection-message))
 
 (defterm derivation-impl-count 5
     :evidence (evidence "engine.py"
@@ -370,9 +381,10 @@
 
 ; --- 6. Diff mechanism ---
 
-(defterm diff-mechanism-doc-count
-    (+ (+ (if register-diff-doc 1 0) (if eval-diff-doc 1 0)) (if diff-is-lazy 1 0))
-    :origin "Count diff features from docstring facts")
+(derive diff-mechanism-doc-count
+    (count-exists register-diff-doc eval-diff-doc diff-is-lazy)
+    :using (count-exists counting.count-exists-base counting.count-exists-step
+            register-diff-doc eval-diff-doc diff-is-lazy))
 
 (defterm diff-mechanism-impl-count 3
     :evidence (evidence "engine.py"
@@ -385,9 +397,10 @@
 
 ; --- 7. Fact/set_fact mechanism ---
 
-(defterm fact-mechanism-doc-count
-    (+ (+ (+ (+ (if fact-docstring 1 0) (if fact-extends-axiom 1 0)) (if set-fact-checks-overridable 1 0)) (if set-fact-error-on-duplicate 1 0)) (if set-fact-updates-env 1 0))
-    :origin "Count fact mechanism features from docstring facts")
+(derive fact-mechanism-doc-count
+    (count-exists fact-docstring fact-extends-axiom set-fact-checks-overridable set-fact-error-on-duplicate set-fact-updates-env)
+    :using (count-exists counting.count-exists-base counting.count-exists-step
+            fact-docstring fact-extends-axiom set-fact-checks-overridable set-fact-error-on-duplicate set-fact-updates-env))
 
 (defterm fact-mechanism-impl-count 5
     :evidence (evidence "engine.py"
@@ -400,9 +413,10 @@
 
 ; --- 8. Retract/rederive lifecycle ---
 
-(defterm lifecycle-doc-count
-    (+ (if retract-doc 1 0) (if rederive-doc 1 0))
-    :origin "Count lifecycle features from docstring facts")
+(derive lifecycle-doc-count
+    (count-exists retract-doc rederive-doc)
+    :using (count-exists counting.count-exists-base counting.count-exists-step
+            retract-doc rederive-doc))
 
 (defterm lifecycle-impl-count 2
     :evidence (evidence "engine.py"
@@ -415,9 +429,10 @@
 
 ; --- 9. Constructor defaults ---
 
-(defterm defaults-doc-count
-    (+ (if (= overridable-default false) 1 0) (if strict-derive-default 1 0))
-    :origin "Count constructor defaults from docstring facts")
+(derive defaults-doc-count
+    (count-exists (= overridable-default false) strict-derive-default)
+    :using (count-exists counting.count-exists-base counting.count-exists-step
+            overridable-default strict-derive-default))
 
 (defterm defaults-impl-count 2
     :evidence (evidence "engine.py"

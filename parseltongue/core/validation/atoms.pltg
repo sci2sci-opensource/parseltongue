@@ -1,6 +1,8 @@
 ; atoms.pltg — Ground truth and internal validation for atoms.py
 
 (load-document "atoms.py" "../atoms.py")
+(import (quote counting))
+(defterm count-exists counting.count-exists :origin "import")
 
 ; =====================================================================
 ; Module contract — what the docstring promises
@@ -289,6 +291,19 @@ class Term:")
         :quotes ("Replace symbols with their bound values in an expression tree.")
         :explanation "substitute docstring"))
 
+; Splat pattern support — docstring ground truth
+(fact match-splat-doc true
+    :evidence (evidence "atoms.py"
+        :quotes ("A ``?...name`` symbol as the last element of a list pattern matches
+    zero or more remaining elements, bound as a list.")
+        :explanation "match docstring documents ?... splat pattern support"))
+
+(fact substitute-splat-doc true
+    :evidence (evidence "atoms.py"
+        :quotes ("``?...name`` bindings are spliced into the parent list rather than
+    inserted as a nested list.")
+        :explanation "substitute docstring documents ?... splicing behavior"))
+
 ; Axiom: match produces bindings that substitute can consume
 (axiom match-substitute-roundtrip
     (= (implies (?bindings ?pattern ?expr) (= ?expr (?substitute ?pattern ?bindings))) true)
@@ -378,9 +393,10 @@ class Term:")
 
 ; --- 1. Reader pipeline function count ---
 
-(defterm reader-doc-count
-    (+ (+ (+ (+ (+ (if tokenize-doc 1 0) (if read-tokens-doc 1 0)) (if atom-doc 1 0)) (if parse-doc 1 0)) (if parse-all-doc 1 0)) (if comment-char 1 0))
-    :origin "Count reader pipeline features from docstring facts")
+(derive reader-doc-count
+    (count-exists tokenize-doc read-tokens-doc atom-doc parse-doc parse-all-doc comment-char)
+    :using (count-exists counting.count-exists-base counting.count-exists-step
+            tokenize-doc read-tokens-doc atom-doc parse-doc parse-all-doc comment-char))
 
 (defterm reader-impl-count 6
     :evidence (evidence "atoms.py"
@@ -393,9 +409,10 @@ class Term:")
 
 ; --- 2. Atom conversion chain ---
 
-(defterm atom-conv-doc-count
-    (+ (+ (+ (+ (if atom-tries-int-first 1 0) (if atom-tries-float-second 1 0)) (if atom-keyword-prefix 1 0)) (if atom-false-token 1 0)) (if atom-fallback-is-symbol 1 0))
-    :origin "Count atom() conversion branches from docstring facts")
+(derive atom-conv-doc-count
+    (count-exists atom-tries-int-first atom-tries-float-second atom-keyword-prefix atom-false-token atom-fallback-is-symbol)
+    :using (count-exists counting.count-exists-base counting.count-exists-step
+            atom-tries-int-first atom-tries-float-second atom-keyword-prefix atom-false-token atom-fallback-is-symbol))
 
 (defterm atom-conv-impl-count 5
     :evidence (evidence "atoms.py"
@@ -408,9 +425,10 @@ class Term:")
 
 ; --- 3. Core type documentation ---
 
-(defterm core-types-doc-count
-    (+ (+ (+ (+ (+ (if symbol-docstring 1 0) (if symbol-base-class 1 0)) (if evidence-docstring 1 0)) (if axiom-docstring 1 0)) (if theorem-docstring 1 0)) (if term-docstring 1 0))
-    :origin "Count documented core type properties from docstring facts")
+(derive core-types-doc-count
+    (count-exists symbol-docstring symbol-base-class evidence-docstring axiom-docstring theorem-docstring term-docstring)
+    :using (count-exists counting.count-exists-base counting.count-exists-step
+            symbol-docstring symbol-base-class evidence-docstring axiom-docstring theorem-docstring term-docstring))
 
 (defterm core-types-impl-count 6
     :evidence (evidence "atoms.py"
@@ -424,8 +442,9 @@ class Term:")
 ; --- 4. Evidence/provenance mechanism ---
 
 (derive evidence-mechanism-doc-count
-    (+ (+ (+ (+ (if evidence-grounded-doc 1 0) (if evidence-grounded-impl 1 0)) (if axiom-has-origin 1 0)) (if theorem-has-derivation 1 0)) (if theorem-default-origin 1 0))
-    :using (evidence-grounded-doc evidence-grounded-impl axiom-has-origin theorem-has-derivation theorem-default-origin grounding-rule origin-is-provenance))
+    (count-exists evidence-grounded-doc evidence-grounded-impl axiom-has-origin theorem-has-derivation theorem-default-origin)
+    :using (count-exists counting.count-exists-base counting.count-exists-step
+            evidence-grounded-doc evidence-grounded-impl axiom-has-origin theorem-has-derivation theorem-default-origin grounding-rule origin-is-provenance))
 
 (defterm evidence-mechanism-impl-count 5
     :evidence (evidence "atoms.py"
@@ -460,8 +479,9 @@ class Term:")
 ; --- 6. DSL helpers ---
 
 (derive dsl-helpers-doc-count
-    (+ (+ (+ (if match-doc 1 0) (if free-vars-doc 1 0)) (if substitute-doc 1 0)) (if to-sexp-doc 1 0))
-    :using (match-doc free-vars-doc substitute-doc to-sexp-doc match-substitute-roundtrip))
+    (count-exists match-doc free-vars-doc substitute-doc to-sexp-doc)
+    :using (count-exists counting.count-exists-base counting.count-exists-step
+            match-doc free-vars-doc substitute-doc to-sexp-doc match-substitute-roundtrip))
 
 (defterm dsl-helpers-impl-count 4
     :evidence (evidence "atoms.py"
@@ -475,8 +495,9 @@ class Term:")
 ; --- 7. Term display paths ---
 
 (derive term-display-doc-count
-    (+ (if term-forward-decl-display 1 0) (if term-has-body-display 1 0))
-    :using (term-forward-decl-display term-has-body-display term-display-rule))
+    (count-exists term-forward-decl-display term-has-body-display)
+    :using (count-exists counting.count-exists-base counting.count-exists-step
+            term-forward-decl-display term-has-body-display term-display-rule))
 
 (defterm term-display-impl-count 2
     :evidence (evidence "atoms.py"
@@ -487,7 +508,54 @@ class Term:")
     :replace term-display-doc-count
     :with term-display-impl-count)
 
-; --- 8. Module contract (purity vs mutability) ---
+; --- 8. Splat pattern support ---
+
+(fact match-splat-impl true
+    :evidence (evidence "atoms.py"
+        :quotes ("# Splat: ?...name as last element matches remaining items
+        if (pattern and isinstance(pattern[-1], Symbol)
+                and str(pattern[-1]).startswith(\"?...\")):")
+        :explanation "match() implements ?... splat matching"))
+
+(fact substitute-splat-impl true
+    :evidence (evidence "atoms.py"
+        :quotes ("if (isinstance(sub, Symbol) and str(sub).startswith(\"?...\")
+                    and sub in bindings):
+                val = bindings[sub]
+                if isinstance(val, list):
+                    result.extend(val)")
+        :explanation "substitute() implements ?... splicing"))
+
+(derive splat-doc-count
+    (count-exists match-splat-doc substitute-splat-doc)
+    :using (count-exists match-splat-doc substitute-splat-doc))
+
+(derive splat-impl-count
+    (count-exists match-splat-impl substitute-splat-impl)
+    :using (count-exists match-splat-impl substitute-splat-impl))
+
+(derive splat-paired-count
+    (count-exists (and match-splat-doc match-splat-impl)
+                  (and substitute-splat-doc substitute-splat-impl))
+    :using (count-exists match-splat-doc match-splat-impl substitute-splat-doc substitute-splat-impl))
+
+(diff splat-paired-vs-doc
+    :replace splat-doc-count
+    :with splat-paired-count)
+
+(diff splat-paired-vs-impl
+    :replace splat-impl-count
+    :with splat-paired-count)
+
+(diff match-splat-pair
+    :replace match-splat-doc
+    :with match-splat-impl)
+
+(diff substitute-splat-pair
+    :replace substitute-splat-doc
+    :with substitute-splat-impl)
+
+; --- 9. Module contract (purity vs mutability) ---
 ; Docstring claims purity. Axiom: purity implies immutability.
 ; Code: are all types actually frozen? No — diff surfaces the inconsistency.
 

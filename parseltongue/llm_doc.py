@@ -78,7 +78,6 @@ def llm_doc() -> str:
             _example_minimal(),
             _example_with_modules(),
             _example_entry_mocks(),
-            _llm_pipeline(),
             _workflow(),
             _tips(),
             "\n## Built-in System Reference\n",
@@ -244,6 +243,12 @@ Passed through to System() constructor:
 def _running_pltg() -> str:
     return """
 ## Running .pltg Files
+
+### From the command line
+
+```bash
+python -m parseltongue load_main path/to/demo.pltg
+```
 
 ### Minimal Python launcher
 
@@ -615,61 +620,6 @@ Each higher level: same pattern, composing cross-checks.
 This works for code verification, literature review, compliance
 auditing, multi-source journalism, and any domain where claims
 from multiple sources must be reconciled."""
-
-
-def _llm_pipeline() -> str:
-    return """
-## LLM-Powered Pipeline (Automated Analysis)
-
-Parseltongue includes a four-pass LLM pipeline that automates the
-entire workflow — extraction, derivation, fact-checking, and reporting.
-
-```python
-from parseltongue.core import System
-from parseltongue.llm import Pipeline
-from parseltongue.llm.openrouter import OpenRouterProvider
-
-system = System(overridable=True)
-provider = OpenRouterProvider()
-
-pipeline = Pipeline(system, provider)
-pipeline.add_document("Report", path="resources/report.txt")
-
-result = pipeline.run("Did we beat our growth target?")
-print(result.output)
-```
-
-### The Four Passes
-
-1. **Extraction** — LLM reads source documents, outputs facts/terms/axioms
-   as Parseltongue directives with :evidence from verbatim quotes
-2. **Derivation** — LLM sees fact names/types (NOT values), builds
-   logical derivations and diffs from structural relationships
-3. **Fact Check** — LLM sees full evaluated state, cross-validates
-   by introducing alternative computation paths and diffing
-4. **Inference** — LLM writes a human-readable report with inline
-   [[type:name]] references linking every claim to evidence
-
-### Multi-Document Pipeline
-
-```python
-pipeline.add_document("Code", path="resources/auth_module.py.txt")
-pipeline.add_document("README", path="resources/readme.txt")
-
-result = pipeline.run(
-    "Validate this README against the actual code. "
-    "Are there contradictions?"
-)
-```
-
-The pipeline handles source ordering internally — the LLM extracts
-from all documents in pass 1, then cross-checks in passes 2-3.
-
-### Install LLM dependencies
-
-```bash
-pip install parseltongue-dsl[llm]
-```"""
 
 
 def _tips() -> str:

@@ -292,7 +292,7 @@ class TestParseltongueCoreConsistency(unittest.TestCase):
         msg.append(f"After consistency: {sorted(dangling_after_consistency)}")
 
         print(msg)
+        self.assertEqual(lost_dangling_consistency, set(), "consistency() changed dangling set:\n" + "\n".join(msg))
+        self.assertEqual(dangling_after, dangling_before, "terms eval() changed dangling set:\n" + "\n".join(msg))
+
         self.assertEqual(dangling_before, dangling_after, "evaluate() changed dangling set:\n" + "\n".join(msg))
-        self.assertEqual(
-            dangling_before, lost_dangling_consistency, "consistency() changed dangling set:\n" + "\n".join(msg)
-        )

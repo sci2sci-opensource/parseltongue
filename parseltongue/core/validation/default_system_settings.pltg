@@ -1,6 +1,8 @@
 ; default_system_settings.pltg — Ground truth from default_system_settings.py
 
 (load-document "default_system_settings.py" "../default_system_settings.py")
+(import (quote counting))
+(defterm count-exists counting.count-exists :origin "import")
 
 ; =====================================================================
 ; Operator counts
@@ -22,8 +24,9 @@
         :explanation "4 logic operators"))
 
 ; Total default operators: 5 + 6 + 4 = 15
-(defterm total-default-operators (+ (+ arithmetic-op-count comparison-op-count) logic-op-count)
-    :origin "Sum of arithmetic + comparison + logic")
+(derive total-default-operators
+    (+ (+ arithmetic-op-count comparison-op-count) logic-op-count)
+    :using (arithmetic-op-count comparison-op-count logic-op-count))
 
 ; =====================================================================
 ; Operator implementations
@@ -78,9 +81,10 @@
 
 ; --- Operator implementations: docs vs code ---
 
-(defterm operator-impls-doc-count
-    (+ (+ (+ (+ (+ (if add-impl 1 0) (if eq-impl 1 0)) (if implies-impl 1 0)) (if and-is-variadic 1 0)) (if or-is-variadic 1 0)) (if eq-is-comparison 1 0))
-    :origin "Count operator impl facts from docstring evidence")
+(derive operator-impls-doc-count
+    (count-exists add-impl eq-impl implies-impl and-is-variadic or-is-variadic eq-is-comparison)
+    :using (count-exists counting.count-exists-base counting.count-exists-step
+            add-impl eq-impl implies-impl and-is-variadic or-is-variadic eq-is-comparison))
 
 (defterm operator-impls-impl-count 6
     :evidence (evidence "default_system_settings.py"

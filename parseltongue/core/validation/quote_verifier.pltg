@@ -1,6 +1,8 @@
 ; quote_verifier.pltg — Ground truth from quote_verifier/
 
 (load-document "verifier.py" "../quote_verifier/verifier.py")
+(import (quote counting))
+(defterm count-exists counting.count-exists :origin "import")
 (load-document "normalizer.py" "../quote_verifier/normalizer.py")
 (load-document "config.py" "../quote_verifier/config.py")
 
@@ -218,9 +220,10 @@
 
 ; --- 1. Normalizer pipeline ---
 
-(defterm normalizer-steps-doc-count
-    (+ (+ (+ (+ (+ (if normalizer-step-1 1 0) (if normalizer-step-2 1 0)) (if normalizer-step-3 1 0)) (if normalizer-step-4 1 0)) (if normalizer-step-5 1 0)) (if normalizer-step-6 1 0))
-    :origin "Count normalizer steps from docstring facts")
+(derive normalizer-steps-doc-count
+    (count-exists normalizer-step-1 normalizer-step-2 normalizer-step-3 normalizer-step-4 normalizer-step-5 normalizer-step-6)
+    :using (count-exists counting.count-exists-base counting.count-exists-step
+            normalizer-step-1 normalizer-step-2 normalizer-step-3 normalizer-step-4 normalizer-step-5 normalizer-step-6))
 
 (diff normalizer-pipeline-coverage
     :replace normalizer-steps-doc-count
@@ -228,9 +231,10 @@
 
 ; --- 2. Verifier defaults ---
 
-(defterm verifier-defaults-doc-count
-    (+ (+ (+ (if verifier-docstring 1 0) (if (= verifier-default-case-sensitive false) 1 0)) (if verifier-default-ignore-punctuation 1 0)) (if (= verifier-default-remove-stopwords false) 1 0))
-    :origin "Count verifier default facts from docstring evidence")
+(derive verifier-defaults-doc-count
+    (count-exists verifier-docstring (= verifier-default-case-sensitive false) verifier-default-ignore-punctuation (= verifier-default-remove-stopwords false))
+    :using (count-exists counting.count-exists-base counting.count-exists-step
+            verifier-docstring verifier-default-case-sensitive verifier-default-ignore-punctuation verifier-default-remove-stopwords))
 
 (defterm verifier-defaults-impl-count 4
     :evidence (evidence "verifier.py"
@@ -243,9 +247,10 @@
 
 ; --- 3. Confidence return shape ---
 
-(defterm confidence-shape-doc-count
-    (+ (+ (if verifier-confidence-has-score 1 0) (if verifier-confidence-has-level 1 0)) (if high-confidence-threshold 1 0))
-    :origin "Count confidence shape facts from docstring evidence")
+(derive confidence-shape-doc-count
+    (count-exists verifier-confidence-has-score verifier-confidence-has-level high-confidence-threshold)
+    :using (count-exists counting.count-exists-base counting.count-exists-step
+            verifier-confidence-has-score verifier-confidence-has-level high-confidence-threshold))
 
 (defterm confidence-shape-impl-count 3
     :evidence (evidence "verifier.py"
@@ -258,9 +263,10 @@
 
 ; --- 4. Dangerous stopwords ---
 
-(defterm dangerous-stopwords-doc-count
-    (+ (+ (if dangerous-includes-not 1 0) (if dangerous-includes-never 1 0)) (if dangerous-includes-without 1 0))
-    :origin "Count dangerous stopword facts from docstring evidence")
+(derive dangerous-stopwords-doc-count
+    (count-exists dangerous-includes-not dangerous-includes-never dangerous-includes-without)
+    :using (count-exists counting.count-exists-base counting.count-exists-step
+            dangerous-includes-not dangerous-includes-never dangerous-includes-without))
 
 (defterm dangerous-stopwords-impl-count 3
     :evidence (evidence "config.py"
@@ -273,9 +279,10 @@
 
 ; --- 5. Match strategies ---
 
-(defterm match-strategies-doc-count
-    (+ (+ (if match-strategy-exact 1 0) (if match-strategy-collapsed 1 0)) (if penalty-collapsed-space 1 0))
-    :origin "Count match strategy facts from docstring evidence")
+(derive match-strategies-doc-count
+    (count-exists match-strategy-exact match-strategy-collapsed penalty-collapsed-space)
+    :using (count-exists counting.count-exists-base counting.count-exists-step
+            match-strategy-exact match-strategy-collapsed penalty-collapsed-space))
 
 (defterm match-strategies-impl-count 3
     :evidence (evidence "config.py"
@@ -289,5 +296,6 @@
 ; --- 6. Penalty ordering ---
 
 (derive penalty-ordering-doc-count
-    (+ (if (> penalty-dangerous-stopword penalty-whitespace) 1 0) (if (> penalty-stopword penalty-punctuation) 1 0))
-    :using (penalty-dangerous-stopword penalty-whitespace penalty-stopword penalty-punctuation penalty-ordering))
+    (count-exists (> penalty-dangerous-stopword penalty-whitespace) (> penalty-stopword penalty-punctuation))
+    :using (count-exists counting.count-exists-base counting.count-exists-step
+            penalty-dangerous-stopword penalty-whitespace penalty-stopword penalty-punctuation penalty-ordering))

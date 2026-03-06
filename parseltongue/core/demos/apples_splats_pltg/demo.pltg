@@ -1,0 +1,177 @@
+; ==========================================================
+; Parseltongue DSL — Apple Arithmetic with Variadic Splats
+; ==========================================================
+; Like apples_pltg but uses ?... splat patterns for variadic
+; axioms: sum-all, count-gt, all-gt. No more nested binary ops.
+
+(print "============================================================")
+(print "Apple Arithmetic with Variadic Splats (?...)")
+(print "============================================================")
+
+; --- Phase 0: Load source documents ---
+(print "\n--- Phase 0: Load source documents ---")
+(load-document "Counting Observations" "resources/counting_observations.txt")
+(load-document "Eden Inventory" "resources/eden_inventory.txt")
+
+; --- Phase 1: Primitives ---
+(print "\n--- Phase 1: Introduce primitive symbols ---")
+(import (quote src.primitives))
+(defterm local-zero src.primitives.zero :origin "import")
+(defterm local-succ src.primitives.succ :origin "import")
+
+; --- Phase 2: Axioms (Peano + splat reductions) ---
+(print "\n--- Phase 2: Axioms ---")
+(import (quote src.axioms))
+
+; Local aliases for readable derives
+(defterm = src.axioms.= :origin "import")
+(defterm + src.axioms.+ :origin "import")
+(defterm > src.axioms.> :origin "import")
+(defterm and src.axioms.and :origin "import")
+(defterm sum-all src.axioms.sum-all :origin "import")
+(defterm count-gt src.axioms.count-gt :origin "import")
+(defterm all-gt src.axioms.all-gt :origin "import")
+
+(print "  Axioms:")
+(list-axioms)
+
+; --- Phase 3: Harvest data ---
+(print "\n--- Phase 3: Harvest data ---")
+(import (quote src.morning))
+(import (quote src.afternoon))
+
+; --- Phase 4: Variadic totals via sum-all ---
+; OLD way: (+ (+ eve-morning adam-morning) (+ serpent-afternoon eve-afternoon))
+; NEW way: just list them all
+
+(print "\n--- Phase 4: Variadic totals (sum-all) ---")
+
+(defterm morning-total (sum-all src.morning.eve-morning src.morning.adam-morning)
+  :evidence (evidence "Eden Inventory"
+    :quotes ("Combined morning harvest was 🍎🍎🍎🍎🍎🍎🍎🍎 apples")
+    :explanation "Sum of all morning picks"))
+
+(defterm afternoon-total (sum-all src.afternoon.serpent-afternoon src.afternoon.eve-afternoon)
+  :evidence (evidence "Eden Inventory"
+    :quotes ("Combined afternoon harvest was 🍎🍎🍎🍎🍎🍎 apples")
+    :explanation "Sum of all afternoon picks"))
+
+; Grand total: four pickers in one expression
+(defterm daily-total
+    (sum-all src.morning.eve-morning src.morning.adam-morning
+             src.afternoon.serpent-afternoon src.afternoon.eve-afternoon)
+  :evidence (evidence "Eden Inventory"
+    :quotes ("Total harvest for the day was 🍎🍎🍎🍎🍎🍎🍎🍎🍎🍎🍎🍎🍎🍎 apples")
+    :explanation "Grand total = all four picks summed at once via sum-all"))
+
+(defterm eve-daily (sum-all src.morning.eve-morning src.afternoon.eve-afternoon)
+  :evidence (evidence "Eden Inventory"
+    :quotes ("Eve's daily total is 🍎🍎🍎🍎🍎 apples")
+    :explanation "Eve's combined morning + afternoon"))
+
+(print "  Terms:")
+(list-terms)
+
+; --- Phase 5: Variadic counting (count-gt) ---
+; How many pickers got more than 3 apples in a single shift?
+; Threshold: SSS0 (3 apples)
+
+(print "\n--- Phase 5: Count big harvests (count-gt) ---")
+
+(defterm threshold (succ (succ (succ zero)))
+  :origin "3 apples — a good haul")
+
+(defterm big-harvest-count
+    (count-gt threshold
+             src.morning.eve-morning
+             src.morning.adam-morning
+             src.afternoon.serpent-afternoon
+             src.afternoon.eve-afternoon)
+  :evidence (evidence "Eden Inventory"
+    :quotes ("Adam picked 🍎🍎🍎🍎🍎 apples from the west grove"
+             "Serpent picked 🍎🍎🍎🍎 apples from the south grove")
+    :explanation "Count shifts with more than 3: Adam morning (5>3), Serpent afternoon (4>3) = 2"))
+
+; --- Phase 6: Variadic check (all-gt) ---
+; Did everyone pick at least 1 apple? Threshold: S0 (1 apple)
+
+(print "\n--- Phase 6: All above minimum? (all-gt) ---")
+
+(defterm minimum (succ zero)
+  :origin "1 apple — minimum expected")
+
+(defterm all-picked-enough
+    (all-gt minimum
+            src.morning.eve-morning
+            src.morning.adam-morning
+            src.afternoon.serpent-afternoon
+            src.afternoon.eve-afternoon)
+  :evidence (evidence "Eden Inventory"
+    :quotes ("Eve picked 🍎🍎🍎 apples from the east grove"
+             "Adam picked 🍎🍎🍎🍎🍎 apples from the west grove"
+             "Serpent picked 🍎🍎🍎🍎 apples from the south grove"
+             "Eve picked 🍎🍎 more apples from the east grove")
+    :explanation "All four shifts produced more than 1 apple"))
+
+; --- Phase 7: Derives using splat axioms ---
+(print "\n--- Phase 7: Derives ---")
+
+(derive morning-sum-correct
+    (= (sum-all src.morning.eve-morning src.morning.adam-morning) morning-total)
+    :using (= + sum-all
+            src.morning.eve-morning src.morning.adam-morning
+            morning-total src.axioms.sum-all-base src.axioms.sum-all-step
+            src.axioms.eq-reflexive))
+
+(derive all-above-minimum
+    (= (all-gt minimum
+               src.morning.eve-morning src.morning.adam-morning
+               src.afternoon.serpent-afternoon src.afternoon.eve-afternoon)
+       true)
+    :using (= > and all-gt
+            minimum src.morning.eve-morning src.morning.adam-morning
+            src.afternoon.serpent-afternoon src.afternoon.eve-afternoon
+            src.axioms.all-gt-base src.axioms.all-gt-step
+            src.axioms.eq-reflexive))
+
+(print "  Theorems:")
+(print-theorem "morning-sum-correct")
+(print-theorem "all-above-minimum")
+
+; --- Phase 8: Diff — what if Eve tried the forbidden apple? ---
+(print "\n--- Phase 8: Diff — what if Eve tried the forbidden apple? ---")
+
+(defterm eve-morning-alt (succ (succ zero))
+  :origin "Hypothetical: Eve tried the forbidden apple — SS0 instead of SSS0")
+
+(diff eve-check
+    :replace src.morning.eve-morning
+    :with eve-morning-alt)
+
+; --- Phase 9: Provenance & consistency ---
+(print "\n--- Phase 9: Provenance ---")
+(provenance "morning-sum-correct")
+
+(print "\n--- Phase 10: Consistency ---")
+(consistency)
+
+(print "\n  Resolving unverified items...")
+(verify "eve-morning-alt")
+(verify "threshold")
+(verify "minimum")
+(verify "src.axioms.eq-reflexive")
+(verify "src.primitives.=")
+
+(print "\n  After verification:")
+(consistency)
+
+; --- Summary ---
+(print "\n============================================================")
+(state)
+(print "\n============================================================")
+(print "Same orchard, same apples — but now with variadic axioms.")
+(print "(sum-all a b c d) instead of (+ (+ (+ a b) c) d)")
+(print "(count-gt threshold a b c) counts how many exceed it")
+(print "(all-gt minimum a b c) checks everyone meets it")
+(print "All powered by ?... splat pattern matching.")
+(print "============================================================")
