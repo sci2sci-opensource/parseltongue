@@ -1,0 +1,309 @@
+; atoms.pltg — Ground truth and internal validation for atoms.py
+
+(load-document "atoms.py" "../atoms.py")
+
+; =====================================================================
+; Module contract — what the docstring promises
+; =====================================================================
+
+(fact module-claims-pure-types true
+    :evidence (evidence "atoms.py"
+        :quotes ("Pure types, s-expression reader/printer.")
+        :explanation "Module docstring claims pure types"))
+
+(fact module-claims-no-domain true
+    :evidence (evidence "atoms.py"
+        :quotes ("No domain knowledge, no state.")
+        :explanation "Module docstring claims no domain knowledge"))
+
+; =====================================================================
+; Symbol
+; =====================================================================
+
+(fact symbol-base-class "str"
+    :evidence (evidence "atoms.py"
+        :quotes ("class Symbol(str):")
+        :explanation "Symbol subclasses str"))
+
+(fact symbol-docstring "A symbol in Parseltongue. Just a string with a distinct type."
+    :evidence (evidence "atoms.py"
+        :quotes ("A symbol in Parseltongue. Just a string with a distinct type.")
+        :explanation "Symbol's documented purpose"))
+
+; =====================================================================
+; Evidence — the grounding mechanism
+; =====================================================================
+
+(fact evidence-docstring "Structured evidence with verifiable quotes from a source document."
+    :evidence (evidence "atoms.py"
+        :quotes ("Structured evidence with verifiable quotes from a source document.")
+        :explanation "Evidence's documented purpose"))
+
+(fact evidence-verified-default false
+    :evidence (evidence "atoms.py"
+        :quotes ("verified: bool = False")
+        :explanation "Not verified until proven"))
+
+(fact evidence-verify-manual-default false
+    :evidence (evidence "atoms.py"
+        :quotes ("verify_manual: bool = False")
+        :explanation "Not manually verified by default"))
+
+(fact evidence-grounded-doc "Evidence is grounded if verified or manually verified."
+    :evidence (evidence "atoms.py"
+        :quotes ("Evidence is grounded if verified or manually verified.")
+        :explanation "is_grounded docstring"))
+
+(fact evidence-grounded-impl "verified-or-manual"
+    :evidence (evidence "atoms.py"
+        :quotes ("return self.verified or self.verify_manual")
+        :explanation "is_grounded implementation"))
+
+; Axiom: grounding requires either verification or manual override
+(axiom grounding-rule (= (or ?verified ?manual) ?grounded)
+    :evidence (evidence "atoms.py"
+        :quotes ("return self.verified or self.verify_manual")
+        :explanation "Grounding is disjunction of verified and verify_manual"))
+
+; Derive: default evidence is ungrounded (both defaults are false)
+(derive default-evidence-ungrounded
+    (= (or evidence-verified-default evidence-verify-manual-default) false)
+    :using (evidence-verified-default evidence-verify-manual-default))
+
+; =====================================================================
+; Axiom class — what it documents about itself
+; =====================================================================
+
+(fact axiom-docstring "An axiom: a foundational WFF assumed true, with evidence."
+    :evidence (evidence "atoms.py"
+        :quotes ("An axiom: a foundational WFF assumed true, with evidence.")
+        :explanation "Axiom's self-description"))
+
+(fact axiom-has-origin true
+    :evidence (evidence "atoms.py"
+        :quotes ("origin: \"str | Evidence\"")
+        :explanation "Axiom tracks its origin"))
+
+; Axiom: every axiom carries origin (str or Evidence)
+(axiom origin-is-provenance (= ?origin ?provenance)
+    :evidence (evidence "atoms.py"
+        :quotes ("origin: \"str | Evidence\"")
+        :explanation "Origin is the provenance mechanism"))
+
+; =====================================================================
+; Theorem class
+; =====================================================================
+
+(fact theorem-docstring "A theorem: a WFF derived from axioms/terms via substitution."
+    :evidence (evidence "atoms.py"
+        :quotes ("A theorem: a WFF derived from axioms/terms via substitution.")
+        :explanation "Theorem's self-description"))
+
+(fact theorem-default-origin "derived"
+    :evidence (evidence "atoms.py"
+        :quotes ("origin: \"str | Evidence\" = \"derived\"")
+        :explanation "Theorem origin defaults to derived"))
+
+(fact theorem-has-derivation true
+    :evidence (evidence "atoms.py"
+        :quotes ("derivation: list")
+        :explanation "Theorem records what it was derived from"))
+
+; Theorem docstring says "derived from axioms/terms via substitution"
+; but derivation list can also include facts and other theorems
+; (engine.py derive() accepts facts, terms, axioms, theorems in :using)
+; This is an internal inconsistency in the documented contract
+
+; =====================================================================
+; Term class
+; =====================================================================
+
+(fact term-docstring "A term/concept/primitive introduced into the system."
+    :evidence (evidence "atoms.py"
+        :quotes ("A term/concept/primitive introduced into the system.")
+        :explanation "Term's self-description"))
+
+(fact term-forward-decl-display "(primitive)"
+    :evidence (evidence "atoms.py"
+        :quotes ("if self.definition is not None else \"(primitive)\"")
+        :explanation "Forward-declared terms display as (primitive)"))
+
+; =====================================================================
+; Reader pipeline: tokenize -> read_tokens -> atom
+; =====================================================================
+
+(fact tokenize-doc "Tokenize s-expression source into atoms and parens."
+    :evidence (evidence "atoms.py"
+        :quotes ("Tokenize s-expression source into atoms and parens.")
+        :explanation "tokenize docstring"))
+
+(fact comment-char ";"
+    :evidence (evidence "atoms.py"
+        :quotes ("if char == \";\":")
+        :explanation "Semicolon starts comments"))
+
+(fact read-tokens-doc "Recursively parse token list into nested Python structures."
+    :evidence (evidence "atoms.py"
+        :quotes ("Recursively parse token list into nested Python structures.")
+        :explanation "read_tokens docstring"))
+
+(fact atom-doc "Convert a token string to a typed value."
+    :evidence (evidence "atoms.py"
+        :quotes ("Convert a token string to a typed value.")
+        :explanation "atom docstring"))
+
+; atom() conversion chain: int -> float -> bool -> string -> keyword -> Symbol
+(fact atom-tries-int-first true
+    :evidence (evidence "atoms.py"
+        :quotes ("return int(token)")
+        :explanation "First tries int conversion"))
+
+(fact atom-tries-float-second true
+    :evidence (evidence "atoms.py"
+        :quotes ("return float(token)")
+        :explanation "Then tries float"))
+
+(fact atom-keyword-prefix ":"
+    :evidence (evidence "atoms.py"
+        :quotes ("if token.startswith(\":\"):")
+        :explanation "Colon-prefixed tokens stay as strings"))
+
+(fact atom-fallback-is-symbol true
+    :evidence (evidence "atoms.py"
+        :quotes ("return Symbol(token)")
+        :explanation "Everything else becomes a Symbol"))
+
+; =====================================================================
+; parse / parse_all contract
+; =====================================================================
+
+(fact parse-doc "Parse a source string into an s-expression."
+    :evidence (evidence "atoms.py"
+        :quotes ("Parse a source string into an s-expression.")
+        :explanation "parse docstring"))
+
+(fact parse-all-doc "Parse all top-level s-expressions from source."
+    :evidence (evidence "atoms.py"
+        :quotes ("Parse all top-level s-expressions from source.")
+        :explanation "parse_all docstring"))
+
+; parse is tokenize + single read_tokens
+; parse_all is tokenize + loop of read_tokens
+; Theorem: parse_all on single-expression input returns [parse(input)]
+
+; =====================================================================
+; to_sexp — roundtrip printer
+; =====================================================================
+
+(fact to-sexp-doc "Pretty-print a Python object back to s-expression string."
+    :evidence (evidence "atoms.py"
+        :quotes ("Pretty-print a Python object back to s-expression string.")
+        :explanation "to_sexp docstring"))
+
+(fact to-sexp-bool-true "true"
+    :evidence (evidence "atoms.py"
+        :quotes ("return \"true\" if obj else \"false\"")
+        :explanation "Booleans print as true/false"))
+
+; =====================================================================
+; DSL helpers — match, free_vars, substitute
+; =====================================================================
+
+(fact match-doc "Match pattern against expr. ?-prefixed symbols are pattern variables."
+    :evidence (evidence "atoms.py"
+        :quotes ("Match pattern against expr. ?-prefixed symbols are pattern variables.")
+        :explanation "match docstring"))
+
+(fact free-vars-doc "Extract all ?-prefixed symbols from an expression."
+    :evidence (evidence "atoms.py"
+        :quotes ("Extract all ?-prefixed symbols from an expression.")
+        :explanation "free_vars docstring"))
+
+(fact substitute-doc "Replace symbols with their bound values in an expression tree."
+    :evidence (evidence "atoms.py"
+        :quotes ("Replace symbols with their bound values in an expression tree.")
+        :explanation "substitute docstring"))
+
+; Axiom: match produces bindings that substitute can consume
+(axiom match-substitute-roundtrip
+    (= (implies (?bindings ?pattern ?expr) (= ?expr (?substitute ?pattern ?bindings))) true)
+    :evidence (evidence "atoms.py"
+        :quotes ("Match pattern against expr. ?-prefixed symbols are pattern variables."
+                 "Replace symbols with their bound values in an expression tree.")
+        :explanation "match and substitute are inverses — match extracts bindings, substitute applies them"))
+
+; =====================================================================
+; Internal consistency: module contract vs content
+; =====================================================================
+
+; Module says "No state" — verify no mutable module-level state
+; atoms.py has no module-level mutable state — only classes and functions. Consistent.
+
+(derive module-is-stateless
+    (and module-claims-pure-types module-claims-no-domain)
+    :using (module-claims-pure-types module-claims-no-domain))
+
+; atom() true/false token values
+(fact atom-true-token "true"
+    :evidence (evidence "atoms.py"
+        :quotes ("if token == \"true\":")
+        :explanation "true token"))
+
+(fact atom-false-token "false"
+    :evidence (evidence "atoms.py"
+        :quotes ("if token == \"false\":")
+        :explanation "false token"))
+
+; Derive: atom() and to_sexp are roundtrip-compatible for booleans
+; atom("true") -> True, to_sexp(True) -> "true"
+(derive bool-roundtrip-consistent
+    (= atom-true-token to-sexp-bool-true)
+    :using (atom-true-token to-sexp-bool-true))
+
+; Evidence str format uses is_grounded to decide status label
+(defterm evidence-unverified-status "UNVERIFIED"
+    :evidence (evidence "atoms.py"
+        :quotes ("status = \"grounded\" if self.is_grounded else \"UNVERIFIED\"")
+        :explanation "Unverified evidence displays UNVERIFIED"))
+
+(defterm evidence-grounded-status "grounded"
+    :evidence (evidence "atoms.py"
+        :quotes ("status = \"grounded\" if self.is_grounded else \"UNVERIFIED\"")
+        :explanation "Grounded evidence displays grounded"))
+
+; Term display logic: primitive vs computed
+(fact term-has-body-display "to_sexp"
+    :evidence (evidence "atoms.py"
+        :quotes ("to_sexp(self.definition)")
+        :explanation "Terms with a body display via to_sexp"))
+
+(fact term-definition-check "self.definition is not None"
+    :evidence (evidence "atoms.py"
+        :quotes ("if self.definition is not None")
+        :explanation "Display branches on whether definition exists"))
+
+(axiom term-display-rule
+    (if ?has-definition ?to-sexp ?primitive)
+    :evidence (evidence "atoms.py"
+        :quotes ("to_sexp(self.definition) if self.definition is not None else \"(primitive)\"")
+        :explanation "If has definition show sexp, else show (primitive)"))
+
+; Display says "primitive" — does the docstring agree?
+(fact term-display-says-primitive true
+    :evidence (evidence "atoms.py"
+        :quotes ("(primitive)")
+        :explanation "Forward-declared terms display as primitive"))
+
+(fact term-docstring-says-primitive true
+    :evidence (evidence "atoms.py"
+        :quotes ("A term/concept/primitive introduced into the system.")
+        :explanation "Docstring includes primitive"))
+
+(diff term-label-consistency
+    :replace term-display-says-primitive
+    :with term-docstring-says-primitive)
+
+(derive term-display-documented
+    (and term-definition-check term-docstring-says-primitive)
+    :using (term-definition-check term-docstring-says-primitive))
+

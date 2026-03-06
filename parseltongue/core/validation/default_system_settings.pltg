@@ -1,0 +1,77 @@
+; default_system_settings.pltg — Ground truth from default_system_settings.py
+
+(load-document "default_system_settings.py" "../default_system_settings.py")
+
+; =====================================================================
+; Operator counts
+; =====================================================================
+
+(fact arithmetic-op-count 5
+    :evidence (evidence "default_system_settings.py"
+        :quotes ("ARITHMETIC_OPS = (ADD, SUB, MUL, DIV, MOD)")
+        :explanation "5 arithmetic operators"))
+
+(fact comparison-op-count 6
+    :evidence (evidence "default_system_settings.py"
+        :quotes ("COMPARISON_OPS = (GT, LT, GE, LE, EQ, NE)")
+        :explanation "6 comparison operators including EQ"))
+
+(fact logic-op-count 4
+    :evidence (evidence "default_system_settings.py"
+        :quotes ("LOGIC_OPS = (AND, OR, NOT, IMPLIES)")
+        :explanation "4 logic operators"))
+
+; Total default operators: 5 + 6 + 4 = 15
+(defterm total-default-operators (+ (+ arithmetic-op-count comparison-op-count) logic-op-count)
+    :origin "Sum of arithmetic + comparison + logic")
+
+; =====================================================================
+; Operator implementations
+; =====================================================================
+
+(fact eq-impl "operator.eq"
+    :evidence (evidence "default_system_settings.py"
+        :quotes ("EQ: operator.eq")
+        :explanation "= maps to Python operator.eq"))
+
+(fact add-impl "operator.add"
+    :evidence (evidence "default_system_settings.py"
+        :quotes ("ADD: operator.add")
+        :explanation "+ maps to operator.add"))
+
+(fact div-impl "operator.truediv"
+    :evidence (evidence "default_system_settings.py"
+        :quotes ("DIV: operator.truediv")
+        :explanation "/ maps to truediv, not floordiv"))
+
+(fact and-is-variadic true
+    :evidence (evidence "default_system_settings.py"
+        :quotes ("AND: lambda *args: all(args)")
+        :explanation "and accepts variadic args via all()"))
+
+(fact or-is-variadic true
+    :evidence (evidence "default_system_settings.py"
+        :quotes ("OR: lambda *args: any(args)")
+        :explanation "or accepts variadic args via any()"))
+
+(fact implies-impl "not-a-or-b"
+    :evidence (evidence "default_system_settings.py"
+        :quotes ("IMPLIES: lambda a, b: (not a) or b")
+        :explanation "implies is material conditional"))
+
+; =====================================================================
+; Internal consistency
+; =====================================================================
+
+; EQ appears in both COMPARISON_OPS and as a special form in lang.py
+; This dual role is intentional — it's both a comparison operator and
+; the core of the rewrite mechanism
+(fact eq-is-comparison true
+    :evidence (evidence "default_system_settings.py"
+        :quotes ("EQ: operator.eq")
+        :explanation "EQ is in DEFAULT_OPERATORS as comparison"))
+
+; Division is true division not integer division
+(derive division-returns-float
+    (= div-impl "operator.truediv")
+    :using (div-impl))

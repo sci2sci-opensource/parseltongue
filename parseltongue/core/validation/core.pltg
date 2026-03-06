@@ -1,0 +1,221 @@
+; core.pltg — Cross-module validation of parseltongue.core
+; No facts here — only imports, cross-module derivations, diffs, and reporting.
+
+(import (quote atoms))
+(import (quote lang))
+(import (quote engine))
+(import (quote system))
+(import (quote quote_verifier))
+(import (quote default_system_settings))
+(import (quote readme))
+(import (quote demos))
+(import (quote loader))
+
+; Manually verify computed defterms that have no document source
+(verify-manual (quote default_system_settings.total-default-operators))
+(verify-manual (quote demos.demo-total-count))
+(verify-manual (quote demos.actual-lazy-count))
+(verify-manual (quote engine.consistency-layer-count))
+
+(print "")
+(print "========================================")
+(print "  Parseltongue Core — Self-Validation")
+(print "========================================")
+
+; =====================================================================
+; Special forms: README vs lang.py
+; =====================================================================
+
+(print "")
+(print "--- Special forms count ---")
+(print "  README claims:" readme.readme-special-forms-count)
+(print "  lang.py has:" lang.special-forms-tuple-size)
+
+(diff special-forms-count
+    :replace readme.readme-special-forms-count
+    :with lang.special-forms-tuple-size)
+
+; =====================================================================
+; Verifier API format: README vs implementation
+; =====================================================================
+
+(print "")
+(print "--- Verifier API format ---")
+(print "  README confidence shape:" readme.readme-verifier-confidence-shape)
+(print "  Actual confidence shape:" quote_verifier.verifier-confidence-return-shape)
+(print "  README position key:" readme.readme-verifier-position-key)
+(print "  Actual position key:" quote_verifier.verifier-position-key)
+
+(diff verifier-position-key-name
+    :replace readme.readme-verifier-position-key
+    :with quote_verifier.verifier-position-key)
+
+(diff verifier-confidence-shape
+    :replace readme.readme-verifier-confidence-shape
+    :with quote_verifier.verifier-confidence-return-shape)
+
+; =====================================================================
+; Demo count: README vs reality
+; =====================================================================
+
+(print "")
+(print "--- Demo count ---")
+(print "  README says:" readme.readme-demo-count)
+(print "  Proven total:" demos.demo-total-count)
+
+(diff demo-count
+    :replace readme.readme-demo-count
+    :with demos.demo-total-count)
+
+(derive demos-proven-11
+    (= demos.demo-total-count 11)
+    :using (demos.demo-total-count
+            demos.apples-count demos.apples-pltg-count demos.biomarkers-count
+            demos.code-check-count demos.deferred-pltg-count demos.doc-validation-count
+            demos.entry-mocks-count demos.extensibility-count demos.revenue-count
+            demos.self-healing-count demos.spec-validation-count))
+
+; =====================================================================
+; Engine docstring: module vs class
+; =====================================================================
+
+(print "")
+(print "--- Engine docstring ---")
+(print "  Module doc claims doc mgmt:" engine.module-doc-claims-doc-mgmt)
+(print "  Class doc claims no doc mgmt:" engine.class-doc-claims-no-doc-mgmt)
+(print "  Has register_document:" engine.engine-has-register-document)
+(print "  Has load_document:" engine.engine-has-load-document)
+(print "  Has documents dict:" engine.engine-has-documents-dict)
+
+(diff engine-doc-mgmt-claim
+    :replace engine.module-doc-claims-doc-mgmt
+    :with engine.class-doc-claims-no-doc-mgmt)
+
+(derive engine-class-docstring-is-wrong
+    (and engine.engine-has-register-document engine.engine-has-load-document engine.engine-has-documents-dict)
+    :using (engine.engine-has-register-document engine.engine-has-load-document engine.engine-has-documents-dict))
+
+; =====================================================================
+; Engine retract docstring vs implementation
+; =====================================================================
+
+(print "")
+(print "--- Engine retract ---")
+(print "  Docstring says:" engine.retract-doc)
+(print "  Handles theorems:" engine.retract-handles-theorems)
+
+(derive engine-retract-doc-incomplete
+    (and engine.retract-handles-theorems engine.retract-handles-theorems)
+    :using (engine.retract-handles-theorems))
+
+; =====================================================================
+; Loader: load_pltg return type
+; =====================================================================
+
+(print "")
+(print "--- load_pltg return type ---")
+(print "  Docstring claims tuple:" loader.load-pltg-docstring-claims-tuple)
+(print "  Returns system only:" loader.load-pltg-returns-system-only)
+
+; =====================================================================
+; README mentions loader?
+; =====================================================================
+
+(print "")
+(print "--- Loader coverage in README ---")
+(print "  Loader provides import:" loader.loader-provides-import)
+(print "  Loader provides run-on-entry:" loader.loader-provides-run-on-entry)
+(print "  Loader provides document loading:" loader.loader-provides-document-loading)
+(print "  Loader provides context:" loader.loader-provides-context)
+(print "  Loader provides print:" loader.effect-print-exists)
+(print "  Built-in effect count:" loader.built-in-effect-count)
+
+(derive readme-omits-loader
+    (and loader.loader-provides-import loader.loader-provides-run-on-entry loader.loader-provides-document-loading loader.loader-provides-context loader.effect-print-exists)
+    :using (loader.loader-provides-import loader.loader-provides-run-on-entry loader.loader-provides-document-loading loader.loader-provides-context loader.effect-print-exists))
+
+; =====================================================================
+; System serialization vs Engine
+; =====================================================================
+
+(print "")
+(print "--- System serialization ---")
+(print "  System serializes terms:" system.system-serializes-terms)
+(print "  System serializes facts:" system.system-serializes-facts)
+(print "  System serializes axioms:" system.system-serializes-axioms)
+(print "  System serializes theorems:" system.system-serializes-theorems)
+
+(derive system-provides-serialization-engine-lacks
+    (and system.system-serializes-terms system.system-serializes-facts system.system-serializes-axioms system.system-serializes-theorems)
+    :using (system.system-serializes-terms system.system-serializes-facts system.system-serializes-axioms system.system-serializes-theorems))
+
+; =====================================================================
+; README extensibility claim
+; =====================================================================
+
+(print "")
+(print "--- Extensibility claim ---")
+(print "  README claims extensible:" readme.readme-extensibility-claim)
+(print "  Normalizer is stateless (hardcoded pipeline):" quote_verifier.normalizer-stateless)
+
+(derive readme-extensibility-ungrounded
+    (and readme.readme-extensibility-claim quote_verifier.normalizer-stateless)
+    :using (readme.readme-extensibility-claim quote_verifier.normalizer-stateless))
+
+; =====================================================================
+; Confirmed consistent cross-checks
+; =====================================================================
+
+(print "")
+(print "--- Consistent ---")
+(print "  README axiom ?-var requirement:" readme.readme-axiom-var-requirement)
+(print "  Engine enforces ?-vars:" engine.axiom-requires-free-vars)
+
+(derive axiom-var-requirement-consistent
+    (and readme.readme-axiom-var-requirement engine.axiom-requires-free-vars)
+    :using (readme.readme-axiom-var-requirement engine.axiom-requires-free-vars))
+
+(print "  README fabrication propagation:" readme.readme-fabrication-propagation)
+(print "  Engine fabrication propagation:" engine.derive-fabrication-propagation)
+
+(derive fabrication-propagation-consistent
+    (and readme.readme-fabrication-propagation engine.derive-fabrication-propagation)
+    :using (readme.readme-fabrication-propagation engine.derive-fabrication-propagation))
+
+(print "  README normalization steps:" readme.readme-normalization-steps)
+(print "  Normalizer step count:" quote_verifier.normalizer-step-count)
+
+(diff normalization-steps
+    :replace readme.readme-normalization-steps
+    :with quote_verifier.normalizer-step-count)
+
+; =====================================================================
+; README loader section vs loader.py
+; =====================================================================
+
+(print "")
+(print "--- README loader coverage ---")
+(print "  README has loader section:" readme.readme-loader-section)
+(print "  README effect count:" readme.readme-loader-effect-count)
+(print "  Loader actual effect count:" loader.built-in-effect-count)
+
+(diff readme-vs-loader-effect-count
+    :replace readme.readme-loader-effect-count
+    :with loader.built-in-effect-count)
+
+(print "  README documents namespacing:" readme.readme-loader-namespacing)
+(print "  Loader namespaces definitions:" loader.loader-namespaces-definitions)
+
+(derive readme-loader-consistent
+    (and readme.readme-loader-section readme.readme-loader-namespacing loader.loader-namespaces-definitions readme.readme-loader-circular-detection loader.loader-detects-circular-imports)
+    :using (readme.readme-loader-section readme.readme-loader-namespacing loader.loader-namespaces-definitions readme.readme-loader-circular-detection loader.loader-detects-circular-imports))
+
+(print "")
+(print "========================================")
+
+; =====================================================================
+; Full consistency report — diffs, fabrications, unverified evidence
+; =====================================================================
+
+(print "")
+(consistency)

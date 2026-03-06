@@ -1,0 +1,181 @@
+; system.pltg — Ground truth and internal validation for system.py
+
+(load-document "system.py" "../system.py")
+
+; =====================================================================
+; System class — documented contract
+; =====================================================================
+
+(fact system-docstring "Composes Engine with default operators, serialization, and introspection."
+    :evidence (evidence "system.py"
+        :quotes ("Composes Engine with default operators, serialization, and introspection.")
+        :explanation "System's self-description"))
+
+; =====================================================================
+; Constructor parameters
+; =====================================================================
+
+(fact system-overridable-default false
+    :evidence (evidence "system.py"
+        :quotes ("overridable: bool = False")
+        :explanation "Defaults to non-overridable"))
+
+(fact system-initial-env-default "None"
+    :evidence (evidence "system.py"
+        :quotes ("initial_env: dict | None = None")
+        :explanation "initial_env defaults to None (uses DEFAULT_OPERATORS)"))
+
+(fact system-docs-default "None"
+    :evidence (evidence "system.py"
+        :quotes ("docs: dict | None = None")
+        :explanation "docs defaults to None (uses ENGINE_DOCS)"))
+
+(fact system-strict-derive-default true
+    :evidence (evidence "system.py"
+        :quotes ("strict_derive: bool = True")
+        :explanation "strict_derive defaults True"))
+
+(fact system-effects-param true
+    :evidence (evidence "system.py"
+        :quotes ("effects: dict[str, Callable] | None = None")
+        :explanation "System accepts effects"))
+
+; =====================================================================
+; Delegation to Engine
+; =====================================================================
+
+; System delegates everything to engine — it's a facade
+(fact system-delegates-evaluate true
+    :evidence (evidence "system.py"
+        :quotes ("return self.engine.evaluate(expr, local_env)")
+        :explanation "evaluate delegates to engine"))
+
+(fact system-delegates-consistency true
+    :evidence (evidence "system.py"
+        :quotes ("return self.engine.consistency()")
+        :explanation "consistency delegates to engine"))
+
+(fact system-delegates-derive true
+    :evidence (evidence "system.py"
+        :quotes ("return self.engine.derive(name, wff, using)")
+        :explanation "derive delegates to engine"))
+
+; =====================================================================
+; Properties — what System exposes
+; =====================================================================
+
+(fact system-exposes-facts true
+    :evidence (evidence "system.py"
+        :quotes ("return self.engine.facts")
+        :explanation "facts property"))
+
+(fact system-exposes-axioms true
+    :evidence (evidence "system.py"
+        :quotes ("return self.engine.axioms")
+        :explanation "axioms property"))
+
+(fact system-exposes-theorems true
+    :evidence (evidence "system.py"
+        :quotes ("return self.engine.theorems")
+        :explanation "theorems property"))
+
+(fact system-exposes-terms true
+    :evidence (evidence "system.py"
+        :quotes ("return self.engine.terms")
+        :explanation "terms property"))
+
+(fact system-exposes-diffs true
+    :evidence (evidence "system.py"
+        :quotes ("return self.engine.diffs")
+        :explanation "diffs property"))
+
+(fact system-exposes-documents true
+    :evidence (evidence "system.py"
+        :quotes ("return self.engine.documents")
+        :explanation "documents property"))
+
+; =====================================================================
+; Provenance — traversal logic
+; =====================================================================
+
+(fact provenance-returns-dict true
+    :evidence (evidence "system.py"
+        :quotes ("def provenance(self, name: str) -> dict:")
+        :explanation "provenance returns a dict"))
+
+(fact provenance-checks-facts true
+    :evidence (evidence "system.py"
+        :quotes ("if name in self.engine.facts:")
+        :explanation "provenance checks facts"))
+
+(fact provenance-checks-axioms true
+    :evidence (evidence "system.py"
+        :quotes ("if name in self.engine.axioms:")
+        :explanation "provenance checks axioms"))
+
+(fact provenance-checks-terms true
+    :evidence (evidence "system.py"
+        :quotes ("if name in self.engine.terms:")
+        :explanation "provenance checks terms"))
+
+(fact provenance-checks-theorems true
+    :evidence (evidence "system.py"
+        :quotes ("if name in self.engine.theorems:")
+        :explanation "provenance checks theorems"))
+
+(fact provenance-checks-diffs true
+    :evidence (evidence "system.py"
+        :quotes ("if name in self.engine.diffs:")
+        :explanation "provenance checks diffs"))
+
+; provenance recurses for theorems — follows derivation chain
+(fact provenance-recurses-for-theorems true
+    :evidence (evidence "system.py"
+        :quotes ("\"derivation_chain\": [self.provenance(dep) for dep in thm.derivation]")
+        :explanation "Theorem provenance recursively expands derivation"))
+
+; =====================================================================
+; Serialization — to_dict / from_dict
+; =====================================================================
+
+(fact system-serializes-terms true
+    :evidence (evidence "system.py"
+        :quotes ("\"terms\": {n: serialize_term(t) for n, t in self.engine.terms.items()}")
+        :explanation "to_dict serializes terms"))
+
+(fact system-serializes-facts true
+    :evidence (evidence "system.py"
+        :quotes ("\"facts\": {n: serialize_fact(f) for n, f in self.engine.facts.items()}")
+        :explanation "to_dict serializes facts"))
+
+(fact system-serializes-axioms true
+    :evidence (evidence "system.py"
+        :quotes ("\"axioms\": {n: serialize_axiom(a) for n, a in self.engine.axioms.items()}")
+        :explanation "to_dict serializes axioms"))
+
+(fact system-serializes-theorems true
+    :evidence (evidence "system.py"
+        :quotes ("\"theorems\": {n: serialize_theorem(t) for n, t in self.engine.theorems.items()}")
+        :explanation "to_dict serializes theorems"))
+
+; =====================================================================
+; Internal consistency
+; =====================================================================
+
+; System docstring says "serialization" — Engine docstring says "No serialization"
+; System wraps Engine and ADDS serialization — this is intentional and consistent
+(derive system-adds-what-engine-lacks
+    (and system-serializes-terms system-serializes-facts system-serializes-axioms system-serializes-theorems)
+    :using (system-serializes-terms system-serializes-facts system-serializes-axioms system-serializes-theorems))
+
+; Effects are injected into engine.env with system auto-injected as first arg
+(fact effects-auto-inject-system true
+    :evidence (evidence "system.py"
+        :quotes ("self.engine.env[Symbol(name)] = lambda *args, _fn=fn: _fn(self, *args)")
+        :explanation "Effects receive system as first arg automatically"))
+
+; load_source is a module-level function, not a method
+(fact load-source-is-module-fn true
+    :evidence (evidence "system.py"
+        :quotes ("def load_source(system: System, source: str):")
+        :explanation "load_source is a standalone function"))

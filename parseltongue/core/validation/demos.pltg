@@ -1,0 +1,615 @@
+; demos.pltg — Ground truth from demo files
+;
+; Two layers:
+;   1. Demo identity/existence — grounded in demo.py docstrings
+;   2. Module system axioms — universal rules proved by .pltg demos
+
+(load-document "apples" "../demos/apples/demo.py")
+(load-document "apples_pltg" "../demos/apples_pltg/demo.py")
+(load-document "biomarkers" "../demos/biomarkers/demo.py")
+(load-document "code_check" "../demos/code_check/demo.py")
+(load-document "deferred_pltg" "../demos/deferred_pltg/demo.py")
+(load-document "doc_validation" "../demos/doc_validation/demo.py")
+(load-document "entry_mocks_pltg" "../demos/entry_mocks_pltg/demo.py")
+(load-document "extensibility" "../demos/extensibility/demo.py")
+(load-document "revenue_reports" "../demos/revenue_reports/demo.py")
+(load-document "self_healing" "../demos/self_healing/demo.py")
+(load-document "spec_validation" "../demos/spec_validation/demo.py")
+
+; .pltg source files — module system patterns
+(load-document "apples_demo_pltg" "../demos/apples_pltg/demo.pltg")
+(load-document "apples_primitives_pltg" "../demos/apples_pltg/src/primitives.pltg")
+(load-document "apples_axioms_pltg" "../demos/apples_pltg/src/axioms.pltg")
+(load-document "apples_afternoon_pltg" "../demos/apples_pltg/src/afternoon.pltg")
+(load-document "deferred_demo_pltg" "../demos/deferred_pltg/demo.pltg")
+(load-document "deferred_app_pltg" "../demos/deferred_pltg/app.pltg")
+(load-document "deferred_lib_pltg" "../demos/deferred_pltg/lib.pltg")
+(load-document "entry_mocks_math_pltg" "../demos/entry_mocks_pltg/src/math.pltg")
+(load-document "entry_mocks_primitives_pltg" "../demos/entry_mocks_pltg/src/primitives.pltg")
+
+; =====================================================================
+; Each demo's identity — grounded in its docstring
+; =====================================================================
+
+(fact apples-topic "Counting Observations & Apple Arithmetic"
+    :evidence (evidence "apples"
+        :quotes ("Counting Observations & Apple Arithmetic")
+        :explanation "Apples demo topic"))
+
+(fact apples-uses-successor-notation true
+    :evidence (evidence "apples"
+        :quotes ("all in successor notation")
+        :explanation "Apples uses Peano successor notation"))
+
+(fact apples-starts-empty true
+    :evidence (evidence "apples"
+        :quotes ("Starts with a completely empty system")
+        :explanation "Apples begins from empty env"))
+
+(fact apples-pltg-topic "Counting Observations & Apple Arithmetic"
+    :evidence (evidence "apples_pltg"
+        :quotes ("Counting Observations & Apple Arithmetic")
+        :explanation "Same topic as apples, but as .pltg module"))
+
+(fact biomarkers-topic "Biomarker Evidence Conflict"
+    :evidence (evidence "biomarkers"
+        :quotes ("Biomarker Evidence Conflict")
+        :explanation "Biomarkers demo topic"))
+
+(fact biomarkers-uses-two-papers true
+    :evidence (evidence "biomarkers"
+        :quotes ("Two papers report on fecal calprotectin")
+        :explanation "Ingests two competing papers"))
+
+(fact biomarkers-flags-conflict true
+    :evidence (evidence "biomarkers"
+        :quotes ("flags the conflict")
+        :explanation "System flags the contradiction"))
+
+(fact code-check-topic "Code Implementation Checks"
+    :evidence (evidence "code_check"
+        :quotes ("Code Implementation Checks")
+        :explanation "Code check demo topic"))
+
+(fact code-check-catches-fabrication true
+    :evidence (evidence "code_check"
+        :quotes ("fabricated claims about behavior that")
+        :explanation "Catches fabricated claims"))
+
+(fact deferred-pltg-topic "run-on-entry"
+    :evidence (evidence "deferred_pltg"
+        :quotes ("run-on-entry")
+        :explanation "Deferred pltg demo topic"))
+
+(fact deferred-skips-on-import true
+    :evidence (evidence "deferred_pltg"
+        :quotes ("skipped when imported")
+        :explanation "run-on-entry skipped on import"))
+
+(fact doc-validation-topic "Documentation Validation"
+    :evidence (evidence "doc_validation"
+        :quotes ("Documentation Validation")
+        :explanation "Doc validation demo topic"))
+
+(fact doc-validation-catches-inconsistency true
+    :evidence (evidence "doc_validation"
+        :quotes ("catches every inconsistency")
+        :explanation "Catches internal contradictions in docs"))
+
+(fact entry-mocks-topic "run-on-entry as a self-contained unit test"
+    :evidence (evidence "entry_mocks_pltg"
+        :quotes ("run-on-entry as a self-contained unit test")
+        :explanation "Entry mocks demo topic"))
+
+(fact entry-mocks-uses-let true
+    :evidence (evidence "entry_mocks_pltg"
+        :quotes ("rebinds forward-declared primitives")
+        :explanation "Uses let to rebind primitives as mocks"))
+
+(fact extensibility-topic "System Extensibility"
+    :evidence (evidence "extensibility"
+        :quotes ("System Extensibility")
+        :explanation "Extensibility demo topic"))
+
+(fact extensibility-uses-effects true
+    :evidence (evidence "extensibility"
+        :quotes ("pass a" "load-data" "effect at construction time")
+        :explanation "Demonstrates effects mechanism"))
+
+(fact extensibility-effects-receive-system true
+    :evidence (evidence "extensibility"
+        :quotes ("Effects are callables that receive (system, *args)")
+        :explanation "Effect calling convention documented"))
+
+(fact revenue-topic "Analyzing company performance"
+    :evidence (evidence "revenue_reports"
+        :quotes ("Analyzing company performance")
+        :explanation "Revenue reports demo topic"))
+
+(fact revenue-shows-manual-override true
+    :evidence (evidence "revenue_reports"
+        :quotes ("manual override")
+        :explanation "Shows verify_manual workflow"))
+
+(fact self-healing-topic "Self-Healing Probes via Effects"
+    :evidence (evidence "self_healing"
+        :quotes ("Self-Healing Probes via Effects")
+        :explanation "Self-healing demo topic"))
+
+(fact self-healing-all-dsl true
+    :evidence (evidence "self_healing"
+        :quotes ("The entire flow is written in Parseltongue DSL")
+        :explanation "Everything is DSL, Python only provides effects"))
+
+(fact self-healing-has-snapshot true
+    :evidence (evidence "self_healing"
+        :quotes ("(snapshot name)")
+        :explanation "snapshot effect exists"))
+
+(fact self-healing-has-rollback true
+    :evidence (evidence "self_healing"
+        :quotes ("(rollback name)")
+        :explanation "rollback effect exists"))
+
+(fact self-healing-has-patch true
+    :evidence (evidence "self_healing"
+        :quotes ("(patch-fact name value)")
+        :explanation "patch-fact effect exists"))
+
+(fact spec-validation-topic "Code-Specification Cross-Validation"
+    :evidence (evidence "spec_validation"
+        :quotes ("Code-Specification Cross-Validation")
+        :explanation "Spec validation demo topic"))
+
+(fact spec-validation-catches-divergence true
+    :evidence (evidence "spec_validation"
+        :quotes ("catches every divergence")
+        :explanation "Catches all spec vs impl divergences"))
+
+(fact spec-validation-token-expiry-spec 30
+    :evidence (evidence "spec_validation"
+        :quotes ("tokens expire in 30 minutes")
+        :explanation "Spec says 30 min expiry"))
+
+(fact spec-validation-token-expiry-impl 60
+    :evidence (evidence "spec_validation"
+        :quotes ("1-hour expiry")
+        :explanation "Impl has 1 hour = 60 min"))
+
+(fact spec-validation-sessions-spec 3
+    :evidence (evidence "spec_validation"
+        :quotes ("max 3 sessions")
+        :explanation "Spec says max 3"))
+
+(fact spec-validation-sessions-impl 5
+    :evidence (evidence "spec_validation"
+        :quotes ("5 sessions")
+        :explanation "Impl has 5"))
+
+(fact spec-validation-md5-prohibited true
+    :evidence (evidence "spec_validation"
+        :quotes ("MD5 must not be used")
+        :explanation "Spec prohibits MD5"))
+
+(fact spec-validation-md5-used true
+    :evidence (evidence "spec_validation"
+        :quotes ("uses MD5 for session IDs")
+        :explanation "Impl uses MD5 anyway"))
+
+; =====================================================================
+; Demo count — each demo is 1, proved by its own docstring
+; =====================================================================
+
+(fact apples-count 1
+    :evidence (evidence "apples"
+        :quotes ("Demo: Parseltongue DSL")
+        :explanation "apples demo exists"))
+
+(fact apples-pltg-count 1
+    :evidence (evidence "apples_pltg"
+        :quotes ("Demo: Parseltongue DSL")
+        :explanation "apples_pltg demo exists"))
+
+(fact biomarkers-count 1
+    :evidence (evidence "biomarkers"
+        :quotes ("Demo: Parseltongue DSL")
+        :explanation "biomarkers demo exists"))
+
+(fact code-check-count 1
+    :evidence (evidence "code_check"
+        :quotes ("Demo: Code Implementation Checks")
+        :explanation "code_check demo exists"))
+
+(fact deferred-pltg-count 1
+    :evidence (evidence "deferred_pltg"
+        :quotes ("Demo: run-on-entry")
+        :explanation "deferred_pltg demo exists"))
+
+(fact doc-validation-count 1
+    :evidence (evidence "doc_validation"
+        :quotes ("Demo: Documentation Validation")
+        :explanation "doc_validation demo exists"))
+
+(fact entry-mocks-count 1
+    :evidence (evidence "entry_mocks_pltg"
+        :quotes ("Demo: run-on-entry as a self-contained unit test")
+        :explanation "entry_mocks_pltg demo exists"))
+
+(fact extensibility-count 1
+    :evidence (evidence "extensibility"
+        :quotes ("Demo: System Extensibility")
+        :explanation "extensibility demo exists"))
+
+(fact revenue-count 1
+    :evidence (evidence "revenue_reports"
+        :quotes ("Demo: Parseltongue DSL in action.")
+        :explanation "revenue_reports demo exists"))
+
+(fact self-healing-count 1
+    :evidence (evidence "self_healing"
+        :quotes ("Demo: Self-Healing Probes via Effects")
+        :explanation "self_healing demo exists"))
+
+(fact spec-validation-count 1
+    :evidence (evidence "spec_validation"
+        :quotes ("Demo: Code-Specification Cross-Validation")
+        :explanation "spec_validation demo exists"))
+
+(defterm demo-total-count
+    (+ (+ (+ (+ (+ (+ (+ (+ (+ (+ apples-count apples-pltg-count) biomarkers-count) code-check-count) deferred-pltg-count) doc-validation-count) entry-mocks-count) extensibility-count) revenue-count) self-healing-count) spec-validation-count)
+    :origin "Sum of all individual demo counts")
+
+(derive demo-count-is-11
+    (= demo-total-count 11)
+    :using (demo-total-count apples-count apples-pltg-count biomarkers-count code-check-count deferred-pltg-count doc-validation-count entry-mocks-count extensibility-count revenue-count self-healing-count spec-validation-count))
+
+; =====================================================================
+; Spec validation — intentional demo divergences expressed as implies
+; The demo exists to show diff detection; mismatches are expected
+; =====================================================================
+
+(derive spec-token-expiry-mismatch
+    (implies (not (= spec-validation-token-expiry-spec spec-validation-token-expiry-impl)) spec-validation-catches-divergence)
+    :using (spec-validation-token-expiry-spec spec-validation-token-expiry-impl spec-validation-catches-divergence))
+
+(derive spec-session-limit-mismatch
+    (implies (not (= spec-validation-sessions-spec spec-validation-sessions-impl)) spec-validation-catches-divergence)
+    :using (spec-validation-sessions-spec spec-validation-sessions-impl spec-validation-catches-divergence))
+
+; =====================================================================
+; Derivations
+; =====================================================================
+
+; apples and apples_pltg cover the same topic
+(derive apples-demos-same-topic
+    (= apples-topic apples-pltg-topic)
+    :using (apples-topic apples-pltg-topic))
+
+; spec validation has MD5 both prohibited and used — contradiction grounded in docs
+(derive spec-md5-contradiction
+    (and spec-validation-md5-prohibited spec-validation-md5-used)
+    :using (spec-validation-md5-prohibited spec-validation-md5-used))
+
+; self-healing demo can recover: it has snapshot, patch, and rollback
+(derive self-healing-can-recover
+    (and self-healing-has-snapshot self-healing-has-patch self-healing-has-rollback)
+    :using (self-healing-has-snapshot self-healing-has-patch self-healing-has-rollback))
+
+; =====================================================================
+; MODULE SYSTEM AXIOMS — universal rules proved by .pltg demos
+; =====================================================================
+
+; ---------------------------------------------------------------------
+; Axiom 1: Local aliasing rule
+; For any module ?m and symbol ?s, (defterm ?alias ?m.?s) makes
+; ?alias resolve to the namespaced value. Proved by apples_pltg.
+; ---------------------------------------------------------------------
+
+(axiom alias-resolves (= ?alias ?m-symbol)
+    :evidence (evidence "apples_demo_pltg"
+        :quotes ("(defterm local-zero src.primitives.zero :origin \"import\")"
+                 "(defterm local-succ src.primitives.succ :origin \"import\")")
+        :explanation "Local alias defterm makes ?alias equal to the namespaced ?m-symbol"))
+
+; Concrete instantiation: local-zero = src.primitives.zero
+(fact alias-local-zero-exists true
+    :evidence (evidence "apples_demo_pltg"
+        :quotes ("(defterm local-zero src.primitives.zero :origin \"import\")")
+        :explanation "demo.pltg aliases zero"))
+
+(fact alias-local-zero-used-in-bind true
+    :evidence (evidence "apples_demo_pltg"
+        :quotes (":bind ((?n (local-succ (local-succ (local-succ local-zero)))))")
+        :explanation "Local alias used in :bind — proves resolution works"))
+
+(derive alias-used-in-practice
+    (and alias-local-zero-exists alias-local-zero-used-in-bind)
+    :using (alias-local-zero-exists alias-local-zero-used-in-bind))
+
+; ---------------------------------------------------------------------
+; Axiom 2: Lazy vs eager aliasing
+; (defterm ?alias (quote ?m.?s)) delays resolution (lazy).
+; (defterm ?alias ?m.?s) resolves immediately (eager).
+; Both patterns coexist in axioms.pltg.
+; ---------------------------------------------------------------------
+
+(axiom defterm-alias-is-lazy (= ?alias ?target)
+    :evidence (evidence "apples_axioms_pltg"
+        :quotes ("(defterm - src.primitives.- :origin \"import\")"
+                 "(defterm > src.primitives.> :origin \"import\")")
+        :explanation "defterm aliasing is inherently lazy — resolution is deferred regardless of quote"))
+
+; The quote wrapper is redundant: both patterns produce the same result
+(fact quote-alias-exists true
+    :evidence (evidence "apples_axioms_pltg"
+        :quotes ("(defterm = (quote src.primitives.=) :origin \"import lazy\")"
+                 "(defterm + (quote src.primitives.+) :origin \"import lazy\")")
+        :explanation "Some aliases use (quote ...) and label themselves 'import lazy'"))
+
+(fact bare-alias-exists true
+    :evidence (evidence "apples_axioms_pltg"
+        :quotes ("(defterm - src.primitives.- :origin \"import\")"
+                 "(defterm > src.primitives.> :origin \"import\")")
+        :explanation "Other aliases use bare reference without quote"))
+
+; --- Proof chain: quote is redundant in defterm aliasing ---
+
+; Step 1: let rebinds a bare (non-quoted) defterm alias
+(fact let-rebinds-bare-alias true
+    :evidence (evidence "entry_mocks_math_pltg"
+        :quotes ("(defterm zero primitives.zero :origin \"import\")"
+                 "(let ((primitives.zero 0)" "(primitives.plus +)" "(primitives.equals =))")
+        :explanation "math.pltg aliases primitives.zero without quote, then let rebinds it to 0"))
+
+; Step 2: if let can rebind a bare alias, the symbol was NOT eagerly resolved
+;         (if it had been eagerly resolved, rebinding the original wouldn't propagate)
+(axiom let-rebind-proves-lazy (implies ?let-can-rebind-bare (not ?eagerly-resolved))
+    :evidence (evidence "entry_mocks_math_pltg"
+        :quotes ("(assert-true \"add-identity: 5 + 0 = 5\""
+                 "(primitives.equals (primitives.plus 5 primitives.zero) 5))")
+        :explanation "Assert passes after let rebind — bare alias was not eagerly resolved"))
+
+; Step 3: defterm uses the same resolution mechanism for all aliases
+(fact defterm-same-mechanism true
+    :evidence (evidence "apples_axioms_pltg"
+        :quotes ("(defterm zero src.primitives.zero :origin \"import\")"
+                 "(defterm = (quote src.primitives.=) :origin \"import lazy\")")
+        :explanation "Both bare and quoted aliases go through the same defterm path"))
+
+; Step 4: therefore every defterm is lazy — quote adds nothing
+(derive every-defterm-is-lazy
+    (and let-rebinds-bare-alias defterm-same-mechanism)
+    :using (let-rebinds-bare-alias defterm-same-mechanism))
+
+; Step 5: labels say 2, reality says 7
+(fact labeled-lazy-count 2
+    :evidence (evidence "apples_axioms_pltg"
+        :quotes ("(defterm = (quote src.primitives.=) :origin \"import lazy\")"
+                 "(defterm + (quote src.primitives.+) :origin \"import lazy\")")
+        :explanation "Only 2 aliases labeled 'import lazy'"))
+
+(defterm lazy-alias-zero (if every-defterm-is-lazy 1 0)
+    :evidence (evidence "apples_axioms_pltg"
+        :quotes ("(defterm zero src.primitives.zero :origin \"import\")")
+        :explanation "bare alias — lazy by axiom chain"))
+
+(defterm lazy-alias-succ (if every-defterm-is-lazy 1 0)
+    :evidence (evidence "apples_axioms_pltg"
+        :quotes ("(defterm succ src.primitives.succ :origin \"import\")")
+        :explanation "bare alias — lazy by axiom chain"))
+
+(defterm lazy-alias-eq (if every-defterm-is-lazy 1 0)
+    :evidence (evidence "apples_axioms_pltg"
+        :quotes ("(defterm = (quote src.primitives.=) :origin \"import lazy\")")
+        :explanation "quoted alias — lazy by axiom chain"))
+
+(defterm lazy-alias-plus (if every-defterm-is-lazy 1 0)
+    :evidence (evidence "apples_axioms_pltg"
+        :quotes ("(defterm + (quote src.primitives.+) :origin \"import lazy\")")
+        :explanation "quoted alias — lazy by axiom chain"))
+
+(defterm lazy-alias-minus (if every-defterm-is-lazy 1 0)
+    :evidence (evidence "apples_axioms_pltg"
+        :quotes ("(defterm - src.primitives.- :origin \"import\")")
+        :explanation "bare alias — lazy by axiom chain"))
+
+(defterm lazy-alias-gt (if every-defterm-is-lazy 1 0)
+    :evidence (evidence "apples_axioms_pltg"
+        :quotes ("(defterm > src.primitives.> :origin \"import\")")
+        :explanation "bare alias — lazy by axiom chain"))
+
+(defterm lazy-alias-mul (if every-defterm-is-lazy 1 0)
+    :evidence (evidence "apples_axioms_pltg"
+        :quotes ("(defterm * src.primitives.* :origin \"import\")")
+        :explanation "bare alias — lazy by axiom chain"))
+
+(defterm actual-lazy-count
+    (+ (+ (+ (+ (+ (+ lazy-alias-zero lazy-alias-succ) lazy-alias-eq) lazy-alias-plus) lazy-alias-minus) lazy-alias-gt) lazy-alias-mul)
+    :origin "Sum of all defterm aliases — each 1 by axiom chain")
+
+; Step 6: diff diverges — labels are wrong
+(diff lazy-label-vs-reality
+    :replace labeled-lazy-count
+    :with actual-lazy-count)
+
+; ---------------------------------------------------------------------
+; Axiom 3: Forward-declared primitives
+; For any term ?t with no body (:origin "primitive"), using ?t in an
+; expression produces a formal (symbolic) expression — no import needed.
+; ---------------------------------------------------------------------
+
+(axiom forward-decl-produces-formal (implies (= ?t ?t) (= (?t ?x) (?t ?x)))
+    :evidence (evidence "apples_afternoon_pltg"
+        :quotes ("succ/zero are used here without explicit imports"
+                 "evaluation returns them as bare"
+                 "Symbols, producing formal expressions like (succ (succ zero))")
+        :explanation "Forward-declared term with no body produces formal expression"))
+
+(fact primitives-are-forward-declared true
+    :evidence (evidence "apples_primitives_pltg"
+        :quotes ("(defterm zero" "(defterm succ")
+        :explanation "zero and succ declared with evidence but no computed body"))
+
+(fact afternoon-uses-without-import true
+    :evidence (evidence "apples_afternoon_pltg"
+        :quotes ("(defterm serpent-afternoon (succ (succ (succ (succ zero))))")
+        :explanation "afternoon.pltg uses succ/zero without importing primitives"))
+
+(derive forward-decl-proven-by-afternoon
+    (and primitives-are-forward-declared afternoon-uses-without-import)
+    :using (primitives-are-forward-declared afternoon-uses-without-import))
+
+; Also proved by entry_mocks
+(fact entry-mocks-primitives-forward-declared true
+    :evidence (evidence "entry_mocks_primitives_pltg"
+        :quotes ("(defterm zero :origin \"primitive\")"
+                 "(defterm succ :origin \"primitive\")")
+        :explanation "entry_mocks primitives are pure forward declarations with :origin"))
+
+; ---------------------------------------------------------------------
+; Axiom 4: run-on-entry gating
+; For any module ?m, if ?m is not main, (run-on-entry ...) is skipped.
+; If ?m is main, it fires. Proved by deferred_pltg.
+; ---------------------------------------------------------------------
+
+(axiom run-on-entry-gate (implies (not ?is-main) (= ?run-on-entry false))
+    :evidence (evidence "deferred_demo_pltg"
+        :quotes ("lib's run-on-entry: SKIPPED (not main)"
+                 "app's run-on-entry: SKIPPED (not main)"
+                 "Only demo.pltg is main, so only its run-on-entry fires.")
+        :explanation "run-on-entry is gated on is_main — skipped for all imported modules"))
+
+(fact lib-has-run-on-entry true
+    :evidence (evidence "deferred_lib_pltg"
+        :quotes ("(run-on-entry"
+                 "(quote (fact standalone-mode true :origin \"deferred — only when main\"))")
+        :explanation "lib.pltg defines run-on-entry facts"))
+
+(fact app-has-run-on-entry true
+    :evidence (evidence "deferred_app_pltg"
+        :quotes ("(run-on-entry"
+                 "(quote (fact app-initialized true :origin \"deferred — app is main\"))")
+        :explanation "app.pltg defines run-on-entry facts"))
+
+(fact demo-run-on-entry-fires true
+    :evidence (evidence "deferred_demo_pltg"
+        :quotes ("(run-on-entry"
+                 "(quote (fact demo-ready true :origin \"deferred — demo is main\")))")
+        :explanation "demo.pltg's run-on-entry fires because it IS main"))
+
+(derive run-on-entry-gating-proven
+    (and lib-has-run-on-entry app-has-run-on-entry demo-run-on-entry-fires deferred-skips-on-import)
+    :using (lib-has-run-on-entry app-has-run-on-entry demo-run-on-entry-fires deferred-skips-on-import))
+
+; ---------------------------------------------------------------------
+; Axiom 5: let-mock rebinding
+; For any forward-declared ?term, (let ((?term ?val)) ?expr) rebinds
+; ?term to ?val, making formal expressions computable. This is the
+; unit-testing pattern: formal theorems become executable assertions.
+; ---------------------------------------------------------------------
+
+(axiom let-rebinds-forward-decl (implies (and ?is-forward-declared ?has-mock-value) ?is-computable)
+    :evidence (evidence "entry_mocks_math_pltg"
+        :quotes ("run-on-entry block rebinds the non-existent primitives"
+                 "to concrete mock values via let, turning the formal theorem"
+                 "into a computable self-test")
+        :explanation "let rebinds forward-declared primitives to concrete values, making formal expressions computable"))
+
+(fact let-mock-rebinds-zero true
+    :evidence (evidence "entry_mocks_math_pltg"
+        :quotes ("(let ((primitives.zero 0)" "(primitives.plus +)" "(primitives.equals =))")
+        :explanation "let rebinds zero→0, plus→+, equals→= inside run-on-entry"))
+
+(fact let-mock-asserts true
+    :evidence (evidence "entry_mocks_math_pltg"
+        :quotes ("(assert-true \"add-identity: 5 + 0 = 5\""
+                 "(primitives.equals (primitives.plus 5 primitives.zero) 5))")
+        :explanation "Rebound primitives used in assert-true — formal becomes computable"))
+
+(fact let-mock-in-run-on-entry true
+    :evidence (evidence "entry_mocks_math_pltg"
+        :quotes ("(run-on-entry" "(quote (assert-true \"add-identity: 5 + 0 = 5\"")
+        :explanation "Mock rebinding happens inside run-on-entry for test isolation"))
+
+(derive let-mock-unit-test-proven
+    (and let-mock-rebinds-zero let-mock-asserts let-mock-in-run-on-entry entry-mocks-uses-let)
+    :using (let-mock-rebinds-zero let-mock-asserts let-mock-in-run-on-entry entry-mocks-uses-let))
+
+; ---------------------------------------------------------------------
+; Axiom 6: Import chain transitivity
+; If ?a imports ?b and ?b imports ?c, then ?a has access to ?c's
+; namespaced definitions. Proved by deferred_pltg's 3-level chain.
+; ---------------------------------------------------------------------
+
+(axiom import-transitive (implies (and ?a-imports-b ?b-imports-c) ?a-has-c)
+    :evidence (evidence "deferred_demo_pltg"
+        :quotes ("Importing app (which imports lib)")
+        :explanation "demo imports app, app imports lib — demo sees lib's facts"))
+
+(fact chain-demo-imports-app true
+    :evidence (evidence "deferred_demo_pltg"
+        :quotes ("(import (quote app))")
+        :explanation "demo.pltg imports app"))
+
+(fact chain-app-imports-lib true
+    :evidence (evidence "deferred_app_pltg"
+        :quotes ("(import (quote lib))")
+        :explanation "app.pltg imports lib"))
+
+(fact chain-lib-has-facts true
+    :evidence (evidence "deferred_lib_pltg"
+        :quotes ("(fact api-version 3 :origin \"library constant\")"
+                 "(fact max-retries 5 :origin \"library constant\")")
+        :explanation "lib.pltg defines regular facts that load on import"))
+
+(derive import-chain-proven
+    (and chain-demo-imports-app chain-app-imports-lib chain-lib-has-facts)
+    :using (chain-demo-imports-app chain-app-imports-lib chain-lib-has-facts))
+
+; ---------------------------------------------------------------------
+; Axiom 7: Cross-module :bind
+; For any axiom ?ax in module ?m, (derive ?thm ?m.?ax :bind ...)
+; instantiates the axiom with concrete terms from the current module.
+; ---------------------------------------------------------------------
+
+(axiom cross-module-bind (implies (and ?axiom-in-module ?bindings-from-local) ?theorem-instantiated)
+    :evidence (evidence "apples_demo_pltg"
+        :quotes ("(derive three-plus-zero src.axioms.add-identity"
+                 ":bind ((?n (local-succ (local-succ (local-succ local-zero)))))"
+                 ":using (src.axioms.add-identity local-succ local-zero))")
+        :explanation "Axiom from one module can be instantiated with terms from another via :bind"))
+
+(fact cross-bind-mixes-namespaces true
+    :evidence (evidence "apples_demo_pltg"
+        :quotes (":using (src.axioms.add-identity local-succ local-zero)")
+        :explanation ":using mixes namespaced axiom ref with local alias terms"))
+
+(fact cross-bind-multiple-axioms true
+    :evidence (evidence "apples_demo_pltg"
+        :quotes ("(derive commute-3-2 src.axioms.add-commutative"
+                 "(derive add-step-3-1 src.axioms.add-succ")
+        :explanation "Multiple axioms from same module instantiated in demo"))
+
+(derive cross-module-bind-proven
+    (and cross-bind-mixes-namespaces cross-bind-multiple-axioms)
+    :using (cross-bind-mixes-namespaces cross-bind-multiple-axioms))
+
+; ---------------------------------------------------------------------
+; Axiom 8: Dot-separated import path resolution
+; (import (quote ?a.?b)) resolves to ?a/?b.pltg relative to current dir.
+; Proved by src.primitives, src.axioms, src.morning, src.afternoon.
+; ---------------------------------------------------------------------
+
+(axiom dot-import-resolves (implies ?dot-separated-name ?maps-to-path)
+    :evidence (evidence "apples_demo_pltg"
+        :quotes ("(import (quote src.primitives))"
+                 "(import (quote src.axioms))"
+                 "(import (quote src.morning))"
+                 "(import (quote src.afternoon))")
+        :explanation "Dot-separated module name maps to directory path — src.primitives → src/primitives.pltg"))
+
+(fact flat-import-also-works true
+    :evidence (evidence "entry_mocks_math_pltg"
+        :quotes ("(import (quote primitives))"
+                 "(import (quote axioms))")
+        :explanation "Single-segment imports resolve to sibling files without dots"))

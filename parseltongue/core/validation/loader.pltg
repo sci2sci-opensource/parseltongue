@@ -1,0 +1,227 @@
+; loader.pltg — Ground truth from loader.py
+
+(load-document "loader.py" "../loader.py")
+
+; =====================================================================
+; Module contract
+; =====================================================================
+
+(fact loader-module-doc "Parseltongue Loader"
+    :evidence (evidence "loader.py"
+        :quotes ("Parseltongue Loader")
+        :explanation "Module identity"))
+
+(fact loader-provides-import true
+    :evidence (evidence "loader.py"
+        :quotes ("import resolution")
+        :explanation "Module docstring lists import resolution"))
+
+(fact loader-provides-run-on-entry true
+    :evidence (evidence "loader.py"
+        :quotes ("run-on-entry gating")
+        :explanation "Module docstring lists run-on-entry"))
+
+(fact loader-provides-document-loading true
+    :evidence (evidence "loader.py"
+        :quotes ("document loading")
+        :explanation "Module docstring lists document loading"))
+
+(fact loader-provides-context true
+    :evidence (evidence "loader.py"
+        :quotes ("runtime context")
+        :explanation "Module docstring lists runtime context"))
+
+(fact loader-context-model "onion"
+    :evidence (evidence "loader.py"
+        :quotes ("Context follows an onion model")
+        :explanation "Context is layered"))
+
+; =====================================================================
+; Context classes
+; =====================================================================
+
+(fact context-is-abc true
+    :evidence (evidence "loader.py"
+        :quotes ("class Context(ABC):")
+        :explanation "Context is abstract base class"))
+
+(fact loader-context-frozen true
+    :evidence (evidence "loader.py"
+        :quotes ("@dataclass(frozen=True)")
+        :explanation "LoaderContext is immutable"))
+
+(fact module-context-has-is-main true
+    :evidence (evidence "loader.py"
+        :quotes ("is_main: bool")
+        :explanation "ModuleContext tracks if it's the main entry"))
+
+(fact module-context-has-parent true
+    :evidence (evidence "loader.py"
+        :quotes ("parent: \"Context | None\" = None")
+        :explanation "ModuleContext links to parent context"))
+
+(fact module-context-doc "Immutable per-module context, created once per file load."
+    :evidence (evidence "loader.py"
+        :quotes ("Immutable per-module context, created once per file load.")
+        :explanation "ModuleContext docstring"))
+
+; =====================================================================
+; Loader class
+; =====================================================================
+
+(fact loader-class-doc "Loads .pltg files with import resolution and per-module context."
+    :evidence (evidence "loader.py"
+        :quotes ("Loads .pltg files with import resolution and per-module context.")
+        :explanation "Loader class docstring"))
+
+(fact loader-has-registry true
+    :evidence (evidence "loader.py"
+        :quotes ("self.modules_contexts: dict[str, ModuleContext] = {}")
+        :explanation "Loader maintains module registry"))
+
+(fact loader-detects-circular-imports true
+    :evidence (evidence "loader.py"
+        :quotes ("Circular import detected")
+        :explanation "Loader raises on circular imports"))
+
+(fact loader-tracks-file-stack true
+    :evidence (evidence "loader.py"
+        :quotes ("self._file_stack: list[str] = []")
+        :explanation "File stack tracks import chain"))
+
+(fact loader-deduplicates-imports true
+    :evidence (evidence "loader.py"
+        :quotes ("self._imported: set[str] = set()")
+        :explanation "Tracks imported files to skip duplicates"))
+
+; =====================================================================
+; Namespacing
+; =====================================================================
+
+(fact loader-namespaces-definitions true
+    :evidence (evidence "loader.py"
+        :quotes ("Namespace definition names for non-main modules")
+        :explanation "Non-main definitions get module prefix"))
+
+(fact loader-patches-symbols true
+    :evidence (evidence "loader.py"
+        :quotes ("Recursively namespace bare symbols in expression bodies.")
+        :explanation "Symbol references are patched to namespaced versions"))
+
+(fact loader-patches-context true
+    :evidence (evidence "loader.py"
+        :quotes ("Recursively patch (context :key)")
+        :explanation "Context keys are patched with module name"))
+
+; =====================================================================
+; Built-in effects
+; =====================================================================
+
+(fact effect-import-doc "Effect: (import (quote some.module))"
+    :evidence (evidence "loader.py"
+        :quotes ("Effect: (import (quote some.module))")
+        :explanation "import effect docstring"))
+
+(fact effect-run-on-entry-doc "Effect: (run-on-entry (quote (directive1)) ...)"
+    :evidence (evidence "loader.py"
+        :quotes ("Effect: (run-on-entry (quote (directive1)) ...)")
+        :explanation "run-on-entry effect docstring"))
+
+(fact effect-run-on-entry-skips-non-main true
+    :evidence (evidence "loader.py"
+        :quotes ("Skipping run-on-entry (not main)")
+        :explanation "run-on-entry only fires for main file"))
+
+(fact effect-load-document-doc "Effect: (load-document \"name\" \"relative/path.txt\")"
+    :evidence (evidence "loader.py"
+        :quotes ("load-document \"name\" \"relative/path.txt\"")
+        :explanation "load-document effect docstring"))
+
+(fact effect-context-keys 4
+    :evidence (evidence "loader.py"
+        :quotes (":file" ":dir" ":name" ":main")
+        :explanation "context effect supports 4 keys"))
+
+(fact effect-print-exists true
+    :evidence (evidence "loader.py"
+        :quotes ("def print_effect")
+        :explanation "print effect exists"))
+
+(fact effect-print-doc "Effect: (print \"hello\" value ...)"
+    :evidence (evidence "loader.py"
+        :quotes ("Effect: (print \"hello\" value ...)")
+        :explanation "print effect docstring"))
+
+(fact built-in-effect-count 7
+    :evidence (evidence "loader.py"
+        :quotes ("\"import\": import_effect"
+                 "\"run-on-entry\": run_on_entry_effect"
+                 "\"load-document\": load_document_effect"
+                 "\"context\": context_effect"
+                 "\"print\": print_effect"
+                 "\"consistency\": consistency_effect"
+                 "\"verify-manual\": verify_manual_effect")
+        :explanation "7 built-in loader effects"))
+
+; =====================================================================
+; Module path resolution
+; =====================================================================
+
+(fact import-resolves-dots-to-sep true
+    :evidence (evidence "loader.py"
+        :quotes ("module_name.replace(\".\", os.sep) + \".pltg\"")
+        :explanation "Dots become path separators, .pltg appended"))
+
+; =====================================================================
+; load_main / load_pltg
+; =====================================================================
+
+(fact load-main-doc "Load a .pltg file as a standalone entry point."
+    :evidence (evidence "loader.py"
+        :quotes ("Load a .pltg file as a standalone entry point.")
+        :explanation "load_main docstring"))
+
+(fact load-main-passes-kwargs true
+    :evidence (evidence "loader.py"
+        :quotes ("**system_kwargs: Passed through to System() constructor.")
+        :explanation "System kwargs pass through"))
+
+(fact load-pltg-doc "Convenience function"
+    :evidence (evidence "loader.py"
+        :quotes ("Convenience function")
+        :explanation "load_pltg is a convenience wrapper"))
+
+; load_pltg docstring says it returns "(system, loader) tuple" but it returns just system
+(fact load-pltg-docstring-claims-tuple true
+    :evidence (evidence "loader.py"
+        :quotes ("(system, loader) tuple")
+        :explanation "Docstring says tuple return"))
+
+(fact load-pltg-returns-system-only true
+    :evidence (evidence "loader.py"
+        :quotes ("return system")
+        :explanation "Actually returns just the system"))
+
+; Internal diff: load_pltg docstring lies about return type
+(diff load-pltg-return-type-doc-vs-impl
+    :replace load-pltg-docstring-claims-tuple
+    :with load-pltg-returns-system-only)
+
+; =====================================================================
+; Derivations
+; =====================================================================
+
+; The 5 built-in effects match the DSL usage examples in the module docstring
+(derive all-dsl-examples-have-effects
+    (and loader-provides-import loader-provides-run-on-entry loader-provides-document-loading loader-provides-context effect-print-exists)
+    :using (loader-provides-import loader-provides-run-on-entry loader-provides-document-loading loader-provides-context effect-print-exists))
+
+; run-on-entry only fires for main — consistent with ModuleContext.is_main
+(derive run-on-entry-uses-is-main
+    (and effect-run-on-entry-skips-non-main module-context-has-is-main)
+    :using (effect-run-on-entry-skips-non-main module-context-has-is-main))
+
+; Circular import detection relies on file stack
+(derive circular-detection-mechanism
+    (and loader-detects-circular-imports loader-tracks-file-stack)
+    :using (loader-detects-circular-imports loader-tracks-file-stack))

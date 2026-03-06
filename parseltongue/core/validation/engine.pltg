@@ -1,0 +1,282 @@
+; engine.pltg — Ground truth and internal validation for engine.py
+
+(load-document "engine.py" "../engine.py")
+
+; =====================================================================
+; Module docstring vs class docstring
+; =====================================================================
+
+(fact module-doc-claims-doc-mgmt true
+    :evidence (evidence "engine.py"
+        :quotes ("document management, evidence verification")
+        :explanation "Module docstring says engine provides document management"))
+
+(fact class-doc-claims-no-doc-mgmt true
+    :evidence (evidence "engine.py"
+        :quotes ("Pure evaluation engine. No serialization, no document management.")
+        :explanation "Class docstring says NO document management"))
+
+(fact engine-has-register-document true
+    :evidence (evidence "engine.py"
+        :quotes ("def register_document(self, name: str, text: str):")
+        :explanation "Engine has register_document method"))
+
+(fact engine-has-load-document true
+    :evidence (evidence "engine.py"
+        :quotes ("def load_document(self, name: str, path: str):")
+        :explanation "Engine has load_document method"))
+
+(fact engine-has-documents-dict true
+    :evidence (evidence "engine.py"
+        :quotes ("self.documents: dict[str, str] = {}")
+        :explanation "Engine stores documents in a dict"))
+
+; The class docstring contradicts the module docstring AND the actual implementation
+(derive class-docstring-wrong
+    (and engine-has-register-document engine-has-load-document engine-has-documents-dict)
+    :using (engine-has-register-document engine-has-load-document engine-has-documents-dict))
+
+(diff module-vs-class-docstring
+    :replace module-doc-claims-doc-mgmt
+    :with class-doc-claims-no-doc-mgmt)
+
+; =====================================================================
+; Fact class
+; =====================================================================
+
+(fact fact-extends-axiom true
+    :evidence (evidence "engine.py"
+        :quotes ("class Fact(Axiom):")
+        :explanation "Fact subclasses Axiom"))
+
+(fact fact-docstring "A fact: non-parametric axiom"
+    :evidence (evidence "engine.py"
+        :quotes ("A fact: non-parametric axiom")
+        :explanation "Fact docstring — it's a ground truth axiom"))
+
+; =====================================================================
+; Engine constructor defaults
+; =====================================================================
+
+(fact overridable-default false
+    :evidence (evidence "engine.py"
+        :quotes ("overridable: bool = False")
+        :explanation "Overridable defaults to False"))
+
+(fact strict-derive-default true
+    :evidence (evidence "engine.py"
+        :quotes ("strict_derive: bool = True")
+        :explanation "Strict derive defaults to True"))
+
+; =====================================================================
+; Evaluation
+; =====================================================================
+
+(fact rewrite-depth-limit 100
+    :evidence (evidence "engine.py"
+        :quotes ("if depth > 100:")
+        :explanation "Rewrite recursion limit is 100"))
+
+(fact eval-doc "Evaluate an s-expression in the current system."
+    :evidence (evidence "engine.py"
+        :quotes ("Evaluate an s-expression in the current system.")
+        :explanation "evaluate docstring"))
+
+; Rewrite uses axioms as left-to-right rules
+(fact rewrite-direction "left-to-right"
+    :evidence (evidence "engine.py"
+        :quotes ("Axioms of the form (= LHS RHS) are used left-to-right")
+        :explanation "Rewrite direction documented"))
+
+; EQ fallback: when structural comparison fails on formal expressions,
+; engine tries rewriting both sides and comparing results
+(fact eq-has-rewrite-fallback true
+    :evidence (evidence "engine.py"
+        :quotes ("if result is False and head == EQ and any(isinstance(a, list) for a in args):")
+        :explanation "EQ comparison has a rewrite fallback path"))
+
+; =====================================================================
+; Derivation
+; =====================================================================
+
+(fact derive-doc "Derive a theorem from existing axioms/terms."
+    :evidence (evidence "engine.py"
+        :quotes ("Derive a theorem from existing axioms/terms.")
+        :explanation "derive docstring"))
+
+(fact derive-restricted-eval true
+    :evidence (evidence "engine.py"
+        :quotes ("Evaluation is restricted to facts/terms listed in :using.")
+        :explanation "Derivation uses restricted environment"))
+
+(fact derive-fabrication-propagation true
+    :evidence (evidence "engine.py"
+        :quotes ("If any source has unverified evidence, the theorem is")
+        :explanation "Fabrication propagation documented"))
+
+; Axiom introduction: requires free variables
+(fact axiom-requires-free-vars true
+    :evidence (evidence "engine.py"
+        :quotes ("if not free_vars(wff):")
+        :explanation "introduce_axiom rejects ground axioms"))
+
+(fact axiom-rejection-message "Axiom"
+    :evidence (evidence "engine.py"
+        :quotes ("Axiom" "has no ?-variables")
+        :explanation "Error message mentions missing ?-variables"))
+
+; =====================================================================
+; Consistency checking
+; =====================================================================
+
+(fact consistency-doc "Check full consistency state of the system."
+    :evidence (evidence "engine.py"
+        :quotes ("Check full consistency state of the system.")
+        :explanation "consistency docstring"))
+
+(fact consistency-layer-1 "Evidence grounding"
+    :evidence (evidence "engine.py"
+        :quotes ("1. Evidence grounding")
+        :explanation "First consistency layer"))
+
+(fact consistency-layer-2 "Fabrication propagation"
+    :evidence (evidence "engine.py"
+        :quotes ("2. Fabrication propagation")
+        :explanation "Second consistency layer"))
+
+(fact consistency-layer-3 "Diff agreement"
+    :evidence (evidence "engine.py"
+        :quotes ("3. Diff agreement")
+        :explanation "Third consistency layer"))
+
+(fact consistency-layer-count 3
+    :origin "Counted from documented layers 1-3")
+
+; Issue type strings — exactly what the code creates
+(fact issue-type-unverified "unverified_evidence"
+    :evidence (evidence "engine.py"
+        :quotes ("ConsistencyIssue(\"unverified_evidence\"")
+        :explanation "Issue type for unverified evidence"))
+
+(fact issue-type-no-evidence "no_evidence"
+    :evidence (evidence "engine.py"
+        :quotes ("ConsistencyIssue(\"no_evidence\"")
+        :explanation "Issue type for missing evidence"))
+
+(fact issue-type-fabrication "potential_fabrication"
+    :evidence (evidence "engine.py"
+        :quotes ("ConsistencyIssue(\"potential_fabrication\"")
+        :explanation "Issue type for fabrication"))
+
+(fact issue-type-diff-divergence "diff_divergence"
+    :evidence (evidence "engine.py"
+        :quotes ("ConsistencyIssue(\"diff_divergence\"")
+        :explanation "Issue type for diff divergence"))
+
+(fact issue-type-diff-value "diff_value_divergence"
+    :evidence (evidence "engine.py"
+        :quotes ("ConsistencyIssue(\"diff_value_divergence\"")
+        :explanation "Issue type for diff value divergence"))
+
+; =====================================================================
+; Retract / rederive
+; =====================================================================
+
+(fact retract-doc "Remove a fact, axiom, term, theorem, or diff from the system."
+    :evidence (evidence "engine.py"
+        :quotes ("Remove a fact, axiom, term, theorem, or diff from the system.")
+        :explanation "retract docstring"))
+
+(fact retract-handles-theorems true
+    :evidence (evidence "engine.py"
+        :quotes ("if name in self.theorems:")
+        :explanation "retract also handles theorems"))
+
+(fact retract-doc-mentions-theorems true
+    :evidence (evidence "engine.py"
+        :quotes ("Remove a fact, axiom, term, theorem, or diff")
+        :explanation "retract docstring includes theorem"))
+
+; Verify docstring and implementation agree on theorem support
+(diff retract-doc-vs-impl
+    :replace retract-doc-mentions-theorems
+    :with retract-handles-theorems)
+
+(fact rederive-doc "Re-run a derivation to refresh its fabrication status."
+    :evidence (evidence "engine.py"
+        :quotes ("Re-run a derivation to refresh its fabrication status.")
+        :explanation "rederive docstring"))
+
+; =====================================================================
+; Diff mechanism
+; =====================================================================
+
+(fact register-diff-doc "Register a diff — a lazy comparison between two symbols."
+    :evidence (evidence "engine.py"
+        :quotes ("Register a diff")
+        :explanation "register_diff docstring"))
+
+(fact diff-is-lazy true
+    :evidence (evidence "engine.py"
+        :quotes ("Stores only the parameters. The result is computed fresh on")
+        :explanation "Diffs are lazy — computed on access"))
+
+(fact eval-diff-doc "Evaluate a registered diff against current system state."
+    :evidence (evidence "engine.py"
+        :quotes ("Evaluate a registered diff against current system state.")
+        :explanation "eval_diff docstring"))
+
+; =====================================================================
+; set_fact — overridable behavior
+; =====================================================================
+
+(fact set-fact-checks-overridable true
+    :evidence (evidence "engine.py"
+        :quotes ("if not self.overridable:")
+        :explanation "set_fact checks overridable before allowing override"))
+
+(fact set-fact-error-on-duplicate "Fact"
+    :evidence (evidence "engine.py"
+        :quotes ("Fact" "already exists. Use retract() first, or create System(overridable=True)")
+        :explanation "Error message suggests retract or overridable"))
+
+; Derive: set_fact both stores in facts dict AND puts value in env
+(fact set-fact-updates-env true
+    :evidence (evidence "engine.py"
+        :quotes ("self.env[Symbol(name)] = value")
+        :explanation "set_fact pushes value into evaluation env"))
+
+; =====================================================================
+; DSL loader
+; =====================================================================
+
+(fact load-source-handles-axiom true
+    :evidence (evidence "engine.py"
+        :quotes ("if head == AXIOM:")
+        :explanation "Loader handles axiom directive"))
+
+(fact load-source-handles-defterm true
+    :evidence (evidence "engine.py"
+        :quotes ("elif head == DEFTERM:")
+        :explanation "Loader handles defterm directive"))
+
+(fact load-source-handles-fact true
+    :evidence (evidence "engine.py"
+        :quotes ("elif head == FACT:")
+        :explanation "Loader handles fact directive"))
+
+(fact load-source-handles-derive true
+    :evidence (evidence "engine.py"
+        :quotes ("elif head == DERIVE:")
+        :explanation "Loader handles derive directive"))
+
+(fact load-source-handles-diff true
+    :evidence (evidence "engine.py"
+        :quotes ("elif head == DIFF:")
+        :explanation "Loader handles diff directive"))
+
+; Fallback: unknown directives are evaluated as expressions
+(fact load-source-fallback-evaluates true
+    :evidence (evidence "engine.py"
+        :quotes ("engine.evaluate(expr)")
+        :explanation "Unknown directives fall through to evaluate"))

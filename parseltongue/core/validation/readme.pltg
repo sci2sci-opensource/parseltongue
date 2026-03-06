@@ -1,0 +1,260 @@
+; readme.pltg — Claims extracted from core/README.md
+
+(load-document "README" "../README.md")
+
+; =====================================================================
+; Top-level claims
+; =====================================================================
+
+(fact readme-title "Parseltongue Core"
+    :evidence (evidence "README"
+        :quotes ("# Parseltongue Core")
+        :explanation "Module title"))
+
+(fact readme-tagline "The formal language engine. No LLM dependency"
+    :evidence (evidence "README"
+        :quotes ("The formal language engine. No LLM dependency")
+        :explanation "Core tagline"))
+
+; =====================================================================
+; Directive types
+; =====================================================================
+
+(fact readme-directive-count 5
+    :evidence (evidence "README"
+        :quotes ("Five directive types, each optionally grounded in :evidence")
+        :explanation "README claims 5 directives"))
+
+(fact readme-has-fact-directive true
+    :evidence (evidence "README"
+        :quotes ("fact")
+        :explanation "fact listed as directive"))
+
+(fact readme-has-axiom-directive true
+    :evidence (evidence "README"
+        :quotes ("axiom")
+        :explanation "axiom listed as directive"))
+
+(fact readme-has-defterm-directive true
+    :evidence (evidence "README"
+        :quotes ("defterm")
+        :explanation "defterm listed as directive"))
+
+(fact readme-has-derive-directive true
+    :evidence (evidence "README"
+        :quotes ("derive")
+        :explanation "derive listed as directive"))
+
+(fact readme-has-diff-directive true
+    :evidence (evidence "README"
+        :quotes ("diff")
+        :explanation "diff listed as directive"))
+
+; =====================================================================
+; Built-in operators section
+; =====================================================================
+
+(fact readme-special-forms-count 3
+    :evidence (evidence "README"
+        :quotes ("**Special forms**: if, let, quote")
+        :explanation "README lists 3 special forms"))
+
+(fact readme-arithmetic "5"
+    :evidence (evidence "README"
+        :quotes ("+, -, *, /, mod")
+        :explanation "5 arithmetic operators"))
+
+(fact readme-comparison "6"
+    :evidence (evidence "README"
+        :quotes (">, <, >=, <=, =, !=")
+        :explanation "6 comparison operators"))
+
+(fact readme-logic "4"
+    :evidence (evidence "README"
+        :quotes ("and, or, not, implies")
+        :explanation "4 logic operators"))
+
+; =====================================================================
+; Quote verifier section
+; =====================================================================
+
+(fact readme-verifier-confidence-shape "dict"
+    :evidence (evidence "README"
+        :quotes ("confidence: {score: 0.95, level:")
+        :explanation "README shows confidence as a dict"))
+
+(fact readme-verifier-position-key "original_position"
+    :evidence (evidence "README"
+        :quotes ("original_position:")
+        :explanation "README uses original_position key"))
+
+(fact readme-normalization-steps 6
+    :evidence (evidence "README"
+        :quotes ("six-step normalization pipeline")
+        :explanation "README says 6 normalization steps"))
+
+(fact readme-extensibility-claim true
+    :evidence (evidence "README"
+        :quotes ("custom normalizers, fuzzy matchers, and custom tokenizers can be plugged in")
+        :explanation "README claims extensibility for custom normalizers/matchers/tokenizers"))
+
+(fact readme-binary-threshold true
+    :evidence (evidence "README"
+        :quotes ("a confidence score with a binary threshold for pass/fail")
+        :explanation "README says binary threshold"))
+
+; =====================================================================
+; Consistency checking section
+; =====================================================================
+
+(fact readme-issue-type-1 "unverified_evidence"
+    :evidence (evidence "README"
+        :quotes ("unverified_evidence")
+        :explanation "Issue type listed in table"))
+
+(fact readme-issue-type-2 "no_evidence"
+    :evidence (evidence "README"
+        :quotes ("no_evidence")
+        :explanation "Issue type listed in table"))
+
+(fact readme-issue-type-3 "potential_fabrication"
+    :evidence (evidence "README"
+        :quotes ("potential_fabrication")
+        :explanation "Issue type listed in table"))
+
+(fact readme-issue-type-4 "diff_divergence"
+    :evidence (evidence "README"
+        :quotes ("diff_divergence")
+        :explanation "Issue type listed in table"))
+
+(fact readme-issue-type-5 "diff_value_divergence"
+    :evidence (evidence "README"
+        :quotes ("diff_value_divergence")
+        :explanation "Issue type listed in table"))
+
+; =====================================================================
+; Custom environments section
+; =====================================================================
+
+(fact readme-docs-param-described true
+    :evidence (evidence "README"
+        :quotes ("The docs= parameter controls what system.doc() returns")
+        :explanation "README documents docs= parameter"))
+
+(fact readme-initial-env-described true
+    :evidence (evidence "README"
+        :quotes ("initial_env={}")
+        :explanation "README documents initial_env parameter"))
+
+; =====================================================================
+; Demos section
+; =====================================================================
+
+(fact readme-demo-apples true
+    :evidence (evidence "README"
+        :quotes ("Apples")
+        :explanation "Apples demo documented"))
+
+(fact readme-demo-revenue true
+    :evidence (evidence "README"
+        :quotes ("Revenue Reports")
+        :explanation "Revenue demo documented"))
+
+(fact readme-demo-biomarkers true
+    :evidence (evidence "README"
+        :quotes ("Biomarkers")
+        :explanation "Biomarkers demo documented"))
+
+(fact readme-demo-count 11
+    :evidence (evidence "README"
+        :quotes ("11 demos covering the full feature set")
+        :explanation "README lists 11 demos"))
+
+; =====================================================================
+; Axiom claims — what README states as rules
+; =====================================================================
+
+; "Axioms MUST contain at least one ?-variable"
+(fact readme-axiom-var-requirement true
+    :evidence (evidence "README"
+        :quotes ("Axioms MUST contain at least one ?-variable")
+        :explanation "README states axiom variable requirement"))
+
+; "If any source has unverified evidence, the derivation inherits the fabrication taint"
+(fact readme-fabrication-propagation true
+    :evidence (evidence "README"
+        :quotes ("If any source has unverified evidence, the derivation inherits the fabrication taint")
+        :explanation "README documents fabrication propagation"))
+
+; "Evidence is a first-class citizen"
+(fact readme-evidence-first-class true
+    :evidence (evidence "README"
+        :quotes ("Evidence is a first-class citizen")
+        :explanation "README claims evidence is first-class"))
+
+; "Statements without evidence can be verified after the fact via system.verify_manual"
+(fact readme-verify-manual-described true
+    :evidence (evidence "README"
+        :quotes ("system.verify_manual")
+        :explanation "README documents verify_manual"))
+
+; =====================================================================
+; Module system section
+; =====================================================================
+
+(fact readme-loader-section true
+    :evidence (evidence "README"
+        :quotes ("## Module System")
+        :explanation "README has a Module System section"))
+
+(fact readme-loader-import-effect true
+    :evidence (evidence "README"
+        :quotes ("(import (quote module.name))")
+        :explanation "README documents import effect"))
+
+(fact readme-loader-run-on-entry-effect true
+    :evidence (evidence "README"
+        :quotes ("(run-on-entry (quote (directive ...)))")
+        :explanation "README documents run-on-entry effect"))
+
+(fact readme-loader-load-document-effect true
+    :evidence (evidence "README"
+        :quotes ("(load-document \"name\" \"relative/path.txt\")")
+        :explanation "README documents load-document effect"))
+
+(fact readme-loader-context-effect true
+    :evidence (evidence "README"
+        :quotes ("(context :file)")
+        :explanation "README documents context effect"))
+
+(fact readme-loader-print-effect true
+    :evidence (evidence "README"
+        :quotes ("(print \"label\" value ...)")
+        :explanation "README documents print effect"))
+
+(fact readme-loader-effect-count 7
+    :evidence (evidence "README"
+        :quotes ("The loader provides 7 built-in effects")
+        :explanation "README claims 7 built-in effects"))
+
+(fact readme-loader-namespacing true
+    :evidence (evidence "README"
+        :quotes ("automatically namespaced with their module name")
+        :explanation "README documents namespacing"))
+
+(fact readme-loader-circular-detection true
+    :evidence (evidence "README"
+        :quotes ("Circular imports are detected and raise an error")
+        :explanation "README documents circular import detection"))
+
+(fact readme-loader-context-onion true
+    :evidence (evidence "README"
+        :quotes ("immutable ModuleContext following an onion model")
+        :explanation "README documents onion context model"))
+
+(fact readme-loader-load-pltg true
+    :evidence (evidence "README"
+        :quotes ("load_pltg")
+        :explanation "README documents load_pltg entry point"))
+
+; Cross-module diff (readme vs loader effect count) lives in core.pltg

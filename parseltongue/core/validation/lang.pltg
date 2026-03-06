@@ -1,0 +1,203 @@
+; lang.pltg — Ground truth and internal validation for lang.py
+
+(load-document "lang.py" "../lang.py")
+
+; =====================================================================
+; Special forms
+; =====================================================================
+
+(fact if-symbol "if"
+    :evidence (evidence "lang.py"
+        :quotes ("IF = Symbol(\"if\")")
+        :explanation "if special form"))
+
+(fact let-symbol "let"
+    :evidence (evidence "lang.py"
+        :quotes ("LET = Symbol(\"let\")")
+        :explanation "let special form"))
+
+(fact quote-symbol "quote"
+    :evidence (evidence "lang.py"
+        :quotes ("QUOTE = Symbol(\"quote\")")
+        :explanation "quote special form"))
+
+(fact eq-symbol "="
+    :evidence (evidence "lang.py"
+        :quotes ("EQ = Symbol(\"=\")")
+        :explanation "= symbol"))
+
+(fact special-forms-tuple-size 3
+    :evidence (evidence "lang.py"
+        :quotes ("SPECIAL_FORMS = (IF, LET, QUOTE)")
+        :explanation "SPECIAL_FORMS has 3 members"))
+
+; EQ is NOT in SPECIAL_FORMS — it's separate
+; But EQ has special-form behavior in engine (rewrite rules, comparison fallback)
+; This is a design observation, not a bug
+
+; =====================================================================
+; DSL keywords — the directive vocabulary
+; =====================================================================
+
+(fact axiom-symbol "axiom"
+    :evidence (evidence "lang.py"
+        :quotes ("AXIOM = Symbol(\"axiom\")")
+        :explanation "axiom directive"))
+
+(fact defterm-symbol "defterm"
+    :evidence (evidence "lang.py"
+        :quotes ("DEFTERM = Symbol(\"defterm\")")
+        :explanation "defterm directive"))
+
+(fact fact-symbol "fact"
+    :evidence (evidence "lang.py"
+        :quotes ("FACT = Symbol(\"fact\")")
+        :explanation "fact directive"))
+
+(fact derive-symbol "derive"
+    :evidence (evidence "lang.py"
+        :quotes ("DERIVE = Symbol(\"derive\")")
+        :explanation "derive directive"))
+
+(fact diff-symbol "diff"
+    :evidence (evidence "lang.py"
+        :quotes ("DIFF = Symbol(\"diff\")")
+        :explanation "diff directive"))
+
+(fact evidence-symbol "evidence"
+    :evidence (evidence "lang.py"
+        :quotes ("EVIDENCE = Symbol(\"evidence\")")
+        :explanation "evidence structural symbol"))
+
+(fact dsl-keywords-tuple-size 6
+    :evidence (evidence "lang.py"
+        :quotes ("DSL_KEYWORDS = (AXIOM, DEFTERM, FACT, DERIVE, DIFF, EVIDENCE)")
+        :explanation "DSL_KEYWORDS has 6 members"))
+
+; =====================================================================
+; Keyword arguments
+; =====================================================================
+
+(fact kw-quotes ":quotes"
+    :evidence (evidence "lang.py"
+        :quotes ("KW_QUOTES = \":quotes\"")
+        :explanation ":quotes keyword"))
+
+(fact kw-explanation ":explanation"
+    :evidence (evidence "lang.py"
+        :quotes ("KW_EXPLANATION = \":explanation\"")
+        :explanation ":explanation keyword"))
+
+(fact kw-origin ":origin"
+    :evidence (evidence "lang.py"
+        :quotes ("KW_ORIGIN = \":origin\"")
+        :explanation ":origin keyword"))
+
+(fact kw-evidence "evidence-keyword"
+    :evidence (evidence "lang.py"
+        :quotes ("KW_EVIDENCE = \":evidence\"")
+        :explanation ":evidence keyword — value stored without colon to avoid parser ambiguity"))
+
+(fact kw-using ":using"
+    :evidence (evidence "lang.py"
+        :quotes ("KW_USING = \":using\"")
+        :explanation ":using keyword"))
+
+(fact kw-replace ":replace"
+    :evidence (evidence "lang.py"
+        :quotes ("KW_REPLACE = \":replace\"")
+        :explanation ":replace keyword"))
+
+(fact kw-with ":with"
+    :evidence (evidence "lang.py"
+        :quotes ("KW_WITH = \":with\"")
+        :explanation ":with keyword"))
+
+(fact kw-bind ":bind"
+    :evidence (evidence "lang.py"
+        :quotes ("KW_BIND = \":bind\"")
+        :explanation ":bind keyword"))
+
+; =====================================================================
+; LANG_DOCS — documented behavior contracts
+; =====================================================================
+
+; Axiom directive doc says ground statements are rejected
+(fact axiom-doc-rejects-ground "ground statements (no ?-variables) are rejected"
+    :evidence (evidence "lang.py"
+        :quotes ("ground statements (no ?-variables) are rejected")
+        :explanation "LANG_DOCS for axiom states this constraint"))
+
+; Derive has two modes documented
+(fact derive-doc-mode-1 "Direct"
+    :evidence (evidence "lang.py"
+        :quotes ("1. Direct")
+        :explanation "Derive mode 1: direct WFF"))
+
+(fact derive-doc-mode-2 "Instantiation"
+    :evidence (evidence "lang.py"
+        :quotes ("2. Instantiation")
+        :explanation "Derive mode 2: axiom + :bind"))
+
+(fact derive-doc-no-mix true
+    :evidence (evidence "lang.py"
+        :quotes ("IMPORTANT: Do NOT combine an inline expression with :bind.")
+        :explanation "Documented constraint: no mixing modes"))
+
+; Defterm has three forms documented
+(fact defterm-doc-form-1 "Forward declaration"
+    :evidence (evidence "lang.py"
+        :quotes ("1. Forward declaration (no body)")
+        :explanation "Defterm form 1"))
+
+(fact defterm-doc-form-2 "Computed expression"
+    :evidence (evidence "lang.py"
+        :quotes ("2. Computed expression")
+        :explanation "Defterm form 2"))
+
+(fact defterm-doc-form-3 "Conditional"
+    :evidence (evidence "lang.py"
+        :quotes ("3. Conditional")
+        :explanation "Defterm form 3"))
+
+; =====================================================================
+; parse_evidence contract
+; =====================================================================
+
+(fact parse-evidence-doc "Parse an evidence s-expression into an Evidence object."
+    :evidence (evidence "lang.py"
+        :quotes ("Parse an evidence s-expression into an Evidence object.")
+        :explanation "parse_evidence docstring"))
+
+(fact parse-evidence-expected-form "(evidence \"document-name\" :quotes (\"quote 1\" \"quote 2\") :explanation \"why\")"
+    :evidence (evidence "lang.py"
+        :quotes ("(evidence \"document-name\"")
+        :explanation "Expected form documented in parse_evidence"))
+
+; =====================================================================
+; Module docstring — statement-building reference
+; =====================================================================
+
+(fact module-doc-directive-count 5
+    :evidence (evidence "lang.py"
+        :quotes ("fact" "axiom" "defterm" "derive" "diff")
+        :explanation "Module docstring lists 5 directives"))
+
+; Axiom: keywords are plain strings, not Symbols
+(axiom keywords-are-strings (= ?kw ?string-value)
+    :evidence (evidence "lang.py"
+        :quotes ("Keyword arguments (plain strings, not Symbols")
+        :explanation "Keywords are plain strings returned by atom() as-is"))
+
+; =====================================================================
+; Internal consistency
+; =====================================================================
+
+; DSL_KEYWORDS has 6 members but only 5 are directives (EVIDENCE is structural)
+; Module docstring says 5 directives — consistent with intent
+(derive directive-vs-keyword-count-explained
+    (> dsl-keywords-tuple-size module-doc-directive-count)
+    :using (dsl-keywords-tuple-size module-doc-directive-count))
+
+; Derive doc forbids mixing modes but engine.py _execute_directive
+; doesn't enforce this at parse level — it's a documentation contract only

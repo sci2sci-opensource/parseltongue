@@ -1,0 +1,213 @@
+; quote_verifier.pltg — Ground truth from quote_verifier/
+
+(load-document "verifier.py" "../quote_verifier/verifier.py")
+(load-document "normalizer.py" "../quote_verifier/normalizer.py")
+(load-document "config.py" "../quote_verifier/config.py")
+
+; =====================================================================
+; Normalizer pipeline
+; =====================================================================
+
+(fact normalizer-step-count 6
+    :evidence (evidence "normalizer.py"
+        :quotes ("Six-step normalization: case, lists, hyphenation, punctuation, stopwords, whitespace.")
+        :explanation "Docstring documents 6 steps"))
+
+(fact normalizer-step-1 "case"
+    :evidence (evidence "normalizer.py"
+        :quotes ("_normalize_case")
+        :explanation "Step 1: case"))
+
+(fact normalizer-step-2 "lists"
+    :evidence (evidence "normalizer.py"
+        :quotes ("_normalize_lists")
+        :explanation "Step 2: lists"))
+
+(fact normalizer-step-3 "hyphenation"
+    :evidence (evidence "normalizer.py"
+        :quotes ("_normalize_hyphenation")
+        :explanation "Step 3: hyphenation"))
+
+(fact normalizer-step-4 "punctuation"
+    :evidence (evidence "normalizer.py"
+        :quotes ("_normalize_punctuation")
+        :explanation "Step 4: punctuation"))
+
+(fact normalizer-step-5 "stopwords"
+    :evidence (evidence "normalizer.py"
+        :quotes ("_normalize_stopwords")
+        :explanation "Step 5: stopwords"))
+
+(fact normalizer-step-6 "whitespace"
+    :evidence (evidence "normalizer.py"
+        :quotes ("_normalize_whitespace")
+        :explanation "Step 6: whitespace"))
+
+; Normalizer docstring says "All functions are stateless"
+(fact normalizer-stateless true
+    :evidence (evidence "normalizer.py"
+        :quotes ("All functions are stateless")
+        :explanation "Normalizer functions are pure"))
+
+; =====================================================================
+; Verifier API
+; =====================================================================
+
+(fact verifier-docstring "Verify if quotes appear in source documents using an inverted index."
+    :evidence (evidence "verifier.py"
+        :quotes ("Verify if quotes appear in source documents using an inverted index.")
+        :explanation "QuoteVerifier class docstring"))
+
+(fact verifier-default-threshold 0.7
+    :evidence (evidence "verifier.py"
+        :quotes ("confidence_threshold: float = 0.7")
+        :explanation "Default confidence threshold"))
+
+(fact verifier-default-case-sensitive false
+    :evidence (evidence "verifier.py"
+        :quotes ("case_sensitive: bool = False")
+        :explanation "Case insensitive by default"))
+
+(fact verifier-default-ignore-punctuation true
+    :evidence (evidence "verifier.py"
+        :quotes ("ignore_punctuation: bool = True")
+        :explanation "Ignores punctuation by default"))
+
+(fact verifier-default-remove-stopwords false
+    :evidence (evidence "verifier.py"
+        :quotes ("remove_stopwords: bool = False")
+        :explanation "Stopword removal off by default"))
+
+; Return format — confidence is a nested dict
+(fact verifier-confidence-return-shape "dict"
+    :evidence (evidence "verifier.py"
+        :quotes ("result[\"confidence\"] = {")
+        :explanation "Confidence returned as nested dict"))
+
+(fact verifier-confidence-has-score true
+    :evidence (evidence "verifier.py"
+        :quotes ("\"score\": confidence_info[\"score\"]")
+        :explanation "Confidence dict has score"))
+
+(fact verifier-confidence-has-level true
+    :evidence (evidence "verifier.py"
+        :quotes ("\"level\": confidence_info[\"level\"]")
+        :explanation "Confidence dict has level"))
+
+; Position key name
+(fact verifier-position-key "original_position"
+    :evidence (evidence "verifier.py"
+        :quotes ("\"original_position\": original_position")
+        :explanation "Key is original_position, not position"))
+
+; =====================================================================
+; Config — thresholds and penalties
+; =====================================================================
+
+(fact high-confidence-threshold 0.9
+    :evidence (evidence "config.py"
+        :quotes ("high_confidence_threshold: float = 0.9")
+        :explanation "High confidence >= 0.9"))
+
+(fact medium-confidence-threshold 0.7
+    :evidence (evidence "config.py"
+        :quotes ("medium_confidence_threshold: float = 0.7")
+        :explanation "Medium confidence >= 0.7"))
+
+; Penalty values
+(fact penalty-whitespace 0.001
+    :evidence (evidence "config.py"
+        :quotes ("\"whitespace_normalization\": 0.001")
+        :explanation "Tiny penalty for whitespace"))
+
+(fact penalty-case 0.01
+    :evidence (evidence "config.py"
+        :quotes ("\"case_normalization\": 0.01")
+        :explanation "Small penalty for case"))
+
+(fact penalty-punctuation 0.02
+    :evidence (evidence "config.py"
+        :quotes ("\"punctuation_removal\": 0.02")
+        :explanation "Small penalty for punctuation"))
+
+(fact penalty-stopword 0.125
+    :evidence (evidence "config.py"
+        :quotes ("\"stopword_removal\": 0.125")
+        :explanation "Medium penalty for stopword removal"))
+
+(fact penalty-dangerous-stopword 0.31
+    :evidence (evidence "config.py"
+        :quotes ("\"dangerous_stopword_removal\": 0.31")
+        :explanation "Heavy penalty for dangerous stopwords"))
+
+; Dangerous stopwords include meaning-changing words
+(fact dangerous-includes-not true
+    :evidence (evidence "config.py"
+        :quotes ("\"not\"")
+        :explanation "not is a dangerous stopword"))
+
+(fact dangerous-includes-never true
+    :evidence (evidence "config.py"
+        :quotes ("\"never\"")
+        :explanation "never is a dangerous stopword"))
+
+(fact dangerous-includes-without true
+    :evidence (evidence "config.py"
+        :quotes ("\"without\"")
+        :explanation "without is a dangerous stopword"))
+
+; Match strategies
+(fact match-strategy-exact "exact"
+    :evidence (evidence "config.py"
+        :quotes ("EXACT = \"exact\"")
+        :explanation "Exact match via inverted index"))
+
+(fact match-strategy-collapsed "collapsed"
+    :evidence (evidence "config.py"
+        :quotes ("COLLAPSED = \"collapsed\"")
+        :explanation "Collapsed space match for PDF artifacts"))
+
+; =====================================================================
+; Axioms — penalty ordering invariant
+; =====================================================================
+
+; The penalty system has an invariant: dangerous stopwords > regular stopwords > punctuation > case > whitespace
+(axiom penalty-ordering (> ?heavy ?light)
+    :evidence (evidence "config.py"
+        :quotes ("\"dangerous_stopword_removal\": 0.31"
+                 "\"stopword_removal\": 0.125"
+                 "\"punctuation_removal\": 0.02"
+                 "\"case_normalization\": 0.01"
+                 "\"whitespace_normalization\": 0.001")
+        :explanation "Penalties are ordered by semantic impact"))
+
+; =====================================================================
+; Internal consistency
+; =====================================================================
+
+; Derive: dangerous stopwords are penalized more heavily than regular ones
+(derive dangerous-penalty-exceeds-regular
+    (> penalty-dangerous-stopword penalty-stopword)
+    :using (penalty-dangerous-stopword penalty-stopword))
+
+; Derive: stopword removal is the heaviest non-dangerous penalty
+(derive stopword-heaviest-regular
+    (> penalty-stopword penalty-punctuation)
+    :using (penalty-stopword penalty-punctuation))
+
+; Derive: whitespace is cheapest
+(derive whitespace-cheapest
+    (< penalty-whitespace penalty-case)
+    :using (penalty-whitespace penalty-case))
+
+; Derive: medium threshold equals confidence threshold
+; This means anything at or above medium is "verified"
+(derive medium-equals-verification-threshold
+    (= medium-confidence-threshold verifier-default-threshold)
+    :using (medium-confidence-threshold verifier-default-threshold))
+
+; Diff: collapsed space match has penalty (0.03) between punctuation (0.02) and stopword (0.125)
+(fact penalty-collapsed-space 0.03
+    :evidence (evidence "config.py"
+        :quotes ("\"collapsed_space_match\": 0.03")
+        :explanation "Penalty for collapsed space match"))
