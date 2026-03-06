@@ -16,6 +16,43 @@
         :quotes ("No domain knowledge, no state.")
         :explanation "Module docstring claims no domain knowledge"))
 
+; Axiom: purity implies immutability — pure types should be frozen
+(axiom purity-implies-immutable
+    (implies ?pure (not ?mutable))
+    :evidence (evidence "atoms.py"
+        :quotes ("Pure types, s-expression reader/printer.
+No domain knowledge, no state.")
+        :explanation "Module docstring claims both purity and statelessness — pure types with no state should be immutable"))
+
+; Code facts: frozen/immutable status of each atom type
+(fact symbol-is-immutable true
+    :evidence (evidence "atoms.py"
+        :quotes ("class Symbol(str):")
+        :explanation "Symbol inherits from str — immutable by construction"))
+
+(fact evidence-is-frozen false
+    :evidence (evidence "atoms.py"
+        :quotes ("verified: bool = False")
+        :explanation "Evidence has mutable field 'verified' — not a frozen dataclass"))
+
+(fact axiom-class-is-frozen false
+    :evidence (evidence "atoms.py"
+        :quotes ("@dataclass
+class Axiom:")
+        :explanation "Axiom uses @dataclass without frozen=True"))
+
+(fact theorem-class-is-frozen false
+    :evidence (evidence "atoms.py"
+        :quotes ("@dataclass
+class Theorem:")
+        :explanation "Theorem uses @dataclass without frozen=True"))
+
+(fact term-class-is-frozen false
+    :evidence (evidence "atoms.py"
+        :quotes ("@dataclass
+class Term:")
+        :explanation "Term uses @dataclass without frozen=True"))
+
 ; =====================================================================
 ; Symbol
 ; =====================================================================
@@ -69,6 +106,17 @@
 (derive default-evidence-ungrounded
     (= (or evidence-verified-default evidence-verify-manual-default) false)
     :using (evidence-verified-default evidence-verify-manual-default))
+
+; Grounding conditions from docstring — what must be true for grounding
+(fact grounding-path-verified true
+    :evidence (evidence "atoms.py"
+        :quotes ("Evidence is grounded if verified or manually verified.")
+        :explanation "Docstring names 'verified' as first grounding path"))
+
+(fact grounding-path-verify-manual true
+    :evidence (evidence "atoms.py"
+        :quotes ("return self.verified or self.verify_manual")
+        :explanation "Implementation confirms verify_manual as second grounding path"))
 
 ; =====================================================================
 ; Axiom class — what it documents about itself
@@ -216,6 +264,11 @@
     :evidence (evidence "atoms.py"
         :quotes ("return \"true\" if obj else \"false\"")
         :explanation "Booleans print as true/false"))
+
+(fact to-sexp-bool-false "false"
+    :evidence (evidence "atoms.py"
+        :quotes ("return \"true\" if obj else \"false\"")
+        :explanation "to_sexp prints False as 'false'"))
 
 ; =====================================================================
 ; DSL helpers — match, free_vars, substitute
@@ -433,4 +486,108 @@
 (diff term-display-coverage
     :replace term-display-doc-count
     :with term-display-impl-count)
+
+; --- 8. Module contract (purity vs mutability) ---
+; Docstring claims purity. Axiom: purity implies immutability.
+; Code: are all types actually frozen? No — diff surfaces the inconsistency.
+
+(derive module-purity-contract
+    (and module-claims-pure-types module-claims-no-domain)
+    :using (module-claims-pure-types module-claims-no-domain
+            module-is-stateless purity-implies-immutable))
+
+(defterm all-types-immutable
+    (and symbol-is-immutable evidence-is-frozen axiom-class-is-frozen
+         theorem-class-is-frozen term-class-is-frozen)
+    :evidence (evidence "atoms.py"
+        :quotes ("class Symbol(str):
+    \"\"\"A symbol in Parseltongue. Just a string with a distinct type.\"\"\""
+                 "return Symbol(token)"
+                 "@dataclass
+class Evidence:
+    \"\"\"Structured evidence with verifiable quotes from a source document.\"\"\"
+
+    document: str  # registered document name
+    quotes: list[str]  # exact quotes from the document
+    explanation: str = \"\"  # why these quotes support the claim
+    verification: list = field(default_factory=list)  # filled by verifier
+    verified: bool = False  # all quotes verified?
+    verify_manual: bool = False  # manually verified by user?"
+                 "@dataclass
+class Axiom:
+    \"\"\"An axiom: a foundational WFF assumed true, with evidence.\"\"\"
+
+    name: str
+    wff: Any
+    origin: \"str | Evidence\""
+                 "@dataclass
+class Theorem:
+    \"\"\"A theorem: a WFF derived from facts, axioms, terms, or other theorems.\"\"\"
+
+    name: str
+    wff: Any
+    derivation: list = field(default_factory=list)
+    origin: \"str | Evidence\" = \"derived\""
+                 "@dataclass
+class Term:
+    \"\"\"A term/concept/primitive introduced into the system.\"\"\"
+
+    name: str
+    definition: Any
+    origin: \"str | Evidence\""
+                 "to_sexp(self.definition) if self.definition is not None"
+                 "isinstance(obj, Symbol)")
+        :explanation "All five types are interconnected: atom() produces Symbols, Evidence grounds claims via origin in Axiom/Theorem/Term, Theorem tracks derivation chains, Term stores definitions — they form the complete atom type system"))
+
+(diff module-purity-vs-immutability
+    :replace module-purity-contract
+    :with all-types-immutable)
+
+; --- 9. Evidence default grounding ---
+; Docstring defines two grounding paths (verified, manual).
+; Code defaults both to False — defaults don't satisfy grounding.
+
+(derive grounding-has-two-paths
+    (and grounding-path-verified grounding-path-verify-manual)
+    :using (grounding-path-verified grounding-path-verify-manual default-evidence-ungrounded))
+
+(defterm defaults-satisfy-grounding
+    (or evidence-verified-default evidence-verify-manual-default)
+    :evidence (evidence "atoms.py"
+        :quotes ("verified: bool = False"
+                 "verify_manual: bool = False"
+                 "return self.verified or self.verify_manual")
+        :explanation "Both grounding fields default to False and are combined via OR in is_grounded — defaults don't satisfy grounding"))
+
+(diff evidence-defaults-grounding
+    :replace grounding-has-two-paths
+    :with defaults-satisfy-grounding)
+
+; --- 10. Bool roundtrip consistency ---
+; Parser: atom("true")→True, atom("false")→False
+; Printer: to_sexp(True)→"true", to_sexp(False)→"false"
+; Diff confirms roundtrip works for both values.
+
+(derive bool-true-roundtrip
+    (= atom-true-token to-sexp-bool-true)
+    :using (atom-true-token to-sexp-bool-true bool-roundtrip-consistent))
+
+(derive bool-false-roundtrip
+    (= atom-false-token to-sexp-bool-false)
+    :using (atom-false-token to-sexp-bool-false))
+
+(diff bool-roundtrip-coverage
+    :replace bool-true-roundtrip
+    :with bool-false-roundtrip)
+
+; --- 11. Term display documentation ---
+; Docstring documents "primitive" concept, code implements the check.
+
+(derive term-primitive-doc-view
+    term-docstring-says-primitive
+    :using (term-docstring-says-primitive term-display-documented))
+
+(diff term-display-documented-check
+    :replace term-primitive-doc-view
+    :with term-definition-check)
 
