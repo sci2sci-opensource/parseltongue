@@ -1,0 +1,12 @@
+; parseltongue.pltg — Top-level self-validation entry point
+
+(import (quote validation.readme))
+(import (quote parseltongue.core.validation.core))
+
+(print "")
+(print "========================================")
+(print "  Parseltongue — Full Self-Validation")
+(print "========================================")
+(print "")
+
+(consistency :raise)

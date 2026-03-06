@@ -164,6 +164,79 @@
         :explanation "7 built-in loader effects"))
 
 ; =====================================================================
+; Consistency effect modes
+; =====================================================================
+
+(fact effect-consistency-has-raise true
+    :evidence (evidence "loader.py"
+        :quotes ("(consistency :raise)" "if mode == \":raise\":" "raise SystemError")
+        :explanation "consistency effect supports :raise mode — raises SystemError on inconsistency"))
+
+(fact effect-consistency-has-bool true
+    :evidence (evidence "loader.py"
+        :quotes ("(consistency :bool)" "elif mode == \":bool\":" "return report.consistent")
+        :explanation "consistency effect supports :bool mode — returns boolean"))
+
+(fact effect-consistency-has-report true
+    :evidence (evidence "loader.py"
+        :quotes ("(consistency :report)" "elif mode == \":report\":" "return report")
+        :explanation "consistency effect supports :report mode — returns ConsistencyReport"))
+
+(fact effect-consistency-default-prints true
+    :evidence (evidence "loader.py"
+        :quotes ("print(report)" "return True" "mode = str(args[0]) if args else None")
+        :explanation "Default mode (no args) prints and returns True"))
+
+(defterm consistency-mode-default (if effect-consistency-default-prints 1 0)
+    :evidence (evidence "loader.py"
+        :quotes ("print(report)" "return True" "mode = str(args[0]) if args else None")
+        :explanation "default mode exists — no args branch prints and returns True"))
+(defterm consistency-mode-raise (if effect-consistency-has-raise 1 0)
+    :evidence (evidence "loader.py"
+        :quotes ("if mode == \":raise\":" "raise SystemError")
+        :explanation ":raise mode exists — code branch checks mode and raises"))
+(defterm consistency-mode-bool (if effect-consistency-has-bool 1 0)
+    :evidence (evidence "loader.py"
+        :quotes ("elif mode == \":bool\":" "return report.consistent")
+        :explanation ":bool mode exists — code branch returns boolean"))
+(defterm consistency-mode-report (if effect-consistency-has-report 1 0)
+    :evidence (evidence "loader.py"
+        :quotes ("elif mode == \":report\":" "return report")
+        :explanation ":report mode exists — code branch returns report object"))
+(defterm consistency-mode-count (+ (+ consistency-mode-default consistency-mode-raise) (+ consistency-mode-bool consistency-mode-report))
+    :evidence (evidence "loader.py"
+        :quotes ("mode = str(args[0]) if args else None" "if mode == \":raise\":" "elif mode == \":bool\":" "elif mode == \":report\":")
+        :explanation "4 modes total: default (else) + 3 explicit branches"))
+
+(axiom consistency-no-args-prints
+    (implies (not ?has-args) (and ?prints-report ?returns-true))
+    :evidence (evidence "loader.py"
+        :quotes ("print(report)" "return True")
+        :explanation "When no args provided, consistency prints and returns True"))
+
+(axiom consistency-raise-on-inconsistent
+    (implies (and ?mode-is-raise (not ?is-consistent)) ?raises-error)
+    :evidence (evidence "loader.py"
+        :quotes ("raise SystemError")
+        :explanation "When :raise and system is inconsistent, raises SystemError"))
+
+(axiom consistency-bool-no-print
+    (implies ?mode-is-bool ?returns-consistent-bool)
+    :evidence (evidence "loader.py"
+        :quotes ("return report.consistent")
+        :explanation ":bool mode returns the boolean without printing"))
+
+(axiom consistency-report-returns-object
+    (implies ?mode-is-report ?returns-report-object)
+    :evidence (evidence "loader.py"
+        :quotes ("return report")
+        :explanation ":report mode returns the ConsistencyReport object"))
+
+(derive consistency-effect-has-modes
+    (and effect-consistency-has-raise effect-consistency-has-bool effect-consistency-has-report effect-consistency-default-prints)
+    :using (effect-consistency-has-raise effect-consistency-has-bool effect-consistency-has-report effect-consistency-default-prints))
+
+; =====================================================================
 ; Module path resolution
 ; =====================================================================
 

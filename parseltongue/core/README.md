@@ -351,7 +351,7 @@ The loader provides 7 built-in effects available in any `.pltg` file:
 | `load-document` | `(load-document "name" "relative/path.txt")` | Register a source document for evidence grounding |
 | `context` | `(context :file)` | Access per-module context (`:file`, `:dir`, `:name`, `:main`) |
 | `print` | `(print "label" value ...)` | Print computed values from the system |
-| `consistency` | `(consistency)` | Run and print the full consistency report |
+| `consistency` | `(consistency)` | With no arguments, prints the report and returns True. Optional modes: `(consistency :raise)` prints and raises on inconsistency, `(consistency :bool)` returns boolean without printing, `(consistency :report)` returns the ConsistencyReport object |
 | `verify-manual` | `(verify-manual name)` | Manually verify a fact, term, or axiom |
 
 ### Imports and Namespacing

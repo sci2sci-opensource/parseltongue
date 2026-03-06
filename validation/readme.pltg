@@ -1,0 +1,13 @@
+; readme.pltg — Top-level README.md validation
+
+(load-document "README" "../README.md")
+
+(fact readme-documents-self-validation false
+    :origin "stub — README does not yet document the self-validation system")
+
+(fact self-validation-implemented true
+    :origin "proven — this .pltg file and parseltongue/core/validation/ exist")
+
+(diff self-validation
+    :replace readme-documents-self-validation
+    :with self-validation-implemented)

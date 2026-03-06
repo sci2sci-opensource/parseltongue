@@ -242,11 +242,29 @@ class Loader:
             print(*[str(a).replace("\\n", "\n") for a in args])
             return True
 
-        def consistency_effect(system: System) -> bool:
-            """Effect: (consistency) — print the full consistency report."""
+        def consistency_effect(system: System, *args) -> Any:
+            """Effect: (consistency) — print the full consistency report.
+
+            Optional modes:
+                (consistency)        — print report, return True
+                (consistency :raise) — print report, raise if inconsistent
+                (consistency :bool)  — return True/False without printing
+                (consistency :report) — return the ConsistencyReport object
+            """
             report = system.consistency()
-            print(report)
-            return True
+            mode = str(args[0]) if args else None
+            if mode == ":raise":
+                print(report)
+                if not report.consistent:
+                    raise SystemError(f"System inconsistent:\n{report}")
+                return True
+            elif mode == ":bool":
+                return report.consistent
+            elif mode == ":report":
+                return report
+            else:
+                print(report)
+                return True
 
         def verify_manual_effect(system: System, name) -> bool:
             """Effect: (verify-manual name) — manually verify a fact/term/axiom."""

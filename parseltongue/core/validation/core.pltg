@@ -212,6 +212,26 @@
     (and readme.readme-loader-section readme.readme-loader-namespacing loader.loader-namespaces-definitions readme.readme-loader-circular-detection loader.loader-detects-circular-imports)
     :using (readme.readme-loader-section readme.readme-loader-namespacing loader.loader-namespaces-definitions readme.readme-loader-circular-detection loader.loader-detects-circular-imports))
 
+(print "")
+(print "--- Consistency effect modes ---")
+(print "  README documents default:" readme.readme-documents-consistency-default)
+(print "  Loader default prints:" loader.effect-consistency-default-prints)
+(diff consistency-default :replace readme.readme-documents-consistency-default :with loader.effect-consistency-default-prints)
+
+(print "  README documents :raise:" readme.readme-documents-consistency-raise)
+(print "  Loader has :raise:" loader.effect-consistency-has-raise)
+(diff consistency-raise :replace readme.readme-documents-consistency-raise :with loader.effect-consistency-has-raise)
+
+(print "  README documents :bool:" readme.readme-documents-consistency-bool)
+(print "  Loader has :bool:" loader.effect-consistency-has-bool)
+(diff consistency-bool :replace readme.readme-documents-consistency-bool :with loader.effect-consistency-has-bool)
+
+(print "  README documents :report:" readme.readme-documents-consistency-report)
+(print "  Loader has :report:" loader.effect-consistency-has-report)
+(diff consistency-report :replace readme.readme-documents-consistency-report :with loader.effect-consistency-has-report)
+
+(print "  Consistency mode count:" loader.consistency-mode-count)
+
 ; =====================================================================
 ; Module system patterns: README coverage vs demos
 ; (stubs until README is updated)

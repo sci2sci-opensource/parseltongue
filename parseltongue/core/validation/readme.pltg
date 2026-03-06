@@ -257,6 +257,31 @@
         :quotes ("load_pltg")
         :explanation "README documents load_pltg entry point"))
 
+(fact readme-documents-consistency-modes true
+    :evidence (evidence "README"
+        :quotes ("(consistency :raise)" "(consistency :bool)" "(consistency :report)")
+        :explanation "README documents the three optional consistency modes"))
+
+(fact readme-documents-consistency-default true
+    :evidence (evidence "README"
+        :quotes ("With no arguments, prints the report and returns True")
+        :explanation "README documents default consistency behavior"))
+
+(fact readme-documents-consistency-raise true
+    :evidence (evidence "README"
+        :quotes ("(consistency :raise) prints and raises on inconsistency")
+        :explanation "README documents :raise mode"))
+
+(fact readme-documents-consistency-bool true
+    :evidence (evidence "README"
+        :quotes ("(consistency :bool) returns boolean without printing")
+        :explanation "README documents :bool mode"))
+
+(fact readme-documents-consistency-report true
+    :evidence (evidence "README"
+        :quotes ("(consistency :report) returns the ConsistencyReport object")
+        :explanation "README documents :report mode"))
+
 ; =====================================================================
 ; Module system patterns
 ; =====================================================================
