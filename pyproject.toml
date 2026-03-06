@@ -36,6 +36,7 @@ dev = [
     "mypy>=1.0.0",
     "black>=23.0.0",
     "pre-commit>=3.0.0",
+    "textual>=0.50.0",
 ]
 llm = ["openai>=1.0", "python-dotenv>=1.0"]
 cli = [
