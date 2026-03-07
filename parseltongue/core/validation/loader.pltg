@@ -124,7 +124,7 @@
         :explanation "Context keys are patched with module name"))
 
 ; =====================================================================
-; Built-in effects — 7 effects × 2 layers (DOC + IMPL)
+; Built-in effects — 8 effects × 2 layers (DOC + IMPL)
 ; =====================================================================
 
 ; --- Layer 1: DOC — effect docstrings ---
@@ -164,6 +164,11 @@
         :quotes ("Effect: (verify-manual name) — manually verify a fact/term/axiom.")
         :explanation "verify-manual effect docstring"))
 
+(fact effect-dangerously-eval-doc true
+    :evidence (evidence "loader.py"
+        :quotes ("Effect: (dangerously-eval code) — execute arbitrary Python string.")
+        :explanation "dangerously-eval effect docstring"))
+
 ; --- Layer 2: IMPL — effect registrations in _make_loader_effects ---
 
 (fact effect-import-impl true
@@ -201,9 +206,14 @@
         :quotes ("\"verify-manual\": verify_manual_effect,")
         :explanation "verify-manual effect registered"))
 
+(fact effect-dangerously-eval-impl true
+    :evidence (evidence "loader.py"
+        :quotes ("\"dangerously-eval\": dangerously_eval_effect,")
+        :explanation "dangerously-eval effect registered"))
+
 ; --- Effect count fact ---
 
-(fact built-in-effect-count 7
+(fact built-in-effect-count 8
     :evidence (evidence "loader.py"
         :quotes ("\"import\": import_effect"
                  "\"run-on-entry\": run_on_entry_effect"
@@ -211,22 +221,27 @@
                  "\"context\": context_effect"
                  "\"print\": print_effect"
                  "\"consistency\": consistency_effect"
-                 "\"verify-manual\": verify_manual_effect")
-        :explanation "7 built-in loader effects"))
+                 "\"verify-manual\": verify_manual_effect"
+                 "\"dangerously-eval\": dangerously_eval_effect,")
+        :explanation "8 built-in loader effects"))
 
 ; --- Per-layer counts ---
 
 (derive effect-doc-count
     (count-exists effect-import-doc effect-run-on-entry-doc effect-load-document-doc
-                  effect-context-doc effect-print-doc effect-consistency-doc effect-verify-manual-doc)
+                  effect-context-doc effect-print-doc effect-consistency-doc
+                  effect-verify-manual-doc effect-dangerously-eval-doc)
     :using (count-exists effect-import-doc effect-run-on-entry-doc effect-load-document-doc
-                         effect-context-doc effect-print-doc effect-consistency-doc effect-verify-manual-doc))
+                         effect-context-doc effect-print-doc effect-consistency-doc
+                         effect-verify-manual-doc effect-dangerously-eval-doc))
 
 (derive effect-impl-count
     (count-exists effect-import-impl effect-run-on-entry-impl effect-load-document-impl
-                  effect-context-impl effect-print-impl effect-consistency-impl effect-verify-manual-impl)
+                  effect-context-impl effect-print-impl effect-consistency-impl
+                  effect-verify-manual-impl effect-dangerously-eval-impl)
     :using (count-exists effect-import-impl effect-run-on-entry-impl effect-load-document-impl
-                         effect-context-impl effect-print-impl effect-consistency-impl effect-verify-manual-impl))
+                         effect-context-impl effect-print-impl effect-consistency-impl
+                         effect-verify-manual-impl effect-dangerously-eval-impl))
 
 ; --- Cross-layer diffs ---
 
@@ -243,7 +258,8 @@
                   (and effect-context-doc effect-context-impl)
                   (and effect-print-doc effect-print-impl)
                   (and effect-consistency-doc effect-consistency-impl)
-                  (and effect-verify-manual-doc effect-verify-manual-impl))
+                  (and effect-verify-manual-doc effect-verify-manual-impl)
+                  (and effect-dangerously-eval-doc effect-dangerously-eval-impl))
     :using (count-exists
             effect-import-doc effect-import-impl
             effect-run-on-entry-doc effect-run-on-entry-impl
@@ -251,7 +267,8 @@
             effect-context-doc effect-context-impl
             effect-print-doc effect-print-impl
             effect-consistency-doc effect-consistency-impl
-            effect-verify-manual-doc effect-verify-manual-impl))
+            effect-verify-manual-doc effect-verify-manual-impl
+            effect-dangerously-eval-doc effect-dangerously-eval-impl))
 
 (diff effect-paired-vs-doc :replace effect-paired-count :with effect-doc-count)
 (diff effect-paired-vs-impl :replace effect-paired-count :with effect-impl-count)

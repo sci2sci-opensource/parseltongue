@@ -638,6 +638,16 @@
     :origin "README does not yet document error cascade / dependent skipping")
 
 ; =====================================================================
+; Self-test — README coverage stubs
+; =====================================================================
+
+(fact readme-documents-self-test false
+    :origin "README does not yet document self_test.pltg (dangerously-eval, incompleteness proof)")
+
+(fact readme-documents-dangerously-eval false
+    :origin "README does not yet document the dangerously-eval effect")
+
+; =====================================================================
 ; Internal consistency — non-tautological diffs only
 ; =====================================================================
 ; README exports expectations for core.pltg to consume cross-module.

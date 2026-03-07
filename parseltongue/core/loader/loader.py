@@ -298,6 +298,21 @@ class Loader:
             system.verify_manual(str(name))
             return True
 
+        def dangerously_eval_effect(system: System, *args):
+            """Effect: (dangerously-eval code) — execute arbitrary Python string.
+
+            Returns the result of exec/eval. The code runs with 'system'
+            available in its namespace.
+            """
+            code = " ".join(str(a) for a in args)
+            ns = {"system": system, "__builtins__": __builtins__, "_ctx": self._current}
+            try:
+                log.warning("DANGEROUS EVAL '%s'", str(args))
+                return eval(code, ns)
+            except SyntaxError:
+                exec(code, ns)
+                return ns.get("result", True)
+
         return {
             "import": import_effect,
             "run-on-entry": run_on_entry_effect,
@@ -306,6 +321,7 @@ class Loader:
             "print": print_effect,
             "consistency": consistency_effect,
             "verify-manual": verify_manual_effect,
+            "dangerously-eval": dangerously_eval_effect,
         }
 
     # ----------------------------------------------------------

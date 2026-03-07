@@ -14,6 +14,7 @@
 (import (quote lazy_loader))
 (import (quote pyproject))
 (import (quote verify_manual))
+(import (quote self_test))
 
 (print "")
 (print "========================================")

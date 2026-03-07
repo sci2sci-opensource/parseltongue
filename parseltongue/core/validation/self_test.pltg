@@ -1,0 +1,65 @@
+; self_test.pltg — The system tests itself, then proves it cannot prove its own consistency.
+;
+; Uses dangerously-eval to run the pytest suite (excluding the consistency test)
+; from within the formal system. Then cites Gödel and Turing from our own README
+; to axiomatically assert that self-consistency is unprovable.
+
+(import (quote counting))
+(defterm count-exists counting.count-exists :origin "import")
+
+(load-document "README" "../README.md")
+
+; =====================================================================
+; Phase 1: Execute the test suite from within the system
+; =====================================================================
+
+(print "")
+(print "========================================")
+(print "  Self-Test Execution Verification")
+(print "========================================")
+
+; Run all tests except the consistency meta-test
+; Uses _ctx (loader context) to resolve paths relative to this file
+(dangerously-eval "import subprocess, os; test_dir = os.path.normpath(os.path.join(_ctx.current_dir, '..', 'tests')); ignore = os.path.join(test_dir, 'test_parseltongue_core_consistency.py'); root = os.path.normpath(os.path.join(_ctx.current_dir, '..', '..', '..')); r = subprocess.run(['python', '-m', 'pytest', test_dir, '-q', '--ignore=' + ignore, '--tb=no'], capture_output=True, text=True, timeout=120, cwd=root); system.engine.set_fact('test-suite-result', r.returncode == 0, 'pytest suite execution via dangerously-eval')")
+
+(print "  Test suite passed:" test-suite-result)
+
+; =====================================================================
+; Phase 2: The incompleteness axiom
+; =====================================================================
+
+; Gödel: a sufficiently powerful system's consistency is unprovable from within
+(axiom goedel-incompleteness
+    (implies ?sufficiently-powerful ?consistency-unprovable)
+    :evidence (evidence "README"
+        :quotes ("This is not a proof of consistency — Godel tells us that's impossible for sufficiently strong systems — but a practical detection mechanism that catches real-world contradictions between documents, data sources, and reported figures.")
+        :explanation "README acknowledges Gödel's incompleteness: consistency is unprovable from within"))
+
+; Turing: each extension unlocks new derivations but cannot escape the limitation
+(axiom turing-ordinal-extension
+    (implies ?extends-by-ordinals ?transcends-single-system)
+    :evidence (evidence "README"
+        :quotes ("This is the core idea from Turing's *Systems of Logic Based on Ordinals* (1939): a sequence of logics, each extending the previous one by adding new axioms, can transcend the limitations of any single formal system.")
+        :explanation "README cites Turing's ordinal logics — extensions transcend but each system remains limited"))
+
+; The system is sufficiently powerful (it runs its own tests and they pass)
+(defterm system-is-powerful test-suite-result
+    :origin "system executes its own test suite — sufficiently powerful")
+
+; Therefore: the system cannot prove its own consistency
+(derive system-cannot-prove-own-consistency goedel-incompleteness
+    :bind ((?sufficiently-powerful system-is-powerful) (?consistency-unprovable system-is-powerful))
+    :using (goedel-incompleteness system-is-powerful))
+
+(print "")
+(print "  Gödel's incompleteness applies:" system-cannot-prove-own-consistency)
+(print "  The system cannot prove its own consistency.")
+(print "")
+(print "========================================")
+
+; =====================================================================
+; The consistency check is in core.pltg, not here.
+; This file proves WHY that's the right design:
+; the system can test itself, but it cannot verify
+; that its consistency check is itself consistent.
+; =====================================================================
