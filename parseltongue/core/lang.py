@@ -28,7 +28,7 @@ string) or :evidence (structured block with verifiable :quotes and
 :explanation).
 
 Derives inherit grounding from their sources — a theorem is proven by
-its axioms, facts, and computable terms.  Diffs require no evidence because inconsistency
+its axioms, facts, and computable terms. Diffs require no evidence because inconsistency
 between their sides is itself a system-level issue.
 
 See LANG_DOCS below for full syntax and examples drawn from real demos.

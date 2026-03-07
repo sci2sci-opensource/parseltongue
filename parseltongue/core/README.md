@@ -1,6 +1,10 @@
+<p align="center">
+  <img src="ourouborous_core.svg" width="200" alt="Ouroboros — a system that validates itself">
+</p>
+
 # Parseltongue Core
 
-The formal language engine. No LLM dependency — pure logic, evidence grounding, and consistency checking.
+The formal language engine. No LLM dependency — pure logic, evidence grounding, consistency checking, and self-introspection.
 
 ## Rationale
 
@@ -16,11 +20,15 @@ This gives us two things that prose summaries cannot:
 
 The result is a system where the LLM does what it's good at (reading documents, identifying relevant facts, understanding relationships) while the formal engine does what LLMs are bad at (tracking provenance, checking logical consistency, propagating uncertainty).
 
+This particular implementation has an interesting side effect — we also have a language powerful enough to express some facts about its own implementation, which is wonderful for ensuring its own correctness.
+
 ## Quick Start
 
 ```bash
 pip install parseltongue-dsl
 ```
+
+`llm_doc()` and a few demos are enough for an LLM to use the language effectively. The system also supports `.pltg` module files — an s-expression format loaded via `load_pltg()` with imports, namespacing, and effects (see [Module System](#module-system) below).
 
 Register source documents, load facts with verifiable quotes, define computed terms, derive theorems, and cross-check via diffs — all in a single script:
 
@@ -111,7 +119,13 @@ Parseltongue inverts this. Every axiom, every fact, every primitive term must ci
 
 ## Directive Types
 
-Five directive types, each optionally grounded in `:evidence` with verbatim quotes or a plain `:origin` string.
+Six directive types — `fact`, `axiom`, `defterm`, `derive`, `diff`, and `evidence` — split into two categories.
+
+In addition to primary directives, the language is extensible with [custom operators](#custom-environments) and [effects](#built-in-effects).
+
+### Symbolic Directives
+
+Symbols are the core entity of the language. Symbolic directives introduce named symbols into the system — facts, axioms, and terms form the axiomatic base. Each can be grounded in `:evidence` with verbatim `:quotes` or a plain `:origin` string.
 
 **`fact`** — a named value extracted from a document. Facts are the atoms of the system: concrete data points that everything else builds on. Use them for any numeric, boolean, or string value that can be quoted verbatim from a source.
 
@@ -122,27 +136,41 @@ Five directive types, each optionally grounded in `:evidence` with verbatim quot
     :explanation "Dollar revenue figure from Q3 report"))
 ```
 
-**`axiom`** — a parametric rewrite rule. Axioms MUST contain at least one `?`-variable — they are general rules that can be instantiated later via `:bind` in a derive directive. Ground statements (no `?`-variables) are rejected; use `fact` for values or `derive` for provable claims.
+**`axiom`** — a parametric rule with `?`-variables. Ground statements (no `?`-variables) are rejected; use `fact` for values or `derive` for provable claims. Axioms come in two forms: **rewrite axioms** (`(= <pattern> <rhs>)`) fire automatically during evaluation — no `:bind` needed in a derive. **Non-rewrite axioms** (`implies`, `>`, etc.) require explicit `:bind` to substitute `?`-variables with concrete values. Axioms also support `?...`-prefixed splat variables that collect trailing arguments.
 
 ```scheme
-;; Parametric rewrite rule — ?-variables are required
+;; Rewrite axiom — fires automatically during evaluation, no :bind needed
 (axiom add-commutative (= (+ ?a ?b) (+ ?b ?a))
   :origin "Arithmetic axiom")
 
-;; Parametric inequality rule
+;; Non-rewrite axiom — requires explicit :bind in derive
 (axiom positive-rule (> ?x 0)
   :origin "Positivity constraint")
+
+;; Splat axiom — ?...items collects all trailing arguments
+(axiom count-exists (> (+ ?...items) 0)
+  :origin "All items exist if their sum is positive")
 ```
 
-**`defterm`** — a named concept. Terms come in three forms. A **forward declaration** introduces a primitive symbol with no body (like `zero` in Peano arithmetic). A **computed term** is an expression evaluated on reference — use it for derived quantities like totals or growth rates. A **conditional term** uses `if` to branch.
+**`defterm`** (forward declaration) — introduces a primitive symbol with no body (like `zero` in Peano arithmetic). These are the building blocks — named concepts that exist before any computation.
 
 ```scheme
-;; Primitive symbol (no body) — the building block
-(defterm zero :origin "Base case")
+;; Primitive symbol (no body) — forward declaration
+(defterm growth-target :origin "Board-set target")
+```
 
+### Computable Directives
+
+Computable directives produce results from the symbolic base. Computed terms are evaluated on reference. Derives are evaluated at definition time — the WFF is checked against symbols in `:using`.
+
+**`defterm`** (computed) — an expression evaluated when referenced. Use it for derived quantities like totals or growth rates. A **conditional term** uses `if` to branch.
+
+```scheme
 ;; Computed — evaluated when referenced, tracks dependencies
-(defterm morning-total (+ eve-morning adam-morning)
-  :origin "Sum of morning picks")
+(defterm beat-target (> revenue-q3-growth growth-target)
+  :evidence (evidence "FY2024 Targets Memo"
+    :quotes ("Exceeding the growth target is defined as achieving year-over-year revenue growth above the stated target percentage")
+    :explanation "Definition of what it means to beat the target"))
 
 ;; Conditional — branches based on other facts/terms
 (defterm bonus-amount
@@ -151,7 +179,7 @@ Five directive types, each optionally grounded in `:evidence` with verbatim quot
   :origin "Bonus calculation")
 ```
 
-**`derive`** — a theorem proved from existing facts, terms, and axioms. Evaluation is restricted to symbols listed in `:using`; dependencies of axioms and terms are expanded transitively. If any source has unverified evidence, the derivation inherits the fabrication taint. Use `:bind` to instantiate parameterised axioms with concrete values.
+**`derive`** — a theorem proved by evaluating a WFF against existing facts, terms, and axioms. Evaluation is restricted to symbols listed in `:using`; rewrite axioms fire automatically, non-rewrite axioms require `:bind` to substitute `?`-variables. If any source has unverified evidence, the derivation inherits the fabrication taint.
 
 ```scheme
 ;; Direct — evaluates a WFF against facts listed in :using
@@ -159,12 +187,19 @@ Five directive types, each optionally grounded in `:evidence` with verbatim quot
   (> revenue-q3-growth growth-target)
   :using (revenue-q3-growth growth-target))
 
-;; Instantiation — plugs concrete values into a parameterised axiom
-;; :using must include the axiom + symbols from :bind values
+;; Instantiation — :bind substitutes ?-variables, then evaluates
 (derive three-plus-zero add-identity
   :bind ((?n (succ (succ (succ zero)))))
   :using (add-identity succ zero))
+
+;; Rewrite axiom in :using — fires automatically, no :bind needed
+(derive morning-commutes add-commutative
+  :using (add-commutative eve-morning adam-morning))
 ```
+
+### Diffs
+
+Diffs require no evidence because inconsistency between their sides is itself a system-level issue.
 
 **`diff`** — a lazy consistency comparison between two symbols. Diffs are how the system detects contradictions: register two independent values for the same quantity, and the engine replays all dependent computations under both assumptions. Where results diverge, something is wrong — either the LLM fabricated a value, or the source documents disagree.
 
@@ -174,25 +209,41 @@ Five directive types, each optionally grounded in `:evidence` with verbatim quot
   :with revenue-q3-growth-computed)
 ```
 
-## Evidence Grounding
+### Evidence
 
-Evidence is a first-class citizen. It can be attached to any foundational atom — facts, axioms, and terms:
+Evidence is a first-class citizen and is directly used by the engine and grammar.
+
+**`evidence`** is a structured provenance attached to symbolic directives. Evidence links a claim to a verbatim quote from a registered source document.
 
 ```scheme
 ;; Structured evidence with verifiable quotes
+(evidence "Q3 Report"
+  :quotes ("Q3 revenue was $15M")
+  :explanation "Dollar revenue figure from Q3 report")
+
+;; Plain string origin — flagged as unverified, useful for hypotheticals
+;; (used via :origin instead of :evidence)
+```
+
+## Evidence Grounding
+
+The engine automatically performs evidence grounding when supplied an `evidence` directive, verifying `:quotes` against the documents loaded in the engine's document store. An optional `:explanation` provides human-readable context. Statements can also use a plain `:origin` string or no evidence at all:
+
+```scheme
+;; Grounded — quote verified against registered document
 (fact revenue-q3 15.0
     :evidence (evidence "Q3 Report"
       :quotes ("Q3 revenue was $15M")
       :explanation "Dollar revenue figure from Q3 report"))
 
-;; Plain string origin — flagged as unverified, useful for hypotheticals
+;; Ungrounded — flagged as unverified, useful for hypotheticals
 (fact growth-target 0.1 :origin "Management memo, not digitised")
 
 ;; No evidence at all — consistency report will flag it
 (fact adjustment 0.5)
 ```
 
-Statements without evidence can be verified after the fact via `system.verify_manual("adjustment")` — useful for human-in-the-loop workflows where an analyst confirms a value that has no document source.
+Statements without evidence can be verified after the fact via `system.verify_manual("adjustment")` in Python or `(verify-manual adjustment)` in `.pltg` files — useful for human-in-the-loop workflows where an analyst confirms a value that has no document source.
 
 **Fabrication propagation**: if a fact's evidence is unverified, any theorem derived from it is automatically marked as a potential fabrication. This taint propagates through derivation chains.
 
