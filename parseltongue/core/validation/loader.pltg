@@ -114,7 +114,7 @@
 (fact loader-patches-symbols true
     :evidence (evidence "loader.py"
         :quotes ("Recursively namespace bare symbols in expression bodies."
-                 "candidate = f\"{self._current.module_name}.{item}\"")
+                 "candidate = f\"{self._current.module_name}.{s}\"")
         :explanation "Symbol references are patched to namespaced versions"))
 
 (fact loader-patches-context true

@@ -5,6 +5,7 @@
 (load-document "config.py" "../quote_verifier/config.py")
 (import (quote counting))
 (defterm count-exists counting.count-exists :origin "import")
+(defterm sum-values counting.sum-values :origin "import")
 
 ; =====================================================================
 ; Normalizer pipeline — 6 steps
@@ -53,11 +54,6 @@
 ; =====================================================================
 ; Verifier API
 ; =====================================================================
-
-(fact verifier-docstring "Verify if quotes appear in source documents using an inverted index."
-    :evidence (evidence "verifier.py"
-        :quotes ("Verify if quotes appear in source documents using an inverted index.")
-        :explanation "QuoteVerifier class docstring"))
 
 (fact verifier-default-threshold 0.7
     :evidence (evidence "verifier.py"
@@ -429,14 +425,17 @@
     :using (count-exists whitespace-lt-case case-lt-punctuation
                          punctuation-lt-stopword stopword-lt-dangerous))
 
-; 5 penalty values used in ordering, 4 ordering steps between them
-(derive ordering-values-count
-    (count-exists penalty-whitespace-value penalty-case-value
-                  penalty-punctuation-value penalty-stopword-value penalty-dangerous-value)
+; Adjacent value pairs — each pair should have an ordering proof
+(derive ordering-pairs-count
+    (count-exists (and penalty-whitespace-value penalty-case-value)
+                  (and penalty-case-value penalty-punctuation-value)
+                  (and penalty-punctuation-value penalty-stopword-value)
+                  (and penalty-stopword-value penalty-dangerous-value))
     :using (count-exists penalty-whitespace-value penalty-case-value
-                         penalty-punctuation-value penalty-stopword-value penalty-dangerous-value))
+                         penalty-punctuation-value penalty-stopword-value
+                         penalty-dangerous-value))
 
-(diff ordering-invariants-vs-values :replace ordering-invariants-count :with ordering-values-count)
+(diff ordering-invariants-vs-pairs :replace ordering-invariants-count :with ordering-pairs-count)
 
 ; =====================================================================
 ; Normalizer pipeline counts + diffs
@@ -470,17 +469,6 @@
     :replace normalizer-steps-doc-count
     :with normalizer-step-count)
 
-; Stateless + steps = complete normalizer characterization
-(derive normalizer-features-count
-    (count-exists normalizer-stateless normalizer-step-count
-                  normalizer-step-1 normalizer-step-2 normalizer-step-3
-                  normalizer-step-4 normalizer-step-5 normalizer-step-6)
-    :using (count-exists normalizer-stateless normalizer-step-count
-                         normalizer-step-1 normalizer-step-2 normalizer-step-3
-                         normalizer-step-4 normalizer-step-5 normalizer-step-6))
-
-(diff normalizer-features-vs-steps :replace normalizer-features-count :with normalizer-steps-doc-count)
-
 ; =====================================================================
 ; Threshold consistency
 ; =====================================================================
@@ -504,44 +492,353 @@
 (diff medium-vs-default-threshold :replace medium-confidence-threshold :with verifier-default-threshold)
 
 ; =====================================================================
-; Verifier API — counts + diffs
+; Feature flags — 5 items × 3 layers (DOC, CONFIG, INIT)
 ; =====================================================================
 
-(derive verifier-defaults-count
-    (count-exists verifier-default-case-sensitive verifier-default-ignore-punctuation
-                  verifier-default-remove-stopwords verifier-default-threshold)
-    :using (count-exists verifier-default-case-sensitive verifier-default-ignore-punctuation
-                         verifier-default-remove-stopwords verifier-default-threshold))
+; Layer 0: DOC — QuoteVerifierConfig docstring
+(fact doc-flag-case-sensitive true
+    :evidence (evidence "config.py"
+        :quotes ("case_sensitive — when False, text is lowercased before matching")
+        :explanation "Config docstring documents case_sensitive flag"))
+(fact doc-flag-ignore-punctuation true
+    :evidence (evidence "config.py"
+        :quotes ("ignore_punctuation — when True, prose punctuation is stripped")
+        :explanation "Config docstring documents ignore_punctuation flag"))
+(fact doc-flag-normalize-lists true
+    :evidence (evidence "config.py"
+        :quotes ("normalize_lists — when True, numbered list markers are removed")
+        :explanation "Config docstring documents normalize_lists flag"))
+(fact doc-flag-normalize-hyphenation true
+    :evidence (evidence "config.py"
+        :quotes ("normalize_hyphenation — when True, hyphenated line breaks are rejoined")
+        :explanation "Config docstring documents normalize_hyphenation flag"))
+(fact doc-flag-remove-stopwords true
+    :evidence (evidence "config.py"
+        :quotes ("remove_stopwords — when True, common words are removed before matching")
+        :explanation "Config docstring documents remove_stopwords flag"))
 
-; Confidence computation features
-(derive verifier-confidence-count
+; Layer 1: CONFIG — fields declared in QuoteVerifierConfig
+(fact config-has-case-sensitive true
+    :evidence (evidence "config.py"
+        :quotes ("# Feature flags\n    case_sensitive: bool = False")
+        :explanation "Config declares case_sensitive feature flag"))
+
+(fact config-has-ignore-punctuation true
+    :evidence (evidence "config.py"
+        :quotes ("ignore_punctuation: bool = True")
+        :explanation "Config declares ignore_punctuation feature flag"))
+
+(fact config-has-normalize-lists true
+    :evidence (evidence "config.py"
+        :quotes ("normalize_lists: bool = True")
+        :explanation "Config declares normalize_lists feature flag"))
+
+(fact config-has-normalize-hyphenation true
+    :evidence (evidence "config.py"
+        :quotes ("normalize_hyphenation: bool = True")
+        :explanation "Config declares normalize_hyphenation feature flag"))
+
+(fact config-has-remove-stopwords true
+    :evidence (evidence "config.py"
+        :quotes ("remove_stopwords: bool = False")
+        :explanation "Config declares remove_stopwords feature flag"))
+
+; Layer 2: INIT — kwargs accepted by QuoteVerifier.__init__
+(fact init-has-case-sensitive true
+    :evidence (evidence "verifier.py"
+        :quotes ("def __init__(\n        self,\n        case_sensitive: bool = False,")
+        :explanation "Init accepts case_sensitive kwarg"))
+
+(fact init-has-ignore-punctuation true
+    :evidence (evidence "verifier.py"
+        :quotes ("ignore_punctuation: bool = True,")
+        :explanation "Init accepts ignore_punctuation kwarg"))
+
+(fact init-has-normalize-lists true
+    :evidence (evidence "verifier.py"
+        :quotes ("normalize_lists: bool = True,")
+        :explanation "Init accepts normalize_lists kwarg"))
+
+(fact init-has-normalize-hyphenation true
+    :evidence (evidence "verifier.py"
+        :quotes ("normalize_hyphenation: bool = True,")
+        :explanation "Init accepts normalize_hyphenation kwarg"))
+
+(fact init-has-remove-stopwords true
+    :evidence (evidence "verifier.py"
+        :quotes ("remove_stopwords: bool = False,")
+        :explanation "Init accepts remove_stopwords kwarg"))
+
+; Per-layer counts
+(derive config-flag-count
+    (count-exists config-has-case-sensitive config-has-ignore-punctuation
+                  config-has-normalize-lists config-has-normalize-hyphenation
+                  config-has-remove-stopwords)
+    :using (count-exists config-has-case-sensitive config-has-ignore-punctuation
+                         config-has-normalize-lists config-has-normalize-hyphenation
+                         config-has-remove-stopwords))
+
+(derive init-flag-count
+    (count-exists init-has-case-sensitive init-has-ignore-punctuation
+                  init-has-normalize-lists init-has-normalize-hyphenation
+                  init-has-remove-stopwords)
+    :using (count-exists init-has-case-sensitive init-has-ignore-punctuation
+                         init-has-normalize-lists init-has-normalize-hyphenation
+                         init-has-remove-stopwords))
+
+; Paired: each item must have all 3 layers
+(derive flag-paired-count
+    (count-exists (and doc-flag-case-sensitive config-has-case-sensitive init-has-case-sensitive)
+                  (and doc-flag-ignore-punctuation config-has-ignore-punctuation init-has-ignore-punctuation)
+                  (and doc-flag-normalize-lists config-has-normalize-lists init-has-normalize-lists)
+                  (and doc-flag-normalize-hyphenation config-has-normalize-hyphenation init-has-normalize-hyphenation)
+                  (and doc-flag-remove-stopwords config-has-remove-stopwords init-has-remove-stopwords))
+    :using (count-exists
+            doc-flag-case-sensitive config-has-case-sensitive init-has-case-sensitive
+            doc-flag-ignore-punctuation config-has-ignore-punctuation init-has-ignore-punctuation
+            doc-flag-normalize-lists config-has-normalize-lists init-has-normalize-lists
+            doc-flag-normalize-hyphenation config-has-normalize-hyphenation init-has-normalize-hyphenation
+            doc-flag-remove-stopwords config-has-remove-stopwords init-has-remove-stopwords))
+
+(derive doc-flag-count
+    (count-exists doc-flag-case-sensitive doc-flag-ignore-punctuation
+                  doc-flag-normalize-lists doc-flag-normalize-hyphenation
+                  doc-flag-remove-stopwords)
+    :using (count-exists doc-flag-case-sensitive doc-flag-ignore-punctuation
+                         doc-flag-normalize-lists doc-flag-normalize-hyphenation
+                         doc-flag-remove-stopwords))
+
+(diff flag-paired-vs-doc :replace flag-paired-count :with doc-flag-count)
+(diff flag-paired-vs-config :replace flag-paired-count :with config-flag-count)
+(diff flag-paired-vs-init :replace flag-paired-count :with init-flag-count)
+
+; =====================================================================
+; Match strategies — 2 items × 3 layers (DOC, ENUM, USAGE)
+; =====================================================================
+
+; Layer 0: DOC — MatchStrategy docstring
+(fact doc-match-strategy-exact true
+    :evidence (evidence "config.py"
+        :quotes ("EXACT — inverted index hit with word boundaries aligned")
+        :explanation "MatchStrategy docstring documents EXACT strategy"))
+(fact doc-match-strategy-collapsed true
+    :evidence (evidence "config.py"
+        :quotes ("COLLAPSED — matched after collapsing spaces (PDF line-break artifacts)")
+        :explanation "MatchStrategy docstring documents COLLAPSED strategy"))
+
+; Layer 1: ENUM — match-strategy-exact, match-strategy-collapsed (defined above)
+
+; Layer 2: USAGE — how each strategy is used in verifier code
+(fact match-usage-exact true
+    :evidence (evidence "verifier.py"
+        :quotes ("# Use the inverted index (with space-collapsed fallback)\n        normalized_start, normalized_end, strategy = doc.find(normalized_quote)")
+        :explanation "Exact match is the primary lookup via inverted index"))
+
+(fact match-usage-collapsed true
+    :evidence (evidence "verifier.py"
+        :quotes ("if strategy == MatchStrategy.COLLAPSED:\n            relevant.append(\n                NormalizationTransformation(\n                    type=\"collapsed_space_match\",\n                    description=\"Matched after collapsing spaces (PDF line-break artifact)\",\n                    penalty=self.config.get_penalty(\"collapsed_space_match\"),\n                )\n            )")
+        :explanation "Collapsed match is fallback, adds penalty for space collapse"))
+
+; Axiom bind: collapsed is fallback for exact
+(derive bound-collapsed-fallback collapsed-is-fallback
+    :bind ((?exact-match match-strategy-exact) (?try-collapsed match-strategy-collapsed))
+    :using (collapsed-is-fallback match-strategy-exact match-strategy-collapsed))
+
+(derive match-enum-count
+    (count-exists match-strategy-exact match-strategy-collapsed)
+    :using (count-exists match-strategy-exact match-strategy-collapsed))
+
+(derive match-usage-count
+    (count-exists match-usage-exact match-usage-collapsed)
+    :using (count-exists match-usage-exact match-usage-collapsed))
+
+(derive doc-match-count
+    (count-exists doc-match-strategy-exact doc-match-strategy-collapsed)
+    :using (count-exists doc-match-strategy-exact doc-match-strategy-collapsed))
+
+(derive match-paired-count
+    (count-exists (and doc-match-strategy-exact match-strategy-exact match-usage-exact)
+                  (and doc-match-strategy-collapsed match-strategy-collapsed match-usage-collapsed))
+    :using (count-exists
+            doc-match-strategy-exact match-strategy-exact match-usage-exact
+            doc-match-strategy-collapsed match-strategy-collapsed match-usage-collapsed))
+
+(diff match-paired-vs-doc :replace match-paired-count :with doc-match-count)
+(diff match-paired-vs-enum :replace match-paired-count :with match-enum-count)
+(diff match-paired-vs-usage :replace match-paired-count :with match-usage-count)
+
+; =====================================================================
+; Confidence levels — 4 items × 3 layers (DOC, ENUM, USAGE)
+; =====================================================================
+
+; Layer 0: DOC — ConfidenceLevel docstring
+(fact doc-level-high true
+    :evidence (evidence "config.py"
+        :quotes ("HIGH — score exceeds high_confidence_threshold (default 0.9)")
+        :explanation "ConfidenceLevel docstring documents HIGH level"))
+(fact doc-level-medium true
+    :evidence (evidence "config.py"
+        :quotes ("MEDIUM — score exceeds medium_confidence_threshold (default 0.7)")
+        :explanation "ConfidenceLevel docstring documents MEDIUM level"))
+(fact doc-level-low true
+    :evidence (evidence "config.py"
+        :quotes ("LOW — score below both thresholds")
+        :explanation "ConfidenceLevel docstring documents LOW level"))
+(fact doc-level-none true
+    :evidence (evidence "config.py"
+        :quotes ("NONE — no match found, score is 0.0")
+        :explanation "ConfidenceLevel docstring documents NONE level"))
+
+; Layer 1: ENUM — confidence levels declared in config.py
+(fact level-enum-high true
+    :evidence (evidence "config.py"
+        :quotes ("HIGH = \"high\"")
+        :explanation "ConfidenceLevel.HIGH enum value"))
+
+(fact level-enum-medium true
+    :evidence (evidence "config.py"
+        :quotes ("MEDIUM = \"medium\"")
+        :explanation "ConfidenceLevel.MEDIUM enum value"))
+
+(fact level-enum-low true
+    :evidence (evidence "config.py"
+        :quotes ("LOW = \"low\"")
+        :explanation "ConfidenceLevel.LOW enum value"))
+
+(fact level-enum-none true
+    :evidence (evidence "config.py"
+        :quotes ("NONE = \"none\"")
+        :explanation "ConfidenceLevel.NONE enum value"))
+
+; Layer 2: USAGE — where each level is assigned in verifier code
+(fact level-usage-high true
+    :evidence (evidence "verifier.py"
+        :quotes ("if score > self.config.high_confidence_threshold:\n            level = ConfidenceLevel.HIGH")
+        :explanation "HIGH assigned when score exceeds high threshold"))
+
+(fact level-usage-medium true
+    :evidence (evidence "verifier.py"
+        :quotes ("elif score > self.config.medium_confidence_threshold:\n            level = ConfidenceLevel.MEDIUM")
+        :explanation "MEDIUM assigned when score exceeds medium threshold"))
+
+(fact level-usage-low true
+    :evidence (evidence "verifier.py"
+        :quotes ("else:\n            level = ConfidenceLevel.LOW")
+        :explanation "LOW assigned as default when below both thresholds"))
+
+(fact level-usage-none true
+    :evidence (evidence "verifier.py"
+        :quotes ("confidence_info = {\n            \"score\": 0.0,\n            \"level\": ConfidenceLevel.NONE,\n            \"transformations\": [],\n        }")
+        :explanation "NONE used as initial value before any match is found"))
+
+; Per-layer counts
+(derive level-enum-count
+    (count-exists level-enum-high level-enum-medium level-enum-low level-enum-none)
+    :using (count-exists level-enum-high level-enum-medium level-enum-low level-enum-none))
+
+(derive level-usage-count
+    (count-exists level-usage-high level-usage-medium level-usage-low level-usage-none)
+    :using (count-exists level-usage-high level-usage-medium level-usage-low level-usage-none))
+
+(derive doc-level-count
+    (count-exists doc-level-high doc-level-medium doc-level-low doc-level-none)
+    :using (count-exists doc-level-high doc-level-medium doc-level-low doc-level-none))
+
+(derive level-paired-count
+    (count-exists (and doc-level-high level-enum-high level-usage-high)
+                  (and doc-level-medium level-enum-medium level-usage-medium)
+                  (and doc-level-low level-enum-low level-usage-low)
+                  (and doc-level-none level-enum-none level-usage-none))
+    :using (count-exists
+            doc-level-high level-enum-high level-usage-high
+            doc-level-medium level-enum-medium level-usage-medium
+            doc-level-low level-enum-low level-usage-low
+            doc-level-none level-enum-none level-usage-none))
+
+(diff level-paired-vs-doc :replace level-paired-count :with doc-level-count)
+(diff level-paired-vs-enum :replace level-paired-count :with level-enum-count)
+(diff level-paired-vs-usage :replace level-paired-count :with level-usage-count)
+
+; =====================================================================
+; Result dict shape — 4 items × 3 layers (DOC, API, IMPL)
+; =====================================================================
+
+; Layer 0: DOC — _verify_from_indexed docstring
+(fact doc-result-confidence-dict true
+    :evidence (evidence "verifier.py"
+        :quotes ("confidence — nested dict with score (float) and level (ConfidenceLevel)")
+        :explanation "Docstring documents confidence as nested dict"))
+(fact doc-result-has-score true
+    :evidence (evidence "verifier.py"
+        :quotes ("confidence — nested dict with score (float) and level (ConfidenceLevel)")
+        :explanation "Docstring documents score in confidence dict"))
+(fact doc-result-has-level true
+    :evidence (evidence "verifier.py"
+        :quotes ("confidence — nested dict with score (float) and level (ConfidenceLevel)")
+        :explanation "Docstring documents level in confidence dict"))
+(fact doc-result-position-key true
+    :evidence (evidence "verifier.py"
+        :quotes ("original_position — character offset in original document, or -1")
+        :explanation "Docstring documents original_position key"))
+
+; Layer 1: API — already defined above:
+;   verifier-confidence-return-shape, verifier-confidence-has-score,
+;   verifier-confidence-has-level, verifier-position-key
+
+; Layer 2: IMPL — code that constructs the result dict
+(fact result-impl-confidence-dict true
+    :evidence (evidence "verifier.py"
+        :quotes ("result[\"confidence\"] = {\n            \"score\": confidence_info[\"score\"],\n            \"level\": confidence_info[\"level\"],\n        }")
+        :explanation "Result dict constructs confidence sub-dict"))
+
+(fact result-impl-has-score true
+    :evidence (evidence "verifier.py"
+        :quotes ("\"score\": confidence_info[\"score\"]")
+        :explanation "Confidence sub-dict includes score"))
+
+(fact result-impl-has-level true
+    :evidence (evidence "verifier.py"
+        :quotes ("\"level\": confidence_info[\"level\"]")
+        :explanation "Confidence sub-dict includes level"))
+
+(fact result-impl-position-key true
+    :evidence (evidence "verifier.py"
+        :quotes ("\"original_position\": original_position,")
+        :explanation "Result uses original_position key"))
+
+; Per-layer counts
+(derive result-api-count
     (count-exists verifier-confidence-return-shape verifier-confidence-has-score
                   verifier-confidence-has-level verifier-position-key)
     :using (count-exists verifier-confidence-return-shape verifier-confidence-has-score
                          verifier-confidence-has-level verifier-position-key))
 
-(diff verifier-defaults-vs-confidence :replace verifier-defaults-count :with verifier-confidence-count)
+(derive result-impl-count
+    (count-exists result-impl-confidence-dict result-impl-has-score
+                  result-impl-has-level result-impl-position-key)
+    :using (count-exists result-impl-confidence-dict result-impl-has-score
+                         result-impl-has-level result-impl-position-key))
 
-; =====================================================================
-; Match strategies + dangerous stopwords — counts + diffs
-; =====================================================================
+(derive doc-result-count
+    (count-exists doc-result-confidence-dict doc-result-has-score
+                  doc-result-has-level doc-result-position-key)
+    :using (count-exists doc-result-confidence-dict doc-result-has-score
+                         doc-result-has-level doc-result-position-key))
 
-; Match strategy count
-(derive match-strategies-count
-    (count-exists match-strategy-exact match-strategy-collapsed)
-    :using (count-exists match-strategy-exact match-strategy-collapsed))
+(derive result-paired-count
+    (count-exists (and doc-result-confidence-dict verifier-confidence-return-shape result-impl-confidence-dict)
+                  (and doc-result-has-score verifier-confidence-has-score result-impl-has-score)
+                  (and doc-result-has-level verifier-confidence-has-level result-impl-has-level)
+                  (and doc-result-position-key verifier-position-key result-impl-position-key))
+    :using (count-exists
+            doc-result-confidence-dict verifier-confidence-return-shape result-impl-confidence-dict
+            doc-result-has-score verifier-confidence-has-score result-impl-has-score
+            doc-result-has-level verifier-confidence-has-level result-impl-has-level
+            doc-result-position-key verifier-position-key result-impl-position-key))
 
-; Bind collapsed-is-fallback: exact match first, collapsed as fallback
-(derive bound-collapsed-fallback collapsed-is-fallback
-    :bind ((?exact-match match-strategy-exact) (?try-collapsed match-strategy-collapsed))
-    :using (collapsed-is-fallback match-strategy-exact match-strategy-collapsed))
-
-(derive dangerous-stopwords-count
-    (count-exists dangerous-includes-not dangerous-includes-never dangerous-includes-without)
-    :using (count-exists dangerous-includes-not dangerous-includes-never dangerous-includes-without))
-
-(diff strategies-vs-dangerous :replace match-strategies-count :with dangerous-stopwords-count)
-(diff threshold-vs-strategies :replace threshold-count :with match-strategies-count)
+(diff result-paired-vs-doc :replace result-paired-count :with doc-result-count)
+(diff result-paired-vs-api :replace result-paired-count :with result-api-count)
+(diff result-paired-vs-impl :replace result-paired-count :with result-impl-count)
 
 ; =====================================================================
 ; Axiom impl backing — proving axiom claims hold in code
@@ -615,56 +912,480 @@
     :bind ((?score initial-score) (?total-penalty initial-penalty))
     :using (score-starts-at-one initial-score initial-penalty))
 
-(derive bound-dangerous-not-diluted dangerous-not-diluted
-    :bind ((?is-dangerous dangerous-includes-not) (?penalty dangerous-full-penalty-impl)
-           (?base-penalty penalty-dangerous-config) (?count dangerous-full-penalty-impl))
-    :using (dangerous-not-diluted dangerous-includes-not dangerous-full-penalty-impl penalty-dangerous-config))
+; Old broken derives removed — replaced by bound-dangerous-fixed,
+; bound-regular-fixed, bound-empty-fixed, bound-all-stopwords-fixed
+; in the "Axiom instantiation" section below.
+; Old tautological diffs removed — replaced by axiom-paired-vs-doc,
+; axiom-paired-vs-impl in the "Axiom backing" section below.
 
-(derive bound-regular-diluted regular-stopwords-diluted
-    :bind ((?is-dangerous penalty-stopword-config) (?penalty regular-diluted-penalty-impl)
-           (?base-penalty penalty-stopword-config) (?count regular-diluted-penalty-impl) (?word-count regular-diluted-penalty-impl))
-    :using (regular-stopwords-diluted penalty-stopword-config regular-diluted-penalty-impl))
+; =====================================================================
+; Axioms 10-18 — additional code invariants
+; =====================================================================
 
-(derive bound-empty-rejected empty-quote-rejected
-    :bind ((?has-content empty-rejected-impl) (?verified empty-rejected-impl))
-    :using (empty-quote-rejected empty-rejected-impl))
+; 10. Single stopword pre-validation: single-word stopword → rejected
+(axiom single-stopword-rejected
+    (implies (and ?is-single-word ?is-stopword ?remove-enabled) (= ?verified false))
+    :evidence (evidence "verifier.py"
+        :quotes ("if len(quote.split()) == 1 and quote.lower() in self.config.stopwords and self.config.remove_stopwords:\n            return {\n                \"quote\": quote,\n                \"verified\": False,\n                \"original_position\": -1,\n                \"normalized_position\": -1,\n                \"reason\": \"Quote consists entirely of stopwords\",\n                \"length\": 1,")
+        :explanation "Single-word stopword with remove_stopwords enabled returns verified=False"))
 
-(derive bound-all-stopwords-keep all-stopwords-keep-one
-    :bind ((?all-are-stopwords keep-one-stopword-impl) (?kept keep-one-stopword-impl))
-    :using (all-stopwords-keep-one keep-one-stopword-impl))
+; 11. Normalized-to-empty pre-validation: has content but normalizes to empty → rejected
+(axiom normalized-to-empty-rejected
+    (implies (and ?has-content (not ?has-normalized-content)) (= ?verified false))
+    :evidence (evidence "verifier.py"
+        :quotes ("normalized_quote, _, _ = normalize_with_mapping(quote, self.config)\n        if not normalized_quote.strip() and quote.strip():\n            return {\n                \"quote\": quote,\n                \"verified\": False,\n                \"original_position\": -1,\n                \"normalized_position\": -1,\n                \"reason\": \"Quote normalized to empty string\",")
+        :explanation "Quote with content that normalizes to empty returns verified=False"))
 
-; Count impl facts that back axiom claims
-(derive axiom-impl-count
-    (count-exists score-init-impl dangerous-full-penalty-impl
-                  regular-diluted-penalty-impl empty-rejected-impl
-                  keep-one-stopword-impl)
+; 12. No match → zero confidence
+(axiom no-match-zero-confidence
+    (implies ?no-match (= ?score 0.0))
+    :evidence (evidence "verifier.py"
+        :quotes ("confidence_info = {\n            \"score\": 0.0,\n            \"level\": ConfidenceLevel.NONE,\n            \"transformations\": [],\n        }\n\n        if strategy == MatchStrategy.NONE:\n            return position_info, confidence_info")
+        :explanation "MatchStrategy.NONE returns immediately with score=0.0"))
+
+; 13. Score clamped to [0, 1]
+(axiom score-clamped (and (>= ?score 0.0) (<= ?score 1.0))
+    :evidence (evidence "verifier.py"
+        :quotes ("score = max(0.0, min(1.0, score))")
+        :explanation "Score is clamped to [0.0, 1.0] after penalty subtraction"))
+
+; 14. Config flag gates step — disabled flag means no transformations produced
+(axiom config-flag-gates-step
+    (implies (not ?flag-enabled) (= ?transformations 0))
+    :evidence (evidence "normalizer.py"
+        :quotes ("if not config.ignore_punctuation:\n        return text, position_map, transformations")
+        :explanation "Disabled flag → step returns immediately with empty transformations list"))
+
+; 15. All-stopwords penalty has 1.5x multiplier
+(axiom all-stopwords-penalty-scaled (= ?penalty (* ?base 1.5))
+    :evidence (evidence "normalizer.py"
+        :quotes ("if all_stopwords:\n        words_to_keep = [words[0]]\n        words_to_remove = words[1:]\n        removed_stopwords.extend(words_to_remove)\n        removed_dangerous_words = [w for w in words_to_remove if w.lower() in config.dangerous_stopwords]\n        transformations.append(\n            NormalizationTransformation(\n                type=\"partial_stopword_removal\",\n                description=f\"Kept one word to prevent empty result, removed {len(words_to_remove)} stopword(s)\",\n                penalty=config.get_penalty(\"stopword_removal\") * 1.5,\n            )\n        )")
+        :explanation "All-stopwords case applies 1.5x multiplier to stopword_removal base penalty"))
+
+; 16. Flat penalty — normalizer steps use config.get_penalty() with no scaling
+(axiom flat-penalty (= ?actual (* ?base 1))
+    :evidence (evidence "normalizer.py"
+        :quotes ("transformations.append(\n                NormalizationTransformation(\n                    type=\"case_normalization\",\n                    description=\"Converted text to lowercase\",\n                    penalty=config.get_penalty(\"case_normalization\"),\n                )\n            )")
+        :explanation "Normalizer steps apply config.get_penalty() directly — multiplier is 1, no count scaling"))
+
+; 17. Sum of all non-dangerous penalties < single dangerous penalty
+(axiom non-dangerous-sum-lt-dangerous (< ?sum ?dangerous-penalty)
+    :evidence (evidence "config.py"
+        :quotes ("\"whitespace_normalization\": 0.001,\n            \"whitespace_trimming\": 0.001,\n            \"hyphenation_normalization\": 0.005,\n            \"case_normalization\": 0.01,\n            \"list_normalization\": 0.01,\n            \"punctuation_removal\": 0.02,\n            \"collapsed_space_match\": 0.03,\n            \"stopword_removal\": 0.125,\n            \"dangerous_stopword_removal\": 0.31,")
+        :explanation "Sum of non-dangerous (0.001+0.001+0.005+0.01+0.01+0.02+0.03+0.125 = 0.202) < dangerous (0.31)"))
+
+; 18. Single dangerous stopword drops score below confirmation threshold
+(axiom dangerous-below-threshold (< ?score ?threshold)
+    :evidence (evidence "verifier.py"
+        :quotes ("score = 1.0\n        for t in relevant:\n            score -= t.penalty\n        score = max(0.0, min(1.0, score))")
+        :explanation "1.0 - 0.31 = 0.69 < 0.7 threshold — one dangerous stopword drops below confirmation"))
+
+; =====================================================================
+; Missing penalty value facts (for sum computation)
+; =====================================================================
+
+(fact penalty-whitespace-trim-value 0.001
+    :evidence (evidence "config.py"
+        :quotes ("\"whitespace_trimming\": 0.001")
+        :explanation "Whitespace trimming penalty value"))
+
+(fact penalty-hyphenation-value 0.005
+    :evidence (evidence "config.py"
+        :quotes ("\"hyphenation_normalization\": 0.005")
+        :explanation "Hyphenation penalty value"))
+
+(fact penalty-list-value 0.01
+    :evidence (evidence "config.py"
+        :quotes ("\"list_normalization\": 0.01")
+        :explanation "List normalization penalty value"))
+
+(fact penalty-collapsed-value 0.03
+    :evidence (evidence "config.py"
+        :quotes ("\"collapsed_space_match\": 0.03")
+        :explanation "Collapsed space match penalty value"))
+
+; =====================================================================
+; Defterms for axiom binds
+; =====================================================================
+
+; --- Axiom 4 (dangerous-not-diluted) ---
+(defterm dangerous-single-count 1
+    :evidence (evidence "verifier.py"
+        :quotes ("penalty=self.config.get_penalty(\"dangerous_stopword_removal\") * len(dangerous_quote),")
+        :explanation "For a single dangerous word, len(dangerous_quote) = 1"))
+
+(defterm dangerous-single-penalty (* penalty-dangerous-value dangerous-single-count)
+    :evidence (evidence "verifier.py"
+        :quotes ("penalty=self.config.get_penalty(\"dangerous_stopword_removal\") * len(dangerous_quote),")
+        :explanation "Single dangerous word penalty = 0.31 * 1 = 0.31"))
+
+; --- Axiom 5 (regular-stopwords-diluted) ---
+(defterm regular-is-not-dangerous (not dangerous-includes-not)
+    :origin "bind scenario for regular-stopwords-diluted: regular stopword is not in dangerous set")
+
+(defterm regular-single-count 1
+    :origin "bind scenario for regular-stopwords-diluted: one stopword removed to verify dilution formula")
+
+(defterm regular-word-count 5
+    :origin "bind scenario for regular-stopwords-diluted: 5-word quote to verify penalty = base * count / word_count")
+
+(defterm regular-single-penalty (/ (* penalty-stopword-value regular-single-count) regular-word-count)
+    :evidence (evidence "verifier.py"
+        :quotes ("penalty=(\n                        self.config.get_penalty(\"stopword_removal\") * len(quote_only) / max(1, len(quote.split()))\n                    ),")
+        :explanation "Regular penalty = 0.125 * 1 / 5 = 0.025"))
+
+; --- Axiom 6 (empty-quote-rejected) ---
+(defterm empty-has-no-content false
+    :origin "hypothetical input for empty-quote-rejected: quote with no content")
+
+(defterm empty-verified-result false
+    :origin "hypothetical return for empty-quote-rejected: _pre_validate returns verified=False")
+
+; --- Axiom 7 (all-stopwords-keep-one) ---
+(defterm all-words-are-stopwords true
+    :evidence (evidence "normalizer.py"
+        :quotes ("all_stopwords = all(w.lower() in config.stopwords for w in words)")
+        :explanation "all_stopwords is True when every word is a stopword"))
+
+(defterm kept-word-count 1
+    :evidence (evidence "normalizer.py"
+        :quotes ("words_to_keep = [words[0]]")
+        :explanation "Exactly 1 word is kept"))
+
+; --- Axiom 10 (single-stopword-rejected) ---
+(defterm single-word-is-single true
+    :origin "hypothetical input for single-stopword-rejected: quote is one word")
+
+(defterm single-word-is-stopword true
+    :origin "hypothetical input for single-stopword-rejected: word is in stopword set")
+
+(defterm remove-stopwords-enabled true
+    :origin "hypothetical input for single-stopword-rejected: remove_stopwords config is on")
+
+(defterm single-stopword-verified false
+    :origin "hypothetical return for single-stopword-rejected: _pre_validate returns verified=False")
+
+; --- Axiom 11 (normalized-to-empty-rejected) ---
+(defterm quote-has-content true
+    :origin "hypothetical input for normalized-to-empty-rejected: quote has content before normalization")
+
+(defterm normalized-has-content false
+    :origin "hypothetical input for normalized-to-empty-rejected: normalization produces empty string")
+
+(defterm normalized-empty-verified false
+    :origin "hypothetical return for normalized-to-empty-rejected: _pre_validate returns verified=False")
+
+; --- Axiom 12 (no-match-zero-confidence) ---
+(defterm no-match-strategy-value true
+    :evidence (evidence "config.py"
+        :quotes ("NONE = \"none\"  # No match found")
+        :explanation "MatchStrategy.NONE string value"))
+
+(defterm no-match-score-value 0.0
+    :evidence (evidence "verifier.py"
+        :quotes ("\"score\": 0.0,")
+        :explanation "No-match confidence score is 0.0"))
+
+; --- Axiom 13 (score-clamped) ---
+(defterm score-after-single-dangerous (- 1.0 penalty-dangerous-value)
+    :origin "hypothetical input for score-clamped: score after one dangerous stopword = 1.0 - 0.31 = 0.69")
+
+; --- Axiom 14 (config-flag-gates-step) ---
+(defterm no-transformations 0
+    :origin "hypothetical return for config-flag-gates-step: disabled normalizer step produces zero transformations")
+
+; --- Axiom 15 (all-stopwords-penalty-scaled) ---
+(defterm all-stopwords-scaled-penalty (* penalty-stopword-value 1.5)
+    :evidence (evidence "normalizer.py"
+        :quotes ("penalty=config.get_penalty(\"stopword_removal\") * 1.5,")
+        :explanation "All-stopwords penalty = 0.125 * 1.5 = 0.1875"))
+
+; --- Axiom 17 (non-dangerous-sum-lt-dangerous) ---
+(derive non-dangerous-penalty-sum
+    (sum-values penalty-whitespace-value penalty-whitespace-trim-value
+                penalty-hyphenation-value penalty-case-value
+                penalty-list-value penalty-punctuation-value
+                penalty-collapsed-value penalty-stopword-value)
+    :using (sum-values
+            penalty-whitespace-value penalty-whitespace-trim-value
+            penalty-hyphenation-value penalty-case-value
+            penalty-list-value penalty-punctuation-value
+            penalty-collapsed-value penalty-stopword-value))
+
+; =====================================================================
+; Fixed axiom binds — proper values for each axiom
+; =====================================================================
+
+; Axiom 4: dangerous-not-diluted — FIXED bind
+(derive bound-dangerous-fixed dangerous-not-diluted
+    :bind ((?is-dangerous dangerous-includes-not) (?penalty dangerous-single-penalty)
+           (?base-penalty penalty-dangerous-value) (?count dangerous-single-count))
+    :using (dangerous-not-diluted dangerous-includes-not dangerous-single-penalty
+            penalty-dangerous-value dangerous-single-count))
+
+; Axiom 5: regular-stopwords-diluted — FIXED bind
+(derive bound-regular-fixed regular-stopwords-diluted
+    :bind ((?is-dangerous regular-is-not-dangerous) (?penalty regular-single-penalty)
+           (?base-penalty penalty-stopword-value) (?count regular-single-count)
+           (?word-count regular-word-count))
+    :using (regular-stopwords-diluted regular-is-not-dangerous regular-single-penalty
+            penalty-stopword-value regular-single-count regular-word-count))
+
+; Axiom 6: empty-quote-rejected — FIXED bind
+(derive bound-empty-fixed empty-quote-rejected
+    :bind ((?has-content empty-has-no-content) (?verified empty-verified-result))
+    :using (empty-quote-rejected empty-has-no-content empty-verified-result))
+
+; Axiom 7: all-stopwords-keep-one — FIXED bind
+(derive bound-all-stopwords-fixed all-stopwords-keep-one
+    :bind ((?all-are-stopwords all-words-are-stopwords) (?kept kept-word-count))
+    :using (all-stopwords-keep-one all-words-are-stopwords kept-word-count))
+
+; Axiom 10: single-stopword-rejected
+(derive bound-single-stopword single-stopword-rejected
+    :bind ((?is-single-word single-word-is-single) (?is-stopword single-word-is-stopword)
+           (?remove-enabled remove-stopwords-enabled) (?verified single-stopword-verified))
+    :using (single-stopword-rejected single-word-is-single single-word-is-stopword
+            remove-stopwords-enabled single-stopword-verified))
+
+; Axiom 11: normalized-to-empty-rejected
+(derive bound-normalized-empty normalized-to-empty-rejected
+    :bind ((?has-content quote-has-content) (?has-normalized-content normalized-has-content)
+           (?verified normalized-empty-verified))
+    :using (normalized-to-empty-rejected quote-has-content normalized-has-content
+            normalized-empty-verified))
+
+; Axiom 12: no-match-zero-confidence
+(derive bound-no-match no-match-zero-confidence
+    :bind ((?no-match no-match-strategy-value) (?score no-match-score-value))
+    :using (no-match-zero-confidence no-match-strategy-value no-match-score-value))
+
+; Axiom 13: score-clamped — bind with score 0.69 (after dangerous stopword)
+(derive bound-score-clamped score-clamped
+    :bind ((?score score-after-single-dangerous))
+    :using (score-clamped score-after-single-dangerous))
+
+; Axiom 14: config-flag-gates-step — remove_stopwords defaults to false
+(derive bound-flag-gates config-flag-gates-step
+    :bind ((?flag-enabled verifier-default-remove-stopwords) (?transformations no-transformations))
+    :using (config-flag-gates-step verifier-default-remove-stopwords no-transformations))
+
+; Axiom 15: all-stopwords-penalty-scaled
+(derive bound-all-stopwords-scaled all-stopwords-penalty-scaled
+    :bind ((?penalty all-stopwords-scaled-penalty) (?base penalty-stopword-value))
+    :using (all-stopwords-penalty-scaled all-stopwords-scaled-penalty penalty-stopword-value))
+
+; Axiom 16: flat-penalty — one bind per flat normalizer step
+(derive bound-flat-case flat-penalty
+    :bind ((?actual penalty-case-value) (?base penalty-case-value))
+    :using (flat-penalty penalty-case-value))
+
+(derive bound-flat-punctuation flat-penalty
+    :bind ((?actual penalty-punctuation-value) (?base penalty-punctuation-value))
+    :using (flat-penalty penalty-punctuation-value))
+
+(derive bound-flat-whitespace flat-penalty
+    :bind ((?actual penalty-whitespace-value) (?base penalty-whitespace-value))
+    :using (flat-penalty penalty-whitespace-value))
+
+(derive bound-flat-whitespace-trim flat-penalty
+    :bind ((?actual penalty-whitespace-trim-value) (?base penalty-whitespace-trim-value))
+    :using (flat-penalty penalty-whitespace-trim-value))
+
+(derive bound-flat-hyphenation flat-penalty
+    :bind ((?actual penalty-hyphenation-value) (?base penalty-hyphenation-value))
+    :using (flat-penalty penalty-hyphenation-value))
+
+(derive bound-flat-list flat-penalty
+    :bind ((?actual penalty-list-value) (?base penalty-list-value))
+    :using (flat-penalty penalty-list-value))
+
+(derive bound-flat-collapsed flat-penalty
+    :bind ((?actual penalty-collapsed-value) (?base penalty-collapsed-value))
+    :using (flat-penalty penalty-collapsed-value))
+
+; Axiom 17: non-dangerous-sum-lt-dangerous
+(derive bound-sum-lt-dangerous non-dangerous-sum-lt-dangerous
+    :bind ((?sum non-dangerous-penalty-sum) (?dangerous-penalty penalty-dangerous-value))
+    :using (non-dangerous-sum-lt-dangerous non-dangerous-penalty-sum penalty-dangerous-value
+            penalty-whitespace-value penalty-whitespace-trim-value penalty-hyphenation-value
+            penalty-case-value penalty-list-value penalty-punctuation-value
+            penalty-collapsed-value penalty-stopword-value))
+
+; Axiom 18: dangerous-below-threshold
+(derive bound-dangerous-below-threshold dangerous-below-threshold
+    :bind ((?score score-after-single-dangerous) (?threshold verifier-default-threshold))
+    :using (dangerous-below-threshold score-after-single-dangerous verifier-default-threshold
+            penalty-dangerous-value))
+
+; =====================================================================
+; Axiom backing — 14 items × 2 layers (DOC, IMPL)
+; =====================================================================
+
+; Layer 0: DOC — docstring evidence for each behavior
+(fact doc-score-init true
+    :evidence (evidence "verifier.py"
+        :quotes ("Score starts at 1.0, each transformation penalty subtracts from it.")
+        :explanation "_find_quote_position docstring documents score initialization"))
+(fact doc-dangerous-full true
+    :evidence (evidence "verifier.py"
+        :quotes ("Dangerous stopword — full penalty: base * count, not diluted by word count.")
+        :explanation "_find_quote_position docstring documents dangerous penalty formula"))
+(fact doc-regular-diluted true
+    :evidence (evidence "verifier.py"
+        :quotes ("Regular stopword — diluted penalty: base * count / max(1, word_count).")
+        :explanation "_find_quote_position docstring documents regular dilution formula"))
+(fact doc-empty-rejected true
+    :evidence (evidence "verifier.py"
+        :quotes ("Empty quote — quote.strip() is empty, returns verified=False.")
+        :explanation "_pre_validate docstring documents empty quote rejection"))
+(fact doc-keep-one true
+    :evidence (evidence "normalizer.py"
+        :quotes ("All-stopwords — when all words are stopwords, keeps first word")
+        :explanation "Normalizer docstring documents all-stopwords keep-one safety"))
+(fact doc-single-stopword true
+    :evidence (evidence "verifier.py"
+        :quotes ("Single stopword — single-word quote that is a stopword with\n                remove_stopwords enabled, returns verified=False.")
+        :explanation "_pre_validate docstring documents single stopword rejection"))
+(fact doc-normalized-empty true
+    :evidence (evidence "verifier.py"
+        :quotes ("Normalized to empty — quote has content but normalizes to empty\n                string after pipeline, returns verified=False.")
+        :explanation "_pre_validate docstring documents normalized-to-empty rejection"))
+(fact doc-no-match-zero true
+    :evidence (evidence "verifier.py"
+        :quotes ("No match returns immediately with score 0.0 and ConfidenceLevel.NONE.")
+        :explanation "_find_quote_position docstring documents no-match zero confidence"))
+(fact doc-score-clamped true
+    :evidence (evidence "verifier.py"
+        :quotes ("Score is clamped to [0.0, 1.0] via max(0.0, min(1.0, score)).")
+        :explanation "_find_quote_position docstring documents score clamping"))
+(fact doc-flag-gates true
+    :evidence (evidence "verifier.py"
+        :quotes ("Each normalizer step checks its config flag; disabled flags skip the step\n            and produce no transformations.")
+        :explanation "_find_quote_position docstring documents config flag gating"))
+(fact doc-all-stopwords-scaled true
+    :evidence (evidence "normalizer.py"
+        :quotes ("All-stopwords — when all words are stopwords, keeps first word and applies\n        penalty = config.get_penalty(\"stopword_removal\") * 1.5 multiplier.")
+        :explanation "Normalizer docstring documents all-stopwords 1.5x multiplier"))
+(fact doc-flat-penalty true
+    :evidence (evidence "normalizer.py"
+        :quotes ("Flat penalty — each step calls config.get_penalty(type) with no scaling.")
+        :explanation "Normalizer docstring documents flat penalty formula"))
+(fact doc-sum-lt-dangerous true
+    :evidence (evidence "verifier.py"
+        :quotes ("Combined non-dangerous penalties (0.202) < single dangerous penalty (0.31).")
+        :explanation "_find_quote_position docstring documents penalty sum invariant"))
+(fact doc-dangerous-below-threshold true
+    :evidence (evidence "verifier.py"
+        :quotes ("A single dangerous stopword drops score below confirmation threshold\n            (1.0 - 0.31 = 0.69 < 0.7).")
+        :explanation "_find_quote_position docstring documents threshold drop invariant"))
+
+; Layer 1: IMPL — code evidence proving each behavior exists
+;   Axioms 3-7: score-init-impl, dangerous-full-penalty-impl,
+;               regular-diluted-penalty-impl, empty-rejected-impl,
+;               keep-one-stopword-impl (defined above)
+
+(fact single-stopword-impl true
+    :evidence (evidence "verifier.py"
+        :quotes ("if len(quote.split()) == 1 and quote.lower() in self.config.stopwords and self.config.remove_stopwords:\n            return {\n                \"quote\": quote,\n                \"verified\": False,\n                \"original_position\": -1,\n                \"normalized_position\": -1,\n                \"reason\": \"Quote consists entirely of stopwords\",\n                \"length\": 1,")
+        :explanation "Pre-validation rejects single-word stopwords when remove_stopwords enabled"))
+
+(fact normalized-empty-impl true
+    :evidence (evidence "verifier.py"
+        :quotes ("normalized_quote, _, _ = normalize_with_mapping(quote, self.config)\n        if not normalized_quote.strip() and quote.strip():\n            return {\n                \"quote\": quote,\n                \"verified\": False,\n                \"original_position\": -1,\n                \"normalized_position\": -1,\n                \"reason\": \"Quote normalized to empty string\",")
+        :explanation "Pre-validation rejects quotes that normalize to empty"))
+
+(fact no-match-zero-impl true
+    :evidence (evidence "verifier.py"
+        :quotes ("confidence_info = {\n            \"score\": 0.0,\n            \"level\": ConfidenceLevel.NONE,\n            \"transformations\": [],\n        }\n\n        if strategy == MatchStrategy.NONE:\n            return position_info, confidence_info")
+        :explanation "No match returns zero confidence immediately"))
+
+(fact score-clamped-impl true
+    :evidence (evidence "verifier.py"
+        :quotes ("score = max(0.0, min(1.0, score))")
+        :explanation "Score clamped to [0.0, 1.0] after penalty subtraction"))
+
+(fact flag-gates-impl true
+    :evidence (evidence "normalizer.py"
+        :quotes ("if not config.ignore_punctuation:\n        return text, position_map, transformations")
+        :explanation "Disabled flag causes early return with no transformations"))
+
+(fact all-stopwords-scaled-impl true
+    :evidence (evidence "normalizer.py"
+        :quotes ("penalty=config.get_penalty(\"stopword_removal\") * 1.5,")
+        :explanation "All-stopwords case applies 1.5x penalty multiplier"))
+
+(fact flat-penalty-impl true
+    :evidence (evidence "normalizer.py"
+        :quotes ("penalty=config.get_penalty(\"case_normalization\"),")
+        :explanation "Flat normalizer steps use config.get_penalty() with no scaling"))
+
+(fact sum-lt-dangerous-impl true
+    :evidence (evidence "config.py"
+        :quotes ("\"whitespace_normalization\": 0.001,\n            \"whitespace_trimming\": 0.001,\n            \"hyphenation_normalization\": 0.005,\n            \"case_normalization\": 0.01,\n            \"list_normalization\": 0.01,\n            \"punctuation_removal\": 0.02,\n            \"collapsed_space_match\": 0.03,\n            \"stopword_removal\": 0.125,")
+        :explanation "Sum of non-dangerous penalties = 0.202"))
+
+(fact dangerous-below-threshold-impl true
+    :evidence (evidence "verifier.py"
+        :quotes ("score = 1.0\n        for t in relevant:\n            score -= t.penalty")
+        :explanation "Score starts at 1.0, one dangerous penalty 0.31 gives 0.69 < 0.7 threshold"))
+
+; Per-layer counts
+(derive axiom-doc-count
+    (count-exists doc-score-init doc-dangerous-full doc-regular-diluted
+                  doc-empty-rejected doc-keep-one
+                  doc-single-stopword doc-normalized-empty doc-no-match-zero
+                  doc-score-clamped doc-flag-gates doc-all-stopwords-scaled
+                  doc-flat-penalty doc-sum-lt-dangerous doc-dangerous-below-threshold)
+    :using (count-exists doc-score-init doc-dangerous-full doc-regular-diluted
+                         doc-empty-rejected doc-keep-one
+                         doc-single-stopword doc-normalized-empty doc-no-match-zero
+                         doc-score-clamped doc-flag-gates doc-all-stopwords-scaled
+                         doc-flat-penalty doc-sum-lt-dangerous doc-dangerous-below-threshold))
+
+(derive axiom-impl-count-v2
+    (count-exists score-init-impl dangerous-full-penalty-impl regular-diluted-penalty-impl
+                  empty-rejected-impl keep-one-stopword-impl
+                  single-stopword-impl normalized-empty-impl no-match-zero-impl
+                  score-clamped-impl flag-gates-impl all-stopwords-scaled-impl
+                  flat-penalty-impl sum-lt-dangerous-impl dangerous-below-threshold-impl)
+    :using (count-exists score-init-impl dangerous-full-penalty-impl regular-diluted-penalty-impl
+                         empty-rejected-impl keep-one-stopword-impl
+                         single-stopword-impl normalized-empty-impl no-match-zero-impl
+                         score-clamped-impl flag-gates-impl all-stopwords-scaled-impl
+                         flat-penalty-impl sum-lt-dangerous-impl dangerous-below-threshold-impl))
+
+; Paired: each behavior must be BOTH documented AND implemented
+(derive axiom-paired-count
+    (count-exists (and doc-score-init score-init-impl)
+                  (and doc-dangerous-full dangerous-full-penalty-impl)
+                  (and doc-regular-diluted regular-diluted-penalty-impl)
+                  (and doc-empty-rejected empty-rejected-impl)
+                  (and doc-keep-one keep-one-stopword-impl)
+                  (and doc-single-stopword single-stopword-impl)
+                  (and doc-normalized-empty normalized-empty-impl)
+                  (and doc-no-match-zero no-match-zero-impl)
+                  (and doc-score-clamped score-clamped-impl)
+                  (and doc-flag-gates flag-gates-impl)
+                  (and doc-all-stopwords-scaled all-stopwords-scaled-impl)
+                  (and doc-flat-penalty flat-penalty-impl)
+                  (and doc-sum-lt-dangerous sum-lt-dangerous-impl)
+                  (and doc-dangerous-below-threshold dangerous-below-threshold-impl))
     :using (count-exists
-            bound-score-starts bound-dangerous-not-diluted bound-regular-diluted
-            bound-empty-rejected bound-all-stopwords-keep
-            score-init-impl dangerous-full-penalty-impl
-            regular-diluted-penalty-impl empty-rejected-impl
-            keep-one-stopword-impl))
+            doc-score-init score-init-impl
+            doc-dangerous-full dangerous-full-penalty-impl
+            doc-regular-diluted regular-diluted-penalty-impl
+            doc-empty-rejected empty-rejected-impl
+            doc-keep-one keep-one-stopword-impl
+            doc-single-stopword single-stopword-impl
+            doc-normalized-empty normalized-empty-impl
+            doc-no-match-zero no-match-zero-impl
+            doc-score-clamped score-clamped-impl
+            doc-flag-gates flag-gates-impl
+            doc-all-stopwords-scaled all-stopwords-scaled-impl
+            doc-flat-penalty flat-penalty-impl
+            doc-sum-lt-dangerous sum-lt-dangerous-impl
+            doc-dangerous-below-threshold dangerous-below-threshold-impl))
 
-(diff axiom-impl-vs-penalty-config :replace axiom-impl-count :with penalty-config-count)
-
-; =====================================================================
-; Cross-check: verifier API features vs penalty config
-; =====================================================================
-
-(derive verifier-all-features-count
-    (count-exists verifier-docstring verifier-default-threshold
-                  verifier-default-case-sensitive verifier-default-ignore-punctuation
-                  verifier-default-remove-stopwords verifier-confidence-return-shape
-                  verifier-confidence-has-score verifier-confidence-has-level
-                  verifier-position-key)
-    :using (count-exists verifier-docstring verifier-default-threshold
-                         verifier-default-case-sensitive verifier-default-ignore-punctuation
-                         verifier-default-remove-stopwords verifier-confidence-return-shape
-                         verifier-confidence-has-score verifier-confidence-has-level
-                         verifier-position-key))
-
-(diff verifier-features-vs-penalty-config :replace verifier-all-features-count :with penalty-config-count)
-
-; medium-equals-verification-threshold proves thresholds match;
-; diff it against the boolean true to surface if it ever breaks
-(diff threshold-equality-holds :replace medium-equals-verification-threshold :with verifier-default-ignore-punctuation)
+(diff axiom-paired-vs-doc :replace axiom-paired-count :with axiom-doc-count)
+(diff axiom-paired-vs-impl :replace axiom-paired-count :with axiom-impl-count-v2)

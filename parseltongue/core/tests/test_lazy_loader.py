@@ -499,3 +499,203 @@ class TestLazyLoadIntegration(_TmpDirMixin, unittest.TestCase):
                 root = result.root_cause(node)
                 self.assertIsNotNone(root)
                 self.assertEqual(root.name, "base.base-fail")
+
+
+class TestLazyLoaderModuleAliasPatch(_TmpDirMixin, unittest.TestCase):
+    """Tests that LazyLoader resolves module aliases (e.g. pass1 → sources.pass1)
+    when the same file is imported under two different names."""
+
+    def test_sibling_alias_resolves(self):
+        """Entry imports sources/pass1. Sibling pass2 imports pass1.
+        pass2's refs to pass1.X should resolve to sources.pass1.X."""
+        self._write(
+            "sources/pass1.pltg",
+            '(fact val 42 :origin "pass1")',
+        )
+        self._write(
+            "sources/pass2.pltg",
+            '''
+            (import (quote pass1))
+            (fact derived pass1.val :origin "pass2")
+        ''',
+        )
+        path = self._write(
+            "main.pltg",
+            '''
+            (import (quote sources.pass1))
+            (import (quote sources.pass2))
+        ''',
+        )
+        result = lazy_load_pltg(path)
+        self.assertTrue(result.ok, f"Expected clean load, got errors: {result.summary()}")
+        self.assertIn("sources.pass1.val", result.system.facts)
+        self.assertIn("sources.pass2.derived", result.system.facts)
+        wff = result.system.facts["sources.pass2.derived"].wff
+        self.assertEqual(str(wff), "sources.pass1.val")
+
+    def test_alias_in_derive_using(self):
+        """Derive :using refs with aliases resolve correctly in lazy loader."""
+        self._write(
+            "sources/base.pltg",
+            '''
+            (fact base-val 10 :origin "base")
+            (axiom base-rule (implies (> ?x 0) (= ?x ?x)) :origin "base")
+        ''',
+        )
+        self._write(
+            "sources/derived.pltg",
+            '''
+            (import (quote base))
+            (derive my-theorem base.base-rule
+                :bind ((?x base.base-val))
+                :using (base.base-rule base.base-val))
+        ''',
+        )
+        path = self._write(
+            "main.pltg",
+            '''
+            (import (quote sources.base))
+            (import (quote sources.derived))
+        ''',
+        )
+        result = lazy_load_pltg(path)
+        self.assertTrue(result.ok, f"Expected clean load, got errors: {result.summary()}")
+        self.assertIn("sources.derived.my-theorem", result.system.theorems)
+
+    def test_alias_failure_cascades_correctly(self):
+        """When a fact in an aliased module fails, dependents using the alias are skipped."""
+        self._write(
+            "sources/base.pltg",
+            '''
+            (fact base-ok 1 :origin "base")
+            (derive base-fail nonexistent
+                :bind ((?x 1))
+                :using (nonexistent))
+        ''',
+        )
+        self._write(
+            "sources/consumer.pltg",
+            '''
+            (import (quote base))
+            (fact consumer-ok 1 :origin "consumer")
+            (derive consumer-uses-fail (> base.base-fail 0) :using (base.base-fail))
+            (derive consumer-independent (> consumer-ok 0) :using (consumer-ok))
+        ''',
+        )
+        path = self._write(
+            "main.pltg",
+            '''
+            (import (quote sources.base))
+            (import (quote sources.consumer))
+        ''',
+        )
+        result = lazy_load_pltg(path)
+        self.assertFalse(result.ok)
+        # Independent stuff survives
+        self.assertIn("sources.base.base-ok", result.system.facts)
+        self.assertIn("sources.consumer.consumer-ok", result.system.facts)
+        self.assertIn("sources.consumer.consumer-independent", result.system.theorems)
+        # Failed and skipped
+        error_names = {n.name for n in result.errors if n.name}
+        skipped_names = {n.name for n in result.skipped}
+        self.assertIn("sources.base.base-fail", error_names)
+        self.assertIn("sources.consumer.consumer-uses-fail", skipped_names)
+
+
+class TestLazyLoaderEffectOrdering(_TmpDirMixin, unittest.TestCase):
+    """Tests that LazyLoader executes effects (load-document, import, etc.)
+    BEFORE symbol patching, so documents and aliases are available."""
+
+    def test_load_document_before_import(self):
+        """Document loaded in entry is available to imported module."""
+        self._write("data/report.txt", "Revenue was $10M in Q3.")
+        self._write(
+            "sources/analysis.pltg",
+            '''
+            (fact revenue 10 :origin "report")
+        ''',
+        )
+        path = self._write(
+            "main.pltg",
+            '''
+            (load-document "report" "data/report.txt")
+            (import (quote sources.analysis))
+        ''',
+        )
+        result = lazy_load_pltg(path)
+        self.assertTrue(result.ok, f"Expected clean load, got errors: {result.summary()}")
+        self.assertIn("sources.analysis.revenue", result.system.facts)
+        self.assertIn("report", result.system.documents)
+
+    def test_effects_before_named_directives(self):
+        """Effects like load-document execute before named directives (facts, derives)
+        even when they appear interleaved in source."""
+        self._write("data/doc.txt", "Important data.")
+        path = self._write(
+            "main.pltg",
+            '''
+            (fact before-doc 1 :origin "test")
+            (load-document "doc" "data/doc.txt")
+            (fact after-doc 2 :origin "test")
+        ''',
+        )
+        result = lazy_load_pltg(path)
+        self.assertTrue(result.ok, f"Expected clean load, got errors: {result.summary()}")
+        self.assertIn("before-doc", result.system.facts)
+        self.assertIn("after-doc", result.system.facts)
+        self.assertIn("doc", result.system.documents)
+
+    def test_import_before_symbol_patch(self):
+        """Import executes before symbol patching so that module aliases
+        are available for _patch_symbols_from_names."""
+        self._write(
+            "sources/base.pltg",
+            '(fact base-val 100 :origin "base")',
+        )
+        self._write(
+            "sources/consumer.pltg",
+            '''
+            (import (quote base))
+            (fact ref base.base-val :origin "consumer")
+        ''',
+        )
+        path = self._write(
+            "main.pltg",
+            '''
+            (import (quote sources.base))
+            (import (quote sources.consumer))
+        ''',
+        )
+        result = lazy_load_pltg(path)
+        self.assertTrue(result.ok, f"Expected clean load, got errors: {result.summary()}")
+        self.assertIn("sources.consumer.ref", result.system.facts)
+        wff = result.system.facts["sources.consumer.ref"].wff
+        self.assertEqual(str(wff), "sources.base.base-val")
+
+    def test_multiple_documents_then_imports_with_evidence(self):
+        """Multiple documents loaded, then imports — evidence verifiable in all modules."""
+        self._write("data/doc1.txt", "First document content.")
+        self._write("data/doc2.txt", "Second document content.")
+        self._write(
+            "sources/a.pltg",
+            '(fact a-val 1 :origin "doc1")',
+        )
+        self._write(
+            "sources/b.pltg",
+            '(fact b-val 2 :origin "doc2")',
+        )
+        path = self._write(
+            "main.pltg",
+            '''
+            (load-document "doc1" "data/doc1.txt")
+            (load-document "doc2" "data/doc2.txt")
+            (import (quote sources.a))
+            (import (quote sources.b))
+        ''',
+        )
+        result = lazy_load_pltg(path)
+        self.assertTrue(result.ok, f"Expected clean load, got errors: {result.summary()}")
+        self.assertIn("sources.a.a-val", result.system.facts)
+        self.assertIn("sources.b.b-val", result.system.facts)
+        self.assertIn("doc1", result.system.documents)
+        self.assertIn("doc2", result.system.documents)

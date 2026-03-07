@@ -260,3 +260,157 @@ class TestContext(_TmpDirMixin, unittest.TestCase):
         path = self._write("main.pltg", '(import (quote lib))')
         system = load_pltg(path)
         self.assertIs(system.evaluate(system.facts["lib.lib-is-main"].wff), False)
+
+
+class TestModuleAliasPatch(_TmpDirMixin, unittest.TestCase):
+    """Tests that module aliases (e.g. pass1 → sources.pass1) are resolved
+    correctly when the same file is imported under two different names."""
+
+    def test_sibling_alias_resolves(self):
+        """Entry imports sources/pass1. Sibling pass2 imports pass1.
+        pass2's refs to pass1.X should resolve to sources.pass1.X."""
+        self._write(
+            "sources/pass1.pltg",
+            '(fact val 42 :origin "pass1")',
+        )
+        self._write(
+            "sources/pass2.pltg",
+            '''
+            (import (quote pass1))
+            (fact derived pass1.val :origin "pass2")
+        ''',
+        )
+        path = self._write(
+            "main.pltg",
+            '''
+            (import (quote sources.pass1))
+            (import (quote sources.pass2))
+        ''',
+        )
+        system = load_pltg(path)
+        self.assertIn("sources.pass1.val", system.facts)
+        self.assertIn("sources.pass2.derived", system.facts)
+        # The wff should reference the namespaced version
+        wff = system.facts["sources.pass2.derived"].wff
+        self.assertEqual(str(wff), "sources.pass1.val")
+
+    def test_alias_in_derive_using(self):
+        """Derive :using refs with aliases resolve correctly."""
+        self._write(
+            "sources/base.pltg",
+            '''
+            (fact base-val 10 :origin "base")
+            (axiom base-rule (implies (> ?x 0) (= ?x ?x)) :origin "base")
+        ''',
+        )
+        self._write(
+            "sources/derived.pltg",
+            '''
+            (import (quote base))
+            (derive my-theorem base.base-rule
+                :bind ((?x base.base-val))
+                :using (base.base-rule base.base-val))
+        ''',
+        )
+        path = self._write(
+            "main.pltg",
+            '''
+            (import (quote sources.base))
+            (import (quote sources.derived))
+        ''',
+        )
+        system = load_pltg(path)
+        self.assertIn("sources.derived.my-theorem", system.theorems)
+
+    def test_triple_alias_chain(self):
+        """Three levels: entry → sources.lib, mid → lib (alias), leaf uses lib.X."""
+        self._write("sources/lib.pltg", '(fact lib-val 1 :origin "lib")')
+        self._write(
+            "sources/mid.pltg",
+            '''
+            (import (quote lib))
+            (fact mid-ref lib.lib-val :origin "mid")
+        ''',
+        )
+        path = self._write(
+            "main.pltg",
+            '''
+            (import (quote sources.lib))
+            (import (quote sources.mid))
+        ''',
+        )
+        system = load_pltg(path)
+        self.assertIn("sources.lib.lib-val", system.facts)
+        self.assertIn("sources.mid.mid-ref", system.facts)
+        wff = system.facts["sources.mid.mid-ref"].wff
+        self.assertEqual(str(wff), "sources.lib.lib-val")
+
+
+class TestEffectOrderingLoader(_TmpDirMixin, unittest.TestCase):
+    """Tests that effects (load-document, import) execute in source order
+    so that documents are available when imported modules reference them."""
+
+    def test_load_document_before_import(self):
+        """Document loaded in entry is available to imported module."""
+        self._write("data/report.txt", "Revenue was $10M in Q3.")
+        self._write(
+            "sources/analysis.pltg",
+            '''
+            (fact revenue 10 :origin "report")
+        ''',
+        )
+        path = self._write(
+            "main.pltg",
+            '''
+            (load-document "report" "data/report.txt")
+            (import (quote sources.analysis))
+        ''',
+        )
+        system = load_pltg(path)
+        self.assertIn("sources.analysis.revenue", system.facts)
+        self.assertIn("report", system.documents)
+
+    def test_load_document_after_import_still_works(self):
+        """Document loaded after import is still in system."""
+        self._write("data/notes.txt", "Some notes here.")
+        self._write(
+            "sources/mod.pltg",
+            '(fact mod-val 1 :origin "mod")',
+        )
+        path = self._write(
+            "main.pltg",
+            '''
+            (import (quote sources.mod))
+            (load-document "notes" "data/notes.txt")
+        ''',
+        )
+        system = load_pltg(path)
+        self.assertIn("sources.mod.mod-val", system.facts)
+        self.assertIn("notes", system.documents)
+
+    def test_multiple_documents_then_imports(self):
+        """Multiple documents loaded, then multiple imports — all available."""
+        self._write("data/doc1.txt", "First document.")
+        self._write("data/doc2.txt", "Second document.")
+        self._write(
+            "sources/a.pltg",
+            '(fact a-val 1 :origin "doc1")',
+        )
+        self._write(
+            "sources/b.pltg",
+            '(fact b-val 2 :origin "doc2")',
+        )
+        path = self._write(
+            "main.pltg",
+            '''
+            (load-document "doc1" "data/doc1.txt")
+            (load-document "doc2" "data/doc2.txt")
+            (import (quote sources.a))
+            (import (quote sources.b))
+        ''',
+        )
+        system = load_pltg(path)
+        self.assertIn("sources.a.a-val", system.facts)
+        self.assertIn("sources.b.b-val", system.facts)
+        self.assertIn("doc1", system.documents)
+        self.assertIn("doc2", system.documents)

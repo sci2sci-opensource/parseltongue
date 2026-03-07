@@ -87,10 +87,12 @@ class LazyLoader(Loader):
     """Extends Loader with fault-tolerant, dependency-aware loading.
 
     Overrides _load_source to:
-    1. Parse all directives into DirectiveNodes
+    1a. Parse all directives and collect defined names
+    1b. Execute effects in source order (import, load-document, print)
+    1c. Patch bare symbols against collected names, build DirectiveNodes
     2. Resolve the dependency graph (children/dependents)
-    3. Execute effects immediately, named directives topologically
-    4. On error, record the node and skip its dependent subtree
+    3. Separate and execute remaining effects
+    4. Topological execution of named directives; on error skip dependents
     """
 
     def __init__(self):
@@ -102,16 +104,26 @@ class LazyLoader(Loader):
     def _patch_symbols_from_names(self, expr, known_names, skip_index=None):
         """Like _patch_symbols but resolves against a set of known names
         instead of checking the engine. Used during lazy parsing when
-        the engine hasn't registered anything yet."""
+        the engine hasn't registered anything yet.
+
+        Also resolves module aliases (e.g. pass1.X → sources.pass1.X)
+        for cross-module references."""
         if not isinstance(expr, list):
             return
         for i, item in enumerate(expr):
             if i == skip_index:
                 continue
             if isinstance(item, Symbol) and not str(item).startswith(("?", ":")):
-                candidate = f"{self._current.module_name}.{item}"
+                s = str(item)
+                candidate = f"{self._current.module_name}.{s}"
                 if candidate in known_names:
                     expr[i] = Symbol(candidate)
+                else:
+                    for alias, canonical in self._module_aliases.items():
+                        prefix = alias + "."
+                        if s.startswith(prefix):
+                            expr[i] = Symbol(canonical + s[len(alias) :])
+                            break
             elif isinstance(item, list):
                 self._patch_symbols_from_names(item, known_names)
 
@@ -155,10 +167,33 @@ class LazyLoader(Loader):
             raw_exprs.append((expr, order))
             order += 1
 
-        # Phase 1b: Now patch body symbols using collected names,
+        # Phase 1b: Execute all effects (load-document, import, print, etc.)
+        # in source order BEFORE symbol patching, so that:
+        # - documents are loaded for evidence verification
+        # - module aliases are registered (e.g. pass1 → sources.pass1)
+        directive_exprs: list[tuple[list, int]] = []
+        for expr, ord_idx in raw_exprs:
+            if not isinstance(expr, list) or len(expr) < 2:
+                continue
+            head = expr[0]
+            is_named = head in DSL_KEYWORDS or head in SPECIAL_FORMS
+            if not is_named:
+                # Effect expression — execute immediately
+                try:
+                    _execute_directive(system.engine, expr)
+                except Exception as e:
+                    log.warning("Effect at position %d failed: %s", ord_idx, e)
+                    if self._result:
+                        node = parse_directive(expr, ord_idx)
+                        node.source_file = self._current.current_file
+                        self._result.errors[node] = e
+            else:
+                directive_exprs.append((expr, ord_idx))
+
+        # Phase 1c: Now patch body symbols using collected names + aliases,
         # then build DirectiveNodes.
         nodes: list[DirectiveNode] = []
-        for expr, ord_idx in raw_exprs:
+        for expr, ord_idx in directive_exprs:
             if isinstance(expr, list) and len(expr) >= 2:
                 if not self._current.is_main:
                     self._patch_symbols_from_names(expr, defined_names, skip_index=1)

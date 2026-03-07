@@ -6,7 +6,14 @@ from typing import Dict, Set
 
 
 class ConfidenceLevel(str, Enum):
-    """Enum for confidence levels in quote verification."""
+    """Enum for confidence levels in quote verification.
+
+    Levels:
+        HIGH — score exceeds high_confidence_threshold (default 0.9)
+        MEDIUM — score exceeds medium_confidence_threshold (default 0.7)
+        LOW — score below both thresholds
+        NONE — no match found, score is 0.0
+    """
 
     HIGH = "high"
     MEDIUM = "medium"
@@ -15,7 +22,12 @@ class ConfidenceLevel(str, Enum):
 
 
 class MatchStrategy(str, Enum):
-    """How a quote was matched against the document."""
+    """How a quote was matched against the document.
+
+    Strategies:
+        EXACT — inverted index hit with word boundaries aligned
+        COLLAPSED — matched after collapsing spaces (PDF line-break artifacts)
+    """
 
     EXACT = "exact"  # Inverted index hit — word boundaries align
     COLLAPSED = "collapsed"  # Matched after removing spaces (PDF line-break artifacts)
@@ -44,7 +56,15 @@ class Position:
 
 @dataclass
 class QuoteVerifierConfig:
-    """Configuration for QuoteVerifier, all parameters customizable."""
+    """Configuration for QuoteVerifier, all parameters customizable.
+
+    Feature flags:
+        case_sensitive — when False, text is lowercased before matching
+        ignore_punctuation — when True, prose punctuation is stripped
+        normalize_lists — when True, numbered list markers are removed
+        normalize_hyphenation — when True, hyphenated line breaks are rejoined
+        remove_stopwords — when True, common words are removed before matching
+    """
 
     # Feature flags
     case_sensitive: bool = False

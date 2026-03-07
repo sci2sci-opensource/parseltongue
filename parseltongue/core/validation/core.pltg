@@ -71,20 +71,13 @@
 ; =====================================================================
 
 (print "")
-(print "--- Engine docstring ---")
-(print "  Module doc claims doc mgmt:" engine.module-doc-claims-doc-mgmt)
-(print "  Class doc claims no doc mgmt:" engine.class-doc-claims-doc-mgmt)
+(print "--- Engine doc-mgmt ---")
+(print "  Doc claims registration:" engine.doc-claims-registration)
+(print "  Doc claims loading:" engine.doc-claims-loading)
+(print "  Doc claims indexing:" engine.doc-claims-indexing)
 (print "  Has register_document:" engine.engine-has-register-document)
 (print "  Has load_document:" engine.engine-has-load-document)
-(print "  Has documents dict:" engine.engine-has-documents-dict)
-
-(diff engine-doc-mgmt-claim
-    :replace engine.module-doc-claims-doc-mgmt
-    :with engine.class-doc-claims-doc-mgmt)
-
-(derive engine-doc-mgmt-confirmed
-    (and engine.engine-has-register-document engine.engine-has-load-document engine.engine-has-documents-dict)
-    :using (engine.engine-has-register-document engine.engine-has-load-document engine.engine-has-documents-dict))
+(print "  Has verifier index:" engine.engine-has-verifier-index)
 
 ; =====================================================================
 ; Engine retract docstring vs implementation

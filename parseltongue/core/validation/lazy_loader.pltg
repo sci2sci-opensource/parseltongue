@@ -62,7 +62,7 @@
     :using (count-exists result-has-ok result-has-partial result-has-root-cause result-has-error-trees result-has-summary))
 
 ; =====================================================================
-; LazyLoader — 4 phases of _load_source
+; LazyLoader — 6 phases of _load_source
 ; =====================================================================
 
 (fact phase-1a-parses-all true
@@ -75,20 +75,25 @@
         :quotes ("defined_names: set[str] = set()")
         :explanation "Phase 1a builds a set of all definition names for later patching"))
 
-(fact phase-1b-patches-from-names true
+(fact phase-1b-executes-effects true
     :evidence (evidence "lazy_loader.py"
-        :quotes ("# Phase 1b: Now patch body symbols using collected names,\n        # then build DirectiveNodes.")
-        :explanation "Phase 1b patches symbols using collected names, not engine state"))
+        :quotes ("# Phase 1b: Execute all effects (load-document, import, print, etc.)\n        # in source order BEFORE symbol patching, so that:")
+        :explanation "Phase 1b executes effects early so documents and aliases are available"))
+
+(fact phase-1c-patches-from-names true
+    :evidence (evidence "lazy_loader.py"
+        :quotes ("# Phase 1c: Now patch body symbols using collected names + aliases,\n        # then build DirectiveNodes.")
+        :explanation "Phase 1c patches symbols using collected names, not engine state"))
 
 (fact phase-2-resolves-graph true
     :evidence (evidence "lazy_loader.py"
         :quotes ("# Phase 2: Resolve the dependency graph\n        resolve_graph(nodes)")
         :explanation "Phase 2 links nodes into a DAG via resolve_graph"))
 
-(fact phase-3-executes-effects true
+(fact phase-3-separates-effects true
     :evidence (evidence "lazy_loader.py"
         :quotes ("# Phase 3: Separate effects from named directives")
-        :explanation "Phase 3 executes effects (import, print, etc.) in order"))
+        :explanation "Phase 3 separates and executes remaining effects"))
 
 (fact phase-4-topological-exec true
     :evidence (evidence "lazy_loader.py"
@@ -96,8 +101,8 @@
         :explanation "Phase 4 executes named directives respecting dependencies"))
 
 (derive phase-count
-    (count-exists phase-1a-parses-all phase-1b-patches-from-names phase-2-resolves-graph phase-3-executes-effects phase-4-topological-exec)
-    :using (count-exists phase-1a-parses-all phase-1b-patches-from-names phase-2-resolves-graph phase-3-executes-effects phase-4-topological-exec))
+    (count-exists phase-1a-parses-all phase-1b-executes-effects phase-1c-patches-from-names phase-2-resolves-graph phase-3-separates-effects phase-4-topological-exec)
+    :using (count-exists phase-1a-parses-all phase-1b-executes-effects phase-1c-patches-from-names phase-2-resolves-graph phase-3-separates-effects phase-4-topological-exec))
 
 ; =====================================================================
 ; Fault tolerance mechanisms
@@ -150,7 +155,7 @@
 
 (fact patch-from-names-checks-set true
     :evidence (evidence "lazy_loader.py"
-        :quotes ("candidate = f\"{self._current.module_name}.{item}\"\n                if candidate in known_names:")
+        :quotes ("candidate = f\"{self._current.module_name}.{s}\"\n                if candidate in known_names:")
         :explanation "Patches against pre-collected name set, not engine state"))
 
 ; =====================================================================
@@ -233,27 +238,37 @@
 
 (fact doc-phase-parse true
     :evidence (evidence "lazy_loader.py"
-        :quotes ("1. Parse all directives into DirectiveNodes")
-        :explanation "Docstring lists phase 1: parse"))
+        :quotes ("1a. Parse all directives and collect defined names")
+        :explanation "Docstring lists phase 1a: parse and collect names"))
+
+(fact doc-phase-effects true
+    :evidence (evidence "lazy_loader.py"
+        :quotes ("1b. Execute effects in source order (import, load-document, print)")
+        :explanation "Docstring lists phase 1b: early effect execution"))
+
+(fact doc-phase-patch true
+    :evidence (evidence "lazy_loader.py"
+        :quotes ("1c. Patch bare symbols against collected names, build DirectiveNodes")
+        :explanation "Docstring lists phase 1c: patch symbols"))
 
 (fact doc-phase-resolve true
     :evidence (evidence "lazy_loader.py"
         :quotes ("2. Resolve the dependency graph (children/dependents)")
         :explanation "Docstring lists phase 2: resolve"))
 
-(fact doc-phase-execute true
+(fact doc-phase-separate true
     :evidence (evidence "lazy_loader.py"
-        :quotes ("3. Execute effects immediately, named directives topologically")
-        :explanation "Docstring lists phase 3: execute"))
+        :quotes ("3. Separate and execute remaining effects")
+        :explanation "Docstring lists phase 3: separate effects"))
 
-(fact doc-phase-error true
+(fact doc-phase-topological true
     :evidence (evidence "lazy_loader.py"
-        :quotes ("4. On error, record the node and skip its dependent subtree")
-        :explanation "Docstring lists phase 4: error handling"))
+        :quotes ("4. Topological execution of named directives; on error skip dependents")
+        :explanation "Docstring lists phase 4: topological exec with error handling"))
 
 (derive doc-phase-count
-    (count-exists doc-phase-parse doc-phase-resolve doc-phase-execute doc-phase-error)
-    :using (count-exists doc-phase-parse doc-phase-resolve doc-phase-execute doc-phase-error))
+    (count-exists doc-phase-parse doc-phase-effects doc-phase-patch doc-phase-resolve doc-phase-separate doc-phase-topological)
+    :using (count-exists doc-phase-parse doc-phase-effects doc-phase-patch doc-phase-resolve doc-phase-separate doc-phase-topological))
 
 ; =====================================================================
 ; Docstring layer — method docstrings
@@ -276,8 +291,24 @@
 ; Result docstring names 3 fields, impl has 3 fields
 (diff result-doc-vs-impl :replace doc-result-field-count :with result-field-count)
 
-; Docstring lists 4 phases, impl has 5 (1a+1b split)
-(diff doc-phase-vs-impl :replace doc-phase-count :with phase-count)
+; Phase paired: each phase documented AND implemented
+(derive phase-paired
+    (count-exists (and doc-phase-parse phase-1a-parses-all)
+                  (and doc-phase-effects phase-1b-executes-effects)
+                  (and doc-phase-patch phase-1c-patches-from-names)
+                  (and doc-phase-resolve phase-2-resolves-graph)
+                  (and doc-phase-separate phase-3-separates-effects)
+                  (and doc-phase-topological phase-4-topological-exec))
+    :using (count-exists
+            doc-phase-parse phase-1a-parses-all
+            doc-phase-effects phase-1b-executes-effects
+            doc-phase-patch phase-1c-patches-from-names
+            doc-phase-resolve phase-2-resolves-graph
+            doc-phase-separate phase-3-separates-effects
+            doc-phase-topological phase-4-topological-exec))
+
+(diff phase-doc-vs-paired :replace doc-phase-count :with phase-paired)
+(diff phase-impl-vs-paired :replace phase-count :with phase-paired)
 
 ; Result field paired: docstring + impl for each field
 (derive result-field-paired
@@ -349,10 +380,10 @@
         :quotes ("Like _patch_symbols but resolves against a set of known names\n        instead of checking the engine.")
         :explanation "Docstring says patches against name set, not engine"))
 
-; Phase 1a collects names, phase 1b uses them for patching
+; Phase 1a collects names, phase 1c uses them for patching
 (derive name-collection-enables-patching
     (and phase-1a-collects-names patch-from-names-checks-set)
-    :using (phase-1a-collects-names phase-1b-patches-from-names patch-from-names-checks-set))
+    :using (phase-1a-collects-names phase-1c-patches-from-names patch-from-names-checks-set))
 
 ; Patching: docstring claim + method exists + checks set — all paired
 (derive patch-paired
@@ -360,4 +391,3 @@
                   (and doc-patch-resolves-names patch-from-names-checks-set))
     :using (count-exists doc-patch-resolves-names patch-from-names-exists patch-from-names-checks-set))
 
-(diff patch-paired-vs-name-collection :replace patch-paired :with name-collection-enables-patching)

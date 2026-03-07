@@ -164,19 +164,51 @@
 ; Internal consistency
 ; =====================================================================
 
-; System docstring claims "serialization" — prove it with impl facts
+; Serialization DOC layer — to_dict docstring lists 4 targets
+(fact serialization-doc-terms true
+    :evidence (evidence "system.py"
+        :quotes ("Serialize system state: terms, facts, axioms, theorems.")
+        :explanation "to_dict docstring lists terms"))
+
+(fact serialization-doc-facts true
+    :evidence (evidence "system.py"
+        :quotes ("Serialize system state: terms, facts, axioms, theorems.")
+        :explanation "to_dict docstring lists facts"))
+
+(fact serialization-doc-axioms true
+    :evidence (evidence "system.py"
+        :quotes ("Serialize system state: terms, facts, axioms, theorems.")
+        :explanation "to_dict docstring lists axioms"))
+
+(fact serialization-doc-theorems true
+    :evidence (evidence "system.py"
+        :quotes ("Serialize system state: terms, facts, axioms, theorems.")
+        :explanation "to_dict docstring lists theorems"))
+
+; Serialization IMPL layer count
 (derive serialization-impl-count
     (count-exists system-serializes-terms system-serializes-facts system-serializes-axioms system-serializes-theorems)
     :using (count-exists system-serializes-terms system-serializes-facts system-serializes-axioms system-serializes-theorems))
 
-; Docstring claims serialization — 1 claim, 4 impl facts
+; Serialization DOC layer count
 (derive serialization-doc-count
-    (count-exists system-docstring)
-    :using (count-exists system-docstring))
+    (count-exists serialization-doc-terms serialization-doc-facts serialization-doc-axioms serialization-doc-theorems)
+    :using (count-exists serialization-doc-terms serialization-doc-facts serialization-doc-axioms serialization-doc-theorems))
 
-(diff serialization-doc-vs-impl
-    :replace serialization-doc-count
-    :with serialization-impl-count)
+; Serialization paired: each target documented AND implemented
+(derive serialization-paired
+    (count-exists (and serialization-doc-terms system-serializes-terms)
+                  (and serialization-doc-facts system-serializes-facts)
+                  (and serialization-doc-axioms system-serializes-axioms)
+                  (and serialization-doc-theorems system-serializes-theorems))
+    :using (count-exists
+            serialization-doc-terms system-serializes-terms
+            serialization-doc-facts system-serializes-facts
+            serialization-doc-axioms system-serializes-axioms
+            serialization-doc-theorems system-serializes-theorems))
+
+(diff serialization-doc-vs-paired :replace serialization-doc-count :with serialization-paired)
+(diff serialization-impl-vs-paired :replace serialization-impl-count :with serialization-paired)
 
 ; Effects are injected into engine.env with system auto-injected as first arg
 (fact effects-auto-inject-system true

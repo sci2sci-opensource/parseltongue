@@ -9,16 +9,23 @@
 ; Module docstring vs class docstring
 ; =====================================================================
 
-(fact module-doc-claims-doc-mgmt true
+; Layer 1: DOC — module docstring documents 3 doc-mgmt features
+(fact doc-claims-registration true
     :evidence (evidence "engine.py"
-        :quotes ("document management, evidence verification")
-        :explanation "Module docstring says engine provides document management"))
+        :quotes ("direct registration")
+        :explanation "Module docstring claims direct registration"))
 
-(fact class-doc-claims-doc-mgmt true
+(fact doc-claims-loading true
     :evidence (evidence "engine.py"
-        :quotes ("Pure evaluation engine with document management.")
-        :explanation "Class docstring confirms document management"))
+        :quotes ("loading from files")
+        :explanation "Module docstring claims loading from files"))
 
+(fact doc-claims-indexing true
+    :evidence (evidence "engine.py"
+        :quotes ("ground-truth indexing for evidence verification")
+        :explanation "Module docstring claims ground-truth indexing"))
+
+; Layer 2: IMPL — engine implements 3 doc-mgmt features
 (fact engine-has-register-document true
     :evidence (evidence "engine.py"
         :quotes ("def register_document(self, name: str, text: str):")
@@ -29,44 +36,33 @@
         :quotes ("def load_document(self, name: str, path: str):")
         :explanation "Engine has load_document method"))
 
-(fact engine-has-documents-dict true
+(fact engine-has-verifier-index true
     :evidence (evidence "engine.py"
-        :quotes ("self.documents: dict[str, str] = {}")
-        :explanation "Engine stores documents in a dict"))
+        :quotes ("self._verifier.index.add(name, text)")
+        :explanation "Documents are added to verifier index for evidence checking"))
 
-; Implementation confirms doc management exists
-(derive engine-has-doc-mgmt
-    (and engine-has-register-document engine-has-load-document engine-has-documents-dict)
-    :using (engine-has-register-document engine-has-load-document engine-has-documents-dict))
-
-; Doc claims count
+; Per-layer counts
 (derive doc-mgmt-doc-count
-    (count-exists module-doc-claims-doc-mgmt class-doc-claims-doc-mgmt)
-    :using (count-exists module-doc-claims-doc-mgmt class-doc-claims-doc-mgmt))
+    (count-exists doc-claims-registration doc-claims-loading doc-claims-indexing)
+    :using (count-exists doc-claims-registration doc-claims-loading doc-claims-indexing))
 
-; Impl evidence count
 (derive doc-mgmt-impl-count
-    (count-exists engine-has-register-document engine-has-load-document engine-has-documents-dict)
-    :using (count-exists engine-has-register-document engine-has-load-document engine-has-documents-dict))
+    (count-exists engine-has-register-document engine-has-load-document engine-has-verifier-index)
+    :using (count-exists engine-has-register-document engine-has-load-document engine-has-verifier-index))
 
-; Paired: each doc claim matched with impl
+; Paired: each doc claim matched with its impl counterpart
 (derive doc-mgmt-paired-count
-    (count-exists (and module-doc-claims-doc-mgmt engine-has-doc-mgmt)
-                  (and class-doc-claims-doc-mgmt engine-has-doc-mgmt))
-    :using (count-exists module-doc-claims-doc-mgmt class-doc-claims-doc-mgmt
-                         engine-has-doc-mgmt engine-has-register-document engine-has-load-document engine-has-documents-dict))
+    (count-exists (and doc-claims-registration engine-has-register-document)
+                  (and doc-claims-loading engine-has-load-document)
+                  (and doc-claims-indexing engine-has-verifier-index))
+    :using (count-exists
+            doc-claims-registration engine-has-register-document
+            doc-claims-loading engine-has-load-document
+            doc-claims-indexing engine-has-verifier-index))
 
-(diff doc-mgmt-paired-vs-doc
-    :replace doc-mgmt-doc-count
-    :with doc-mgmt-paired-count)
-
-(diff doc-mgmt-paired-vs-impl
-    :replace doc-mgmt-impl-count
-    :with doc-mgmt-paired-count)
-
-(diff module-vs-class-docstring
-    :replace module-doc-claims-doc-mgmt
-    :with class-doc-claims-doc-mgmt)
+; Cross-layer diffs — all 3 must agree
+(diff doc-mgmt-paired-vs-doc :replace doc-mgmt-paired-count :with doc-mgmt-doc-count)
+(diff doc-mgmt-paired-vs-impl :replace doc-mgmt-paired-count :with doc-mgmt-impl-count)
 
 ; =====================================================================
 ; Fact class

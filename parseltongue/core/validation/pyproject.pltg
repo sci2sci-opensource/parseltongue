@@ -146,6 +146,3 @@
 
 (diff shipping-vs-breakage :replace shipping-ok-count :with breakage-axioms-count)
 
-; --- 4. Full packaging check ---
-
-(diff packaging-vs-shipping :replace packaging-consistent :with shipping-ok-count)

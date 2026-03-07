@@ -1,12 +1,12 @@
 ; Phase 2: Axioms — Peano arithmetic + variadic splat reductions
-
+(import (quote primitives))
 (defterm zero src.primitives.zero :origin "import")
 (defterm succ src.primitives.succ :origin "import")
 (defterm = src.primitives.= :origin "import")
 (defterm + src.primitives.+ :origin "import")
 (defterm - src.primitives.- :origin "import")
 (defterm > src.primitives.> :origin "import")
-(defterm * src.primitives.* :origin "import")
+(defterm * primitives.* :origin "import")
 (defterm and src.primitives.and :origin "import")
 
 ; --- Classic Peano axioms ---

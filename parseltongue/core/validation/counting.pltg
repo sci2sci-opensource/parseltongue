@@ -12,3 +12,14 @@
     (= (count-exists ?x ?y ?...rest)
        (+ (if ?x 1 0) (count-exists ?y ?...rest)))
     :origin "step: peel first, count rest")
+
+; sum-values — variadic numeric sum via ?... splats
+(defterm sum-values :origin "variadic numeric sum")
+
+(axiom sum-values-base (= (sum-values ?x) (+ ?x 0))
+    :origin "base: single value")
+
+(axiom sum-values-step
+    (= (sum-values ?x ?y ?...rest)
+       (+ ?x (sum-values ?y ?...rest)))
+    :origin "step: peel first, sum rest")

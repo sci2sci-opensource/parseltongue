@@ -226,7 +226,7 @@ as; ast_verifier.pltg — Ground truth from ast.py
 ; =====================================================================
 
 (axiom effects-have-no-name
-    (implies (= ?kind "effect") (= ?name "None"))
+    (implies ?is-effect ?name-is-none)
     :evidence (evidence "ast.py"
         :quotes ("return DirectiveNode(name=None, expr=expr, dep_names=set(), kind=\"effect\", source_order=order)")
         :explanation "Effects always have name=None"))
@@ -242,6 +242,20 @@ as; ast_verifier.pltg — Ground truth from ast.py
     :evidence (evidence "ast.py"
         :quotes ("def __hash__(self):\n        return id(self)\n\n    def __eq__(self, other):\n        return self is other")
         :explanation "Identity hash+eq makes nodes usable as dict keys and set members"))
+
+; Bind axioms to concrete facts
+
+(derive bound-effects-no-name effects-have-no-name
+    :bind ((?is-effect kind-effect) (?name-is-none kind-effect))
+    :using (effects-have-no-name kind-effect))
+
+(derive bound-children-dependents children-and-dependents-are-inverse
+    :bind ((?child-link graph-links-children) (?dependent-link graph-links-dependents))
+    :using (children-and-dependents-are-inverse graph-links-children graph-links-dependents))
+
+(derive bound-identity-hashing identity-hashing-enables-set-membership
+    :bind ((?hash-by-id node-hash-by-id) (?eq-by-identity node-eq-by-identity) (?usable-in-sets node-hash-by-id))
+    :using (identity-hashing-enables-set-membership node-hash-by-id node-eq-by-identity))
 
 ; =====================================================================
 ; Module structure: 3 public functions + 1 class

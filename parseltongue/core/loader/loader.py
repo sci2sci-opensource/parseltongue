@@ -73,6 +73,8 @@ class Loader:
         self._current: ModuleContext = None  # type: ignore[assignment]
         self._file_stack: list[str] = []
         self._imported: set[str] = set()
+        self._path_to_module: dict[str, str] = {}
+        self._module_aliases: dict[str, str] = {}
         self.names_to_modules: dict[str, str] = {}
 
     def create_md_ctx(self, abs_path, module_name):
@@ -85,6 +87,7 @@ class Loader:
             parent=self.main_ctx,
         )
         self.modules_contexts[module_name] = md_ctx
+        self._path_to_module[abs_path] = module_name
         return md_ctx
 
     def resolve_md_ctx(self, module_name):
@@ -121,7 +124,8 @@ class Loader:
             if i == skip_index:
                 continue
             if isinstance(item, Symbol) and not str(item).startswith(("?", ":")):
-                candidate = f"{self._current.module_name}.{item}"
+                s = str(item)
+                candidate = f"{self._current.module_name}.{s}"
                 eng = engine
                 if (
                     candidate in eng.terms
@@ -130,6 +134,20 @@ class Loader:
                     or candidate in eng.theorems
                 ):
                     expr[i] = Symbol(candidate)
+                else:
+                    # Resolve module aliases (e.g. "primitives.X" → "src.primitives.X")
+                    for alias, canonical in self._module_aliases.items():
+                        prefix = alias + "."
+                        if s.startswith(prefix):
+                            resolved = canonical + s[len(alias) :]
+                            if (
+                                resolved in eng.terms
+                                or resolved in eng.axioms
+                                or resolved in eng.facts
+                                or resolved in eng.theorems
+                            ):
+                                expr[i] = Symbol(resolved)
+                                break
             elif isinstance(item, list):
                 self._patch_symbols(item, engine)
 
@@ -166,7 +184,16 @@ class Loader:
             abs_path = os.path.normpath(os.path.join(self._current.current_dir, rel_path))
 
             if abs_path in self._imported:
-                log.debug("Module '%s' already imported, skipping", module_name)
+                original = self._path_to_module.get(abs_path)
+                if original and original != module_name:
+                    self._module_aliases[module_name] = original
+                    log.debug(
+                        "Module '%s' already imported as '%s', registered alias",
+                        module_name,
+                        original,
+                    )
+                else:
+                    log.debug("Module '%s' already imported, skipping", module_name)
                 return True
 
             if abs_path in self._file_stack:

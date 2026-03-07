@@ -124,7 +124,12 @@ class QuoteVerifier:
         return self.index.get(key)
 
     def _verify_from_indexed(self, doc: IndexedDocument, quote: str, context_length: int = 40) -> Dict:
-        """Core verification against an IndexedDocument."""
+        """Core verification against an IndexedDocument.
+
+        Returns a result dict containing:
+            confidence — nested dict with score (float) and level (ConfidenceLevel)
+            original_position — character offset in original document, or -1
+        """
         # Pre-validate
         result, ok = self._pre_validate(doc.original_text, quote)
         if not ok:
@@ -192,7 +197,25 @@ class QuoteVerifier:
         return result
 
     def _find_quote_position(self, doc: IndexedDocument, quote: str, normalized_quote: str):
-        """Find quote in an indexed document and compute confidence."""
+        """Find quote in an indexed document and compute confidence.
+
+        Scoring invariants:
+            Score starts at 1.0, each transformation penalty subtracts from it.
+            Score is clamped to [0.0, 1.0] via max(0.0, min(1.0, score)).
+            No match returns immediately with score 0.0 and ConfidenceLevel.NONE.
+
+        Penalty formulas:
+            Flat — normalizer steps use config.get_penalty(type) directly, no scaling.
+            Dangerous stopword — full penalty: base * count, not diluted by word count.
+            Regular stopword — diluted penalty: base * count / max(1, word_count).
+            Combined non-dangerous penalties (0.202) < single dangerous penalty (0.31).
+            A single dangerous stopword drops score below confirmation threshold
+            (1.0 - 0.31 = 0.69 < 0.7).
+
+        Config flag gating:
+            Each normalizer step checks its config flag; disabled flags skip the step
+            and produce no transformations.
+        """
         # Use the inverted index (with space-collapsed fallback)
         normalized_start, normalized_end, strategy = doc.find(normalized_quote)
 
@@ -351,6 +374,15 @@ class QuoteVerifier:
         return {"full": full, "before": before, "after": after}
 
     def _pre_validate(self, document_text: str, quote: str):
+        """Pre-validation rejects quotes before full matching.
+
+        Rejection paths:
+            Empty quote — quote.strip() is empty, returns verified=False.
+            Single stopword — single-word quote that is a stopword with
+                remove_stopwords enabled, returns verified=False.
+            Normalized to empty — quote has content but normalizes to empty
+                string after pipeline, returns verified=False.
+        """
         if not quote.strip():
             return {
                 "quote": quote,

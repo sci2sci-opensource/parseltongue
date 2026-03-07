@@ -222,6 +222,7 @@ class System:
     # ----------------------------------------------------------
 
     def to_dict(self) -> dict:
+        """Serialize system state: terms, facts, axioms, theorems."""
         return {
             "terms": {n: serialize_term(t) for n, t in self.engine.terms.items()},
             "facts": {n: serialize_fact(f) for n, f in self.engine.facts.items()},

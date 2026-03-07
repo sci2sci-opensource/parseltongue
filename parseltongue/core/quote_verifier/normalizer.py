@@ -2,6 +2,11 @@
 
 Six-step normalization: case, lists, hyphenation, punctuation, stopwords, whitespace.
 All functions are stateless — they take config as a parameter.
+
+Penalty formulas:
+    Flat penalty — each step calls config.get_penalty(type) with no scaling.
+    All-stopwords — when all words are stopwords, keeps first word and applies
+        penalty = config.get_penalty("stopword_removal") * 1.5 multiplier.
 """
 
 import re

@@ -2,8 +2,9 @@
 Parseltongue Engine — evaluation core.
 
 Accepts an env dict and provides: evaluation, rewriting, derivation,
-diffs, consistency checking, document management, evidence verification,
-and DSL loading.
+diffs, consistency checking, document management (direct registration,
+loading from files, and ground-truth indexing for evidence verification),
+evidence verification, and DSL loading.
 """
 
 import logging
@@ -209,7 +210,7 @@ class ConsistencyReport:
 
 
 class Engine:
-    """Pure evaluation engine with document management. No serialization."""
+    """Evaluation engine with document management. No serialization."""
 
     def __init__(self, env: dict, overridable: bool = False, strict_derive: bool = True):
         self.axioms: dict[str, Axiom] = {}
