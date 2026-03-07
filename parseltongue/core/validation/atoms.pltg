@@ -32,28 +32,25 @@ No domain knowledge, no state.")
         :quotes ("class Symbol(str):")
         :explanation "Symbol inherits from str — immutable by construction"))
 
-(fact evidence-is-frozen false
+(fact evidence-is-frozen true
     :evidence (evidence "atoms.py"
-        :quotes ("verified: bool = False")
-        :explanation "Evidence has mutable field 'verified' — not a frozen dataclass"))
+        :quotes ("@dataclass(frozen=True)\nclass Evidence:")
+        :explanation "Evidence is a frozen dataclass"))
 
-(fact axiom-class-is-frozen false
+(fact axiom-class-is-frozen true
     :evidence (evidence "atoms.py"
-        :quotes ("@dataclass
-class Axiom:")
-        :explanation "Axiom uses @dataclass without frozen=True"))
+        :quotes ("@dataclass(frozen=True)\nclass Axiom:")
+        :explanation "Axiom is a frozen dataclass"))
 
-(fact theorem-class-is-frozen false
+(fact theorem-class-is-frozen true
     :evidence (evidence "atoms.py"
-        :quotes ("@dataclass
-class Theorem:")
-        :explanation "Theorem uses @dataclass without frozen=True"))
+        :quotes ("@dataclass(frozen=True)\nclass Theorem:")
+        :explanation "Theorem is a frozen dataclass"))
 
-(fact term-class-is-frozen false
+(fact term-class-is-frozen true
     :evidence (evidence "atoms.py"
-        :quotes ("@dataclass
-class Term:")
-        :explanation "Term uses @dataclass without frozen=True"))
+        :quotes ("@dataclass(frozen=True)\nclass Term:")
+        :explanation "Term is a frozen dataclass"))
 
 ; =====================================================================
 ; Symbol
@@ -431,14 +428,15 @@ class Term:")
 
 ; --- 4. Evidence/provenance mechanism ---
 
-(derive evidence-mechanism-doc-count
-    (count-exists evidence-grounded-doc evidence-grounded-impl axiom-has-origin theorem-has-derivation theorem-default-origin)
-    :using (count-exists counting.count-exists-base counting.count-exists-step
-            evidence-grounded-doc evidence-grounded-impl axiom-has-origin theorem-has-derivation theorem-default-origin))
-
 (derive origin-provenance-bound origin-is-provenance
     :bind ((?origin axiom-has-origin) (?provenance theorem-has-derivation))
     :using (origin-is-provenance axiom-has-origin theorem-has-derivation))
+
+(derive evidence-mechanism-doc-count
+    (count-exists evidence-grounded-doc evidence-grounded-impl axiom-has-origin theorem-has-derivation theorem-default-origin)
+    :using (count-exists counting.count-exists-base counting.count-exists-step
+            evidence-grounded-doc evidence-grounded-impl axiom-has-origin theorem-has-derivation theorem-default-origin
+            origin-provenance-bound))
 
 (defterm evidence-mechanism-impl-count 5
     :evidence (evidence "atoms.py"
@@ -502,8 +500,14 @@ class Term:")
         :quotes ("(primitive)" "to_sexp(self.definition)")
         :explanation "2 display paths in Term.__str__"))
 
+(derive term-display-full-doc-count
+    (count-exists term-forward-decl-display term-has-body-display)
+    :using (count-exists counting.count-exists-base counting.count-exists-step
+            term-forward-decl-display term-has-body-display
+            term-display-bound term-display-documented))
+
 (diff term-display-coverage
-    :replace term-display-doc-count
+    :replace term-display-full-doc-count
     :with term-display-impl-count)
 
 ; --- 8. Splat pattern support ---
@@ -555,59 +559,32 @@ class Term:")
 
 ; --- 9. Module contract (purity vs mutability) ---
 ; Docstring claims purity. Axiom: purity implies immutability.
-; Code: are all types actually frozen? No — diff surfaces the inconsistency.
+; Code: all types are now frozen — diff confirms purity contract holds.
+
+(defterm evidence-is-mutable (not evidence-is-frozen)
+    :evidence (evidence "atoms.py"
+        :quotes ("@dataclass(frozen=True)\nclass Evidence:")
+        :explanation "Frozen dataclass is not mutable"))
+
+(derive purity-immutable-bound purity-implies-immutable
+    :bind ((?pure module-claims-pure-types) (?mutable evidence-is-mutable))
+    :using (purity-implies-immutable module-claims-pure-types evidence-is-mutable))
 
 (derive module-purity-contract
     (and module-claims-pure-types module-claims-no-domain)
     :using (module-claims-pure-types module-claims-no-domain
-            module-is-stateless))
-
-(derive purity-immutable-bound purity-implies-immutable
-    :bind ((?pure module-claims-pure-types) (?mutable evidence-is-frozen))
-    :using (purity-implies-immutable module-claims-pure-types evidence-is-frozen))
+            module-is-stateless purity-immutable-bound))
 
 (defterm all-types-immutable
     (and symbol-is-immutable evidence-is-frozen axiom-class-is-frozen
          theorem-class-is-frozen term-class-is-frozen)
     :evidence (evidence "atoms.py"
-        :quotes ("class Symbol(str):
-    \"\"\"A symbol in Parseltongue. Just a string with a distinct type.\"\"\""
-                 "return Symbol(token)"
-                 "@dataclass
-class Evidence:
-    \"\"\"Structured evidence with verifiable quotes from a source document.\"\"\"
-
-    document: str  # registered document name
-    quotes: list[str]  # exact quotes from the document
-    explanation: str = \"\"  # why these quotes support the claim
-    verification: list = field(default_factory=list)  # filled by verifier
-    verified: bool = False  # all quotes verified?
-    verify_manual: bool = False  # manually verified by user?"
-                 "@dataclass
-class Axiom:
-    \"\"\"An axiom: a foundational WFF assumed true, with evidence.\"\"\"
-
-    name: str
-    wff: Any
-    origin: \"str | Evidence\""
-                 "@dataclass
-class Theorem:
-    \"\"\"A theorem: a WFF derived from facts, axioms, terms, or other theorems.\"\"\"
-
-    name: str
-    wff: Any
-    derivation: list = field(default_factory=list)
-    origin: \"str | Evidence\" = \"derived\""
-                 "@dataclass
-class Term:
-    \"\"\"A term/concept/primitive introduced into the system.\"\"\"
-
-    name: str
-    definition: Any
-    origin: \"str | Evidence\""
-                 "to_sexp(self.definition) if self.definition is not None"
-                 "isinstance(obj, Symbol)")
-        :explanation "All five types are interconnected: atom() produces Symbols, Evidence grounds claims via origin in Axiom/Theorem/Term, Theorem tracks derivation chains, Term stores definitions — they form the complete atom type system"))
+        :quotes ("class Symbol(str):\n    \"\"\"A symbol in Parseltongue. Just a string with a distinct type.\"\"\""
+                 "@dataclass(frozen=True)\nclass Evidence:"
+                 "@dataclass(frozen=True)\nclass Axiom:"
+                 "@dataclass(frozen=True)\nclass Theorem:"
+                 "@dataclass(frozen=True)\nclass Term:")
+        :explanation "Symbol inherits immutable str; Evidence, Axiom, Theorem, Term are frozen dataclasses"))
 
 (diff module-purity-vs-immutability
     :replace module-purity-contract

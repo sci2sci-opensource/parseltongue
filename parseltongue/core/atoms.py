@@ -177,7 +177,7 @@ def _origin_tag(origin) -> str:
     return f"[origin: {origin}]"
 
 
-@dataclass
+@dataclass(frozen=True)
 class Evidence:
     """Structured evidence with verifiable quotes from a source document."""
 
@@ -198,7 +198,7 @@ class Evidence:
         return f"[evidence: {self.document} ({status})]"
 
 
-@dataclass
+@dataclass(frozen=True)
 class Axiom:
     """An axiom: a foundational WFF assumed true, with evidence.
 
@@ -213,7 +213,7 @@ class Axiom:
         return f"{self.name}: {to_sexp(self.wff)} {_origin_tag(self.origin)}"
 
 
-@dataclass
+@dataclass(frozen=True)
 class Theorem:
     """A theorem: a WFF derived from facts, axioms, terms, or other theorems.
 
@@ -230,7 +230,7 @@ class Theorem:
         return f"{self.name}: {to_sexp(self.wff)} {tag}"
 
 
-@dataclass
+@dataclass(frozen=True)
 class Term:
     """A term/concept/primitive introduced into the system.
 

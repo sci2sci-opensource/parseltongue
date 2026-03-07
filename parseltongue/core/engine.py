@@ -7,7 +7,7 @@ and DSL loading.
 """
 
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any
 
 from .atoms import Evidence, Symbol, free_vars, match, substitute
@@ -47,7 +47,7 @@ log = logging.getLogger("parseltongue")
 # ============================================================
 
 
-@dataclass
+@dataclass(frozen=True)
 class Fact(Axiom):
     """A fact: non-parametric axiom — ground truth value with evidence."""
 
@@ -247,7 +247,6 @@ class Engine:
             return evidence
 
         results = self._verifier.verify_indexed_quotes(evidence.document, evidence.quotes)
-        evidence.verification = results
 
         all_verified = True
         for r in results:
@@ -259,8 +258,7 @@ class Engine:
                 reason = r.get("reason", "unknown")
                 log.warning('Quote NOT verified: "%s" (%s)', r["quote"], reason)
 
-        evidence.verified = all_verified
-        return evidence
+        return replace(evidence, verification=results, verified=all_verified)
 
     def _lookup(self, name: str) -> Axiom | Theorem | Term | None:
         """Find a named item across all stores."""
@@ -281,14 +279,24 @@ class Engine:
 
         origin = item.origin
         if isinstance(origin, Evidence):
-            origin.verify_manual = True
+            new_origin = replace(origin, verify_manual=True)
         else:
-            item.origin = Evidence(
+            new_origin = Evidence(
                 document="manual",
                 quotes=[],
                 explanation=origin if isinstance(origin, str) else str(origin),
                 verify_manual=True,
             )
+
+        # Write back to the correct store with narrowed type
+        if name in self.facts:
+            self.facts[name] = replace(self.facts[name], origin=new_origin)
+        elif name in self.axioms:
+            self.axioms[name] = replace(self.axioms[name], origin=new_origin)
+        elif name in self.theorems:
+            self.theorems[name] = replace(self.theorems[name], origin=new_origin)
+        elif name in self.terms:
+            self.terms[name] = replace(self.terms[name], origin=new_origin)
 
         log.info("'%s' manually marked as grounded", name)
 
@@ -765,14 +773,15 @@ class Engine:
             raise KeyError(f"Unknown theorem: {name}")
         thm = self.theorems[name]
 
-        # Re-derive: re-check sources and update origin
+        # Re-derive: re-check sources and replace with updated origin
         ungrounded = self._check_sources_grounded(thm.derivation)
         if ungrounded:
-            thm.origin = f"potential fabrication — derived from unverified: {', '.join(ungrounded)}"
+            new_origin = f"potential fabrication — derived from unverified: {', '.join(ungrounded)}"
             log.warning("Rederive '%s': still has unverified sources: %s", name, ", ".join(ungrounded))
         else:
-            thm.origin = "derived"
+            new_origin = "derived"
             log.info("Rederive '%s': sources now verified — cleared", name)
+        self.theorems[name] = replace(thm, origin=new_origin)
 
     # ----------------------------------------------------------
     # Consistency
@@ -855,7 +864,7 @@ class Engine:
             wff = parse(wff)
 
         if isinstance(origin, Evidence):
-            self._verify_evidence(origin)
+            origin = self._verify_evidence(origin)
 
         if not free_vars(wff):
             raise ValueError(
@@ -879,7 +888,7 @@ class Engine:
             definition = parse(definition)
 
         if isinstance(origin, Evidence):
-            self._verify_evidence(origin)
+            origin = self._verify_evidence(origin)
 
         term = Term(name=name, definition=definition, origin=origin)
         self.terms[name] = term
@@ -888,7 +897,7 @@ class Engine:
     def set_fact(self, name: str, value: Any, origin):
         """Set a ground truth value with evidence."""
         if isinstance(origin, Evidence):
-            self._verify_evidence(origin)
+            origin = self._verify_evidence(origin)
 
         if name in self.facts:
             if not self.overridable:

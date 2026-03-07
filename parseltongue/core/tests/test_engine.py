@@ -228,14 +228,14 @@ class TestFacts(unittest.TestCase):
         quiet(s.register_document, "Doc", SAMPLE_DOC)
         ev = Evidence(document="Doc", quotes=["Q3 revenue was $15M"])
         quiet(s.set_fact, "rev", 15.0, ev)
-        self.assertTrue(ev.verified)
+        self.assertTrue(s.facts["rev"].origin.verified)
 
     def test_fact_with_bad_evidence(self):
         s = make_system()
         quiet(s.register_document, "Doc", SAMPLE_DOC)
         ev = Evidence(document="Doc", quotes=["This quote does not exist at all"])
         quiet(s.set_fact, "bad", 999, ev)
-        self.assertFalse(ev.verified)
+        self.assertFalse(s.facts["bad"].origin.verified)
 
 
 # ==============================================================
@@ -611,10 +611,10 @@ class TestVerification(unittest.TestCase):
         quiet(s.register_document, "Doc", SAMPLE_DOC)
         ev = Evidence(document="Doc", quotes=["Nonexistent quote"])
         quiet(s.set_fact, "x", 1, ev)
-        self.assertFalse(ev.is_grounded)
+        self.assertFalse(s.facts["x"].origin.is_grounded)
         quiet(s.verify_manual, "x")
-        self.assertTrue(ev.verify_manual)
-        self.assertTrue(ev.is_grounded)
+        self.assertTrue(s.facts["x"].origin.verify_manual)
+        self.assertTrue(s.facts["x"].origin.is_grounded)
 
     def test_verify_manual_string_origin(self):
         s = make_system()
@@ -1452,32 +1452,32 @@ class TestEvidenceFormattedNumbers(unittest.TestCase):
     def test_dollar_amount_with_comma(self):
         ev = Evidence(document="Doc", quotes=["Base salary for eligible employees is $150,000"])
         quiet(self.s.set_fact, "salary", 150000, ev)
-        self.assertTrue(ev.verified)
+        self.assertTrue(self.s.facts["salary"].origin.verified)
 
     def test_dotted_symbol(self):
         ev = Evidence(document="Doc", quotes=["parseltongue.core provides the DSL engine"])
         quiet(self.s.set_fact, "module", "parseltongue.core", ev)
-        self.assertTrue(ev.verified)
+        self.assertTrue(self.s.facts["module"].origin.verified)
 
     def test_large_number_with_commas(self):
         ev = Evidence(document="Doc", quotes=["Population reached 1,000,000 residents"])
         quiet(self.s.set_fact, "pop", 1000000, ev)
-        self.assertTrue(ev.verified)
+        self.assertTrue(self.s.facts["pop"].origin.verified)
 
     def test_version_number(self):
         ev = Evidence(document="Doc", quotes=["Python 3.12.1 or higher"])
         quiet(self.s.set_fact, "pyver", "3.12.1", ev)
-        self.assertTrue(ev.verified)
+        self.assertTrue(self.s.facts["pyver"].origin.verified)
 
     def test_dollar_millions(self):
         ev = Evidence(document="Doc", quotes=["Q3 FY2024 actual revenue was $230M"])
         quiet(self.s.set_fact, "rev-q3", 230, ev)
-        self.assertTrue(ev.verified)
+        self.assertTrue(self.s.facts["rev-q3"].origin.verified)
 
     def test_fabrication_propagates_from_bad_dollar_quote(self):
         ev = Evidence(document="Doc", quotes=["Base salary is $999,999"])
         quiet(self.s.set_fact, "wrong-salary", 999999, ev)
-        self.assertFalse(ev.verified)
+        self.assertFalse(self.s.facts["wrong-salary"].origin.verified)
         thm = quiet(self.s.derive, "d1", [Symbol(">"), Symbol("wrong-salary"), 0], ["wrong-salary"])
         self.assertIn("potential fabrication", thm.origin)
 
