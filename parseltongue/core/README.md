@@ -225,7 +225,22 @@ Evidence is a first-class citizen and is directly used by the engine and grammar
 ;; (used via :origin instead of :evidence)
 ```
 
-## Evidence Grounding
+## Execution Engine
+
+The engine evaluates s-expressions left-to-right, applying rewrite axioms up to a depth limit of 100, with an `=`-rewrite fallback for structural equality. Three special forms are handled directly by the engine:
+
+| Form | Behavior |
+|---|---|
+| `if` | `(if cond then else)` — evaluates condition, returns `then` or `else` branch |
+| `let` | `(let ((x 1) (y 2)) body)` — binds local variables, evaluates body in extended env |
+| `quote` | `(quote expr)` — returns expression unevaluated |
+
+The `Engine` constructor accepts two behavioral flags:
+
+- **`strict_derive`** (default `True`) — when enabled, `derive` evaluation is restricted to symbols listed in `:using`. Only those facts, terms, and axioms are visible during evaluation. When disabled, all symbols in the environment are accessible (legacy mode).
+- **`overridable`** (default `False`) — when disabled, redefining an existing fact raises an error. Enable to allow fact redefinition without calling `retract()` first.
+
+### Evidence Grounding
 
 The engine automatically performs evidence grounding when supplied an `evidence` directive, verifying `:quotes` against the documents loaded in the engine's document store. An optional `:explanation` provides human-readable context. Statements can also use a plain `:origin` string or no evidence at all:
 
@@ -257,7 +272,7 @@ for issue in report.issues:
 provenance = s.provenance("target-exceeded")
 ```
 
-## Quote Verification
+### Quote Verification
 
 The engine is aware of the documents, and when a document is registered, it is normalized and indexed into an inverted word-position index (`DocumentIndex`). Each word maps to its character positions in the normalized text, so quote lookup is a candidate-set intersection rather than a linear scan. This makes verification fast even for very large document collections.
 
@@ -276,43 +291,9 @@ Not all normalizations are equal. Light normalizations — missing punctuation, 
 
 The quote verifier is extensible: custom normalizers, fuzzy matchers, and custom tokenizers can be plugged in for domain-specific document formats.
 
-## Custom Environments
+### Consistency Checking
 
-The `System` engine does not hardcode any operators. By default it loads arithmetic, comparison, and logic into the environment, but you can replace them entirely or start from scratch. The `docs=` parameter controls what `system.doc()` returns — this is what the LLM pipeline feeds to the model so it knows which operators and directives are available.
-
-```python
-from parseltongue import System, Symbol, DEFAULT_OPERATORS, ENGINE_DOCS
-import operator
-
-# Default — all built-in operators and docs
-s = System()
-
-# Extend — add your own alongside defaults
-double = Symbol('double')
-s = System(
-    initial_env={**DEFAULT_OPERATORS, double: lambda x: x * 2},
-    docs={**ENGINE_DOCS, double: {
-        'category': 'custom',
-        'description': 'Doubles a value',
-        'example': '(double 5)',
-        'expected': '10',
-    }},
-)
-
-# Minimal — only what you need
-s = System(initial_env={Symbol('+'): operator.add}, docs={})
-
-# Blank slate — build everything from primitives
-s = System(initial_env={}, docs={})
-```
-
-This is how you build domain-specific languages: strip the defaults, introduce your own primitives as facts and forward-declared terms, state your domain axioms with evidence, and let the engine handle consistency and provenance.
-
-The language can support anything you might need: probabilistic logic, temporal identifiers and relationships, pandas functions as primitives, etc. It provably does anything symbolic representation could allow — any base environment for any use case of any domain.
-
-## Consistency Checking
-
-`system.consistency()` returns a `ConsistencyReport` that detects:
+`engine.consistency()` returns a `ConsistencyReport` with three layers — evidence grounding, fabrication propagation, and diff agreement. It detects:
 
 | Issue Type | Meaning |
 |---|---|
@@ -324,16 +305,111 @@ The language can support anything you might need: probabilistic logic, temporal 
 
 Diffs are the primary mechanism for cross-validation. Register a diff, and the system automatically checks whether swapping one value for another causes dependent terms to change.
 
-## Built-in Operators
+```python
+report = engine.consistency()
+print(report.consistent)  # True / False
 
-**Arithmetic**: `+`, `-`, `*`, `/`, `mod`
-**Comparison**: `>`, `<`, `>=`, `<=`, `=`, `!=`
-**Logic**: `and`, `or`, `not`, `implies`
-**Special forms**: `if`, `let`, `quote`
+for issue in report.issues:
+    print(issue.type, issue.items)
+# e.g. "diff_value_divergence" ["revenue-check"]
+
+# In .pltg files:
+# (consistency)        — print report, return True
+# (consistency :raise) — print report, raise on inconsistency
+# (consistency :bool)  — return True/False without printing
+# (consistency :report) — return the ConsistencyReport object
+```
+
+### Environments
+
+The `Engine` does not hardcode any operators. It takes an `env` dict at construction — a mapping from `Symbol` to callable. The `env` dict can contain both operators and effects as callables. The engine itself makes no distinction between them — it just evaluates callables from `env`. The pure/impure split is a `System`-level convention.
+
+This is how you build domain-specific languages: pass only the operators you need, introduce your own primitives as facts and forward-declared terms, state your domain axioms with evidence, and let the engine handle consistency and provenance. The language can support anything symbolic representation allows — any base environment for any use case of any domain.
+
+#### Operators
+
+Operators are **pure** — they compute a value from their arguments without access to the `System` or the engine's internal state. They are plain Python callables registered in the `env` dict:
 
 ```python
-s.evaluate([Symbol('+'), 2, 3])          # 5
-s.evaluate([Symbol('if'), True, 42, 0])  # 42
+from parseltongue.core.engine import Engine
+from parseltongue.core.atoms import Symbol
+import operator
+
+# Introduce a custom operator — just a callable, no system access
+e = Engine(env={Symbol('+'): operator.add, Symbol('double'): lambda x: x * 2})
+e.evaluate([Symbol('double'), 21])  # 42
+```
+
+#### Effects
+
+Effects are **impure** — they receive the `System` as their first argument and can read or modify it. The `System` constructor wraps each effect callable so that `system` is auto-injected as the first argument before the engine calls it. From the engine's perspective, it's just another callable in `env`.
+
+When the engine encounters an unrecognized top-level s-expression, it evaluates it — if the head resolves to a callable in `env`, the effect fires. Effects execute side effects (importing modules, loading documents, printing values) rather than building the formal system.
+
+```python
+from parseltongue.core.system import System
+
+def my_log_effect(system, *args):
+    """Effect receives the System — can inspect or modify it."""
+    print("[LOG]", *args)
+    system.engine.set_fact("log-called", True, "side effect")
+
+s = System(effects={"log": my_log_effect})
+```
+
+See [Built-in Effects](#built-in-effects) for the full list.
+
+## System
+
+The `System` class composes `Engine` with default operators, effect injection, serialization, and introspection. It is the standard entry point for building and querying a Parseltongue logic system from Python. A `System()` created with no arguments is fully effect-free — it has only pure operators, no side effects. Effects are only present when explicitly passed via `effects=`.
+
+### Core Interface
+
+System exposes the full engine API — facts, axioms, theorems, terms, diffs, and documents — as properties delegating to the underlying `Engine`. It also provides higher-level methods for introspection:
+
+```python
+from parseltongue.core.system import System
+
+s = System()
+s.set_fact("revenue", 15.0, "Q3 report")
+s.introduce_axiom("growth", [Symbol("implies"), ...], ...)
+s.derive("result", wff, using=[...])
+
+# Lookup
+s.facts["revenue"]       # Fact object
+s.theorems["result"]     # Theorem object
+
+# Introspection
+s.provenance("result")   # full derivation chain with evidence
+s.state()                # human-readable summary
+s.doc()                  # operator/directive documentation
+
+# Serialization
+data = s.to_dict()       # serialize to plain dict
+s2 = System.from_dict(data)  # restore from dict
+
+# Load .pltg source directly into a System
+from parseltongue.core.system import load_source
+load_source(s, '(fact x 42 :origin "inline")')
+```
+
+`provenance()` walks all five stores — facts, axioms, terms, theorems, and diffs — and returns a nested dict. For theorems, it recurses through the derivation chain, expanding each dependency's provenance.
+
+### Default Environment
+
+By default, `System` loads `DEFAULT_OPERATORS` from `default_system_settings` — 15 operators across three categories:
+
+**Arithmetic** (5): `+`, `-`, `*`, `/`, `mod`
+**Comparison** (6): `>`, `<`, `>=`, `<=`, `=`, `!=`
+**Logic** (4): `and`, `or`, `not`, `implies`
+
+The `ENGINE_DOCS` dictionary provides structured documentation for each operator (category, description, example, expected result), which `system.doc()` renders into a human-readable reference. The `docs=` parameter controls what `system.doc()` returns — pass a custom dict to replace the default documentation.
+
+```python
+# Override defaults
+s = System(initial_env={Symbol("+"): operator.add})  # minimal
+s = System(initial_env={})  # blank slate
+s = System(docs={})  # no built-in documentation
 ```
 
 ## Demos

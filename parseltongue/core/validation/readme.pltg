@@ -253,25 +253,6 @@
 ; Built-in operators section
 ; =====================================================================
 
-(fact readme-special-forms-count 3
-    :evidence (evidence "README"
-        :quotes ("**Special forms**: if, let, quote")
-        :explanation "README lists 3 special forms"))
-
-(fact readme-arithmetic "5"
-    :evidence (evidence "README"
-        :quotes ("+, -, *, /, mod")
-        :explanation "5 arithmetic operators"))
-
-(fact readme-comparison "6"
-    :evidence (evidence "README"
-        :quotes (">, <, >=, <=, =, !=")
-        :explanation "6 comparison operators"))
-
-(fact readme-logic "4"
-    :evidence (evidence "README"
-        :quotes ("and, or, not, implies")
-        :explanation "4 logic operators"))
 
 ; =====================================================================
 ; Quote verifier section
@@ -828,21 +809,436 @@
     :origin "README does not yet document actual penalty values (0.001 whitespace to 0.31 dangerous) and score clamping [0,1]")
 
 ; =====================================================================
-; System module — README coverage stubs
+; System section — README facts
 ; =====================================================================
 
-(fact readme-documents-system-properties false
-    :origin "README does not yet document System properties (.facts, .axioms, .theorems, .terms, .diffs, .documents)")
+; --- Top-level section ---
+(fact readme-documents-system-section true
+    :evidence (evidence "README"
+        :quotes ("## System")
+        :explanation "README has a top-level System section"))
 
-(fact readme-documents-serialization false
-    :origin "README does not yet document to_dict() serialization for terms/facts/axioms/theorems")
+(fact readme-documents-system-composes-engine true
+    :evidence (evidence "README"
+        :quotes ("The System class composes Engine with default operators, effect injection, serialization, and introspection")
+        :explanation "README documents System as Engine composition with 4 concerns"))
 
-(fact readme-documents-effects-injection false
-    :origin "README does not yet document that effects auto-inject system as first argument")
+(fact readme-documents-system-standard-entry true
+    :evidence (evidence "README"
+        :quotes ("the standard entry point for building and querying a Parseltongue logic system from Python")
+        :explanation "README documents System as standard Python entry point"))
+
+(fact readme-documents-system-effect-free true
+    :evidence (evidence "README"
+        :quotes ("A System() created with no arguments is fully effect-free — it has only pure operators, no side effects. Effects are only present when explicitly passed via effects=")
+        :explanation "README documents that default System is effect-free"))
+
+; --- Core Interface subsection ---
+(fact readme-documents-system-core-interface true
+    :evidence (evidence "README"
+        :quotes ("### Core Interface")
+        :explanation "README has a Core Interface subsection under System"))
+
+(fact readme-documents-system-properties true
+    :evidence (evidence "README"
+        :quotes ("facts, axioms, theorems, terms, diffs, and documents — as properties delegating to the underlying Engine")
+        :explanation "README documents System properties as Engine-delegating"))
+
+(fact readme-documents-system-provenance true
+    :evidence (evidence "README"
+        :quotes ("s.provenance(\"result\")   # full derivation chain with evidence")
+        :explanation "README documents provenance() for derivation chain introspection"))
+
+(fact readme-documents-system-provenance-walks-stores true
+    :evidence (evidence "README"
+        :quotes ("provenance() walks all five stores — facts, axioms, terms, theorems, and diffs — and returns a nested dict")
+        :explanation "README documents provenance walks 5 stores"))
+
+(fact readme-documents-system-provenance-recurses true
+    :evidence (evidence "README"
+        :quotes ("For theorems, it recurses through the derivation chain, expanding each dependency's provenance")
+        :explanation "README documents provenance recursion for theorems"))
+
+(fact readme-documents-system-load-source true
+    :evidence (evidence "README"
+        :quotes ("from parseltongue.core.system import load_source" "load_source(s, '(fact x 42 :origin \"inline\")')")
+        :explanation "README documents load_source as module-level function for loading .pltg source into System"))
+
+(fact readme-documents-system-state true
+    :evidence (evidence "README"
+        :quotes ("s.state()                # human-readable summary")
+        :explanation "README documents state() for human-readable summary"))
+
+(fact readme-documents-system-doc true
+    :evidence (evidence "README"
+        :quotes ("s.doc()                  # operator/directive documentation")
+        :explanation "README documents doc() for operator/directive documentation"))
+
+(fact readme-documents-serialization true
+    :evidence (evidence "README"
+        :quotes ("data = s.to_dict()       # serialize to plain dict" "s2 = System.from_dict(data)  # restore from dict")
+        :explanation "README documents to_dict()/from_dict() serialization roundtrip"))
+
+(fact readme-documents-effects-injection true
+    :evidence (evidence "README"
+        :quotes ("effect injection")
+        :explanation "README documents System effect injection as one of its 4 concerns"))
+
+; --- Default Environment subsection ---
+(fact readme-documents-system-default-env true
+    :evidence (evidence "README"
+        :quotes ("### Default Environment")
+        :explanation "README has a Default Environment subsection under System"))
+
+(fact readme-documents-system-default-operators true
+    :evidence (evidence "README"
+        :quotes ("System loads DEFAULT_OPERATORS from default_system_settings — 15 operators across three categories")
+        :explanation "README documents DEFAULT_OPERATORS as the default env with 15 operators"))
+
+(fact readme-documents-system-arithmetic 5
+    :evidence (evidence "README"
+        :quotes ("**Arithmetic** (5): +, -, *, /, mod")
+        :explanation "README lists 5 arithmetic operators"))
+
+(fact readme-documents-system-comparison 6
+    :evidence (evidence "README"
+        :quotes ("**Comparison** (6): >, <, >=, <=, =, !=")
+        :explanation "README lists 6 comparison operators"))
+
+(fact readme-documents-system-logic 4
+    :evidence (evidence "README"
+        :quotes ("**Logic** (4): and, or, not, implies")
+        :explanation "README lists 4 logic operators"))
+
+(fact readme-documents-system-engine-docs true
+    :evidence (evidence "README"
+        :quotes ("The ENGINE_DOCS dictionary provides structured documentation for each operator (category, description, example, expected result), which system.doc() renders into a human-readable reference")
+        :explanation "README documents ENGINE_DOCS and its role in system.doc()"))
+
+(fact readme-documents-system-override-env true
+    :evidence (evidence "README"
+        :quotes ("s = System(initial_env={Symbol(\"+\"): operator.add})  # minimal" "s = System(initial_env={})  # blank slate")
+        :explanation "README shows overriding default env with minimal or blank slate"))
+
+(fact readme-documents-system-docs-param true
+    :evidence (evidence "README"
+        :quotes ("The docs= parameter controls what system.doc() returns — pass a custom dict to replace the default documentation")
+        :explanation "README documents docs= parameter for customizing system.doc()"))
 
 ; =====================================================================
-; Engine module — README coverage stubs
+; Execution Engine section — README facts
 ; =====================================================================
+
+; --- Top-level section ---
+(fact readme-documents-execution-engine true
+    :evidence (evidence "README"
+        :quotes ("## Execution Engine")
+        :explanation "README has a top-level Execution Engine section"))
+
+; --- Evidence Grounding subsection ---
+(fact readme-documents-engine-grounding-subsection true
+    :evidence (evidence "README"
+        :quotes ("### Evidence Grounding")
+        :explanation "Evidence Grounding is a subsection of Execution Engine"))
+
+(fact readme-documents-engine-auto-grounding true
+    :evidence (evidence "README"
+        :quotes ("The engine automatically performs evidence grounding when supplied an evidence directive, verifying :quotes against the documents loaded in the engine's document store")
+        :explanation "README documents automatic evidence grounding with quote verification against document store"))
+
+(fact readme-documents-engine-explanation-field true
+    :evidence (evidence "README"
+        :quotes ("An optional :explanation provides human-readable context")
+        :explanation "README documents the optional :explanation field"))
+
+(fact readme-documents-engine-origin-or-none true
+    :evidence (evidence "README"
+        :quotes ("Statements can also use a plain :origin string or no evidence at all")
+        :explanation "README documents :origin alternative and no-evidence option"))
+
+(fact readme-documents-engine-verify-manual-pltg true
+    :evidence (evidence "README"
+        :quotes ("system.verify_manual(\"adjustment\") in Python or (verify-manual adjustment) in .pltg files")
+        :explanation "README documents verify-manual in both Python and .pltg forms"))
+
+(fact readme-documents-engine-human-in-loop true
+    :evidence (evidence "README"
+        :quotes ("useful for human-in-the-loop workflows where an analyst confirms a value that has no document source")
+        :explanation "README describes verify-manual as human-in-the-loop workflow"))
+
+(fact readme-documents-engine-fabrication-propagation true
+    :evidence (evidence "README"
+        :quotes ("Fabrication propagation: if a fact's evidence is unverified, any theorem derived from it is automatically marked as a potential fabrication. This taint propagates through derivation chains")
+        :explanation "README documents fabrication propagation under Evidence Grounding"))
+
+(fact readme-documents-engine-provenance true
+    :evidence (evidence "README"
+        :quotes ("provenance = s.provenance(\"target-exceeded\")")
+        :explanation "README documents provenance() for tracing evidence back to source"))
+
+; --- Quote Verification subsection ---
+(fact readme-documents-engine-quote-verification-subsection true
+    :evidence (evidence "README"
+        :quotes ("### Quote Verification")
+        :explanation "Quote Verification is a subsection of Execution Engine"))
+
+(fact readme-documents-engine-document-index true
+    :evidence (evidence "README"
+        :quotes ("when a document is registered, it is normalized and indexed into an inverted word-position index (DocumentIndex)")
+        :explanation "README documents DocumentIndex class and indexing on registration"))
+
+(fact readme-documents-engine-word-positions true
+    :evidence (evidence "README"
+        :quotes ("Each word maps to its character positions in the normalized text")
+        :explanation "README documents word-to-position mapping in index"))
+
+(fact readme-documents-engine-intersection-lookup true
+    :evidence (evidence "README"
+        :quotes ("quote lookup is a candidate-set intersection rather than a linear scan")
+        :explanation "README documents set-intersection lookup strategy"))
+
+(fact readme-documents-engine-large-collections true
+    :evidence (evidence "README"
+        :quotes ("This makes verification fast even for very large document collections")
+        :explanation "README claims fast verification for large collections"))
+
+(fact readme-documents-engine-six-step-pipeline 6
+    :evidence (evidence "README"
+        :quotes ("a six-step normalization pipeline (case, lists, hyphenation, punctuation, stopwords, whitespace)")
+        :explanation "README lists all 6 normalization steps by name"))
+
+(fact readme-documents-engine-artifact-handling true
+    :evidence (evidence "README"
+        :quotes ("The verifier handles PDF artifacts, line-break hyphens, formatted numbers" "dotted identifiers (parseltongue.core), and OCR noise")
+        :explanation "README lists 5 artifact types the verifier handles"))
+
+(fact readme-documents-engine-collapsed-fallback true
+    :evidence (evidence "README"
+        :quotes ("A space-collapsed fallback catches cases where source documents split words across lines")
+        :explanation "README documents space-collapsed fallback matching"))
+
+(fact readme-documents-engine-light-penalties true
+    :evidence (evidence "README"
+        :quotes ("Light normalizations — missing punctuation, collapsed whitespace, case differences — receive small confidence penalties")
+        :explanation "README documents light normalization penalty weighting"))
+
+(fact readme-documents-engine-semantic-penalty true
+    :evidence (evidence "README"
+        :quotes ("Removing semantically meaningful words (stopwords that carry meaning like \"not\", \"all\", \"never\") receives a heavy penalty by default, because changing those words changes the meaning of the quote")
+        :explanation "README documents heavy penalty for semantically meaningful word removal"))
+
+(fact readme-documents-engine-binary-threshold true
+    :evidence (evidence "README"
+        :quotes ("The result is a confidence score with a binary threshold for pass/fail")
+        :explanation "README documents binary threshold for confidence scoring"))
+
+(fact readme-documents-engine-verifier-extensible true
+    :evidence (evidence "README"
+        :quotes ("The quote verifier is extensible: custom normalizers, fuzzy matchers, and custom tokenizers can be plugged in for domain-specific document formats")
+        :explanation "README documents verifier extensibility"))
+
+; --- Consistency Checking subsection ---
+(fact readme-documents-engine-consistency-subsection true
+    :evidence (evidence "README"
+        :quotes ("### Consistency Checking")
+        :explanation "Consistency Checking is a subsection of Execution Engine"))
+
+(fact readme-documents-engine-consistency-call true
+    :evidence (evidence "README"
+        :quotes ("engine.consistency() returns a ConsistencyReport")
+        :explanation "README documents engine.consistency() as the entry point"))
+
+(fact readme-documents-engine-three-layers true
+    :evidence (evidence "README"
+        :quotes ("with three layers — evidence grounding, fabrication propagation, and diff agreement")
+        :explanation "README names all three consistency layers"))
+
+(fact readme-documents-engine-layer-evidence true
+    :evidence (evidence "README"
+        :quotes ("three layers — evidence grounding")
+        :explanation "README names evidence grounding as consistency layer 1"))
+
+(fact readme-documents-engine-layer-fabrication true
+    :evidence (evidence "README"
+        :quotes ("fabrication propagation")
+        :explanation "README names fabrication propagation as consistency layer 2"))
+
+(fact readme-documents-engine-layer-diffs true
+    :evidence (evidence "README"
+        :quotes ("diff agreement")
+        :explanation "README names diff agreement as consistency layer 3"))
+
+(fact readme-documents-engine-issue-count 5
+    :evidence (evidence "README"
+        :quotes ("unverified_evidence" "no_evidence" "potential_fabrication" "diff_divergence" "diff_value_divergence")
+        :explanation "README lists 5 issue types in the consistency table"))
+
+(fact readme-documents-engine-diffs-cross-validation true
+    :evidence (evidence "README"
+        :quotes ("Diffs are the primary mechanism for cross-validation. Register a diff, and the system automatically checks whether swapping one value for another causes dependent terms to change")
+        :explanation "README describes diffs as primary cross-validation mechanism"))
+
+; --- Environments subsection ---
+(fact readme-documents-engine-environments-subsection true
+    :evidence (evidence "README"
+        :quotes ("### Environments")
+        :explanation "Environments is a subsection of Execution Engine"))
+
+(fact readme-documents-engine-env-dict true
+    :evidence (evidence "README"
+        :quotes ("It takes an env dict at construction — a mapping from Symbol to callable")
+        :explanation "README documents Engine env dict as Symbol→callable mapping"))
+
+(fact readme-documents-engine-left-to-right true
+    :evidence (evidence "README"
+        :quotes ("The engine evaluates s-expressions left-to-right")
+        :explanation "README documents left-to-right evaluation order"))
+
+(fact readme-documents-engine-rewrite-depth true
+    :evidence (evidence "README"
+        :quotes ("applying rewrite axioms up to a depth limit of 100")
+        :explanation "README documents rewrite depth limit of 100"))
+
+(fact readme-documents-engine-eq-rewrite-fallback true
+    :evidence (evidence "README"
+        :quotes ("with an = -rewrite fallback for structural equality")
+        :explanation "README documents =-rewrite fallback for structural equality"))
+
+(fact readme-documents-engine-special-forms 3
+    :evidence (evidence "README"
+        :quotes ("Three special forms are handled directly by the engine")
+        :explanation "README documents 3 special forms in engine"))
+
+(fact readme-documents-engine-special-if true
+    :evidence (evidence "README"
+        :quotes ("if" "(if cond then else) — evaluates condition, returns then or else branch")
+        :explanation "README documents if special form with behavior"))
+
+(fact readme-documents-engine-special-let true
+    :evidence (evidence "README"
+        :quotes ("let" "(let ((x 1) (y 2)) body) — binds local variables, evaluates body in extended env")
+        :explanation "README documents let special form with behavior"))
+
+(fact readme-documents-engine-special-quote true
+    :evidence (evidence "README"
+        :quotes ("quote" "(quote expr) — returns expression unevaluated")
+        :explanation "README documents quote special form with behavior"))
+
+(fact readme-documents-engine-strict-derive true
+    :evidence (evidence "README"
+        :quotes ("strict_derive (default True) — when enabled, derive evaluation is restricted to symbols listed in :using")
+        :explanation "README documents strict_derive flag"))
+
+(fact readme-documents-engine-overridable true
+    :evidence (evidence "README"
+        :quotes ("overridable (default False) — when disabled, redefining an existing fact raises an error")
+        :explanation "README documents overridable flag"))
+
+(fact readme-documents-engine-dsl-building true
+    :evidence (evidence "README"
+        :quotes ("This is how you build domain-specific languages: pass only the operators you need, introduce your own primitives as facts and forward-declared terms, state your domain axioms with evidence, and let the engine handle consistency and provenance")
+        :explanation "README describes DSL building pattern via custom environments"))
+
+(fact readme-documents-engine-any-domain true
+    :evidence (evidence "README"
+        :quotes ("any base environment for any use case of any domain")
+        :explanation "README claims universal domain applicability"))
+
+; --- Environments: env dict contains both ---
+(fact readme-documents-engine-env-contains-both true
+    :evidence (evidence "README"
+        :quotes ("The env dict can contain both operators and effects as callables")
+        :explanation "README documents that env dict holds both operators and effects"))
+
+(fact readme-documents-engine-no-distinction true
+    :evidence (evidence "README"
+        :quotes ("The engine itself makes no distinction between them — it just evaluates callables from env")
+        :explanation "README documents that engine sees no difference between operators and effects"))
+
+(fact readme-documents-engine-pure-impure-system-level true
+    :evidence (evidence "README"
+        :quotes ("The pure/impure split is a System-level convention")
+        :explanation "README documents that pure/impure distinction is a System-level convention, not engine-level"))
+
+; --- Operators sub-subsection ---
+(fact readme-documents-engine-operators-subsection true
+    :evidence (evidence "README"
+        :quotes ("#### Operators")
+        :explanation "Operators is a sub-subsection of Environments"))
+
+(fact readme-documents-engine-operators-pure true
+    :evidence (evidence "README"
+        :quotes ("Operators are **pure** — they compute a value from their arguments without access to the System or the engine's internal state")
+        :explanation "README documents operators as pure — no system access"))
+
+(fact readme-documents-engine-operators-plain-callables true
+    :evidence (evidence "README"
+        :quotes ("They are plain Python callables registered in the env dict")
+        :explanation "README documents operators as plain callables in env"))
+
+; --- Effects sub-subsection ---
+(fact readme-documents-engine-effects-subsection true
+    :evidence (evidence "README"
+        :quotes ("#### Effects")
+        :explanation "Effects is a sub-subsection of Environments"))
+
+(fact readme-documents-engine-effects-impure true
+    :evidence (evidence "README"
+        :quotes ("Effects are **impure** — they receive the System as their first argument and can read or modify it")
+        :explanation "README documents effects as impure — receive System, can modify it"))
+
+(fact readme-documents-engine-effects-system-injected true
+    :evidence (evidence "README"
+        :quotes ("The System constructor wraps each effect callable so that system is auto-injected as the first argument before the engine calls it")
+        :explanation "README documents System auto-injecting itself into effect callables"))
+
+(fact readme-documents-engine-effects-perspective true
+    :evidence (evidence "README"
+        :quotes ("From the engine's perspective, it's just another callable in env")
+        :explanation "README reiterates engine sees effects as plain callables"))
+
+(fact readme-documents-engine-effects-fire true
+    :evidence (evidence "README"
+        :quotes ("When the engine encounters an unrecognized top-level s-expression, it evaluates it — if the head resolves to a callable in env, the effect fires")
+        :explanation "README documents how effects are triggered by unrecognized top-level expressions"))
+
+(fact readme-documents-engine-effects-side-effects true
+    :evidence (evidence "README"
+        :quotes ("Effects execute side effects (importing modules, loading documents, printing values) rather than building the formal system")
+        :explanation "README documents that effects are side effects, not formal system builders"))
+
+(fact readme-documents-engine-effects-code-example true
+    :evidence (evidence "README"
+        :quotes ("def my_log_effect(system, *args):" "system.engine.set_fact(\"log-called\", True, \"side effect\")" "s = System(effects={\"log\": my_log_effect})")
+        :explanation "README shows effect introduction code example with System access"))
+
+; --- Consistency Checking: code block facts ---
+(fact readme-documents-engine-consistency-code true
+    :evidence (evidence "README"
+        :quotes ("report = engine.consistency()" "print(report.consistent)")
+        :explanation "README shows engine.consistency() Python code example"))
+
+(fact readme-documents-engine-consistency-default-mode true
+    :evidence (evidence "README"
+        :quotes ("(consistency)        — print report, return True")
+        :explanation "README documents default consistency mode"))
+
+(fact readme-documents-engine-consistency-raise-mode true
+    :evidence (evidence "README"
+        :quotes ("(consistency :raise) — print report, raise on inconsistency")
+        :explanation "README documents :raise consistency mode"))
+
+(fact readme-documents-engine-consistency-bool-mode true
+    :evidence (evidence "README"
+        :quotes ("(consistency :bool)  — return True/False without printing")
+        :explanation "README documents :bool consistency mode"))
+
+(fact readme-documents-engine-consistency-report-mode true
+    :evidence (evidence "README"
+        :quotes ("(consistency :report) — return the ConsistencyReport object")
+        :explanation "README documents :report consistency mode"))
+
+; --- Engine module stubs (not yet in README) ---
 
 (fact readme-documents-retract false
     :origin "README does not yet document retract() (removes fact/axiom/term/theorem/diff from the system)")
@@ -852,9 +1248,6 @@
 
 (fact readme-documents-load-source false
     :origin "README does not yet document load_source() as the directive dispatcher (handles all 5 directives + fallback eval)")
-
-(fact readme-documents-rewrite-engine false
-    :origin "README does not yet document the rewrite engine (eq rewrite fallback, depth limit 100, left-to-right)")
 
 (fact readme-documents-engine-defaults false
     :origin "README does not yet document engine defaults (strict_derive=True, overridable=False, Fact extends Axiom)")
