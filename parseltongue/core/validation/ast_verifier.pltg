@@ -1,4 +1,4 @@
-; ast_verifier.pltg — Ground truth from ast.py
+as; ast_verifier.pltg — Ground truth from ast.py
 ;
 ; ast.py provides the DirectiveNode dataclass, parse_directive for
 ; extracting dependency metadata from S-expressions, extract_symbols
@@ -290,19 +290,36 @@
         :quotes ("- The set of symbol dependency names (unresolved)")
         :explanation "Module docstring lists dep names as a carried field"))
 
-(fact doc-carries-graph-refs true
-    :evidence (evidence "ast.py"
-        :quotes ("- Resolved child/dependent node references (the actual graph)")
-        :explanation "Module docstring lists graph references as a carried field"))
-
 (fact doc-carries-kind true
     :evidence (evidence "ast.py"
         :quotes ("- The directive kind (fact, axiom, defterm, derive, diff, effect)")
         :explanation "Module docstring lists kind as a carried field"))
 
+(fact doc-carries-source-file true
+    :evidence (evidence "ast.py"
+        :quotes ("- The source file path that defined the directive")
+        :explanation "Module docstring lists source file as a carried field"))
+
+(fact doc-carries-source-order true
+    :evidence (evidence "ast.py"
+        :quotes ("- The source order (parse position within the file)")
+        :explanation "Module docstring lists source order as a carried field"))
+
+(fact doc-carries-children true
+    :evidence (evidence "ast.py"
+        :quotes ("- Resolved child node references (nodes this directive depends on)")
+        :explanation "Module docstring lists children as a carried field"))
+
+(fact doc-carries-dependents true
+    :evidence (evidence "ast.py"
+        :quotes ("- Resolved dependent node references (nodes that depend on this one)")
+        :explanation "Module docstring lists dependents as a carried field"))
+
 (derive doc-carries-count
-    (count-exists doc-carries-name doc-carries-expr doc-carries-dep-names doc-carries-graph-refs doc-carries-kind)
-    :using (count-exists doc-carries-name doc-carries-expr doc-carries-dep-names doc-carries-graph-refs doc-carries-kind))
+    (count-exists doc-carries-name doc-carries-expr doc-carries-dep-names doc-carries-kind
+                  doc-carries-source-file doc-carries-source-order doc-carries-children doc-carries-dependents)
+    :using (count-exists doc-carries-name doc-carries-expr doc-carries-dep-names doc-carries-kind
+                         doc-carries-source-file doc-carries-source-order doc-carries-children doc-carries-dependents))
 
 ; =====================================================================
 ; Docstring layer — kind comment enumerates kind values

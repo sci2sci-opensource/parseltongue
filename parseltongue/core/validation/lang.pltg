@@ -200,10 +200,42 @@ SPLAT_PREFIX = \"?...\"")
 ; Module docstring — statement-building reference
 ; =====================================================================
 
-(fact module-doc-directive-count 5
+(fact doc-directive-fact true
     :evidence (evidence "lang.py"
-        :quotes ("fact" "axiom" "defterm" "derive" "diff")
-        :explanation "Module docstring lists 5 directives"))
+        :quotes ("  fact     — Ground truth value with evidence.")
+        :explanation "Docstring lists fact directive"))
+
+(fact doc-directive-axiom true
+    :evidence (evidence "lang.py"
+        :quotes ("  axiom    — Parametric rewrite rule (must contain ?-variables).")
+        :explanation "Docstring lists axiom directive"))
+
+(fact doc-directive-defterm true
+    :evidence (evidence "lang.py"
+        :quotes ("  defterm  — Named term/concept (may be a forward declaration, computed\n             expression, or conditional).")
+        :explanation "Docstring lists defterm directive"))
+
+(fact doc-directive-derive true
+    :evidence (evidence "lang.py"
+        :quotes ("  derive   — Theorem derived from existing axioms/facts/terms. Use :bind\n             to instantiate parameterised templates.")
+        :explanation "Docstring lists derive directive"))
+
+(fact doc-directive-diff true
+    :evidence (evidence "lang.py"
+        :quotes ("  diff     — Lazy comparison: what changes if one symbol is swapped for another.")
+        :explanation "Docstring lists diff directive"))
+
+(fact doc-directive-evidence true
+    :evidence (evidence "lang.py"
+        :quotes ("  evidence — Structured evidence block with verifiable :quotes and :explanation.")
+        :explanation "Docstring lists evidence directive"))
+
+(derive module-doc-directive-count
+    (count-exists doc-directive-fact doc-directive-axiom doc-directive-defterm
+                  doc-directive-derive doc-directive-diff doc-directive-evidence)
+    :using (count-exists counting.count-exists-base counting.count-exists-step
+            doc-directive-fact doc-directive-axiom doc-directive-defterm
+            doc-directive-derive doc-directive-diff doc-directive-evidence))
 
 ; Axiom: keywords are plain strings, not Symbols
 (axiom keywords-are-strings (= ?kw ?string-value)
@@ -211,13 +243,51 @@ SPLAT_PREFIX = \"?...\"")
         :quotes ("Keyword arguments (plain strings, not Symbols")
         :explanation "Keywords are plain strings returned by atom() as-is"))
 
+; Axiom: fact, axiom, and defterm can attach evidence via :origin or :evidence
+(axiom evidence-attachable
+    (implies (or ?is-fact ?is-axiom ?is-defterm)
+             (and (or ?has-origin-attached ?has-evidence-attached) ?has-origin-or-evidence))
+    :evidence (evidence "lang.py"
+        :quotes ("Evidence can be attached to fact, axiom, and defterm via :origin (plain\nstring) or :evidence (structured block with verifiable :quotes and\n:explanation).")
+        :explanation "Docstring: fact/axiom/defterm accept :origin or :evidence"))
+
+(fact origin-keyword-exists true
+    :evidence (evidence "lang.py"
+        :quotes ("KW_ORIGIN = \":origin\"")
+        :explanation ":origin keyword defined"))
+
+(fact evidence-keyword-exists true
+    :evidence (evidence "lang.py"
+        :quotes ("KW_EVIDENCE = \":evidence\"")
+        :explanation ":evidence keyword defined"))
+
+; Axiom: derives inherit grounding from sources
+(axiom derive-inherits-grounding
+    (implies ?is-derive ?proven-by-sources)
+    :evidence (evidence "lang.py"
+        :quotes ("Derives inherit grounding from their sources — a theorem is proven by\nits axioms, facts, and computable terms.")
+        :explanation "Docstring: derives don't need evidence, they inherit it"))
+
+; Axiom: diffs need no evidence because diff is an indicator of inconsistency (system-level issue)
+(axiom diff-no-evidence
+    (implies (and ?is-diff ?is-inconsistency-indicator) (not ?needs-evidence))
+    :evidence (evidence "lang.py"
+        :quotes ("Diffs require no evidence because inconsistency\nbetween their sides is itself a system-level issue.")
+        :explanation "Diff is an indicator of inconsistency → system-level issue → no evidence needed"))
+
 ; =====================================================================
 ; Internal consistency
 ; =====================================================================
 
+; Bind keywords-are-strings: :origin is a plain string keyword
+(derive bound-keywords-are-strings keywords-are-strings
+    :bind ((?kw origin-keyword-exists) (?string-value origin-keyword-exists))
+    :using (keywords-are-strings origin-keyword-exists))
+
 (derive directive-equals-keyword-count
     (= dsl-keywords-tuple-size module-doc-directive-count)
-    :using (dsl-keywords-tuple-size module-doc-directive-count))
+    :using (dsl-keywords-tuple-size module-doc-directive-count
+            bound-keywords-are-strings))
 
 (diff directive-vs-keyword-count
     :replace module-doc-directive-count

@@ -21,9 +21,15 @@ Directives:
   derive   — Theorem derived from existing axioms/facts/terms. Use :bind
              to instantiate parameterised templates.
   diff     — Lazy comparison: what changes if one symbol is swapped for another.
+  evidence — Structured evidence block with verifiable :quotes and :explanation.
 
-Evidence can be attached to any directive via :origin (plain string) or
-:evidence (structured block with verifiable :quotes and :explanation).
+Evidence can be attached to fact, axiom, and defterm via :origin (plain
+string) or :evidence (structured block with verifiable :quotes and
+:explanation).
+
+Derives inherit grounding from their sources — a theorem is proven by
+its axioms, facts, and computable terms.  Diffs require no evidence because inconsistency
+between their sides is itself a system-level issue.
 
 See LANG_DOCS below for full syntax and examples drawn from real demos.
 """

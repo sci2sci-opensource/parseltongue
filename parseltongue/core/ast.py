@@ -5,8 +5,11 @@ Parses raw S-expressions into DirectiveNode objects that carry:
 - The defined name (if any)
 - The raw expression for later execution
 - The set of symbol dependency names (unresolved)
-- Resolved child/dependent node references (the actual graph)
 - The directive kind (fact, axiom, defterm, derive, diff, effect)
+- The source file path that defined the directive
+- The source order (parse position within the file)
+- Resolved child node references (nodes this directive depends on)
+- Resolved dependent node references (nodes that depend on this one)
 
 After parsing, call ``resolve_graph`` to link nodes by name into
 a DAG of DirectiveNode references.

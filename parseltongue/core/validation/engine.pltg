@@ -2,6 +2,7 @@
 
 (load-document "engine.py" "../engine.py")
 (import (quote counting))
+(import (quote lang))
 (defterm count-exists counting.count-exists :origin "import")
 
 ; =====================================================================
@@ -467,3 +468,84 @@
 (diff defaults-coverage
     :replace defaults-doc-count
     :with defaults-impl-count)
+
+; =====================================================================
+; Cross-module proofs — lang axioms proved by engine code
+; =====================================================================
+
+; --- evidence-attachable: fact/axiom/defterm call _resolve_origin ---
+
+(fact fact-calls-resolve-origin true
+    :evidence (evidence "engine.py"
+        :quotes ("engine.set_fact(str(expr[1]), expr[2], _resolve_origin(expr))")
+        :explanation "fact directive calls _resolve_origin"))
+
+(fact axiom-calls-resolve-origin true
+    :evidence (evidence "engine.py"
+        :quotes ("engine.introduce_axiom(name, wff, _resolve_origin(expr))")
+        :explanation "axiom directive calls _resolve_origin"))
+
+(fact defterm-calls-resolve-origin true
+    :evidence (evidence "engine.py"
+        :quotes ("engine.introduce_term(name, defn, _resolve_origin(expr))")
+        :explanation "defterm directive calls _resolve_origin"))
+
+; _resolve_origin checks :evidence keyword
+(fact resolve-origin-checks-evidence true
+    :evidence (evidence "engine.py"
+        :quotes ("evidence_raw = get_keyword(expr, KW_EVIDENCE, None)\n    if evidence_raw is not None:\n        return parse_evidence(evidence_raw)")
+        :explanation "_resolve_origin checks for :evidence keyword"))
+
+; _resolve_origin checks :origin keyword
+(fact resolve-origin-checks-origin true
+    :evidence (evidence "engine.py"
+        :quotes ("return get_keyword(expr, KW_ORIGIN, \"unknown\")")
+        :explanation "_resolve_origin falls back to :origin keyword"))
+
+; _resolve_origin handles both paths
+(fact resolve-origin-checks-both true
+    :evidence (evidence "engine.py"
+        :quotes ("def _resolve_origin(expr) -> \"str | Evidence\":\n    evidence_raw = get_keyword(expr, KW_EVIDENCE, None)\n    if evidence_raw is not None:\n        return parse_evidence(evidence_raw)\n    return get_keyword(expr, KW_ORIGIN, \"unknown\")")
+        :explanation "_resolve_origin tries :evidence first, falls back to :origin"))
+
+(derive bound-evidence-attachable lang.evidence-attachable
+    :bind ((?is-fact fact-calls-resolve-origin)
+           (?is-axiom axiom-calls-resolve-origin)
+           (?is-defterm defterm-calls-resolve-origin)
+           (?has-origin-attached resolve-origin-checks-origin)
+           (?has-evidence-attached resolve-origin-checks-evidence)
+           (?has-origin-or-evidence resolve-origin-checks-both))
+    :using (lang.evidence-attachable
+            fact-calls-resolve-origin axiom-calls-resolve-origin defterm-calls-resolve-origin
+            resolve-origin-checks-origin resolve-origin-checks-evidence resolve-origin-checks-both))
+
+; --- derive-inherits-grounding: derive checks sources and propagates ---
+
+(fact derive-checks-sources true
+    :evidence (evidence "engine.py"
+        :quotes ("ungrounded = self._check_sources_grounded(using)\n        issues = []\n        if does_not_hold:\n            issues.append(\"does not hold (evaluated to False)\")\n        if ungrounded:\n            issues.append(f\"derived from unverified: {', '.join(ungrounded)}\")")
+        :explanation "derive method checks source grounding and propagates fabrication"))
+
+(derive bound-derive-inherits lang.derive-inherits-grounding
+    :bind ((?is-derive lang.doc-directive-derive)
+           (?proven-by-sources derive-checks-sources))
+    :using (lang.derive-inherits-grounding lang.doc-directive-derive derive-checks-sources))
+
+; --- diff-no-evidence: diffs are structural, consistency evaluates them live ---
+
+(fact diff-evaluated-structurally true
+    :evidence (evidence "engine.py"
+        :quotes ("all_diffs = sorted((self.eval_diff(n) for n in self.diffs), key=lambda d: d.name)\n        downstream_divergent = [d for d in all_diffs if not d.empty]\n        value_divergent = [d for d in all_diffs if d.values_diverge and d.empty]")
+        :explanation "Consistency evaluates diffs structurally — divergence is a system issue"))
+
+(defterm diff-calls-resolve-origin false
+    :evidence (evidence "engine.py"
+        :quotes ("engine.register_diff(str(expr[1]), str(get_keyword(expr, KW_REPLACE)), str(get_keyword(expr, KW_WITH)))")
+        :explanation "diff handler calls register_diff directly — no _resolve_origin, no evidence attachment"))
+
+(derive bound-diff-no-evidence lang.diff-no-evidence
+    :bind ((?is-diff load-source-handles-diff)
+           (?is-inconsistency-indicator diff-evaluated-structurally)
+           (?needs-evidence diff-calls-resolve-origin))
+    :using (lang.diff-no-evidence load-source-handles-diff diff-evaluated-structurally diff-calls-resolve-origin))
+
