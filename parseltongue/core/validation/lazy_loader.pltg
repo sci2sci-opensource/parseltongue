@@ -82,7 +82,7 @@
 
 (fact phase-2-resolves-graph true
     :evidence (evidence "lazy_loader.py"
-        :quotes ("# Phase 2: Resolve the dependency graph\n        index = resolve_graph(nodes)")
+        :quotes ("# Phase 2: Resolve the dependency graph\n        resolve_graph(nodes)")
         :explanation "Phase 2 links nodes into a DAG via resolve_graph"))
 
 (fact phase-3-executes-effects true

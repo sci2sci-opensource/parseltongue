@@ -22,6 +22,8 @@
 (verify-manual (quote demos.count-exists))
 (verify-manual (quote readme.count-exists))
 (verify-manual (quote pyproject.count-exists))
+(verify-manual (quote ast_verifier.count-exists))
+(verify-manual (quote lazy_loader.count-exists))
 
 ; --- non-doc-count origins that remain ---
 (verify-manual (quote readme.readme-documents-splat-patterns))
