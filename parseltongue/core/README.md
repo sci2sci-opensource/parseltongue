@@ -159,6 +159,37 @@ Symbols are the core entity of the language. Symbolic directives introduce named
 (defterm growth-target :origin "Board-set target")
 ```
 
+#### Special Technique: Rewrite Axioms as Reusable Functions
+
+Rewrite axioms (`(= <pattern> <rhs>)`) fire automatically during evaluation — the engine pattern-matches the left side and replaces it with the right side, up to 100 rewrites deep. This means you can define mathematical operations once and reuse them across the entire system without re-citing evidence each time. The axiom is grounded once; every derive that triggers it inherits the grounding for free.
+
+Combined with `?...`-prefixed **splat variables** (which collect trailing arguments), rewrite axioms can define variadic reduce functions — functions that accept any number of arguments and fold them down. This eliminates deeply nested binary expressions.
+
+```scheme
+; Without splats: nested binary ops grow with every new item
+(+ (+ (+ item-a item-b) item-c) item-d)
+
+; With splats: define a variadic sum once, use it everywhere
+(defterm sum-all :origin "variadic sum")
+
+(axiom sum-all-base (= (sum-all ?x) ?x)
+  :evidence (evidence "Counting Observations"
+    :quotes ("A single pile needs no combining")
+    :explanation "Base case: one argument returns itself"))
+
+(axiom sum-all-step (= (sum-all ?x ?y ?...rest) (+ ?x (sum-all ?y ?...rest)))
+  :evidence (evidence "Counting Observations"
+    :quotes ("Combining apples with apples always gives apples"
+             "The order of combining does not matter")
+    :explanation "Peel first argument, recurse on rest"))
+
+; Now use it with any number of arguments:
+(defterm daily-total (sum-all eve-morning adam-morning serpent-afternoon eve-afternoon)
+  :evidence ...)
+```
+
+The same pattern powers the validation system's `count-exists` (how many boolean items are truthy) and `sum-values` (numeric sum) — both defined in [`validation/counting.pltg`](validation/counting.pltg) and imported across all validation modules. The `apples_splats_pltg` demo ([`demos/apples_splats_pltg/`](demos/apples_splats_pltg/)) builds full Peano arithmetic with variadic `sum-all`, `count-gt`, and `all-gt` using this technique.
+
 ### Computable Directives
 
 Computable directives produce results from the symbolic base. Computed terms are evaluated on reference. Derives are evaluated at definition time — the WFF is checked against symbols in `:using`.
@@ -197,6 +228,24 @@ Computable directives produce results from the symbolic base. Computed terms are
   :using (add-commutative eve-morning adam-morning))
 ```
 
+#### Special Technique: Effects in Computable Contexts
+
+Effects (defined in [Built-in Effects](#built-in-effects) below) are impure callables that receive the `System` and can read or modify it. While effects typically fire as top-level directives, they can also appear inside computable contexts — `if` branches, `defterm` bodies, and `derive` WFFs — because the engine evaluates them like any other callable.
+
+This enables conditional side effects driven by the formal system's own state:
+
+```scheme
+; Effect fires only when the diff is inconsistent
+(if (not (check-diff hash-consistency))
+    (patch-fact "session-hash-algorithm" "sha256"
+        "auth_module"
+        "HASH_ALGORITHM = \"sha256\""
+        "Remediation: session hash should match token hash")
+    (rollback "session-hash-algorithm"))
+```
+
+The `self_healing` demo ([`demos/self_healing/`](demos/self_healing/)) builds a complete detect-patch-verify-rollback loop using this pattern: custom effects (`snapshot`, `patch-fact`, `rollback`, `check-diff`) are registered at construction, and the DSL script uses `if` to conditionally fire them based on consistency results. The `extensibility` demo ([`demos/extensibility/`](demos/extensibility/)) shows a simpler case — a `load-data` effect that loads documents from within the DSL itself, so the formal system controls its own data ingestion.
+
 ### Diffs
 
 Diffs require no evidence because inconsistency between their sides is itself a system-level issue.
@@ -208,6 +257,61 @@ Diffs require no evidence because inconsistency between their sides is itself a 
   :replace revenue-q3-growth
   :with revenue-q3-growth-computed)
 ```
+
+#### Special Technique: Items × Layers
+
+When a codebase has N items that each appear in multiple representations (documentation, configuration, implementation), the **Items × Layers** pattern catches discrepancies between layers. Create a fact per item per layer, derive per-layer aggregates with splat axioms (`count-exists`, `sum-values`, or custom reducers), then diff the aggregates against each other.
+
+Facts don't have to be boolean. Layers can carry numeric values, strings, or any other type — what matters is that each item has a fact in each layer, and the cross-layer diffs expose when layers disagree.
+
+```scheme
+; 5 feature flags × 3 layers (DOC, CONFIG, INIT)
+
+; Layer 0: DOC — docstring documents the flag
+(fact doc-flag-case-sensitive true
+    :evidence (evidence "config.py"
+        :quotes ("case_sensitive — when False, text is lowercased")
+        :explanation "Config docstring documents case_sensitive flag"))
+; ... one fact per item in this layer ...
+
+; Layer 1: CONFIG — dataclass declares the field
+(fact config-has-case-sensitive true
+    :evidence (evidence "config.py"
+        :quotes ("case_sensitive: bool = False")
+        :explanation "Config declares case_sensitive feature flag"))
+; ... one fact per item in this layer ...
+
+; Layer 2: INIT — constructor accepts the kwarg
+(fact init-has-case-sensitive true
+    :evidence (evidence "verifier.py"
+        :quotes ("case_sensitive: bool = False,")
+        :explanation "Init accepts case_sensitive kwarg"))
+; ... one fact per item in this layer ...
+
+; Per-layer counts (never hardcode — always derive from facts)
+(derive config-flag-count
+    (count-exists config-has-case-sensitive config-has-ignore-punctuation
+                  config-has-normalize-lists config-has-normalize-hyphenation
+                  config-has-remove-stopwords)
+    :using (count-exists config-has-case-sensitive ...))
+
+; Paired: each item must have ALL layers confirmed
+(derive flag-paired-count
+    (count-exists (and doc-flag-case-sensitive config-has-case-sensitive init-has-case-sensitive)
+                  (and doc-flag-ignore-punctuation config-has-ignore-punctuation init-has-ignore-punctuation)
+                  ...)
+    :using (count-exists doc-flag-case-sensitive config-has-case-sensitive init-has-case-sensitive
+                         doc-flag-ignore-punctuation config-has-ignore-punctuation ...))
+
+; Cross-layer diffs — if any item is missing from any layer, counts diverge
+(diff flag-paired-vs-doc    :replace flag-paired-count :with doc-flag-count)
+(diff flag-paired-vs-config :replace flag-paired-count :with config-flag-count)
+(diff flag-paired-vs-init   :replace flag-paired-count :with init-flag-count)
+```
+
+The same structure works for numeric layers — extract penalty values from docs and config, aggregate with `sum-values`, and diff the sums. Or build a matrix of string values and diff row counts against column counts. Any N×M grid of facts where rows are items and columns are representations becomes an Items × Layers validation.
+
+If someone adds a feature flag to the config but forgets to document it or accept it in `__init__`, the paired count will be lower than the layer count, and the diff fires. The `quote_verifier` validation module ([`validation/quote_verifier.pltg`](validation/quote_verifier.pltg)) uses this pattern extensively — 5 feature flags × 3 layers, 2 match strategies × 3 layers, 4 confidence levels × 3 layers, and 4 result dict keys × 3 layers.
 
 ### Evidence
 
@@ -224,6 +328,53 @@ Evidence is a first-class citizen and is directly used by the engine and grammar
 ;; Plain string origin — flagged as unverified, useful for hypotheticals
 ;; (used via :origin instead of :evidence)
 ```
+
+#### Special Technique: Manual Verification Modules
+
+Some definitions have no document source — rewrite axioms with `:origin`, import aliases, and hypothetical values constructed for theorem proving. These are flagged by the consistency checker as `no_evidence`. A **manual verification module** aggregates all such definitions in one place and calls `(verify-manual ...)` for each, so an analyst can review them as a batch rather than hunting through individual modules.
+
+The system's own [`validation/verify_manual.pltg`](validation/verify_manual.pltg) demonstrates three categories of manually verified definitions:
+
+**Internally constructed reusables** — axioms defined with `:origin` that serve as shared infrastructure. The `counting.pltg` splat axioms (`count-exists-base`, `count-exists-step`, `sum-values-base`, `sum-values-step`) have no document to quote because they *are* the counting mechanism. They're verified once in `verify_manual.pltg` and trusted across all modules that import them. This allows derives to instantiate directly with reusable rewrite axioms instead of defining intermediate `defterm`s that would each require their own evidence — the rewrite fires automatically, so the derive needs only its `:using` symbols, and the consistency checker stays happy because the axioms are manually verified once at the source.
+
+```scheme
+; counting.pltg defines axioms with :origin (no document evidence)
+(verify-manual (quote counting.count-exists))
+(verify-manual (quote counting.count-exists-base))
+(verify-manual (quote counting.count-exists-step))
+```
+
+**Import aliases** — `(defterm count-exists counting.count-exists :origin "import")` creates a local shorthand. Every module that imports `counting.pltg` produces one of these. They're mechanical and safe, but the checker flags them because `:origin` is not `:evidence`. The verification module lists them all:
+
+```scheme
+(verify-manual (quote atoms.count-exists))
+(verify-manual (quote engine.count-exists))
+(verify-manual (quote lang.count-exists))
+; ... one per importing module ...
+```
+
+**Hypotheticals for axiom instantiation** — some axioms require concrete values to prove via `:bind`, but those values don't exist in any document. For example, the `empty-quote-rejected` axiom says "if a quote has no content, verification returns false." To instantiate it, you construct hypothetical inputs and outputs:
+
+```scheme
+; The axiom (from quote_verifier.pltg):
+(axiom empty-quote-rejected (implies (not ?has-content) (= ?verified false))
+  :evidence (evidence "verifier.py"
+    :quotes ("if not quote.strip():" "\"verified\": False,")
+    :explanation "Pre-validation rejects empty quotes"))
+
+; Hypothetical values to instantiate it:
+(defterm empty-has-no-content false
+    :origin "hypothetical input: quote with no content")
+(defterm empty-verified-result false
+    :origin "hypothetical return: verified=False")
+
+; Now the axiom can be proved via :bind:
+(derive bound-empty-fixed empty-quote-rejected
+    :bind ((?has-content empty-has-no-content) (?verified empty-verified-result))
+    :using (empty-quote-rejected empty-has-no-content empty-verified-result))
+```
+
+The hypothetical values are manually verified because they represent scenarios implied by the code but not literally quoted from it. The `quote_verifier` validation module ([`validation/quote_verifier.pltg`](validation/quote_verifier.pltg)) uses this technique for 7 axioms — empty quotes, single-stopword quotes, normalized-to-empty quotes, score clamping, and config flag gating.
 
 ## Execution Engine
 
@@ -412,40 +563,7 @@ s = System(initial_env={})  # blank slate
 s = System(docs={})  # no built-in documentation
 ```
 
-## Demos
-
-11 demos covering the full feature set. Each is a standalone script:
-
-**Apples** ([`demos/apples/`](demos/apples/)) — Peano arithmetic grounded in observational field notes. Introduces primitive symbols (zero, successor), states axioms with `:evidence`, and derives theorems via `:bind` instantiation.
-
-**Apples (.pltg)** ([`demos/apples_pltg/`](demos/apples_pltg/)) — The same apple arithmetic demo, written as a `.pltg` module file instead of Python.
-
-**Revenue Reports** ([`demos/revenue_reports/`](demos/revenue_reports/)) — Company performance analysis from Q3 reports, targets memos, and bonus policy documents. Shows quote verification, fabrication propagation, diffs, and manual override.
-
-**Biomarkers** ([`demos/biomarkers/`](demos/biomarkers/)) — Diagnostic marker analysis from competing medical papers. Encodes sensitivity, specificity, and clinical claims, then cross-checks for contradictions between studies.
-
-**Code Check** ([`demos/code_check/`](demos/code_check/)) — Code implementation checks against documented contracts.
-
-**Doc Validation** ([`demos/doc_validation/`](demos/doc_validation/)) — Documentation validation against source code.
-
-**Spec Validation** ([`demos/spec_validation/`](demos/spec_validation/)) — Code-specification cross-validation with diff-based divergence detection.
-
-**Extensibility** ([`demos/extensibility/`](demos/extensibility/)) — System extensibility via custom effects.
-
-**Self-Healing** ([`demos/self_healing/`](demos/self_healing/)) — Self-healing probes via effects that detect and recover from inconsistencies.
-
-**Deferred (.pltg)** ([`demos/deferred_pltg/`](demos/deferred_pltg/)) — `run-on-entry` — deferred directives that only fire for the main file.
-
-**Entry Mocks (.pltg)** ([`demos/entry_mocks_pltg/`](demos/entry_mocks_pltg/)) — `run-on-entry` as a self-contained unit test with `let` and mocks.
-
-```bash
-# Run any demo, e.g.:
-python -m parseltongue.core.demos.apples.demo
-python -m parseltongue.core.demos.revenue_reports.demo
-python -m parseltongue.core.demos.biomarkers.demo
-```
-
-## Module System
+## Modules
 
 Parseltongue programs can be split across multiple `.pltg` files using the built-in module system. The `Loader` class handles import resolution, circular import detection, per-module namespacing, and runtime context.
 
@@ -469,7 +587,7 @@ system = loader.load_main("path/to/main.pltg", effects=custom_effects)
 
 ### Built-in Effects
 
-The loader provides 7 built-in effects available in any `.pltg` file:
+The loader provides 8 built-in effects available in any `.pltg` file:
 
 | Effect | Syntax | Description |
 |---|---|---|
@@ -480,10 +598,13 @@ The loader provides 7 built-in effects available in any `.pltg` file:
 | `print` | `(print "label" value ...)` | Print computed values from the system |
 | `consistency` | `(consistency)` | With no arguments, prints the report and returns True. Optional modes: `(consistency :raise)` prints and raises on inconsistency, `(consistency :bool)` returns boolean without printing, `(consistency :report)` returns the ConsistencyReport object |
 | `verify-manual` | `(verify-manual name)` | Manually verify a fact, term, or axiom |
+| `dangerously-eval` | `(dangerously-eval "python code")` | Execute arbitrary Python with `system` and `_ctx` in scope. Used by self_test.pltg to run the test suite from within the formal system |
 
 ### Imports and Namespacing
 
-Modules are resolved from dot-separated names to file paths (`utils.math` → `utils/math.pltg`). Imported definitions are automatically namespaced with their module name to prevent collisions:
+Modules are resolved from dot-separated names to file paths (`utils.math` → `utils/math.pltg`), relative to the importing file's directory. This means `(import (quote neighbour))` finds `neighbour.pltg` in the same folder, and its definitions are accessible as `neighbour.name` — not a full filesystem path.
+
+Imported definitions are automatically namespaced with their module name to prevent collisions. Namespacing happens in three stages: definition names are prefixed, bare symbol references are resolved via `_patch_symbols`, and `(context :key)` keys are namespaced per-module.
 
 ```scheme
 ; main.pltg
@@ -492,7 +613,7 @@ Modules are resolved from dot-separated names to file paths (`utils.math` → `u
 (print "Library total:" lib.total)
 ```
 
-Circular imports are detected and raise an error. Duplicate imports are skipped.
+Circular imports are detected and raise an error. Duplicate imports are skipped. If the same file is imported under different relative paths, the loader registers an alias so both names resolve to the same definitions.
 
 ### Context
 
@@ -511,24 +632,7 @@ Modules can create local aliases for namespaced symbols using `defterm`. This av
 (axiom add-comm (= (+ ?a ?b) (+ ?b ?a)) :origin "commutativity")
 ```
 
-### Lazy Evaluation
-
 All `defterm` definitions are lazy — the body expression is stored unevaluated and resolved only when the term is referenced. This means bare aliases like `(defterm x some-symbol)` work without a `quote` wrapper; the target is resolved at use time, not definition time.
-
-### Forward-Declared Primitives
-
-A `defterm` with no body introduces a forward-declared primitive symbol. These primitives are available to any module that imports the defining module:
-
-```scheme
-; primitives.pltg
-(defterm zero :origin "Peano base case")
-(defterm succ :origin "Peano successor")
-
-; afternoon.pltg — uses primitives without re-importing
-(import (quote primitives))
-(derive three-exists (= (succ (succ (succ primitives.zero))) (succ (succ (succ primitives.zero))))
-  :using (primitives.zero primitives.succ))
-```
 
 ### Import Chains
 
@@ -536,7 +640,9 @@ Imports are transitive through the module graph. If `demo` imports `app` and `ap
 
 ```scheme
 ; lib.pltg:   (fact base-value 1 ...)
+
 ; app.pltg:   (import (quote lib))   → lib.base-value accessible
+
 ; demo.pltg:  (import (quote app))   → app.lib.base-value accessible
 ```
 
@@ -575,6 +681,98 @@ Combine `run-on-entry` with `let` to create self-contained unit tests that mock 
 ```
 
 This pattern keeps test assertions inside the module but only runs them when the file is executed directly.
+
+### Lazy Loader
+
+The `LazyLoader` extends `Loader` with fault-tolerant, dependency-aware loading. Instead of aborting on the first error, it collects failures and skips dependent directives, producing a partial result.
+
+Loading proceeds in 6 phases:
+
+1. **Parse** — all directives are parsed from source, collecting names
+2. **Execute effects** — imports, load-document, and other effects fire
+3. **Patch symbols** — bare symbol references are resolved to namespaced versions
+4. **Resolve graph** — the dependency graph is built from parsed directives
+5. **Separate effects** — effect expressions are separated from formal directives
+6. **Topological execution** — directives execute in dependency order; failures cascade to dependents
+
+```python
+from parseltongue.core.loader.lazy_loader import lazy_load_pltg
+
+result = lazy_load_pltg("path/to/module.pltg")
+result.ok       # True if no errors
+result.partial  # True if some directives loaded despite errors
+result.errors   # list of errors encountered
+result.skipped  # directives skipped due to failed dependencies
+result.loaded   # successfully loaded directives
+
+# Diagnostics
+result.root_cause("failed-theorem")  # trace to the original error
+result.error_trees()                 # tree view of error cascades
+result.summary()                     # human-readable summary
+```
+
+### AST
+
+The `ast` module provides a dependency graph over parsed directives. `DirectiveNode` is a frozen dataclass with 8 fields:
+
+| Field | Description |
+|---|---|
+| `name` | Directive name (or `None` for effects) |
+| `expr` | Original s-expression |
+| `dep_names` | Set of symbol names this directive depends on |
+| `kind` | One of 6 kinds: `fact`, `axiom`, `defterm`, `derive`, `diff`, `effect` |
+| `source_file` | File path where the directive was defined |
+| `source_order` | Integer position in source |
+| `children` | Set of nodes this directive depends on (populated by `resolve_graph`) |
+| `dependents` | Set of nodes that depend on this directive (inverse of `children`) |
+
+```python
+from parseltongue.core.ast import parse_directive, resolve_graph, walk_dependents
+
+# Parse a directive into a node
+node = parse_directive(name, expr, source_file, order)
+
+# Build the full graph — links children ↔ dependents
+nodes = resolve_graph(all_nodes)
+
+# Walk all transitive dependents of a node
+downstream = walk_dependents(node)  # stack-based, deduplicates
+```
+
+`extract_symbols` recursively collects symbol references from an expression, skipping `?`-variables. `resolve_graph` builds a name→node index, links `children` and `dependents`, and ignores references to symbols not in the current graph (external dependencies). `DirectiveNode` uses identity hashing (`__hash__=id`, `__eq__=identity`) so nodes can be stored in sets.
+
+## Demos
+
+11 demos covering the full feature set. Each is a standalone script:
+
+**Apples** ([`demos/apples/`](demos/apples/)) — Peano arithmetic grounded in observational field notes. Introduces primitive symbols (zero, successor), states axioms with `:evidence`, and derives theorems via `:bind` instantiation.
+
+**Apples (.pltg)** ([`demos/apples_pltg/`](demos/apples_pltg/)) — The same apple arithmetic demo, written as a `.pltg` module file instead of Python.
+
+**Revenue Reports** ([`demos/revenue_reports/`](demos/revenue_reports/)) — Company performance analysis from Q3 reports, targets memos, and bonus policy documents. Shows quote verification, fabrication propagation, diffs, and manual override.
+
+**Biomarkers** ([`demos/biomarkers/`](demos/biomarkers/)) — Diagnostic marker analysis from competing medical papers. Encodes sensitivity, specificity, and clinical claims, then cross-checks for contradictions between studies.
+
+**Code Check** ([`demos/code_check/`](demos/code_check/)) — Code implementation checks against documented contracts.
+
+**Doc Validation** ([`demos/doc_validation/`](demos/doc_validation/)) — Documentation validation against source code.
+
+**Spec Validation** ([`demos/spec_validation/`](demos/spec_validation/)) — Code-specification cross-validation with diff-based divergence detection.
+
+**Extensibility** ([`demos/extensibility/`](demos/extensibility/)) — System extensibility via custom effects.
+
+**Self-Healing** ([`demos/self_healing/`](demos/self_healing/)) — Self-healing probes via effects that detect and recover from inconsistencies.
+
+**Deferred (.pltg)** ([`demos/deferred_pltg/`](demos/deferred_pltg/)) — `run-on-entry` — deferred directives that only fire for the main file.
+
+**Entry Mocks (.pltg)** ([`demos/entry_mocks_pltg/`](demos/entry_mocks_pltg/)) — `run-on-entry` as a self-contained unit test with `let` and mocks.
+
+```bash
+# Run any demo, e.g.:
+python -m parseltongue.core.demos.apples.demo
+python -m parseltongue.core.demos.revenue_reports.demo
+python -m parseltongue.core.demos.biomarkers.demo
+```
 
 ## Packaging
 

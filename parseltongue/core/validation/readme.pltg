@@ -125,7 +125,7 @@
 (axiom axioms-require-variables
     (implies ?is-axiom ?has-question-var)
     :evidence (evidence "README"
-        :quotes ("Axioms MUST contain at least one ?-variable" "Ground statements (no ?-variables) are rejected")
+        :quotes ("a parametric rule with `?`-variables. Ground statements (no `?`-variables) are rejected; use `fact` for values or `derive` for provable claims.")
         :explanation "Universal rule: axioms require at least one ?-variable"))
 
 ; Axiom 5: Diffs detect contradictions via independent paths
@@ -170,7 +170,7 @@
 
 (fact readme-has-defterm-directive true
     :evidence (evidence "README"
-        :quotes ("**`defterm`** — a named concept.")
+        :quotes ("**`defterm`** (forward declaration) — introduces a primitive symbol with no body")
         :explanation "defterm listed as directive"))
 
 (fact readme-has-derive-directive true
@@ -241,13 +241,125 @@
 
 (fact readme-documents-extensible-directives true
     :evidence (evidence "README"
-        :quotes ("the language is extensible with custom operators and effects")
+        :quotes ("the language is extensible with [custom operators](#custom-environments) and [effects](#built-in-effects)")
         :explanation "README mentions extensibility with operators and effects"))
 
 (fact readme-diff-lazy true
     :evidence (evidence "README"
         :quotes ("a lazy consistency comparison between two symbols")
         :explanation "README describes diff as lazy"))
+
+; =====================================================================
+; Special Techniques — one per directive type section
+; =====================================================================
+
+; --- Symbolic: Rewrite Axioms as Reusable Functions ---
+
+(fact readme-documents-rewrite-as-functions true
+    :evidence (evidence "README"
+        :quotes ("Rewrite axioms (`(= <pattern> <rhs>)`) fire automatically during evaluation — the engine pattern-matches the left side and replaces it with the right side, up to 100 rewrites deep. This means you can define mathematical operations once and reuse them across the entire system without re-citing evidence each time. The axiom is grounded once; every derive that triggers it inherits the grounding for free.")
+        :explanation "README documents rewrite axioms as reusable functions with single-grounding benefit"))
+
+(fact readme-documents-splat-variadic-reduce true
+    :evidence (evidence "README"
+        :quotes ("Combined with `?...`-prefixed **splat variables** (which collect trailing arguments), rewrite axioms can define variadic reduce functions — functions that accept any number of arguments and fold them down. This eliminates deeply nested binary expressions.")
+        :explanation "README documents splat variables for variadic reduce eliminating nested binary ops"))
+
+(fact readme-documents-counting-pltg-link true
+    :evidence (evidence "README"
+        :quotes ("The same pattern powers the validation system's `count-exists` (how many boolean items are truthy) and `sum-values` (numeric sum) — both defined in [`validation/counting.pltg`](validation/counting.pltg) and imported across all validation modules.")
+        :explanation "README links to counting.pltg as source of count-exists and sum-values"))
+
+(fact readme-documents-apples-splats-demo-link true
+    :evidence (evidence "README"
+        :quotes ("The `apples_splats_pltg` demo ([`demos/apples_splats_pltg/`](demos/apples_splats_pltg/)) builds full Peano arithmetic with variadic `sum-all`, `count-gt`, and `all-gt` using this technique.")
+        :explanation "README links to apples_splats_pltg demo for rewrite+splat technique"))
+
+; --- Computable: Effects in Computable Contexts ---
+
+(fact readme-documents-effects-in-computable true
+    :evidence (evidence "README"
+        :quotes ("While effects typically fire as top-level directives, they can also appear inside computable contexts — `if` branches, `defterm` bodies, and `derive` WFFs — because the engine evaluates them like any other callable.")
+        :explanation "README documents effects in computable contexts"))
+
+(fact readme-documents-conditional-side-effects true
+    :evidence (evidence "README"
+        :quotes ("This enables conditional side effects driven by the formal system's own state:")
+        :explanation "README documents conditional side effects driven by system state"))
+
+(fact readme-documents-self-healing-demo-link true
+    :evidence (evidence "README"
+        :quotes ("The `self_healing` demo ([`demos/self_healing/`](demos/self_healing/)) builds a complete detect-patch-verify-rollback loop using this pattern: custom effects (`snapshot`, `patch-fact`, `rollback`, `check-diff`) are registered at construction, and the DSL script uses `if` to conditionally fire them based on consistency results.")
+        :explanation "README links to self_healing demo for effects-in-computable technique"))
+
+(fact readme-documents-extensibility-demo-link true
+    :evidence (evidence "README"
+        :quotes ("The `extensibility` demo ([`demos/extensibility/`](demos/extensibility/)) shows a simpler case — a `load-data` effect that loads documents from within the DSL itself, so the formal system controls its own data ingestion.")
+        :explanation "README links to extensibility demo for effects technique"))
+
+; --- Diffs: Items × Layers ---
+
+(fact readme-documents-items-x-layers true
+    :evidence (evidence "README"
+        :quotes ("When a codebase has N items that each appear in multiple representations (documentation, configuration, implementation), the **Items × Layers** pattern catches discrepancies between layers. Create a fact per item per layer, derive per-layer aggregates with splat axioms (`count-exists`, `sum-values`, or custom reducers), then diff the aggregates against each other.")
+        :explanation "README documents Items × Layers pattern"))
+
+(fact readme-documents-items-x-layers-not-only-boolean true
+    :evidence (evidence "README"
+        :quotes ("Facts don't have to be boolean. Layers can carry numeric values, strings, or any other type — what matters is that each item has a fact in each layer, and the cross-layer diffs expose when layers disagree.")
+        :explanation "README documents that layers can carry any type, not just booleans"))
+
+(fact readme-documents-items-x-layers-matrix true
+    :evidence (evidence "README"
+        :quotes ("Any N×M grid of facts where rows are items and columns are representations becomes an Items × Layers validation.")
+        :explanation "README documents N×M matrix interpretation of Items × Layers"))
+
+(fact readme-documents-items-x-layers-paired true
+    :evidence (evidence "README"
+        :quotes ("Paired: each item must have ALL layers confirmed")
+        :explanation "README documents paired boolean count within Items × Layers"))
+
+(fact readme-documents-items-x-layers-qv-link true
+    :evidence (evidence "README"
+        :quotes ("The `quote_verifier` validation module ([`validation/quote_verifier.pltg`](validation/quote_verifier.pltg)) uses this pattern extensively — 5 feature flags × 3 layers, 2 match strategies × 3 layers, 4 confidence levels × 3 layers, and 4 result dict keys × 3 layers.")
+        :explanation "README links to quote_verifier as extensive Items × Layers example"))
+
+; --- Evidence: Manual Verification Modules ---
+
+(fact readme-documents-manual-verification-modules true
+    :evidence (evidence "README"
+        :quotes ("Some definitions have no document source — rewrite axioms with `:origin`, import aliases, and hypothetical values constructed for theorem proving. These are flagged by the consistency checker as `no_evidence`. A **manual verification module** aggregates all such definitions in one place and calls `(verify-manual ...)` for each, so an analyst can review them as a batch rather than hunting through individual modules.")
+        :explanation "README documents manual verification modules concept"))
+
+(fact readme-documents-manual-verification-3-categories 3
+    :evidence (evidence "README"
+        :quotes ("The system's own [`validation/verify_manual.pltg`](validation/verify_manual.pltg) demonstrates three categories of manually verified definitions:")
+        :explanation "README says verify_manual.pltg demonstrates 3 categories"))
+
+(fact readme-documents-manual-reusables true
+    :evidence (evidence "README"
+        :quotes ("**Internally constructed reusables** — axioms defined with `:origin` that serve as shared infrastructure. The `counting.pltg` splat axioms (`count-exists-base`, `count-exists-step`, `sum-values-base`, `sum-values-step`) have no document to quote because they *are* the counting mechanism.")
+        :explanation "README documents internally constructed reusables category"))
+
+(fact readme-documents-manual-reusables-avoid-defterms true
+    :evidence (evidence "README"
+        :quotes ("This allows derives to instantiate directly with reusable rewrite axioms instead of defining intermediate `defterm`s that would each require their own evidence — the rewrite fires automatically, so the derive needs only its `:using` symbols, and the consistency checker stays happy because the axioms are manually verified once at the source.")
+        :explanation "README documents that reusables avoid intermediate defterms needing evidence"))
+
+(fact readme-documents-manual-import-aliases true
+    :evidence (evidence "README"
+        :quotes ("**Import aliases** — `(defterm count-exists counting.count-exists :origin \"import\")` creates a local shorthand. Every module that imports `counting.pltg` produces one of these. They're mechanical and safe, but the checker flags them because `:origin` is not `:evidence`.")
+        :explanation "README documents import aliases as manually verified category"))
+
+(fact readme-documents-manual-hypotheticals true
+    :evidence (evidence "README"
+        :quotes ("**Hypotheticals for axiom instantiation** — some axioms require concrete values to prove via `:bind`, but those values don't exist in any document.")
+        :explanation "README documents hypotheticals for axiom instantiation category"))
+
+(fact readme-documents-manual-hypotheticals-qv-count 7
+    :evidence (evidence "README"
+        :quotes ("The `quote_verifier` validation module ([`validation/quote_verifier.pltg`](validation/quote_verifier.pltg)) uses this technique for 7 axioms — empty quotes, single-stopword quotes, normalized-to-empty quotes, score clamping, and config flag gating.")
+        :explanation "README says quote_verifier uses hypotheticals for 7 axioms"))
 
 ; =====================================================================
 ; Built-in operators section
@@ -346,20 +458,7 @@
         :quotes ("initial_env={}")
         :explanation "README documents initial_env parameter"))
 
-(fact readme-env-not-hardcoded true
-    :evidence (evidence "README"
-        :quotes ("The System engine does not hardcode any operators.")
-        :explanation "README states operators are not hardcoded"))
-
-(fact readme-env-blank-slate true
-    :evidence (evidence "README"
-        :quotes ("Blank slate — build everything from primitives" "System(initial_env={}, docs={})")
-        :explanation "README documents blank slate option"))
-
-(fact readme-env-domain-specific true
-    :evidence (evidence "README"
-        :quotes ("This is how you build domain-specific languages: strip the defaults, introduce your own primitives")
-        :explanation "README describes DSL building pattern"))
+; (deleted: readme-env-not-hardcoded, readme-env-blank-slate, readme-env-domain-specific — superseded by engine section facts)
 
 ; =====================================================================
 ; Demos section — all 11 by name
@@ -431,7 +530,7 @@
 
 (fact readme-axiom-var-requirement true
     :evidence (evidence "README"
-        :quotes ("Axioms MUST contain at least one ?-variable")
+        :quotes ("a parametric rule with `?`-variables. Ground statements (no `?`-variables) are rejected; use `fact` for values or `derive` for provable claims.")
         :explanation "README states axiom variable requirement"))
 
 (fact readme-fabrication-propagation true
@@ -455,8 +554,8 @@
 
 (fact readme-loader-section true
     :evidence (evidence "README"
-        :quotes ("## Module System")
-        :explanation "README has a Module System section"))
+        :quotes ("## Modules")
+        :explanation "README has a Modules section"))
 
 (fact readme-loader-import-effect true
     :evidence (evidence "README"
@@ -493,10 +592,15 @@
         :quotes ("(verify-manual name)" "Manually verify a fact, term, or axiom")
         :explanation "README documents verify-manual effect"))
 
-(fact readme-loader-effect-count 7
+(fact readme-loader-effect-count 8
     :evidence (evidence "README"
-        :quotes ("The loader provides 7 built-in effects")
-        :explanation "README claims 7 built-in effects"))
+        :quotes ("The loader provides 8 built-in effects")
+        :explanation "README claims 8 built-in effects"))
+
+(fact readme-loader-dangerously-eval-effect true
+    :evidence (evidence "README"
+        :quotes ("dangerously-eval" "(dangerously-eval \"python code\")" "Execute arbitrary Python with system and _ctx in scope")
+        :explanation "README documents dangerously-eval effect"))
 
 (fact readme-loader-namespacing true
     :evidence (evidence "README"
@@ -567,10 +671,7 @@
         :quotes ("### Local Aliasing" "Modules can create local aliases for namespaced symbols using defterm")
         :explanation "README has a Local Aliasing section"))
 
-(fact readme-documents-forward-decl true
-    :evidence (evidence "README"
-        :quotes ("### Forward-Declared Primitives" "A defterm with no body introduces a forward-declared primitive symbol")
-        :explanation "README has a Forward-Declared Primitives section"))
+; (deleted: readme-documents-forward-decl — superseded by readme-defterm-forward-decl)
 
 (fact readme-documents-run-on-entry-gating true
     :evidence (evidence "README"
@@ -594,8 +695,206 @@
 
 (fact readme-documents-defterm-lazy true
     :evidence (evidence "README"
-        :quotes ("### Lazy Evaluation" "All defterm definitions are lazy" "the body expression is stored unevaluated and resolved only when the term is referenced")
-        :explanation "README has a Lazy Evaluation section"))
+        :quotes ("All defterm definitions are lazy" "the body expression is stored unevaluated and resolved only when the term is referenced")
+        :explanation "README documents lazy defterm evaluation"))
+
+(fact readme-documents-relative-imports true
+    :evidence (evidence "README"
+        :quotes ("relative to the importing file's directory" "(import (quote neighbour)) finds neighbour.pltg in the same folder, and its definitions are accessible as neighbour.name")
+        :explanation "README documents imports resolve relative to current file"))
+
+(fact readme-documents-import-aliasing true
+    :evidence (evidence "README"
+        :quotes ("If the same file is imported under different relative paths, the loader registers an alias so both names resolve to the same definitions")
+        :explanation "README documents import aliasing for duplicate paths"))
+
+(fact readme-documents-namespacing-three-stages true
+    :evidence (evidence "README"
+        :quotes ("Namespacing happens in three stages: definition names are prefixed, bare symbol references are resolved via _patch_symbols, and (context :key) keys are namespaced per-module")
+        :explanation "README documents 3 namespacing stages"))
+
+; =====================================================================
+; Lazy Loader — README facts
+; =====================================================================
+
+(fact readme-documents-lazy-loader-section true
+    :evidence (evidence "README"
+        :quotes ("### Lazy Loader")
+        :explanation "README has a Lazy Loader subsection under Modules"))
+
+(fact readme-documents-lazy-loader-fault-tolerant true
+    :evidence (evidence "README"
+        :quotes ("The LazyLoader extends Loader with fault-tolerant, dependency-aware loading. Instead of aborting on the first error, it collects failures and skips dependent directives, producing a partial result")
+        :explanation "README documents LazyLoader fault tolerance"))
+
+(fact readme-documents-lazy-loader-phases 6
+    :evidence (evidence "README"
+        :quotes ("Loading proceeds in 6 phases")
+        :explanation "README documents 6 loading phases"))
+
+(fact readme-documents-lazy-loader-phase-parse true
+    :evidence (evidence "README"
+        :quotes ("1. **Parse** — all directives are parsed from source, collecting names")
+        :explanation "README documents phase 1: parse"))
+
+(fact readme-documents-lazy-loader-phase-effects true
+    :evidence (evidence "README"
+        :quotes ("2. **Execute effects** — imports, load-document, and other effects fire")
+        :explanation "README documents phase 2: execute effects"))
+
+(fact readme-documents-lazy-loader-phase-patch true
+    :evidence (evidence "README"
+        :quotes ("3. **Patch symbols** — bare symbol references are resolved to namespaced versions")
+        :explanation "README documents phase 3: patch symbols"))
+
+(fact readme-documents-lazy-loader-phase-resolve true
+    :evidence (evidence "README"
+        :quotes ("4. **Resolve graph** — the dependency graph is built from parsed directives")
+        :explanation "README documents phase 4: resolve graph"))
+
+(fact readme-documents-lazy-loader-phase-separate true
+    :evidence (evidence "README"
+        :quotes ("5. **Separate effects** — effect expressions are separated from formal directives")
+        :explanation "README documents phase 5: separate effects"))
+
+(fact readme-documents-lazy-loader-phase-topological true
+    :evidence (evidence "README"
+        :quotes ("6. **Topological execution** — directives execute in dependency order; failures cascade to dependents")
+        :explanation "README documents phase 6: topological execution"))
+
+(fact readme-documents-lazy-load-pltg-entry true
+    :evidence (evidence "README"
+        :quotes ("from parseltongue.core.loader.lazy_loader import lazy_load_pltg")
+        :explanation "README documents lazy_load_pltg entry point"))
+
+(fact readme-documents-lazy-result-ok true
+    :evidence (evidence "README"
+        :quotes ("result.ok       # True if no errors")
+        :explanation "README documents result.ok"))
+
+(fact readme-documents-lazy-result-partial true
+    :evidence (evidence "README"
+        :quotes ("result.partial  # True if some directives loaded despite errors")
+        :explanation "README documents result.partial"))
+
+(fact readme-documents-lazy-result-errors true
+    :evidence (evidence "README"
+        :quotes ("result.errors   # list of errors encountered")
+        :explanation "README documents result.errors"))
+
+(fact readme-documents-lazy-result-skipped true
+    :evidence (evidence "README"
+        :quotes ("result.skipped  # directives skipped due to failed dependencies")
+        :explanation "README documents result.skipped"))
+
+(fact readme-documents-lazy-result-loaded true
+    :evidence (evidence "README"
+        :quotes ("result.loaded   # successfully loaded directives")
+        :explanation "README documents result.loaded"))
+
+(fact readme-documents-lazy-root-cause true
+    :evidence (evidence "README"
+        :quotes ("result.root_cause(\"failed-theorem\")  # trace to the original error")
+        :explanation "README documents root_cause diagnostic"))
+
+(fact readme-documents-lazy-error-trees true
+    :evidence (evidence "README"
+        :quotes ("result.error_trees()                 # tree view of error cascades")
+        :explanation "README documents error_trees diagnostic"))
+
+(fact readme-documents-lazy-summary true
+    :evidence (evidence "README"
+        :quotes ("result.summary()                     # human-readable summary")
+        :explanation "README documents summary diagnostic"))
+
+; =====================================================================
+; AST — README facts
+; =====================================================================
+
+(fact readme-documents-ast-section true
+    :evidence (evidence "README"
+        :quotes ("### AST")
+        :explanation "README has an AST subsection under Modules"))
+
+(fact readme-documents-ast-dependency-graph true
+    :evidence (evidence "README"
+        :quotes ("The ast module provides a dependency graph over parsed directives")
+        :explanation "README documents AST module purpose"))
+
+(fact readme-documents-ast-directive-node 8
+    :evidence (evidence "README"
+        :quotes ("DirectiveNode is a frozen dataclass with 8 fields")
+        :explanation "README documents DirectiveNode with 8 fields"))
+
+(fact readme-documents-ast-field-name true
+    :evidence (evidence "README"
+        :quotes ("name" "Directive name (or None for effects)")
+        :explanation "README documents name field"))
+
+(fact readme-documents-ast-field-expr true
+    :evidence (evidence "README"
+        :quotes ("expr" "Original s-expression")
+        :explanation "README documents expr field"))
+
+(fact readme-documents-ast-field-dep-names true
+    :evidence (evidence "README"
+        :quotes ("dep_names" "Set of symbol names this directive depends on")
+        :explanation "README documents dep_names field"))
+
+(fact readme-documents-ast-field-kind 6
+    :evidence (evidence "README"
+        :quotes ("kind" "One of 6 kinds: fact, axiom, defterm, derive, diff, effect")
+        :explanation "README documents kind field with 6 kinds"))
+
+(fact readme-documents-ast-field-source-file true
+    :evidence (evidence "README"
+        :quotes ("source_file" "File path where the directive was defined")
+        :explanation "README documents source_file field"))
+
+(fact readme-documents-ast-field-source-order true
+    :evidence (evidence "README"
+        :quotes ("source_order" "Integer position in source")
+        :explanation "README documents source_order field"))
+
+(fact readme-documents-ast-field-children true
+    :evidence (evidence "README"
+        :quotes ("children" "Set of nodes this directive depends on (populated by resolve_graph)")
+        :explanation "README documents children field"))
+
+(fact readme-documents-ast-field-dependents true
+    :evidence (evidence "README"
+        :quotes ("dependents" "Set of nodes that depend on this directive (inverse of children)")
+        :explanation "README documents dependents field"))
+
+(fact readme-documents-ast-parse-directive true
+    :evidence (evidence "README"
+        :quotes ("node = parse_directive(name, expr, source_file, order)")
+        :explanation "README documents parse_directive function"))
+
+(fact readme-documents-ast-resolve-graph true
+    :evidence (evidence "README"
+        :quotes ("nodes = resolve_graph(all_nodes)")
+        :explanation "README documents resolve_graph function"))
+
+(fact readme-documents-ast-walk-dependents true
+    :evidence (evidence "README"
+        :quotes ("downstream = walk_dependents(node)  # stack-based, deduplicates")
+        :explanation "README documents walk_dependents function"))
+
+(fact readme-documents-ast-extract-symbols true
+    :evidence (evidence "README"
+        :quotes ("extract_symbols recursively collects symbol references from an expression, skipping ?-variables")
+        :explanation "README documents extract_symbols function"))
+
+(fact readme-documents-ast-resolve-graph-details true
+    :evidence (evidence "README"
+        :quotes ("resolve_graph builds a name→node index, links children and dependents, and ignores references to symbols not in the current graph")
+        :explanation "README documents resolve_graph behavior"))
+
+(fact readme-documents-ast-identity-hashing true
+    :evidence (evidence "README"
+        :quotes ("DirectiveNode uses identity hashing (__hash__=id, __eq__=identity) so nodes can be stored in sets")
+        :explanation "README documents identity hashing"))
 
 ; =====================================================================
 ; Packaging
@@ -653,74 +952,12 @@
 (fact readme-documents-splat-builtins false
     :origin "README does not yet document count-exists and sum-values as built-in splat axioms")
 
-; =====================================================================
-; AST module — README coverage stubs
-; =====================================================================
-
-(fact readme-documents-ast-module false
-    :origin "README does not yet document the AST module (core/ast.py)")
-
-(fact readme-documents-directive-node false
-    :origin "README does not yet document DirectiveNode dataclass (8 fields: name, expr, dep_names, kind, source_file, source_order, children, dependents)")
-
-(fact readme-documents-directive-node-fields false
-    :origin "README does not yet document DirectiveNode's 8 fields")
-
-(fact readme-documents-parse-directive false
-    :origin "README does not yet document parse_directive (extracts name, kind, dep_names from S-expression)")
-
-(fact readme-documents-extract-symbols false
-    :origin "README does not yet document extract_symbols (recursive symbol collection, skips ?-vars)")
-
-(fact readme-documents-resolve-graph false
-    :origin "README does not yet document resolve_graph (builds name→node index, links children/dependents)")
-
-(fact readme-documents-dependency-graph false
-    :origin "README does not yet document dependency graph resolution")
-
-(fact readme-documents-walk-dependents false
-    :origin "README does not yet document walk_dependents (transitive downstream traversal, stack-based, deduplicates)")
-
-(fact readme-documents-directive-kinds false
-    :origin "README does not yet document 6 directive kinds (fact, axiom, defterm, derive, diff, effect)")
-
-(fact readme-documents-identity-hashing false
-    :origin "README does not yet document DirectiveNode identity hashing (__hash__=id, __eq__=identity)")
+; (AST stubs resolved — see AST section above)
+; (Lazy loader stubs resolved — see Lazy Loader section above)
 
 ; =====================================================================
-; Lazy loader — README coverage stubs
+; Self-test — README coverage stubs (dangerously-eval resolved above)
 ; =====================================================================
-
-(fact readme-documents-lazy-loader false
-    :origin "README does not yet document the LazyLoader class (extends Loader with fault-tolerant, dependency-aware loading)")
-
-(fact readme-documents-lazy-loader-phases false
-    :origin "README does not yet document 6 loading phases (1a parse, 1b execute effects, 1c patch symbols, 2 resolve graph, 3 separate effects, 4 topological execution)")
-
-(fact readme-documents-lazy-load-result false
-    :origin "README does not yet document LazyLoadResult dataclass (system, errors, skipped, loaded)")
-
-(fact readme-documents-lazy-load-result-methods false
-    :origin "README does not yet document LazyLoadResult methods (ok, partial, root_cause, error_trees, summary)")
-
-(fact readme-documents-lazy-load-pltg false
-    :origin "README does not yet document lazy_load_pltg entry point")
-
-(fact readme-documents-fault-tolerance false
-    :origin "README does not yet document fault-tolerant loading (parse errors don't abort, partial success possible)")
-
-(fact readme-documents-error-cascade false
-    :origin "README does not yet document error cascade / dependent skipping on failure")
-
-; =====================================================================
-; Self-test & dangerously-eval — README coverage stubs
-; =====================================================================
-
-(fact readme-documents-dangerously-eval false
-    :origin "README does not yet document the dangerously-eval effect (executes arbitrary Python with system in scope)")
-
-(fact readme-documents-dangerously-eval-ctx false
-    :origin "README does not yet document _ctx exposure in dangerously-eval for relative path resolution")
 
 (fact readme-documents-self-test false
     :origin "README does not yet document self_test.pltg (self-referential incompleteness proof)")
@@ -780,11 +1017,8 @@
     :origin "README does not yet document that manual verifications are centralized in a dedicated verify_manual.pltg file")
 
 ; =====================================================================
-; Loader module — README coverage stubs
+; Loader module — README coverage stubs (namespacing resolved above)
 ; =====================================================================
-
-(fact readme-documents-namespacing-stages false
-    :origin "README does not yet document 3 namespacing stages (definition names, bare symbol references via _patch_symbols, context keys)")
 
 (fact readme-documents-loader-demos false
     :origin "README does not yet cross-reference which demos demonstrate loader features (apples_pltg, deferred_pltg, entry_mocks_pltg)")
@@ -968,7 +1202,7 @@
 
 (fact readme-documents-engine-fabrication-propagation true
     :evidence (evidence "README"
-        :quotes ("Fabrication propagation: if a fact's evidence is unverified, any theorem derived from it is automatically marked as a potential fabrication. This taint propagates through derivation chains")
+        :quotes ("**Fabrication propagation**: if a fact's evidence is unverified, any theorem derived from it is automatically marked as a potential fabrication. This taint propagates through derivation chains.")
         :explanation "README documents fabrication propagation under Evidence Grounding"))
 
 (fact readme-documents-engine-provenance true
@@ -1126,12 +1360,12 @@
 
 (fact readme-documents-engine-strict-derive true
     :evidence (evidence "README"
-        :quotes ("strict_derive (default True) — when enabled, derive evaluation is restricted to symbols listed in :using")
+        :quotes ("**`strict_derive`** (default `True`) — when enabled, `derive` evaluation is restricted to symbols listed in `:using`.")
         :explanation "README documents strict_derive flag"))
 
 (fact readme-documents-engine-overridable true
     :evidence (evidence "README"
-        :quotes ("overridable (default False) — when disabled, redefining an existing fact raises an error")
+        :quotes ("**`overridable`** (default `False`) — when disabled, redefining an existing fact raises an error.")
         :explanation "README documents overridable flag"))
 
 (fact readme-documents-engine-dsl-building true
@@ -1157,7 +1391,7 @@
 
 (fact readme-documents-engine-pure-impure-system-level true
     :evidence (evidence "README"
-        :quotes ("The pure/impure split is a System-level convention")
+        :quotes ("The pure/impure split is a `System`-level convention.")
         :explanation "README documents that pure/impure distinction is a System-level convention, not engine-level"))
 
 ; --- Operators sub-subsection ---
@@ -1262,15 +1496,8 @@
 (fact readme-documents-lang-docs false
     :origin "README does not yet document LANG_DOCS dictionary (operator/directive documentation data fed to LLM)")
 
-(fact readme-foundational-take-evidence true
-    :evidence (evidence "README"
-        :quotes ("Facts, axioms, and terms can be grounded in :evidence with verbatim :quotes or a plain :origin string")
-        :explanation "README states foundational directives take :evidence/:origin"))
-
-(fact readme-derives-inherit-grounding true
-    :evidence (evidence "README"
-        :quotes ("Derives inherit grounding from their sources — a theorem is proven by its axioms, facts, and computable terms")
-        :explanation "README states derives inherit grounding from sources"))
+; (deleted: readme-foundational-take-evidence — dup of readme-documents-symbolic-directives)
+; (deleted: readme-derives-inherit-grounding — dup of readme-fabrication-propagation)
 
 (fact readme-diffs-have-no-evidence true
     :evidence (evidence "README"
@@ -1278,7 +1505,7 @@
         :explanation "README states diffs need no evidence — inconsistency is the signal"))
 
 (defterm readme-evidence-grounding-scope
-    (and readme-foundational-take-evidence readme-derives-inherit-grounding readme-diffs-have-no-evidence)
+    (and readme-documents-symbolic-directives readme-fabrication-propagation readme-diffs-have-no-evidence)
     :origin "All three evidence grounding scopes documented")
 
 ; =====================================================================
@@ -1316,8 +1543,7 @@
 (fact readme-demo-count-stale false
     :origin "README says 11 demos but actual count is 12 — missing 12th demo listing")
 
-(fact readme-effect-count-stale false
-    :origin "README says 7 built-in effects but actual count is 8 — missing dangerously-eval")
+; (readme-effect-count-stale resolved — README now says 8)
 
 ; =====================================================================
 ; Internal consistency — non-tautological diffs only
@@ -1380,10 +1606,10 @@
     (count-exists readme-loader-import-effect readme-loader-run-on-entry-effect
                   readme-loader-load-document-effect readme-loader-context-effect
                   readme-loader-print-effect readme-loader-consistency-effect
-                  readme-loader-verify-manual-effect)
+                  readme-loader-verify-manual-effect readme-loader-dangerously-eval-effect)
     :using (count-exists readme-loader-import-effect readme-loader-run-on-entry-effect
                          readme-loader-load-document-effect readme-loader-context-effect
                          readme-loader-print-effect readme-loader-consistency-effect
-                         readme-loader-verify-manual-effect))
+                         readme-loader-verify-manual-effect readme-loader-dangerously-eval-effect))
 
 (diff readme-loader-effects-vs-count :replace readme-loader-effects-listing-count :with readme-loader-effect-count)

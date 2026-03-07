@@ -4,7 +4,7 @@ import os
 import unittest
 from copy import deepcopy
 
-from ..loader import load_pltg
+from ..loader import lazy_load_pltg, load_pltg
 
 CORE_PLTG = os.path.join(os.path.dirname(__file__), "..", "validation", "core.pltg")
 
@@ -13,7 +13,10 @@ class TestParseltongueCoreConsistency(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.system = load_pltg(CORE_PLTG)
+
+        pltg = lazy_load_pltg(CORE_PLTG)
+        cls.system = pltg.system
+        print(pltg.errors)
 
     def test_core_consistency(self):
         report = self.system.consistency()

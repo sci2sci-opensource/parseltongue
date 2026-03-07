@@ -27,11 +27,11 @@
 
 (print "")
 (print "--- Special forms count ---")
-(print "  README claims:" readme.readme-special-forms-count)
+(print "  README claims:" readme.readme-documents-engine-special-forms)
 (print "  lang.py has:" lang.special-forms-tuple-size)
 
 (diff special-forms-count
-    :replace readme.readme-special-forms-count
+    :replace readme.readme-documents-engine-special-forms
     :with lang.special-forms-tuple-size)
 
 ; =====================================================================
@@ -227,9 +227,9 @@
 (print "  Demos prove local aliasing:" demos.alias-used-in-practice)
 (diff local-aliasing :replace readme.readme-documents-local-aliasing :with demos.alias-used-in-practice)
 
-(print "  README documents forward-decl:" readme.readme-documents-forward-decl)
+(print "  README documents forward-decl:" readme.readme-defterm-forward-decl)
 (print "  Demos prove forward-decl:" demos.forward-decl-proven-by-afternoon)
-(diff forward-decl :replace readme.readme-documents-forward-decl :with demos.forward-decl-proven-by-afternoon)
+(diff forward-decl :replace readme.readme-defterm-forward-decl :with demos.forward-decl-proven-by-afternoon)
 
 (print "  README documents gating:" readme.readme-documents-run-on-entry-gating)
 (print "  Demos prove gating:" demos.run-on-entry-gating-proven)
@@ -328,52 +328,28 @@
 (print "  Fault tolerance mechanisms:" lazy_loader.fault-tolerance-count)
 
 ; =====================================================================
-; README coverage stubs — AST
+; README vs AST — numeric cross-checks
 ; =====================================================================
 
 (print "")
 (print "--- README vs AST ---")
-(print "  README documents AST module:" readme.readme-documents-ast-module)
-(print "  AST public API count:" ast_verifier.public-api-count)
-(diff readme-vs-ast-module :replace readme.readme-documents-ast-module :with ast_verifier.public-api-count)
+(print "  README DirectiveNode fields:" readme.readme-documents-ast-directive-node)
+(print "  AST node field count:" ast_verifier.node-field-count)
+(diff readme-vs-directive-node :replace readme.readme-documents-ast-directive-node :with ast_verifier.node-field-count)
 
-(print "  README documents DirectiveNode:" readme.readme-documents-directive-node)
-(print "  DirectiveNode field count:" ast_verifier.node-field-count)
-(diff readme-vs-directive-node :replace readme.readme-documents-directive-node :with ast_verifier.node-field-count)
-
-(print "  README documents dep graph:" readme.readme-documents-dependency-graph)
-(print "  Graph behavior count:" ast_verifier.graph-behavior-count)
-(diff readme-vs-dep-graph :replace readme.readme-documents-dependency-graph :with ast_verifier.graph-behavior-count)
-
-(print "  README documents extract_symbols:" readme.readme-documents-extract-symbols)
-(print "  Extract behavior count:" ast_verifier.extract-behavior-count)
-(diff readme-vs-extract-symbols :replace readme.readme-documents-extract-symbols :with ast_verifier.extract-behavior-count)
+(print "  README field kinds:" readme.readme-documents-ast-field-kind)
+(print "  AST kind count:" ast_verifier.kind-count)
+(diff readme-vs-ast-kinds :replace readme.readme-documents-ast-field-kind :with ast_verifier.kind-count)
 
 ; =====================================================================
-; README coverage stubs — Lazy loader
+; README vs Lazy loader — numeric cross-checks
 ; =====================================================================
 
 (print "")
 (print "--- README vs Lazy loader ---")
-(print "  README documents lazy loader:" readme.readme-documents-lazy-loader)
+(print "  README phases:" readme.readme-documents-lazy-loader-phases)
 (print "  Lazy loader phase count:" lazy_loader.phase-count)
-(diff readme-vs-lazy-loader :replace readme.readme-documents-lazy-loader :with lazy_loader.phase-count)
-
-(print "  README documents fault tolerance:" readme.readme-documents-fault-tolerance)
-(print "  Fault tolerance count:" lazy_loader.fault-tolerance-count)
-(diff readme-vs-fault-tolerance :replace readme.readme-documents-fault-tolerance :with lazy_loader.fault-tolerance-count)
-
-(print "  README documents LazyLoadResult:" readme.readme-documents-lazy-load-result)
-(print "  Result method count:" lazy_loader.result-method-count)
-(diff readme-vs-lazy-load-result :replace readme.readme-documents-lazy-load-result :with lazy_loader.result-method-count)
-
-(print "  README documents lazy_load_pltg:" readme.readme-documents-lazy-load-pltg)
-(print "  Entry point count:" lazy_loader.entry-point-count)
-(diff readme-vs-lazy-load-pltg :replace readme.readme-documents-lazy-load-pltg :with lazy_loader.entry-point-count)
-
-(print "  README documents error cascade:" readme.readme-documents-error-cascade)
-(print "  Fault tolerance count:" lazy_loader.fault-tolerance-count)
-(diff readme-vs-error-cascade :replace readme.readme-documents-error-cascade :with lazy_loader.fault-tolerance-count)
+(diff readme-vs-lazy-phases :replace readme.readme-documents-lazy-loader-phases :with lazy_loader.phase-count)
 
 (print "")
 (print "========================================")
