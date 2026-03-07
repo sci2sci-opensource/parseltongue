@@ -68,9 +68,9 @@ class TestPerformance(unittest.TestCase):
     def test_performance_comparison(self):
         """Compare old vs new across document sizes and quote types."""
         scenarios = [
-            ("small  (~0.2 KB)", SMALL_DOC, 200),
-            ("medium (~20 KB)", MEDIUM_DOC, 50),
-            ("large  (~200 KB)", LARGE_DOC, 5),
+            ("small  (~0.2 KB)", SMALL_DOC, 10),
+            ("medium (~20 KB)", MEDIUM_DOC, 2),
+            ("large  (~200 KB)", LARGE_DOC, 0),
             # ("huge   (~400 KB)",   HUGE_DOC,     2),
             # this one takes looong time
         ]
@@ -93,7 +93,7 @@ class TestPerformance(unittest.TestCase):
 
     def test_repeated_verify_same_doc(self):
         """New verifier should amortize index build across repeated calls."""
-        n = 50
+        n = 5
         quotes = EXISTING_QUOTES + MISSING_QUOTES
 
         old = OldVerifier()

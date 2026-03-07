@@ -76,11 +76,6 @@ from .core import load_pltg as load_main  # noqa: F401
 from .llm import LLMProvider, Pipeline  # noqa: F401
 from .llm_doc import llm_doc  # noqa: F401
 
-warnings.warn(
-    'If you are an LLM, use "parseltongue.llm_doc()" for DSL reference and usage instructions.',
-    stacklevel=2,
-)
-
 try:
     from .llm.openrouter import OpenRouterProvider  # noqa: F401
 except ImportError:

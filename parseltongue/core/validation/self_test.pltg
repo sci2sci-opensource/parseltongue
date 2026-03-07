@@ -33,7 +33,7 @@
     (implies ?sufficiently-powerful ?consistency-unprovable)
     :evidence (evidence "README"
         :quotes ("This is not a proof of consistency — Godel tells us that's impossible for sufficiently strong systems — but a practical detection mechanism that catches real-world contradictions between documents, data sources, and reported figures.")
-        :explanation "README acknowledges Gödel's incompleteness: consistency is unprovable from within"))
+        :explanation "README acknowledges Gödel's incompleteness: consistency for sufficiently strong system is unprovable"))
 
 ; Turing: each extension unlocks new derivations but cannot escape the limitation
 (axiom turing-ordinal-extension
@@ -51,8 +51,67 @@
     :bind ((?sufficiently-powerful system-is-powerful) (?consistency-unprovable system-is-powerful))
     :using (goedel-incompleteness system-is-powerful))
 
+; =====================================================================
+; Phase 3: Ordinal extension — reconstructed from loader.pltg AST
+; =====================================================================
+
+(load-document "loader.pltg" "loader.pltg")
+
+; --- Ordinal 1: axiom circular-import-detection and its chain ---
+
+(fact axiom-1-exists true
+    :evidence (evidence "loader.pltg"
+        :quotes ("(axiom circular-import-detection")
+        :explanation "Ordinal 1: axiom circular-import-detection exists"))
+
+(fact axiom-1-produces-theorem true
+    :evidence (evidence "loader.pltg"
+        :quotes ("(derive bound-circular-import circular-import-detection")
+        :explanation "Axiom 1 enables theorem bound-circular-import via :bind"))
+
+(fact axiom-1-chain-extends true
+    :evidence (evidence "loader.pltg"
+        :quotes ("(derive circular-detection-mechanism" "bound-circular-import)")
+        :explanation "bound-circular-import in :using enables higher theorem circular-detection-mechanism"))
+
+; --- Ordinal 2: axiom import-deduplication and its chain ---
+
+(fact axiom-2-exists true
+    :evidence (evidence "loader.pltg"
+        :quotes ("(axiom import-deduplication")
+        :explanation "Ordinal 2: axiom import-deduplication exists"))
+
+(fact axiom-2-produces-theorem true
+    :evidence (evidence "loader.pltg"
+        :quotes ("(derive bound-import-dedup import-deduplication")
+        :explanation "Axiom 2 enables theorem bound-import-dedup via :bind"))
+
+(fact axiom-2-chain-extends true
+    :evidence (evidence "loader.pltg"
+        :quotes ("(derive import-dedup-mechanism" "bound-import-dedup)")
+        :explanation "bound-import-dedup in :using enables higher theorem import-dedup-mechanism"))
+
+; --- Upper theorem requires BOTH chains ---
+
+(fact upper-theorem-requires-both true
+    :evidence (evidence "loader.pltg"
+        :quotes ("(derive safety-mechanism-count" "(count-exists circular-detection-mechanism import-dedup-mechanism run-on-entry-gating-mechanism)")
+        :explanation "safety-mechanism-count is unprovable without both axiom chains — remove either and the count drops"))
+
+; --- Turing instantiation ---
+; Without at least 2 low-level axioms, the upper theorem is unreachable
+
+(derive ordinals-enable-new-proofs turing-ordinal-extension
+    :bind ((?extends-by-ordinals upper-theorem-requires-both)
+           (?transcends-single-system upper-theorem-requires-both))
+    :using (turing-ordinal-extension
+            axiom-1-exists axiom-1-produces-theorem axiom-1-chain-extends
+            axiom-2-exists axiom-2-produces-theorem axiom-2-chain-extends
+            upper-theorem-requires-both))
+
 (print "")
 (print "  Gödel's incompleteness applies:" system-cannot-prove-own-consistency)
+(print "  Ordinal extension exemplified:" ordinals-enable-new-proofs)
 (print "  The system cannot prove its own consistency.")
 (print "")
 (print "========================================")
