@@ -5,6 +5,11 @@ Scenario: An API specification says tokens expire in 30 minutes,
 max 3 sessions, and MD5 must not be used. The implementation has
 1-hour expiry, 5 sessions, and uses MD5 for session IDs.
 Parseltongue catches every divergence.
+
+Intentional mismatches (the point of the demo):
+- Token expiry: spec says 1800s (30 min), impl uses 3600s (60 min)
+- Session limit: spec says max 3, impl allows 5
+- MD5 usage: spec prohibits MD5, impl uses it for session IDs
 """
 
 import json

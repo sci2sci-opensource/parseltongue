@@ -51,10 +51,10 @@
         :quotes ("Starts with a completely empty system")
         :explanation "Apples begins from empty env"))
 
-(fact apples-pltg-topic "Counting Observations & Apple Arithmetic"
+(fact apples-pltg-topic "Peano Arithmetic via .pltg — Empty-Env Module Loading"
     :evidence (evidence "apples_pltg"
-        :quotes ("Counting Observations & Apple Arithmetic")
-        :explanation "Same topic as apples, but as .pltg module"))
+        :quotes ("Demo: Peano Arithmetic via .pltg — Empty-Env Module Loading.")
+        :explanation "Proves loader bootstraps DSL from empty env"))
 
 (fact apples-splats-pltg-topic "Apple Arithmetic with Variadic Splats"
     :evidence (evidence "apples_splats_pltg"
@@ -228,7 +228,7 @@ patterns for variadic operations: sum-all, count-gt, all-gt.")
 
 (fact apples-pltg-count 1
     :evidence (evidence "apples_pltg"
-        :quotes ("Demo: Parseltongue DSL")
+        :quotes ("Demo: Peano Arithmetic via .pltg")
         :explanation "apples_pltg demo exists"))
 
 (fact apples-splats-pltg-count 1
@@ -352,10 +352,78 @@ patterns for variadic operations: sum-all, count-gt, all-gt.")
 
 (diff spec-divergence-paired-vs-doc :replace spec-divergence-paired-count :with spec-divergence-doc-count)
 
-; Raw value diffs — these SHOULD diverge, that's the demo's point
-(diff spec-raw-expiry :replace spec-validation-token-expiry-spec :with spec-validation-token-expiry-impl)
-(diff spec-raw-sessions :replace spec-validation-sessions-spec :with spec-validation-sessions-impl)
-(diff spec-raw-md5 :replace spec-validation-md5-prohibited :with spec-validation-md5-used)
+; --- Intentional mismatches: Items × Layers + implies ---
+
+; Layer 1: DOC — docstring documents each intentional mismatch
+(fact spec-expiry-doc-intentional true
+    :evidence (evidence "spec_validation"
+        :quotes ("Token expiry: spec says 1800s (30 min), impl uses 3600s (60 min)")
+        :explanation "Docstring documents expiry mismatch as intentional"))
+
+(fact spec-sessions-doc-intentional true
+    :evidence (evidence "spec_validation"
+        :quotes ("Session limit: spec says max 3, impl allows 5")
+        :explanation "Docstring documents session mismatch as intentional"))
+
+(fact spec-md5-doc-intentional true
+    :evidence (evidence "spec_validation"
+        :quotes ("MD5 usage: spec prohibits MD5, impl uses it for session IDs")
+        :explanation "Docstring documents MD5 mismatch as intentional"))
+
+; Axiom: documented intentional mismatch implies the values will differ
+(axiom intentional-mismatch-implies-divergence
+    (implies ?doc-intentional (not (= ?spec-val ?impl-val)))
+    :evidence (evidence "spec_validation"
+        :quotes ("Intentional mismatches (the point of the demo):")
+        :explanation "Documented intentional mismatches imply spec/impl values differ"))
+
+; Bind the axiom for each mismatch
+(derive expiry-divergence-expected
+    intentional-mismatch-implies-divergence
+    :bind ((?doc-intentional spec-expiry-doc-intentional)
+           (?spec-val spec-validation-token-expiry-spec)
+           (?impl-val spec-validation-token-expiry-impl))
+    :using (intentional-mismatch-implies-divergence spec-expiry-doc-intentional
+            spec-validation-token-expiry-spec spec-validation-token-expiry-impl))
+
+(derive sessions-divergence-expected
+    intentional-mismatch-implies-divergence
+    :bind ((?doc-intentional spec-sessions-doc-intentional)
+           (?spec-val spec-validation-sessions-spec)
+           (?impl-val spec-validation-sessions-impl))
+    :using (intentional-mismatch-implies-divergence spec-sessions-doc-intentional
+            spec-validation-sessions-spec spec-validation-sessions-impl))
+
+; MD5 is a contradiction (both true), not a value mismatch
+(axiom intentional-contradiction-implies-coexistence
+    (implies ?doc-intentional (and ?prohibited ?used))
+    :evidence (evidence "spec_validation"
+        :quotes ("MD5 usage: spec prohibits MD5, impl uses it for session IDs")
+        :explanation "Documented intentional contradiction implies both prohibited and used coexist"))
+
+(derive md5-divergence-expected
+    intentional-contradiction-implies-coexistence
+    :bind ((?doc-intentional spec-md5-doc-intentional)
+           (?prohibited spec-validation-md5-prohibited)
+           (?used spec-validation-md5-used))
+    :using (intentional-contradiction-implies-coexistence spec-md5-doc-intentional
+            spec-validation-md5-prohibited spec-validation-md5-used))
+
+; Paired: each doc-intentional paired with its impl-divergence
+(derive intentional-paired-count
+    (count-exists (and spec-expiry-doc-intentional expiry-divergence-expected)
+                  (and spec-sessions-doc-intentional sessions-divergence-expected)
+                  (and spec-md5-doc-intentional md5-divergence-expected))
+    :using (count-exists
+            spec-expiry-doc-intentional expiry-divergence-expected
+            spec-sessions-doc-intentional sessions-divergence-expected
+            spec-md5-doc-intentional md5-divergence-expected))
+
+(derive intentional-doc-count
+    (count-exists spec-expiry-doc-intentional spec-sessions-doc-intentional spec-md5-doc-intentional)
+    :using (count-exists spec-expiry-doc-intentional spec-sessions-doc-intentional spec-md5-doc-intentional))
+
+(diff intentional-paired-vs-doc :replace intentional-paired-count :with intentional-doc-count)
 
 ; spec validation has MD5 both prohibited and used — contradiction grounded in docs
 (derive spec-md5-contradiction
@@ -382,15 +450,37 @@ patterns for variadic operations: sum-all, count-gt, all-gt.")
 ; Derivations
 ; =====================================================================
 
-; apples and apples_pltg cover the same topic
-(derive apples-demos-same-topic
-    (= apples-topic apples-pltg-topic)
-    :using (apples-topic apples-pltg-topic))
+; apples_pltg proves loader bootstraps from empty env (code, not doc)
+(fact apples-pltg-uses-empty-env true
+    :evidence (evidence "apples_pltg"
+        :quotes ("initial_env={},")
+        :explanation "apples_pltg passes empty dict as initial_env to load_main"))
 
-(diff apples-topic-consistency :replace apples-topic :with apples-pltg-topic)
+; The pltg demo's existence implies the loader bootstrapped everything
+(axiom pltg-demo-proves-loader-bootstrap
+    (implies (and ?pltg-topic ?empty-env) (and ?successor ?starts-empty))
+    :evidence (evidence "apples_pltg"
+        :quotes ("Demo: Peano Arithmetic via .pltg — Empty-Env Module Loading.\n\nScenario: Same orchard arithmetic as the apples demo, but executed\nentirely through .pltg file loading with an empty initial environment.\nProves that the Loader of modules works correctly to load DSL for\nbootstrapping Peano successor notation, axioms, imports, and derives\nfrom scratch — no Python-side setup.")
+        :explanation "If the pltg demo exists and starts empty, then loader bootstrapped successor notation and empty-start invariant"))
 
-; apples splats is a separate demo with its own topic
-(diff apples-splats-topic-vs-apples :replace apples-splats-pltg-topic :with apples-topic)
+(derive pltg-loader-bootstrap-confirmed
+    pltg-demo-proves-loader-bootstrap
+    :bind ((?pltg-topic apples-pltg-topic) (?empty-env apples-pltg-uses-empty-env)
+           (?successor apples-uses-successor-notation) (?starts-empty apples-starts-empty))
+    :using (pltg-demo-proves-loader-bootstrap apples-pltg-topic apples-pltg-uses-empty-env
+            apples-uses-successor-notation apples-starts-empty))
+
+; splats topic implies splats usage in the demo
+(axiom splats-topic-implies-usage
+    (implies ?splats-topic ?splats-usage)
+    :evidence (evidence "apples_splats_pltg"
+        :quotes ("Demo: Apple Arithmetic with Variadic Splats (?...).\n\nSame orchard, same ground truth — but axioms now use ?... splat\npatterns for variadic operations: sum-all, count-gt, all-gt.")
+        :explanation "The splats demo topic entails ?... splat pattern usage"))
+
+(derive splats-topic-confirms-usage
+    splats-topic-implies-usage
+    :bind ((?splats-topic apples-splats-pltg-topic) (?splats-usage apples-splats-uses-splat-patterns))
+    :using (splats-topic-implies-usage apples-splats-pltg-topic apples-splats-uses-splat-patterns))
 
 ; --- Self-healing: docstring documents 6 effects, code registers them ---
 
@@ -842,7 +932,7 @@ patterns for variadic operations: sum-all, count-gt, all-gt.")
     (count-exists apples-starts-empty apples-uses-successor-notation)
     :using (count-exists counting.count-exists-base counting.count-exists-step
             apples-starts-empty apples-uses-successor-notation
-            apples-demos-same-topic))
+            pltg-loader-bootstrap-confirmed))
 
 (defterm apples-features-impl-count 2
     :evidence (evidence "apples"

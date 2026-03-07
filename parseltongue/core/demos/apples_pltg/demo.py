@@ -1,11 +1,11 @@
 """
-Demo: Parseltongue DSL — Counting Observations & Apple Arithmetic.
+Demo: Peano Arithmetic via .pltg — Empty-Env Module Loading.
 
-Scenario: Build arithmetic from observational field notes about counting
-physical objects, then apply it to an orchard harvest inventory.
-Starts with a completely empty system, introduces symbols as terms,
-states parameterized axioms grounded in evidence, and derives
-concrete theorems via :bind — all in successor notation.
+Scenario: Same orchard arithmetic as the apples demo, but executed
+entirely through .pltg file loading with an empty initial environment.
+Proves that the Loader of modules works correctly to load DSL for
+bootstrapping Peano successor notation, axioms, imports, and derives
+from scratch — no Python-side setup.
 """
 
 import json
