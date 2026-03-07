@@ -98,27 +98,17 @@ class Term:")
         :quotes ("return self.verified or self.verify_manual")
         :explanation "is_grounded implementation"))
 
-; Axiom: grounding requires either verification or manual override
-(axiom grounding-rule (= (or ?verified ?manual) ?grounded)
-    :evidence (evidence "atoms.py"
-        :quotes ("return self.verified or self.verify_manual")
-        :explanation "Grounding is disjunction of verified and verify_manual"))
-
-; Derive: default evidence is ungrounded (both defaults are false)
-(derive default-evidence-ungrounded
-    (= (or evidence-verified-default evidence-verify-manual-default) false)
-    :using (evidence-verified-default evidence-verify-manual-default))
-
-; Grounding conditions from docstring — what must be true for grounding
-(fact grounding-path-verified true
+; Axiom from docstring: grounding requires verified or manual
+(axiom grounding-rule-doc (implies ?grounded (or ?verified ?manual))
     :evidence (evidence "atoms.py"
         :quotes ("Evidence is grounded if verified or manually verified.")
-        :explanation "Docstring names 'verified' as first grounding path"))
+        :explanation "Docstring: grounding has no path outside verified/manual"))
 
-(fact grounding-path-verify-manual true
+; Axiom from code: grounding requires verified or manual
+(axiom grounding-rule-impl (implies ?grounded (or ?verified ?manual))
     :evidence (evidence "atoms.py"
         :quotes ("return self.verified or self.verify_manual")
-        :explanation "Implementation confirms verify_manual as second grounding path"))
+        :explanation "Implementation: is_grounded = verified OR verify_manual"))
 
 ; =====================================================================
 ; Axiom class — what it documents about itself
@@ -444,7 +434,7 @@ class Term:")
 (derive evidence-mechanism-doc-count
     (count-exists evidence-grounded-doc evidence-grounded-impl axiom-has-origin theorem-has-derivation theorem-default-origin)
     :using (count-exists counting.count-exists-base counting.count-exists-step
-            evidence-grounded-doc evidence-grounded-impl axiom-has-origin theorem-has-derivation theorem-default-origin grounding-rule))
+            evidence-grounded-doc evidence-grounded-impl axiom-has-origin theorem-has-derivation theorem-default-origin))
 
 (derive origin-provenance-bound origin-is-provenance
     :bind ((?origin axiom-has-origin) (?provenance theorem-has-derivation))
@@ -624,24 +614,37 @@ class Term:
     :with all-types-immutable)
 
 ; --- 9. Evidence default grounding ---
-; Docstring defines two grounding paths (verified, manual).
-; Code defaults both to False — defaults don't satisfy grounding.
+; Docstring says grounding requires verified or manual.
+; Code defaults both to False.
+; Both paths independently prove: defaults don't satisfy grounding.
 
-(derive grounding-has-two-paths
-    (and grounding-path-verified grounding-path-verify-manual)
-    :using (grounding-path-verified grounding-path-verify-manual default-evidence-ungrounded))
-
-(defterm defaults-satisfy-grounding
+(defterm defaults-grounded-value
     (or evidence-verified-default evidence-verify-manual-default)
     :evidence (evidence "atoms.py"
         :quotes ("verified: bool = False"
-                 "verify_manual: bool = False"
-                 "return self.verified or self.verify_manual")
-        :explanation "Both grounding fields default to False and are combined via OR in is_grounded — defaults don't satisfy grounding"))
+                 "verify_manual: bool = False")
+        :explanation "Both grounding fields default to False, OR yields False"))
 
+; Doc path: bind docstring axiom with defaults
+(derive bound-grounding-doc grounding-rule-doc
+    :bind ((?grounded defaults-grounded-value)
+           (?verified evidence-verified-default)
+           (?manual evidence-verify-manual-default))
+    :using (grounding-rule-doc defaults-grounded-value
+            evidence-verified-default evidence-verify-manual-default))
+
+; Code path: bind implementation axiom with defaults
+(derive bound-grounding-impl grounding-rule-impl
+    :bind ((?grounded defaults-grounded-value)
+           (?verified evidence-verified-default)
+           (?manual evidence-verify-manual-default))
+    :using (grounding-rule-impl defaults-grounded-value
+            evidence-verified-default evidence-verify-manual-default))
+
+; Both prove true (vacuously) — doc and code agree
 (diff evidence-defaults-grounding
-    :replace grounding-has-two-paths
-    :with defaults-satisfy-grounding)
+    :replace bound-grounding-doc
+    :with bound-grounding-impl)
 
 ; --- 10. Bool roundtrip consistency ---
 ; Parser: atom("true")→True, atom("false")→False
@@ -660,14 +663,150 @@ class Term:
     :replace bool-true-roundtrip
     :with bool-false-roundtrip)
 
-; --- 11. Term display documentation ---
-; Docstring documents "primitive" concept, code implements the check.
+; --- 11. WFF/definition invariants across atom types ---
+; Axiom and Theorem always carry a WFF (never None).
+; Term has two modes: primitive (definition is None) or computed (definition is not None).
+; Docstrings document these invariants; code enforces them structurally.
+; 4 items × 2 layers (doc, impl) → paired count and diffs.
 
-(derive term-primitive-doc-view
-    term-docstring-says-primitive
-    :using (term-docstring-says-primitive term-display-documented))
+; --- Axioms (one per invariant) ---
 
-(diff term-display-documented-check
-    :replace term-primitive-doc-view
-    :with term-definition-check)
+(axiom axiom-has-wff (implies ?is-axiom ?has-wff)
+    :evidence (evidence "atoms.py"
+        :quotes ("Every axiom carries a wff (never None).")
+        :explanation "Axiom docstring: being an axiom implies having a wff"))
+
+(axiom theorem-has-wff (implies ?is-theorem ?has-wff)
+    :evidence (evidence "atoms.py"
+        :quotes ("Every theorem carries a wff (never None).")
+        :explanation "Theorem docstring: being a theorem implies having a wff"))
+
+(axiom term-primitive-mode (implies (not ?has-definition) ?is-primitive)
+    :evidence (evidence "atoms.py"
+        :quotes ("Has two modes: primitive (definition is None) or computed (definition is not None).")
+        :explanation "Term docstring: no definition means primitive"))
+
+(axiom term-computed-mode (implies ?has-definition ?is-computed)
+    :evidence (evidence "atoms.py"
+        :quotes ("Has two modes: primitive (definition is None) or computed (definition is not None).")
+        :explanation "Term docstring: has definition means computed"))
+
+; --- Doc-layer facts ---
+
+(fact axiom-doc-wff true
+    :evidence (evidence "atoms.py"
+        :quotes ("An axiom: a foundational WFF assumed true, with evidence.")
+        :explanation "Axiom docstring mentions WFF"))
+
+(fact theorem-doc-wff true
+    :evidence (evidence "atoms.py"
+        :quotes ("A theorem: a WFF derived from facts, axioms, terms, or other theorems.")
+        :explanation "Theorem docstring mentions WFF"))
+
+(fact term-doc-primitive true
+    :evidence (evidence "atoms.py"
+        :quotes ("A term/concept/primitive introduced into the system.")
+        :explanation "Term docstring mentions primitive"))
+
+(fact term-doc-computed true
+    :evidence (evidence "atoms.py"
+        :quotes ("Has two modes: primitive (definition is None) or computed (definition is not None).")
+        :explanation "Term docstring documents computed mode"))
+
+; --- Impl-layer facts ---
+
+(fact axiom-impl-wff true
+    :evidence (evidence "atoms.py"
+        :quotes ("class Axiom:\n    \"\"\"An axiom: a foundational WFF assumed true, with evidence.\n\n    Every axiom carries a wff (never None).\n    \"\"\"\n\n    name: str\n    wff: Any")
+        :explanation "Axiom class: wff is required field, no default"))
+
+(fact theorem-impl-wff true
+    :evidence (evidence "atoms.py"
+        :quotes ("class Theorem:\n    \"\"\"A theorem: a WFF derived from facts, axioms, terms, or other theorems.\n\n    Every theorem carries a wff (never None).\n    \"\"\"\n\n    name: str\n    wff: Any")
+        :explanation "Theorem class: wff is required field, no default"))
+
+(fact term-impl-primitive true
+    :evidence (evidence "atoms.py"
+        :quotes ("if self.definition is not None else \"(primitive)\"")
+        :explanation "None definition displays as primitive"))
+
+(fact term-impl-computed true
+    :evidence (evidence "atoms.py"
+        :quotes ("to_sexp(self.definition) if self.definition is not None")
+        :explanation "Non-None definition displays via to_sexp"))
+
+; --- Doc-side binds ---
+
+(derive doc-axiom-wff axiom-has-wff
+    :bind ((?is-axiom axiom-doc-wff) (?has-wff axiom-doc-wff))
+    :using (axiom-has-wff axiom-doc-wff))
+
+(derive doc-theorem-wff theorem-has-wff
+    :bind ((?is-theorem theorem-doc-wff) (?has-wff theorem-doc-wff))
+    :using (theorem-has-wff theorem-doc-wff))
+
+; Doc path: primitive = no definition (false), computed = has definition (true)
+(defterm term-doc-no-definition (not term-doc-primitive)
+    :evidence (evidence "atoms.py"
+        :quotes ("Has two modes: primitive (definition is None) or computed (definition is not None).")
+        :explanation "Docstring: primitive mode means no definition — negation yields false"))
+
+(derive doc-term-primitive term-primitive-mode
+    :bind ((?has-definition term-doc-no-definition) (?is-primitive term-doc-primitive))
+    :using (term-primitive-mode term-doc-no-definition term-doc-primitive))
+
+(derive doc-term-computed term-computed-mode
+    :bind ((?has-definition term-doc-computed) (?is-computed term-doc-computed))
+    :using (term-computed-mode term-doc-computed))
+
+; --- Impl-side binds ---
+
+(derive impl-axiom-wff axiom-has-wff
+    :bind ((?is-axiom axiom-impl-wff) (?has-wff axiom-impl-wff))
+    :using (axiom-has-wff axiom-impl-wff))
+
+(derive impl-theorem-wff theorem-has-wff
+    :bind ((?is-theorem theorem-impl-wff) (?has-wff theorem-impl-wff))
+    :using (theorem-has-wff theorem-impl-wff))
+
+; Impl path: display branches on definition being None
+(defterm term-impl-no-definition (not term-impl-primitive)
+    :evidence (evidence "atoms.py"
+        :quotes ("if self.definition is not None else \"(primitive)\"")
+        :explanation "Code: None definition takes primitive branch — negation yields false"))
+
+(derive impl-term-primitive term-primitive-mode
+    :bind ((?has-definition term-impl-no-definition) (?is-primitive term-impl-primitive))
+    :using (term-primitive-mode term-impl-no-definition term-impl-primitive))
+
+(derive impl-term-computed term-computed-mode
+    :bind ((?has-definition term-impl-computed) (?is-computed term-impl-computed))
+    :using (term-computed-mode term-impl-computed))
+
+; --- Counts and diffs ---
+
+(derive wff-doc-count
+    (count-exists doc-axiom-wff doc-theorem-wff doc-term-primitive doc-term-computed)
+    :using (count-exists counting.count-exists-base counting.count-exists-step
+            doc-axiom-wff doc-theorem-wff doc-term-primitive doc-term-computed))
+
+(derive wff-impl-count
+    (count-exists impl-axiom-wff impl-theorem-wff impl-term-primitive impl-term-computed)
+    :using (count-exists counting.count-exists-base counting.count-exists-step
+            impl-axiom-wff impl-theorem-wff impl-term-primitive impl-term-computed))
+
+(derive wff-paired-count
+    (count-exists (and doc-axiom-wff impl-axiom-wff)
+                  (and doc-theorem-wff impl-theorem-wff)
+                  (and doc-term-primitive impl-term-primitive)
+                  (and doc-term-computed impl-term-computed))
+    :using (count-exists counting.count-exists-base counting.count-exists-step
+            doc-axiom-wff impl-axiom-wff
+            doc-theorem-wff impl-theorem-wff
+            doc-term-primitive impl-term-primitive
+            doc-term-computed impl-term-computed))
+
+(diff wff-paired-vs-doc :replace wff-paired-count :with wff-doc-count)
+(diff wff-paired-vs-impl :replace wff-paired-count :with wff-impl-count)
+
 

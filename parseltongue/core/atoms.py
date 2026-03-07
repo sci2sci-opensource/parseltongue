@@ -200,7 +200,10 @@ class Evidence:
 
 @dataclass
 class Axiom:
-    """An axiom: a foundational WFF assumed true, with evidence."""
+    """An axiom: a foundational WFF assumed true, with evidence.
+
+    Every axiom carries a wff (never None).
+    """
 
     name: str
     wff: Any
@@ -212,7 +215,10 @@ class Axiom:
 
 @dataclass
 class Theorem:
-    """A theorem: a WFF derived from facts, axioms, terms, or other theorems."""
+    """A theorem: a WFF derived from facts, axioms, terms, or other theorems.
+
+    Every theorem carries a wff (never None).
+    """
 
     name: str
     wff: Any
@@ -226,7 +232,10 @@ class Theorem:
 
 @dataclass
 class Term:
-    """A term/concept/primitive introduced into the system."""
+    """A term/concept/primitive introduced into the system.
+
+    Has two modes: primitive (definition is None) or computed (definition is not None).
+    """
 
     name: str
     definition: Any

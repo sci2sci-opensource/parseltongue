@@ -637,6 +637,9 @@ def _tips() -> str:
 3. **Derive has two modes** — don't mix them:
    - Direct: `(derive name (expression) :using (sources))`
    - Instantiation: `(derive name axiom-name :bind ((?var val)) :using (axiom-name ...))`
+   `:bind` substitutes ?-vars then **evaluates** — result must be `True`.
+   Check polarity: `(implies ?A (not ?B))` needs A=true, B=false.
+   Use `(defterm x (not true-fact))` to get a false-valued binding.
 
 4. **Module namespacing** — imported definitions are prefixed with module name.
    Use `(defterm local-name module.name :origin "import")` for aliases.
@@ -799,6 +802,86 @@ expressions. Connect them via `:using` in derives:
 
 ; The axiom appears in :using — it's a dependency, not an operand
 ```
+
+#### Direct mode (rewrite-eligible axioms)
+
+Rewrite-eligible axioms have the form `(= (list-pattern ...) rhs)` —
+they fire automatically during evaluation and can appear in `:using`
+without `:bind`. Examples: `count-exists` axioms.
+
+#### Instantiation mode (:bind)
+
+Non-rewrite axioms (`implies`, `>`, `(= ?bare-var ...)`) MUST use
+`:bind`. The engine substitutes each `?`-variable with the **resolved
+value** of the bound fact/term, then **evaluates** the result. The
+derive holds only if evaluation returns `True`.
+
+```scheme
+; Axiom: frozen → immutable
+(axiom context-immutability (implies ?frozen (not ?can-mutate))
+    :evidence ...)
+
+; WRONG — both resolve to true → (implies true (not true)) → false
+(derive bad-bind context-immutability
+    :bind ((?frozen is-frozen) (?can-mutate is-mutable))
+    :using (context-immutability is-frozen is-mutable))
+
+; RIGHT — derive a false-valued term for the negative position
+(defterm can-mutate (not is-frozen)
+    :evidence ...)
+(derive good-bind context-immutability
+    :bind ((?frozen is-frozen) (?can-mutate can-mutate))
+    :using (context-immutability is-frozen can-mutate))
+; → (implies true (not false)) → (implies true true) → true
+```
+
+**Polarity rules by axiom shape**:
+
+| Axiom pattern | What must be true after substitution |
+|---|---|
+| `(implies ?A (not ?B))` | A=true, B=false |
+| `(implies ?A ?B)` | A=true,B=true or A=false (vacuous) |
+| `(> ?heavy ?light)` | heavy > light numerically |
+| `(= ?X (- 1.0 ?Y))` | X and Y must be actual numbers |
+| `(= ?X (quote (?a ?b)))` | X must resolve to the same quoted list |
+
+**Common mistakes**:
+- Vibe-based binding: picking facts that "sound related" without
+  checking what they resolve to
+- Boolean-into-arithmetic: binding true/false into `(= ?score (- 1.0 ?penalty))`
+  — use facts with actual numeric values instead
+- Same polarity for both sides: `(implies ?A (not ?B))` with both
+  A and B resolving to true — derive a negation via defterm
+
+**Deriving negations for polarity**:
+```scheme
+; frozen=true, but axiom needs can-mutate=false
+(defterm can-mutate (not is-frozen)
+    :evidence (evidence "source.py"
+        :quotes ("@dataclass(frozen=True)")
+        :explanation "Frozen dataclass prevents mutation"))
+; (not true) → false — gives the axiom the polarity it needs
+```
+
+**Structural quote patterns**:
+```scheme
+; Axiom expects a specific list structure
+(axiom pipeline-shape (= ?pipeline (quote (?first ?second ?rest)))
+    :evidence ...)
+
+; Build the matching structure with a defterm
+(defterm pipeline-seq (quote (case-norm list-flatten dedup))
+    :evidence (evidence "source.py"
+        :quotes ("steps = [case_normalize, list_flatten, dedup]")
+        :explanation "Pipeline steps in order"))
+
+(derive bound-pipeline pipeline-shape
+    :bind ((?pipeline pipeline-seq)
+           (?first case-step) (?second list-step) (?rest dedup-step))
+    :using (pipeline-shape pipeline-seq case-step list-step dedup-step))
+```
+
+#### Axiom-impl backing pattern
 
 For axioms about code behavior (not rewrite rules), create impl
 facts that quote the actual code, then count the impl facts with
