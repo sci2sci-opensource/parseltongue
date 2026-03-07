@@ -743,29 +743,55 @@ downstream = walk_dependents(node)  # stack-based, deduplicates
 
 ## Demos
 
-11 demos covering the full feature set. Each is a standalone script:
+12 demos covering the full feature set. Each is a standalone script. Demos marked `.pltg` are written entirely in Parseltongue — Python only serves as the entry point to configure the environment.
 
-**Apples** ([`demos/apples/`](demos/apples/)) — Peano arithmetic grounded in observational field notes. Introduces primitive symbols (zero, successor), states axioms with `:evidence`, and derives theorems via `:bind` instantiation.
+### Apples ([`demos/apples/`](demos/apples/))
 
-**Apples (.pltg)** ([`demos/apples_pltg/`](demos/apples_pltg/)) — The same apple arithmetic demo, written as a `.pltg` module file instead of Python.
+Peano arithmetic grounded in observational field notes. Introduces primitive symbols (`zero`, `succ`), states axioms with `:evidence` quoting field observations, and derives theorems via `:bind` instantiation. Starts from an empty basket and builds natural number arithmetic from first principles.
 
-**Revenue Reports** ([`demos/revenue_reports/`](demos/revenue_reports/)) — Company performance analysis from Q3 reports, targets memos, and bonus policy documents. Shows quote verification, fabrication propagation, diffs, and manual override.
+### Apples .pltg ([`demos/apples_pltg/`](demos/apples_pltg/))
 
-**Biomarkers** ([`demos/biomarkers/`](demos/biomarkers/)) — Diagnostic marker analysis from competing medical papers. Encodes sensitivity, specificity, and clinical claims, then cross-checks for contradictions between studies.
+The same apple arithmetic, written as `.pltg` modules. Starts from an empty environment — the loader bootstraps a full arithmetic system from primitives, axioms, and imports alone. Demonstrates that the module system can build a complete formal system without any Python code.
 
-**Code Check** ([`demos/code_check/`](demos/code_check/)) — Code implementation checks against documented contracts.
+### Apples Splats .pltg ([`demos/apples_splats_pltg/`](demos/apples_splats_pltg/))
 
-**Doc Validation** ([`demos/doc_validation/`](demos/doc_validation/)) — Documentation validation against source code.
+Variadic arithmetic via `?...` splat patterns. Defines `sum-all`, `count-gt`, and `all-gt` as recursive rewrite axioms grounded in the same field observations, replacing deeply nested binary operations with clean variadic calls. See [Rewrite Axioms as Reusable Functions](#special-technique-rewrite-axioms-as-reusable-functions) for the technique.
 
-**Spec Validation** ([`demos/spec_validation/`](demos/spec_validation/)) — Code-specification cross-validation with diff-based divergence detection.
+### Revenue Reports ([`demos/revenue_reports/`](demos/revenue_reports/))
 
-**Extensibility** ([`demos/extensibility/`](demos/extensibility/)) — System extensibility via custom effects.
+Company performance analysis from Q3 reports, targets memos, and bonus policy documents. Shows quote verification, fabrication propagation, diffs, and manual override. The diff catches a divergence between a reported growth percentage and one recomputed from absolute figures.
 
-**Self-Healing** ([`demos/self_healing/`](demos/self_healing/)) — Self-healing probes via effects that detect and recover from inconsistencies.
+### Biomarkers ([`demos/biomarkers/`](demos/biomarkers/))
 
-**Deferred (.pltg)** ([`demos/deferred_pltg/`](demos/deferred_pltg/)) — `run-on-entry` — deferred directives that only fire for the main file.
+Diagnostic marker analysis from competing medical papers. Encodes sensitivity, specificity, and clinical claims from two independent studies, then cross-checks for contradictions between them. Flags the conflict when two papers disagree about the same biomarker.
 
-**Entry Mocks (.pltg)** ([`demos/entry_mocks_pltg/`](demos/entry_mocks_pltg/)) — `run-on-entry` as a self-contained unit test with `let` and mocks.
+### Code Check ([`demos/code_check/`](demos/code_check/))
+
+Code implementation checks against documented contracts. Extracts facts from source code with verbatim quotes and verifies them against documentation. Catches fabricated quotes via evidence grounding — if the LLM invents a quote that doesn't appear in the source, the system flags it.
+
+### Doc Validation ([`demos/doc_validation/`](demos/doc_validation/))
+
+Internal documentation consistency checking. Extracts facts from a single document — a library README with internally inconsistent claims — and cross-checks them via diffs. Catches contradictions within the document itself: a config table that disagrees with the security section, unverifiable audit claims, and self-contradictory hashing statements.
+
+### Spec Validation ([`demos/spec_validation/`](demos/spec_validation/))
+
+Code-specification cross-validation with diff-based divergence detection. Encodes spec constraints (token expiry, session limits, hash algorithm requirements) alongside implementation values, then diffs them. The divergences are intentional — the demo shows what happens when spec and code disagree.
+
+### Extensibility ([`demos/extensibility/`](demos/extensibility/))
+
+System extensibility via custom effects. Registers a `load-data` effect at construction time — the DSL itself triggers document loading, so the formal system controls its own data ingestion. Effects receive the `System` as their first argument, enabling them to read and modify the system from within DSL expressions.
+
+### Self-Healing ([`demos/self_healing/`](demos/self_healing/))
+
+Self-healing probes: the entire detect-patch-verify-rollback loop is written in DSL, not Python. Six custom effects (`load-data`, `check-diff`, `check-consistency`, `snapshot`, `patch-fact`, `rollback`) drive conditional recovery from inconsistencies. The DSL uses `if` to check a diff, patch the divergent value, re-check consistency, then rollback to the original. See [Effects in Computable Contexts](#special-technique-effects-in-computable-contexts) for the technique.
+
+### Deferred .pltg ([`demos/deferred_pltg/`](demos/deferred_pltg/))
+
+`run-on-entry` — deferred directives that only fire when the file is the main entry point. When imported as a module, the `run-on-entry` blocks are skipped, preventing side effects from firing during import.
+
+### Entry Mocks .pltg ([`demos/entry_mocks_pltg/`](demos/entry_mocks_pltg/))
+
+`run-on-entry` as a self-contained unit test with `let` and mocks. Forward-declares primitive symbols, then uses `let` inside `run-on-entry` to rebind them with mock values and assert invariants. The tests only run when the file is executed directly.
 
 ```bash
 # Run any demo, e.g.:
@@ -776,7 +802,7 @@ python -m parseltongue.core.demos.biomarkers.demo
 
 ## Packaging
 
-The installed package ships `.pltg` module files and `.txt` resource documents alongside Python code via `package-data`. This ensures that demos, validation modules, and the self-validation consistency test all work from an installed package. The `parseltongue/core/tests` directory is included in pytest `testpaths` so that the consistency test runs in CI.
+The installed package ships `.pltg` module files, `.txt` resource documents, and `.md` files alongside Python code via `package-data`. Unstructured text is a first-class citizen in Parseltongue — demos and validation modules load these files as source documents for evidence grounding, so they must be present in the installed package. This ensures that demos, validation modules, and the self-validation consistency test all work from an installed package. The `parseltongue/core/tests` directory is included in pytest `testpaths` so that the consistency test runs in CI.
 
 ## Running Tests
 

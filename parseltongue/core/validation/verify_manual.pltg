@@ -29,8 +29,7 @@
 (verify-manual (quote ast_verifier.count-exists))
 (verify-manual (quote lazy_loader.count-exists))
 
-; --- non-doc-count origins that remain ---
-(verify-manual (quote readme.readme-documents-splat-patterns))
+; --- (deleted: readme.readme-documents-splat-patterns — now has :evidence) ---
 
 ; --- quote_verifier hypothetical bind scenarios ---
 ; Calculation artifacts: concrete values to instantiate axiom ?-vars.

@@ -464,65 +464,137 @@
 ; Demos section — all 11 by name
 ; =====================================================================
 
+; --- Demo listing facts (heading + key claim per demo) ---
+
 (fact readme-demo-apples true
     :evidence (evidence "README"
-        :quotes ("**Apples** ([`demos/apples/`]")
-        :explanation "Apples demo documented"))
+        :quotes ("### Apples ([`demos/apples/`](demos/apples/))")
+        :explanation "Apples demo section"))
+
+(fact readme-demo-apples-successor true
+    :evidence (evidence "README"
+        :quotes ("Introduces primitive symbols (`zero`, `succ`), states axioms with `:evidence` quoting field observations, and derives theorems via `:bind` instantiation.")
+        :explanation "Apples demo introduces successor notation with evidence"))
 
 (fact readme-demo-apples-pltg true
     :evidence (evidence "README"
-        :quotes ("**Apples (.pltg)** ([`demos/apples_pltg/`]")
-        :explanation "Apples pltg demo documented"))
+        :quotes ("### Apples .pltg ([`demos/apples_pltg/`](demos/apples_pltg/))")
+        :explanation "Apples pltg demo section"))
+
+(fact readme-demo-apples-pltg-empty-env true
+    :evidence (evidence "README"
+        :quotes ("Starts from an empty environment — the loader bootstraps a full arithmetic system from primitives, axioms, and imports alone.")
+        :explanation "Apples pltg demo starts from empty environment"))
+
+(fact readme-demo-apples-splats-pltg true
+    :evidence (evidence "README"
+        :quotes ("### Apples Splats .pltg ([`demos/apples_splats_pltg/`](demos/apples_splats_pltg/))")
+        :explanation "Apples splats pltg demo section"))
+
+(fact readme-demo-apples-splats-variadic true
+    :evidence (evidence "README"
+        :quotes ("Defines `sum-all`, `count-gt`, and `all-gt` as recursive rewrite axioms grounded in the same field observations, replacing deeply nested binary operations with clean variadic calls.")
+        :explanation "Apples splats demo defines variadic rewrite axioms"))
 
 (fact readme-demo-revenue true
     :evidence (evidence "README"
-        :quotes ("**Revenue Reports** ([`demos/revenue_reports/`]")
-        :explanation "Revenue demo documented"))
+        :quotes ("### Revenue Reports ([`demos/revenue_reports/`](demos/revenue_reports/))")
+        :explanation "Revenue demo section"))
+
+(fact readme-demo-revenue-features true
+    :evidence (evidence "README"
+        :quotes ("Shows quote verification, fabrication propagation, diffs, and manual override. The diff catches a divergence between a reported growth percentage and one recomputed from absolute figures.")
+        :explanation "Revenue demo shows verification, fabrication, diffs, manual override"))
 
 (fact readme-demo-biomarkers true
     :evidence (evidence "README"
-        :quotes ("**Biomarkers** ([`demos/biomarkers/`]")
-        :explanation "Biomarkers demo documented"))
+        :quotes ("### Biomarkers ([`demos/biomarkers/`](demos/biomarkers/))")
+        :explanation "Biomarkers demo section"))
+
+(fact readme-demo-biomarkers-conflict true
+    :evidence (evidence "README"
+        :quotes ("Encodes sensitivity, specificity, and clinical claims from two independent studies, then cross-checks for contradictions between them. Flags the conflict when two papers disagree about the same biomarker.")
+        :explanation "Biomarkers demo flags conflicts between two papers"))
 
 (fact readme-demo-code-check true
     :evidence (evidence "README"
-        :quotes ("**Code Check** ([`demos/code_check/`]")
-        :explanation "Code Check demo documented"))
+        :quotes ("### Code Check ([`demos/code_check/`](demos/code_check/))")
+        :explanation "Code Check demo section"))
+
+(fact readme-demo-code-check-fabrication true
+    :evidence (evidence "README"
+        :quotes ("Catches fabricated quotes via evidence grounding — if the LLM invents a quote that doesn't appear in the source, the system flags it.")
+        :explanation "Code Check demo catches fabricated quotes"))
 
 (fact readme-demo-doc-validation true
     :evidence (evidence "README"
-        :quotes ("**Doc Validation** ([`demos/doc_validation/`]")
-        :explanation "Doc Validation demo documented"))
+        :quotes ("### Doc Validation ([`demos/doc_validation/`](demos/doc_validation/))")
+        :explanation "Doc Validation demo section"))
+
+(fact readme-demo-doc-validation-internal true
+    :evidence (evidence "README"
+        :quotes ("Internal documentation consistency checking. Extracts facts from a single document — a library README with internally inconsistent claims — and cross-checks them via diffs.")
+        :explanation "Doc Validation demo catches internal document inconsistencies"))
 
 (fact readme-demo-spec-validation true
     :evidence (evidence "README"
-        :quotes ("**Spec Validation** ([`demos/spec_validation/`]")
-        :explanation "Spec Validation demo documented"))
+        :quotes ("### Spec Validation ([`demos/spec_validation/`](demos/spec_validation/))")
+        :explanation "Spec Validation demo section"))
+
+(fact readme-demo-spec-validation-divergence true
+    :evidence (evidence "README"
+        :quotes ("Encodes spec constraints (token expiry, session limits, hash algorithm requirements) alongside implementation values, then diffs them. The divergences are intentional — the demo shows what happens when spec and code disagree.")
+        :explanation "Spec Validation demo shows intentional spec/code divergences"))
 
 (fact readme-demo-extensibility true
     :evidence (evidence "README"
-        :quotes ("**Extensibility** ([`demos/extensibility/`]")
-        :explanation "Extensibility demo documented"))
+        :quotes ("### Extensibility ([`demos/extensibility/`](demos/extensibility/))")
+        :explanation "Extensibility demo section"))
+
+(fact readme-demo-extensibility-effects-receive-system true
+    :evidence (evidence "README"
+        :quotes ("Effects receive the `System` as their first argument, enabling them to read and modify the system from within DSL expressions.")
+        :explanation "Extensibility demo shows effects receiving System"))
 
 (fact readme-demo-self-healing true
     :evidence (evidence "README"
-        :quotes ("**Self-Healing** ([`demos/self_healing/`]")
-        :explanation "Self-Healing demo documented"))
+        :quotes ("### Self-Healing ([`demos/self_healing/`](demos/self_healing/))")
+        :explanation "Self-Healing demo section"))
+
+(fact readme-demo-self-healing-all-dsl true
+    :evidence (evidence "README"
+        :quotes ("the entire detect-patch-verify-rollback loop is written in DSL, not Python.")
+        :explanation "Self-Healing demo is entirely DSL-driven"))
+
+(fact readme-demo-self-healing-six-effects 6
+    :evidence (evidence "README"
+        :quotes ("Six custom effects (`load-data`, `check-diff`, `check-consistency`, `snapshot`, `patch-fact`, `rollback`) drive conditional recovery from inconsistencies.")
+        :explanation "Self-Healing demo uses 6 custom effects"))
 
 (fact readme-demo-deferred true
     :evidence (evidence "README"
-        :quotes ("**Deferred (.pltg)** ([`demos/deferred_pltg/`]")
-        :explanation "Deferred demo documented"))
+        :quotes ("### Deferred .pltg ([`demos/deferred_pltg/`](demos/deferred_pltg/))")
+        :explanation "Deferred demo section"))
+
+(fact readme-demo-deferred-skips-on-import true
+    :evidence (evidence "README"
+        :quotes ("When imported as a module, the `run-on-entry` blocks are skipped, preventing side effects from firing during import.")
+        :explanation "Deferred demo skips run-on-entry on import"))
 
 (fact readme-demo-entry-mocks true
     :evidence (evidence "README"
-        :quotes ("**Entry Mocks (.pltg)** ([`demos/entry_mocks_pltg/`]")
-        :explanation "Entry Mocks demo documented"))
+        :quotes ("### Entry Mocks .pltg ([`demos/entry_mocks_pltg/`](demos/entry_mocks_pltg/))")
+        :explanation "Entry Mocks demo section"))
 
-(fact readme-demo-count 11
+(fact readme-demo-entry-mocks-let true
     :evidence (evidence "README"
-        :quotes ("11 demos covering the full feature set")
-        :explanation "README lists 11 demos"))
+        :quotes ("Forward-declares primitive symbols, then uses `let` inside `run-on-entry` to rebind them with mock values and assert invariants.")
+        :explanation "Entry Mocks demo uses let to rebind and assert"))
+
+(fact readme-demo-count 12
+    :evidence (evidence "README"
+        :quotes ("12 demos covering the full feature set.")
+        :explanation "README lists 12 demos"))
 
 ; =====================================================================
 ; Axiom claims — what README states as rules
@@ -917,25 +989,32 @@
 
 (fact readme-documents-pltg-shipped true
     :evidence (evidence "README"
-        :quotes ("ships .pltg module files")
-        :explanation "README documents that .pltg files are shipped in the package"))
+        :quotes ("The installed package ships `.pltg` module files, `.txt` resource documents, and `.md` files alongside Python code via `package-data`.")
+        :explanation "README documents that .pltg, .txt, and .md files are shipped via package-data"))
 
 (fact readme-documents-txt-shipped true
     :evidence (evidence "README"
-        :quotes (".txt resource documents alongside Python code")
-        :explanation "README documents that .txt resources are shipped"))
+        :quotes ("Unstructured text is a first-class citizen in Parseltongue — demos and validation modules load these files as source documents for evidence grounding, so they must be present in the installed package.")
+        :explanation "README documents unstructured text as first-class citizen requiring shipped resources"))
+
+(fact readme-documents-md-shipped true
+    :evidence (evidence "README"
+        :quotes ("`.md` files alongside Python code via `package-data`.")
+        :explanation "README documents that .md files are shipped via package-data"))
 
 (fact readme-documents-tests-configured true
     :evidence (evidence "README"
-        :quotes ("parseltongue/core/tests directory is included in pytest testpaths")
-        :explanation "README documents that core tests are in pytest testpaths"))
+        :quotes ("The `parseltongue/core/tests` directory is included in pytest `testpaths` so that the consistency test runs in CI.")
+        :explanation "README documents that core tests are in pytest testpaths for CI"))
 
 ; =====================================================================
 ; Splat patterns — README coverage stubs
 ; =====================================================================
 
-(fact readme-documents-splat-patterns false
-    :origin "README does not yet document ?... variadic splat syntax")
+(fact readme-documents-splat-patterns true
+    :evidence (evidence "README"
+        :quotes ("Axioms also support `?...`-prefixed splat variables that collect trailing arguments.")
+        :explanation "README documents ?... variadic splat syntax in axiom description"))
 
 (fact readme-documents-splat-vs-single false
     :origin "README does not yet document difference between ?var (binds one value) and ?...var (binds rest of args)")
@@ -946,8 +1025,7 @@
 (fact readme-documents-splat-substitute false
     :origin "README does not yet document substitute() expanding splat bindings")
 
-(fact readme-documents-splat-demo false
-    :origin "README does not yet document apples_splats demo (variadic splat usage)")
+; (deleted: readme-documents-splat-demo — apples_splats_pltg now in README demos section)
 
 (fact readme-documents-splat-builtins false
     :origin "README does not yet document count-exists and sum-values as built-in splat axioms")
@@ -1020,8 +1098,7 @@
 ; Loader module — README coverage stubs (namespacing resolved above)
 ; =====================================================================
 
-(fact readme-documents-loader-demos false
-    :origin "README does not yet cross-reference which demos demonstrate loader features (apples_pltg, deferred_pltg, entry_mocks_pltg)")
+; (deleted: readme-documents-loader-demos — demos now have individual sections with loader feature details)
 
 ; =====================================================================
 ; Quote verifier module — README coverage stubs
@@ -1540,8 +1617,7 @@
 ; Count mismatches — README stale values
 ; =====================================================================
 
-(fact readme-demo-count-stale false
-    :origin "README says 11 demos but actual count is 12 — missing 12th demo listing")
+; (deleted: readme-demo-count-stale — README now says 12 demos)
 
 ; (readme-effect-count-stale resolved — README now says 8)
 
@@ -1588,14 +1664,14 @@
 ; README says "11 demos" and lists them individually.
 
 (derive readme-demo-listing-count
-    (count-exists readme-demo-apples readme-demo-apples-pltg readme-demo-revenue
-                  readme-demo-biomarkers readme-demo-code-check readme-demo-doc-validation
-                  readme-demo-spec-validation readme-demo-extensibility readme-demo-self-healing
-                  readme-demo-deferred readme-demo-entry-mocks)
-    :using (count-exists readme-demo-apples readme-demo-apples-pltg readme-demo-revenue
-                         readme-demo-biomarkers readme-demo-code-check readme-demo-doc-validation
-                         readme-demo-spec-validation readme-demo-extensibility readme-demo-self-healing
-                         readme-demo-deferred readme-demo-entry-mocks))
+    (count-exists readme-demo-apples readme-demo-apples-pltg readme-demo-apples-splats-pltg
+                  readme-demo-revenue readme-demo-biomarkers readme-demo-code-check
+                  readme-demo-doc-validation readme-demo-spec-validation readme-demo-extensibility
+                  readme-demo-self-healing readme-demo-deferred readme-demo-entry-mocks)
+    :using (count-exists readme-demo-apples readme-demo-apples-pltg readme-demo-apples-splats-pltg
+                         readme-demo-revenue readme-demo-biomarkers readme-demo-code-check
+                         readme-demo-doc-validation readme-demo-spec-validation readme-demo-extensibility
+                         readme-demo-self-healing readme-demo-deferred readme-demo-entry-mocks))
 
 (diff readme-demo-listing-vs-count :replace readme-demo-listing-count :with readme-demo-count)
 
