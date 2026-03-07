@@ -24,10 +24,10 @@ from abc import ABC
 from dataclasses import dataclass
 from typing import Any
 
-from .atoms import Symbol, read_tokens, tokenize
-from .engine import _execute_directive
-from .lang import DSL_KEYWORDS, SPECIAL_FORMS
-from .system import System
+from ..atoms import Symbol, read_tokens, tokenize
+from ..engine import _execute_directive
+from ..lang import DSL_KEYWORDS, SPECIAL_FORMS
+from ..system import System
 
 log = logging.getLogger("parseltongue")
 

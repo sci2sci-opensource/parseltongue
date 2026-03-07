@@ -405,22 +405,22 @@
         :quotes ("\"dangerous_stopword_removal\": 0.31")
         :explanation "Dangerous stopword penalty value"))
 
-; Ordering derives — each proves one step, referencing penalty-ordering axiom
-(derive whitespace-lt-case
-    (< penalty-whitespace-value penalty-case-value)
-    :using (penalty-ordering penalty-whitespace-value penalty-case-value))
+; Ordering derives — each proves one step via penalty-ordering axiom with :bind
+(derive whitespace-lt-case penalty-ordering
+    :bind ((?heavy penalty-case-value) (?light penalty-whitespace-value))
+    :using (penalty-ordering penalty-case-value penalty-whitespace-value))
 
-(derive case-lt-punctuation
-    (< penalty-case-value penalty-punctuation-value)
-    :using (penalty-ordering penalty-case-value penalty-punctuation-value))
+(derive case-lt-punctuation penalty-ordering
+    :bind ((?heavy penalty-punctuation-value) (?light penalty-case-value))
+    :using (penalty-ordering penalty-punctuation-value penalty-case-value))
 
-(derive punctuation-lt-stopword
-    (< penalty-punctuation-value penalty-stopword-value)
-    :using (penalty-ordering penalty-punctuation-value penalty-stopword-value))
+(derive punctuation-lt-stopword penalty-ordering
+    :bind ((?heavy penalty-stopword-value) (?light penalty-punctuation-value))
+    :using (penalty-ordering penalty-stopword-value penalty-punctuation-value))
 
-(derive stopword-lt-dangerous
-    (< penalty-stopword-value penalty-dangerous-value)
-    :using (penalty-ordering penalty-stopword-value penalty-dangerous-value))
+(derive stopword-lt-dangerous penalty-ordering
+    :bind ((?heavy penalty-dangerous-value) (?light penalty-stopword-value))
+    :using (penalty-ordering penalty-dangerous-value penalty-stopword-value))
 
 ; Count of ordering invariants that hold — should be 4
 (derive ordering-invariants-count
@@ -446,9 +446,18 @@
 (derive normalizer-steps-doc-count
     (count-exists normalizer-step-1 normalizer-step-2 normalizer-step-3
                   normalizer-step-4 normalizer-step-5 normalizer-step-6)
-    :using (count-exists pipeline-order-fixed
-                         normalizer-step-1 normalizer-step-2 normalizer-step-3
+    :using (count-exists normalizer-step-1 normalizer-step-2 normalizer-step-3
                          normalizer-step-4 normalizer-step-5 normalizer-step-6))
+
+; Bind pipeline-order-fixed: the 6 steps prove the pipeline has the claimed order
+(derive bound-pipeline-order pipeline-order-fixed
+    :bind ((?pipeline normalizer-step-count)
+           (?case normalizer-step-1) (?lists normalizer-step-2)
+           (?hyphenation normalizer-step-3) (?punctuation normalizer-step-4)
+           (?stopwords normalizer-step-5) (?whitespace normalizer-step-6))
+    :using (pipeline-order-fixed normalizer-step-count
+            normalizer-step-1 normalizer-step-2 normalizer-step-3
+            normalizer-step-4 normalizer-step-5 normalizer-step-6))
 
 (diff normalizer-pipeline-coverage
     :replace normalizer-steps-doc-count
@@ -470,10 +479,16 @@
 ; =====================================================================
 
 ; medium_confidence_threshold == confidence_threshold (both 0.7)
-; confidence-level-rule axiom says thresholds determine levels
 (derive medium-equals-verification-threshold
     (= medium-confidence-threshold verifier-default-threshold)
-    :using (confidence-level-rule medium-confidence-threshold verifier-default-threshold))
+    :using (medium-confidence-threshold verifier-default-threshold))
+
+; Bind confidence-level-rule: medium threshold determines MEDIUM level
+(derive bound-confidence-level confidence-level-rule
+    :bind ((?score verifier-default-threshold) (?threshold medium-confidence-threshold)
+           (?level verifier-confidence-has-level) (?expected-level medium-confidence-threshold))
+    :using (confidence-level-rule verifier-default-threshold medium-confidence-threshold
+            verifier-confidence-has-level))
 
 (derive threshold-count
     (count-exists high-confidence-threshold medium-confidence-threshold verifier-default-threshold)
@@ -491,12 +506,11 @@
     :using (count-exists verifier-default-case-sensitive verifier-default-ignore-punctuation
                          verifier-default-remove-stopwords verifier-default-threshold))
 
-; score-starts-at-one axiom backs confidence computation
+; Confidence computation features
 (derive verifier-confidence-count
     (count-exists verifier-confidence-return-shape verifier-confidence-has-score
                   verifier-confidence-has-level verifier-position-key)
-    :using (count-exists score-starts-at-one
-                         verifier-confidence-return-shape verifier-confidence-has-score
+    :using (count-exists verifier-confidence-return-shape verifier-confidence-has-score
                          verifier-confidence-has-level verifier-position-key))
 
 (diff verifier-defaults-vs-confidence :replace verifier-defaults-count :with verifier-confidence-count)
@@ -505,10 +519,15 @@
 ; Match strategies + dangerous stopwords — counts + diffs
 ; =====================================================================
 
-; collapsed-is-fallback axiom backs the strategy relationship
+; Match strategy count
 (derive match-strategies-count
     (count-exists match-strategy-exact match-strategy-collapsed)
-    :using (count-exists collapsed-is-fallback match-strategy-exact match-strategy-collapsed))
+    :using (count-exists match-strategy-exact match-strategy-collapsed))
+
+; Bind collapsed-is-fallback: exact match first, collapsed as fallback
+(derive bound-collapsed-fallback collapsed-is-fallback
+    :bind ((?exact-match match-strategy-exact) (?try-collapsed match-strategy-collapsed))
+    :using (collapsed-is-fallback match-strategy-exact match-strategy-collapsed))
 
 (derive dangerous-stopwords-count
     (count-exists dangerous-includes-not dangerous-includes-never dangerous-includes-without)
@@ -573,14 +592,37 @@
         words_to_remove = words[1:]")
         :explanation "When all words are stopwords, keeps first word, removes rest"))
 
-; Count impl facts that back axiom claims; axioms listed as :using dependencies
+; Bind axioms to their implementation proofs
+(derive bound-score-starts score-starts-at-one
+    :bind ((?score verifier-confidence-has-score) (?total-penalty score-init-impl))
+    :using (score-starts-at-one verifier-confidence-has-score score-init-impl))
+
+(derive bound-dangerous-not-diluted dangerous-not-diluted
+    :bind ((?is-dangerous dangerous-includes-not) (?penalty dangerous-full-penalty-impl)
+           (?base-penalty penalty-dangerous-config) (?count dangerous-full-penalty-impl))
+    :using (dangerous-not-diluted dangerous-includes-not dangerous-full-penalty-impl penalty-dangerous-config))
+
+(derive bound-regular-diluted regular-stopwords-diluted
+    :bind ((?is-dangerous penalty-stopword-config) (?penalty regular-diluted-penalty-impl)
+           (?base-penalty penalty-stopword-config) (?count regular-diluted-penalty-impl) (?word-count regular-diluted-penalty-impl))
+    :using (regular-stopwords-diluted penalty-stopword-config regular-diluted-penalty-impl))
+
+(derive bound-empty-rejected empty-quote-rejected
+    :bind ((?has-content empty-rejected-impl) (?verified empty-rejected-impl))
+    :using (empty-quote-rejected empty-rejected-impl))
+
+(derive bound-all-stopwords-keep all-stopwords-keep-one
+    :bind ((?all-are-stopwords keep-one-stopword-impl) (?kept keep-one-stopword-impl))
+    :using (all-stopwords-keep-one keep-one-stopword-impl))
+
+; Count impl facts that back axiom claims
 (derive axiom-impl-count
     (count-exists score-init-impl dangerous-full-penalty-impl
                   regular-diluted-penalty-impl empty-rejected-impl
                   keep-one-stopword-impl)
     :using (count-exists
-            score-starts-at-one dangerous-not-diluted regular-stopwords-diluted
-            empty-quote-rejected all-stopwords-keep-one
+            bound-score-starts bound-dangerous-not-diluted bound-regular-diluted
+            bound-empty-rejected bound-all-stopwords-keep
             score-init-impl dangerous-full-penalty-impl
             regular-diluted-penalty-impl empty-rejected-impl
             keep-one-stopword-impl))

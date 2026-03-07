@@ -444,7 +444,11 @@ class Term:")
 (derive evidence-mechanism-doc-count
     (count-exists evidence-grounded-doc evidence-grounded-impl axiom-has-origin theorem-has-derivation theorem-default-origin)
     :using (count-exists counting.count-exists-base counting.count-exists-step
-            evidence-grounded-doc evidence-grounded-impl axiom-has-origin theorem-has-derivation theorem-default-origin grounding-rule origin-is-provenance))
+            evidence-grounded-doc evidence-grounded-impl axiom-has-origin theorem-has-derivation theorem-default-origin grounding-rule))
+
+(derive origin-provenance-bound origin-is-provenance
+    :bind ((?origin axiom-has-origin) (?provenance theorem-has-derivation))
+    :using (origin-is-provenance axiom-has-origin theorem-has-derivation))
 
 (defterm evidence-mechanism-impl-count 5
     :evidence (evidence "atoms.py"
@@ -497,7 +501,11 @@ class Term:")
 (derive term-display-doc-count
     (count-exists term-forward-decl-display term-has-body-display)
     :using (count-exists counting.count-exists-base counting.count-exists-step
-            term-forward-decl-display term-has-body-display term-display-rule))
+            term-forward-decl-display term-has-body-display))
+
+(derive term-display-bound term-display-rule
+    :bind ((?has-definition term-definition-check) (?to-sexp term-has-body-display) (?primitive term-forward-decl-display))
+    :using (term-display-rule term-definition-check term-has-body-display term-forward-decl-display))
 
 (defterm term-display-impl-count 2
     :evidence (evidence "atoms.py"
@@ -562,7 +570,11 @@ class Term:")
 (derive module-purity-contract
     (and module-claims-pure-types module-claims-no-domain)
     :using (module-claims-pure-types module-claims-no-domain
-            module-is-stateless purity-implies-immutable))
+            module-is-stateless))
+
+(derive purity-immutable-bound purity-implies-immutable
+    :bind ((?pure module-claims-pure-types) (?mutable evidence-is-frozen))
+    :using (purity-implies-immutable module-claims-pure-types evidence-is-frozen))
 
 (defterm all-types-immutable
     (and symbol-is-immutable evidence-is-frozen axiom-class-is-frozen

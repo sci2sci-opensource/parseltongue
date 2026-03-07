@@ -29,7 +29,7 @@
 
 (fact readme-rationale-encode-as-logic true
     :evidence (evidence "README"
-        :quotes ("we ask it to encode each of the documents as a logic system")
+        :quotes ("we ask it to encode each of the documents as a **logic system**")
         :explanation "README describes the approach — encode docs as logic"))
 
 (fact readme-rationale-facts-cite-quotes true
@@ -196,7 +196,7 @@
 
 (fact readme-defterm-three-forms true
     :evidence (evidence "README"
-        :quotes ("Terms come in three forms." "A forward declaration introduces a primitive symbol with no body" "A computed term is an expression evaluated on reference" "A conditional term uses if to branch")
+        :quotes ("Terms come in three forms." "A **forward declaration** introduces a primitive symbol with no body" "A **computed term** is an expression evaluated on reference" "A **conditional term** uses `if` to branch")
         :explanation "README describes 3 defterm forms: forward-decl, computed, conditional"))
 
 (fact readme-derive-restricted-eval true
@@ -601,6 +601,41 @@
 
 (fact readme-documents-splat-patterns false
     :origin "README has no mention of ?... splat patterns")
+
+; =====================================================================
+; AST module — README coverage stubs
+; =====================================================================
+
+(fact readme-documents-ast-module false
+    :origin "README does not yet document the AST module (core/ast.py)")
+
+(fact readme-documents-directive-node false
+    :origin "README does not yet document DirectiveNode dataclass")
+
+(fact readme-documents-dependency-graph false
+    :origin "README does not yet document dependency graph resolution")
+
+(fact readme-documents-extract-symbols false
+    :origin "README does not yet document extract_symbols for dep extraction")
+
+; =====================================================================
+; Lazy loader — README coverage stubs
+; =====================================================================
+
+(fact readme-documents-lazy-loader false
+    :origin "README does not yet document the LazyLoader")
+
+(fact readme-documents-fault-tolerance false
+    :origin "README does not yet document fault-tolerant loading")
+
+(fact readme-documents-lazy-load-result false
+    :origin "README does not yet document LazyLoadResult (errors/skipped/loaded)")
+
+(fact readme-documents-lazy-load-pltg false
+    :origin "README does not yet document lazy_load_pltg entry point")
+
+(fact readme-documents-error-cascade false
+    :origin "README does not yet document error cascade / dependent skipping")
 
 ; =====================================================================
 ; Internal consistency — non-tautological diffs only

@@ -1,6 +1,6 @@
 ; loader.pltg — Ground truth from loader.py
 
-(load-document "loader.py" "../loader.py")
+(load-document "loader.py" "../loader/loader.py")
 (import (quote counting))
 (defterm count-exists counting.count-exists :origin "import")
 
@@ -397,18 +397,35 @@
     :using (count-exists effect-consistency-has-raise effect-consistency-has-bool
                          effect-consistency-has-report effect-consistency-default-prints))
 
+; Bind consistency axioms to their mode facts
+(derive bound-consistency-no-args consistency-no-args-prints
+    :bind ((?has-args effect-consistency-default-prints) (?prints-report effect-consistency-default-prints) (?returns-true effect-consistency-default-prints))
+    :using (consistency-no-args-prints effect-consistency-default-prints))
+
+(derive bound-consistency-raise consistency-raise-on-inconsistent
+    :bind ((?mode-is-raise effect-consistency-has-raise) (?is-consistent effect-consistency-has-raise) (?raises-error effect-consistency-has-raise))
+    :using (consistency-raise-on-inconsistent effect-consistency-has-raise))
+
+(derive bound-consistency-bool consistency-bool-no-print
+    :bind ((?mode-is-bool effect-consistency-has-bool) (?returns-consistent-bool effect-consistency-has-bool))
+    :using (consistency-bool-no-print effect-consistency-has-bool))
+
+(derive bound-consistency-report consistency-report-returns-object
+    :bind ((?mode-is-report effect-consistency-has-report) (?returns-report-object effect-consistency-has-report))
+    :using (consistency-report-returns-object effect-consistency-has-report))
+
 ; Axiom count — 4 axioms backing the 4 modes
 (derive consistency-mode-axiom-count
     (count-exists effect-consistency-has-raise effect-consistency-has-bool
                   effect-consistency-has-report effect-consistency-default-prints)
     :using (count-exists effect-consistency-has-raise effect-consistency-has-bool
                          effect-consistency-has-report effect-consistency-default-prints
-                         consistency-no-args-prints consistency-raise-on-inconsistent
-                         consistency-bool-no-print consistency-report-returns-object))
+                         bound-consistency-no-args bound-consistency-raise
+                         bound-consistency-bool bound-consistency-report))
 
 (diff consistency-facts-vs-axioms :replace consistency-mode-fact-count :with consistency-mode-axiom-count)
 
-; Paired: each mode has BOTH a fact and a backing axiom
+; Paired: each mode has BOTH a fact and a bound axiom
 (derive consistency-mode-paired-count
     (count-exists (and effect-consistency-default-prints effect-consistency-default-prints)
                   (and effect-consistency-has-raise effect-consistency-has-raise)
@@ -417,8 +434,8 @@
     :using (count-exists
             effect-consistency-default-prints effect-consistency-has-raise
             effect-consistency-has-bool effect-consistency-has-report
-            consistency-no-args-prints consistency-raise-on-inconsistent
-            consistency-bool-no-print consistency-report-returns-object))
+            bound-consistency-no-args bound-consistency-raise
+            bound-consistency-bool bound-consistency-report))
 
 (diff consistency-paired-vs-facts :replace consistency-mode-paired-count :with consistency-mode-fact-count)
 
@@ -495,29 +512,51 @@
 
 (diff docstring-capabilities-vs-impl :replace docstring-capabilities-count :with docstring-capabilities-impl-count)
 
+; Bind axioms to concrete facts that prove their consequences
+
+; run-on-entry-gating: non-main → skip entry. Consequence: skips-non-main proves it.
+(derive bound-run-on-entry-gating run-on-entry-gating
+    :bind ((?is-main module-context-has-is-main) (?skip-entry effect-run-on-entry-skips-non-main))
+    :using (run-on-entry-gating module-context-has-is-main effect-run-on-entry-skips-non-main))
+
+; circular-import-detection: file-in-stack → raises. Consequence: checks-circular proves it.
+(derive bound-circular-import circular-import-detection
+    :bind ((?file-in-stack loader-tracks-file-stack) (?raises-import-error effect-import-checks-circular))
+    :using (circular-import-detection loader-tracks-file-stack effect-import-checks-circular))
+
+; import-deduplication: already-imported → skip. Consequence: deduplicates proves it.
+(derive bound-import-dedup import-deduplication
+    :bind ((?already-imported loader-deduplicates-imports) (?skips-load effect-import-deduplicates))
+    :using (import-deduplication loader-deduplicates-imports effect-import-deduplicates))
+
 ; run-on-entry only fires for main — consistent with ModuleContext.is_main
 (derive run-on-entry-gating-mechanism
     (and effect-run-on-entry-skips-non-main module-context-has-is-main)
     :using (effect-run-on-entry-skips-non-main module-context-has-is-main
-            run-on-entry-gating))
+            bound-run-on-entry-gating))
 
 ; Circular import detection relies on file stack
 (derive circular-detection-mechanism
     (and loader-detects-circular-imports loader-tracks-file-stack effect-import-checks-circular)
     :using (loader-detects-circular-imports loader-tracks-file-stack effect-import-checks-circular
-            circular-import-detection))
+            bound-circular-import))
 
 ; Import dedup relies on _imported set
 (derive import-dedup-mechanism
     (and loader-deduplicates-imports effect-import-deduplicates)
     :using (loader-deduplicates-imports effect-import-deduplicates
-            import-deduplication))
+            bound-import-dedup))
+
+; namespacing-only-non-main: main → no namespace. Consequence: namespaces-definitions proves it.
+(derive bound-namespacing-only-non-main namespacing-only-non-main
+    :bind ((?is-main module-context-has-is-main) (?namespace-applied loader-namespaces-definitions))
+    :using (namespacing-only-non-main module-context-has-is-main loader-namespaces-definitions))
 
 ; Namespacing has 3 stages — definitions, symbols, context keys
 (derive namespacing-stage-count
     (count-exists loader-namespaces-definitions loader-patches-symbols loader-patches-context)
     :using (count-exists loader-namespaces-definitions loader-patches-symbols loader-patches-context
-            namespacing-only-non-main))
+            bound-namespacing-only-non-main))
 
 ; print effect and context keys are additional behavioral facts
 (derive effect-behavior-count
@@ -532,12 +571,17 @@
 
 ; --- 1. Context architecture ---
 
+; context-immutability: frozen → can't mutate. Consequence: loader-context-frozen proves it.
+(derive bound-context-immutability context-immutability
+    :bind ((?is-frozen loader-context-frozen) (?can-mutate loader-context-frozen))
+    :using (context-immutability loader-context-frozen))
+
 (derive context-arch-doc-count
     (count-exists context-is-abc loader-context-frozen loader-context-model
                   module-context-doc module-context-has-parent module-context-has-is-main)
     :using (count-exists context-is-abc loader-context-frozen loader-context-model
                          module-context-doc module-context-has-parent module-context-has-is-main
-                         context-immutability))
+                         bound-context-immutability))
 
 (derive context-arch-impl-count
     (count-exists context-is-abc loader-context-frozen loader-context-model
@@ -588,7 +632,7 @@
 (derive safety-axiom-count
     (count-exists effect-import-checks-circular effect-import-deduplicates effect-run-on-entry-skips-non-main)
     :using (count-exists effect-import-checks-circular effect-import-deduplicates effect-run-on-entry-skips-non-main
-            circular-import-detection import-deduplication run-on-entry-gating))
+            bound-circular-import bound-import-dedup bound-run-on-entry-gating))
 
 (diff safety-mechanism-vs-axiom :replace safety-mechanism-count :with safety-axiom-count)
 
@@ -615,6 +659,11 @@
 ; Grand paired count — all axioms backed by facts
 ; =====================================================================
 
+; context-resolves-via-registry: module-known → uses registry ctx
+(derive bound-context-resolves context-resolves-via-registry
+    :bind ((?module-known loader-has-names-to-modules) (?uses-registry-ctx effect-context-keys))
+    :using (context-resolves-via-registry loader-has-names-to-modules effect-context-keys))
+
 (derive all-axioms-backed-count
     (count-exists (and effect-run-on-entry-skips-non-main module-context-has-is-main)
                   (and effect-import-checks-circular loader-tracks-file-stack)
@@ -637,11 +686,11 @@
             effect-context-keys effect-load-document-resolves-path
             effect-print-exists loader-detects-circular-imports
             context-is-abc loader-has-names-to-modules
-            run-on-entry-gating circular-import-detection import-deduplication
-            namespacing-only-non-main consistency-no-args-prints
-            consistency-raise-on-inconsistent consistency-bool-no-print
-            consistency-report-returns-object context-immutability
-            context-resolves-via-registry))
+            bound-run-on-entry-gating bound-circular-import bound-import-dedup
+            bound-namespacing-only-non-main bound-consistency-no-args
+            bound-consistency-raise bound-consistency-bool
+            bound-consistency-report bound-context-immutability
+            bound-context-resolves))
 
 (defterm all-axioms-backed-expected 10
     :evidence (evidence "loader.py"

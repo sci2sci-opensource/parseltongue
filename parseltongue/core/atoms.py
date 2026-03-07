@@ -100,6 +100,23 @@ def read_tokens(tokens: list[str]) -> Any:
         return atom(token)
 
 
+_ESCAPE_MAP = {'"': '"', '\\': '\\', 'n': '\n', 't': '\t'}
+
+
+def _unescape(s: str) -> str:
+    """Single-pass string unescape: \\n → newline, \\\\ → \\, \\" → "."""
+    out: list[str] = []
+    i = 0
+    while i < len(s):
+        if s[i] == '\\' and i + 1 < len(s) and s[i + 1] in _ESCAPE_MAP:
+            out.append(_ESCAPE_MAP[s[i + 1]])
+            i += 2
+        else:
+            out.append(s[i])
+            i += 1
+    return ''.join(out)
+
+
 def atom(token: str):
     """Convert a token string to a typed value."""
     try:
@@ -115,7 +132,7 @@ def atom(token: str):
     if token == "false":
         return False
     if token.startswith('"') and token.endswith('"'):
-        return token[1:-1].replace('\\"', '"').replace("\\\\", "\\")
+        return _unescape(token[1:-1])
     if token.startswith(":"):
         return token
     return Symbol(token)
@@ -143,7 +160,7 @@ def to_sexp(obj) -> str:
     elif isinstance(obj, bool):
         return "true" if obj else "false"
     elif isinstance(obj, str) and not isinstance(obj, Symbol):
-        escaped = obj.replace("\\", "\\\\").replace('"', '\\"')
+        escaped = obj.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n").replace("\t", "\\t")
         return f'"{escaped}"'
     else:
         return str(obj)

@@ -1,0 +1,437 @@
+; ast_verifier.pltg — Ground truth from ast.py
+;
+; ast.py provides the DirectiveNode dataclass, parse_directive for
+; extracting dependency metadata from S-expressions, extract_symbols
+; for recursive symbol collection, and resolve_graph for linking
+; nodes into a DAG.
+
+(load-document "ast.py" "../ast.py")
+(import (quote counting))
+(defterm count-exists counting.count-exists :origin "import")
+
+; =====================================================================
+; DirectiveNode fields — 8 fields on the dataclass
+; =====================================================================
+
+(fact node-has-name true
+    :evidence (evidence "ast.py"
+        :quotes ("name: str | None")
+        :explanation "DirectiveNode has a name field (None for effects)"))
+
+(fact node-has-expr true
+    :evidence (evidence "ast.py"
+        :quotes ("expr: list")
+        :explanation "DirectiveNode stores the raw parsed expression"))
+
+(fact node-has-dep-names true
+    :evidence (evidence "ast.py"
+        :quotes ("dep_names: set[str]")
+        :explanation "DirectiveNode stores unresolved dependency names"))
+
+(fact node-has-kind true
+    :evidence (evidence "ast.py"
+        :quotes ("kind: str  # \"fact\", \"axiom\", \"defterm\", \"derive\", \"diff\", \"effect\"")
+        :explanation "DirectiveNode has a kind field with 6 possible values"))
+
+(fact node-has-source-file true
+    :evidence (evidence "ast.py"
+        :quotes ("source_file: str = \"\"")
+        :explanation "DirectiveNode tracks which file defined it"))
+
+(fact node-has-source-order true
+    :evidence (evidence "ast.py"
+        :quotes ("source_order: int = 0")
+        :explanation "DirectiveNode tracks parse order"))
+
+(fact node-has-children true
+    :evidence (evidence "ast.py"
+        :quotes ("children: list[DirectiveNode] = field(default_factory=list, repr=False)")
+        :explanation "DirectiveNode has resolved child references"))
+
+(fact node-has-dependents true
+    :evidence (evidence "ast.py"
+        :quotes ("dependents: list[DirectiveNode] = field(default_factory=list, repr=False)")
+        :explanation "DirectiveNode has reverse dependent references"))
+
+(derive node-field-count
+    (count-exists node-has-name node-has-expr node-has-dep-names node-has-kind
+                  node-has-source-file node-has-source-order node-has-children node-has-dependents)
+    :using (count-exists node-has-name node-has-expr node-has-dep-names node-has-kind
+                         node-has-source-file node-has-source-order node-has-children node-has-dependents))
+
+; =====================================================================
+; DirectiveNode identity — hash by id, eq by identity
+; =====================================================================
+
+(fact node-hash-by-id true
+    :evidence (evidence "ast.py"
+        :quotes ("def __hash__(self):\n        return id(self)")
+        :explanation "DirectiveNode hashes by object identity"))
+
+(fact node-eq-by-identity true
+    :evidence (evidence "ast.py"
+        :quotes ("def __eq__(self, other):\n        return self is other")
+        :explanation "DirectiveNode equality is object identity"))
+
+(derive node-identity-paired
+    (count-exists (and node-hash-by-id node-eq-by-identity))
+    :using (count-exists node-hash-by-id node-eq-by-identity))
+
+; =====================================================================
+; Node kind values — 6 kinds recognized by parse_directive
+; =====================================================================
+
+(fact kind-fact true
+    :evidence (evidence "ast.py"
+        :quotes ("if head == FACT:")
+        :explanation "parse_directive recognizes fact directives"))
+
+(fact kind-axiom true
+    :evidence (evidence "ast.py"
+        :quotes ("elif head == AXIOM:")
+        :explanation "parse_directive recognizes axiom directives"))
+
+(fact kind-defterm true
+    :evidence (evidence "ast.py"
+        :quotes ("elif head == DEFTERM:")
+        :explanation "parse_directive recognizes defterm directives"))
+
+(fact kind-derive true
+    :evidence (evidence "ast.py"
+        :quotes ("elif head == DERIVE:")
+        :explanation "parse_directive recognizes derive directives"))
+
+(fact kind-diff true
+    :evidence (evidence "ast.py"
+        :quotes ("elif head == DIFF:")
+        :explanation "parse_directive recognizes diff directives"))
+
+(fact kind-effect true
+    :evidence (evidence "ast.py"
+        :quotes ("return DirectiveNode(name=None, expr=expr, dep_names=set(), kind=\"effect\", source_order=order)")
+        :explanation "Unrecognized heads become effects"))
+
+(derive kind-count
+    (count-exists kind-fact kind-axiom kind-defterm kind-derive kind-diff kind-effect)
+    :using (count-exists kind-fact kind-axiom kind-defterm kind-derive kind-diff kind-effect))
+
+; =====================================================================
+; extract_symbols behavior
+; =====================================================================
+
+(fact extract-skips-variables true
+    :evidence (evidence "ast.py"
+        :quotes ("if not s.startswith((\"?\", \":\")):\n            out.add(s)")
+        :explanation "extract_symbols skips ?-variables and :-keywords"))
+
+(fact extract-recurses-lists true
+    :evidence (evidence "ast.py"
+        :quotes ("elif isinstance(expr, list):\n        for item in expr:\n            extract_symbols(item, out)")
+        :explanation "extract_symbols recurses into nested lists"))
+
+(derive extract-behavior-count
+    (count-exists extract-skips-variables extract-recurses-lists)
+    :using (count-exists extract-skips-variables extract-recurses-lists))
+
+; =====================================================================
+; parse_directive dependency extraction — per kind
+; =====================================================================
+
+(fact fact-extracts-from-value true
+    :evidence (evidence "ast.py"
+        :quotes ("if len(expr) > 2:\n            extract_symbols(expr[2], deps)")
+        :explanation "Facts extract deps from their value expression"))
+
+(fact derive-extracts-from-body true
+    :evidence (evidence "ast.py"
+        :quotes ("if len(expr) > 2:\n            extract_symbols(expr[2], deps)\n        using = get_keyword(expr, KW_USING, [])")
+        :explanation "Derives extract from body AND :using"))
+
+(fact derive-extracts-from-using true
+    :evidence (evidence "ast.py"
+        :quotes ("using = get_keyword(expr, KW_USING, [])\n        if isinstance(using, list):\n            for s in using:\n                deps.add(str(s))")
+        :explanation "Derives extract from :using list"))
+
+(fact derive-extracts-from-bind true
+    :evidence (evidence "ast.py"
+        :quotes ("bind_raw = get_keyword(expr, KW_BIND, None)\n        if bind_raw is not None:\n            deps.add(str(expr[2]))\n            extract_symbols(bind_raw, deps)")
+        :explanation "Derives with :bind extract the axiom ref and bind values"))
+
+(fact diff-extracts-replace-and-with true
+    :evidence (evidence "ast.py"
+        :quotes ("replace_sym = get_keyword(expr, KW_REPLACE)\n        with_sym = get_keyword(expr, KW_WITH)\n        if replace_sym:\n            deps.add(str(replace_sym))\n        if with_sym:\n            deps.add(str(with_sym))")
+        :explanation "Diffs extract both :replace and :with symbols"))
+
+(fact defterm-extracts-computed-body true
+    :evidence (evidence "ast.py"
+        :quotes ("elif len(expr) >= 3 and not (isinstance(expr[2], str) and expr[2].startswith(\":\")):\n            extract_symbols(expr[2], deps)")
+        :explanation "Defterms extract deps from computed body"))
+
+(derive dep-extraction-count
+    (count-exists fact-extracts-from-value derive-extracts-from-body
+                  derive-extracts-from-using derive-extracts-from-bind
+                  diff-extracts-replace-and-with defterm-extracts-computed-body)
+    :using (count-exists fact-extracts-from-value derive-extracts-from-body
+                         derive-extracts-from-using derive-extracts-from-bind
+                         diff-extracts-replace-and-with defterm-extracts-computed-body))
+
+; =====================================================================
+; resolve_graph behavior
+; =====================================================================
+
+(fact graph-builds-index true
+    :evidence (evidence "ast.py"
+        :quotes ("index: dict[str, DirectiveNode] = {}\n    for node in nodes:\n        if node.name is not None:\n            index[node.name] = node")
+        :explanation "resolve_graph builds name->node index, skipping unnamed"))
+
+(fact graph-links-children true
+    :evidence (evidence "ast.py"
+        :quotes ("node.children.append(dep_node)")
+        :explanation "resolve_graph populates children from dep_names"))
+
+(fact graph-links-dependents true
+    :evidence (evidence "ast.py"
+        :quotes ("dep_node.dependents.append(node)")
+        :explanation "resolve_graph populates reverse dependents"))
+
+(fact graph-ignores-external true
+    :evidence (evidence "ast.py"
+        :quotes ("dep_node = index.get(dep_name)\n            if dep_node is not None:")
+        :explanation "External deps (not in node list) are silently ignored"))
+
+(derive graph-behavior-count
+    (count-exists graph-builds-index graph-links-children graph-links-dependents graph-ignores-external)
+    :using (count-exists graph-builds-index graph-links-children graph-links-dependents graph-ignores-external))
+
+; =====================================================================
+; walk_dependents — transitive traversal
+; =====================================================================
+
+(fact walk-uses-stack true
+    :evidence (evidence "ast.py"
+        :quotes ("stack = list(self.dependents)\n        while stack:\n            node = stack.pop()")
+        :explanation "walk_dependents uses iterative stack traversal"))
+
+(fact walk-deduplicates true
+    :evidence (evidence "ast.py"
+        :quotes ("seen: set[str] = set()\n        stack = list(self.dependents)\n        while stack:\n            node = stack.pop()\n            if node.name and node.name not in seen:\n                seen.add(node.name)")
+        :explanation "walk_dependents deduplicates by name"))
+
+(derive walk-behavior-count
+    (count-exists walk-uses-stack walk-deduplicates)
+    :using (count-exists walk-uses-stack walk-deduplicates))
+
+; =====================================================================
+; Axioms: structural invariants
+; =====================================================================
+
+(axiom effects-have-no-name
+    (implies (= ?kind "effect") (= ?name "None"))
+    :evidence (evidence "ast.py"
+        :quotes ("return DirectiveNode(name=None, expr=expr, dep_names=set(), kind=\"effect\", source_order=order)")
+        :explanation "Effects always have name=None"))
+
+(axiom children-and-dependents-are-inverse
+    (implies ?child-link ?dependent-link)
+    :evidence (evidence "ast.py"
+        :quotes ("node.children.append(dep_node)\n                dep_node.dependents.append(node)")
+        :explanation "If A is child of B, then B is dependent of A — always paired"))
+
+(axiom identity-hashing-enables-set-membership
+    (implies (and ?hash-by-id ?eq-by-identity) ?usable-in-sets)
+    :evidence (evidence "ast.py"
+        :quotes ("def __hash__(self):\n        return id(self)\n\n    def __eq__(self, other):\n        return self is other")
+        :explanation "Identity hash+eq makes nodes usable as dict keys and set members"))
+
+; =====================================================================
+; Module structure: 3 public functions + 1 class
+; =====================================================================
+
+(fact has-directive-node-class true
+    :evidence (evidence "ast.py"
+        :quotes ("class DirectiveNode:")
+        :explanation "ast.py exports DirectiveNode"))
+
+(fact has-extract-symbols-fn true
+    :evidence (evidence "ast.py"
+        :quotes ("def extract_symbols(expr: Any, out: set[str]) -> None:")
+        :explanation "ast.py exports extract_symbols"))
+
+(fact has-parse-directive-fn true
+    :evidence (evidence "ast.py"
+        :quotes ("def parse_directive(expr: Any, order: int = 0) -> DirectiveNode:")
+        :explanation "ast.py exports parse_directive"))
+
+(fact has-resolve-graph-fn true
+    :evidence (evidence "ast.py"
+        :quotes ("def resolve_graph(nodes: list[DirectiveNode]) -> dict[str, DirectiveNode]:")
+        :explanation "ast.py exports resolve_graph"))
+
+(derive public-api-count
+    (count-exists has-directive-node-class has-extract-symbols-fn has-parse-directive-fn has-resolve-graph-fn)
+    :using (count-exists has-directive-node-class has-extract-symbols-fn has-parse-directive-fn has-resolve-graph-fn))
+
+; =====================================================================
+; Docstring layer — module docstring enumerates what DirectiveNode carries
+; =====================================================================
+
+(fact doc-carries-name true
+    :evidence (evidence "ast.py"
+        :quotes ("- The defined name (if any)")
+        :explanation "Module docstring lists name as a carried field"))
+
+(fact doc-carries-expr true
+    :evidence (evidence "ast.py"
+        :quotes ("- The raw expression for later execution")
+        :explanation "Module docstring lists expression as a carried field"))
+
+(fact doc-carries-dep-names true
+    :evidence (evidence "ast.py"
+        :quotes ("- The set of symbol dependency names (unresolved)")
+        :explanation "Module docstring lists dep names as a carried field"))
+
+(fact doc-carries-graph-refs true
+    :evidence (evidence "ast.py"
+        :quotes ("- Resolved child/dependent node references (the actual graph)")
+        :explanation "Module docstring lists graph references as a carried field"))
+
+(fact doc-carries-kind true
+    :evidence (evidence "ast.py"
+        :quotes ("- The directive kind (fact, axiom, defterm, derive, diff, effect)")
+        :explanation "Module docstring lists kind as a carried field"))
+
+(derive doc-carries-count
+    (count-exists doc-carries-name doc-carries-expr doc-carries-dep-names doc-carries-graph-refs doc-carries-kind)
+    :using (count-exists doc-carries-name doc-carries-expr doc-carries-dep-names doc-carries-graph-refs doc-carries-kind))
+
+; =====================================================================
+; Docstring layer — kind comment enumerates kind values
+; =====================================================================
+
+(fact kind-comment-fact true
+    :evidence (evidence "ast.py"
+        :quotes ("kind: str  # \"fact\", \"axiom\", \"defterm\", \"derive\", \"diff\", \"effect\"")
+        :explanation "Kind comment lists fact"))
+
+(fact kind-comment-axiom true
+    :evidence (evidence "ast.py"
+        :quotes ("kind: str  # \"fact\", \"axiom\", \"defterm\", \"derive\", \"diff\", \"effect\"")
+        :explanation "Kind comment lists axiom"))
+
+(fact kind-comment-defterm true
+    :evidence (evidence "ast.py"
+        :quotes ("kind: str  # \"fact\", \"axiom\", \"defterm\", \"derive\", \"diff\", \"effect\"")
+        :explanation "Kind comment lists defterm"))
+
+(fact kind-comment-derive true
+    :evidence (evidence "ast.py"
+        :quotes ("kind: str  # \"fact\", \"axiom\", \"defterm\", \"derive\", \"diff\", \"effect\"")
+        :explanation "Kind comment lists derive"))
+
+(fact kind-comment-diff true
+    :evidence (evidence "ast.py"
+        :quotes ("kind: str  # \"fact\", \"axiom\", \"defterm\", \"derive\", \"diff\", \"effect\"")
+        :explanation "Kind comment lists diff"))
+
+(fact kind-comment-effect true
+    :evidence (evidence "ast.py"
+        :quotes ("kind: str  # \"fact\", \"axiom\", \"defterm\", \"derive\", \"diff\", \"effect\"")
+        :explanation "Kind comment lists effect"))
+
+(derive kind-comment-count
+    (count-exists kind-comment-fact kind-comment-axiom kind-comment-defterm kind-comment-derive kind-comment-diff kind-comment-effect)
+    :using (count-exists kind-comment-fact kind-comment-axiom kind-comment-defterm kind-comment-derive kind-comment-diff kind-comment-effect))
+
+; =====================================================================
+; Docstring layer — class docstring names graph-related fields
+; =====================================================================
+
+(fact class-doc-dep-names true
+    :evidence (evidence "ast.py"
+        :quotes ("``dep_names`` holds the raw symbol names extracted during parsing.")
+        :explanation "Class docstring documents dep_names"))
+
+(fact class-doc-children true
+    :evidence (evidence "ast.py"
+        :quotes ("``children`` is populated later by ``resolve_graph`` — it contains\n    references to the DirectiveNode objects this node depends on.")
+        :explanation "Class docstring documents children"))
+
+(fact class-doc-dependents true
+    :evidence (evidence "ast.py"
+        :quotes ("``dependents`` is the reverse: nodes that depend on this one.")
+        :explanation "Class docstring documents dependents"))
+
+(derive class-doc-graph-field-count
+    (count-exists class-doc-dep-names class-doc-children class-doc-dependents)
+    :using (count-exists class-doc-dep-names class-doc-children class-doc-dependents))
+
+; Count the actual graph-related fields from the impl layer
+(derive impl-graph-field-count
+    (count-exists node-has-dep-names node-has-children node-has-dependents)
+    :using (count-exists node-has-dep-names node-has-children node-has-dependents))
+
+; =====================================================================
+; Docstring layer — resolve_graph and walk_dependents
+; =====================================================================
+
+(fact resolve-graph-doc-ignores-external true
+    :evidence (evidence "ast.py"
+        :quotes ("External dependencies (names not in\n    the node list) are silently ignored")
+        :explanation "resolve_graph docstring documents external dep handling"))
+
+(fact walk-doc-transitive true
+    :evidence (evidence "ast.py"
+        :quotes ("All transitive dependents (the subtree that breaks if this fails).")
+        :explanation "walk_dependents docstring claims transitive traversal"))
+
+; =====================================================================
+; Items × Layers diffs — docstring vs implementation
+; =====================================================================
+
+; Module docstring carries (5) vs actual fields (8) — docstring omits
+; source_file, source_order, children-as-field, dependents-as-field
+; (graph refs are described as one bullet covering children+dependents)
+(diff doc-carries-vs-fields :replace doc-carries-count :with node-field-count)
+
+; Kind comment (6) vs parse_directive branches (6)
+(diff kind-comment-vs-branches :replace kind-comment-count :with kind-count)
+
+; Each kind branch has its own dep-extraction logic
+(diff kind-vs-dep-extraction :replace kind-count :with dep-extraction-count)
+
+; Class docstring graph fields (3) vs actual graph fields (3)
+(diff class-doc-vs-graph-fields :replace class-doc-graph-field-count :with impl-graph-field-count)
+
+; resolve_graph docstring says ignores external, code confirms
+(diff resolve-doc-vs-impl :replace resolve-graph-doc-ignores-external :with graph-ignores-external)
+
+; walk_dependents: docstring transitive + impl uses stack + impl deduplicates
+(derive walk-paired
+    (count-exists (and walk-doc-transitive walk-uses-stack)
+                  (and walk-doc-transitive walk-deduplicates))
+    :using (count-exists walk-doc-transitive walk-uses-stack walk-deduplicates))
+
+(derive walk-impl-count
+    (count-exists walk-uses-stack walk-deduplicates)
+    :using (count-exists walk-uses-stack walk-deduplicates))
+
+(diff walk-paired-vs-impl :replace walk-paired :with walk-impl-count)
+
+; Identity: hash and eq must both be overridden — paired coverage
+(derive identity-paired
+    (count-exists (and node-hash-by-id node-eq-by-identity))
+    :using (count-exists node-hash-by-id node-eq-by-identity))
+
+; Each public API export is paired with at least one behavior fact
+(derive api-paired
+    (count-exists (and has-directive-node-class node-has-kind)
+                  (and has-extract-symbols-fn extract-skips-variables)
+                  (and has-parse-directive-fn kind-fact)
+                  (and has-resolve-graph-fn graph-builds-index))
+    :using (count-exists
+            has-directive-node-class node-has-kind
+            has-extract-symbols-fn extract-skips-variables
+            has-parse-directive-fn kind-fact
+            has-resolve-graph-fn graph-builds-index))
+
+(diff api-paired-vs-count :replace api-paired :with public-api-count)

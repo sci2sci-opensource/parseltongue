@@ -1098,16 +1098,52 @@ patterns for variadic operations: sum-all, count-gt, all-gt.")
     :replace spec-validation-features-doc-count
     :with spec-validation-features-impl-count)
 
-; --- 12. Module system axioms ---
+; --- 12. Module system axioms --- bound instantiations
+
+(derive bound-alias-resolves alias-resolves
+    :bind ((?alias alias-local-zero-exists) (?m-symbol alias-local-zero-used-in-bind))
+    :using (alias-resolves alias-local-zero-exists alias-local-zero-used-in-bind))
+
+(derive bound-defterm-alias-is-lazy defterm-alias-is-lazy
+    :bind ((?alias no-explicit-lazy-label) (?target let-rebinds-bare-alias))
+    :using (defterm-alias-is-lazy no-explicit-lazy-label let-rebinds-bare-alias))
+
+(derive bound-let-rebind-proves-lazy let-rebind-proves-lazy
+    :bind ((?let-can-rebind-bare let-rebinds-bare-alias) (?eagerly-resolved no-explicit-lazy-label))
+    :using (let-rebind-proves-lazy let-rebinds-bare-alias no-explicit-lazy-label))
+
+(derive bound-forward-decl-produces-formal forward-decl-produces-formal
+    :bind ((?t primitives-are-forward-declared) (?x afternoon-uses-without-import))
+    :using (forward-decl-produces-formal primitives-are-forward-declared afternoon-uses-without-import))
+
+(derive bound-run-on-entry-gate run-on-entry-gate
+    :bind ((?is-main lib-has-run-on-entry) (?run-on-entry app-has-run-on-entry))
+    :using (run-on-entry-gate lib-has-run-on-entry app-has-run-on-entry))
+
+(derive bound-let-rebinds-forward-decl let-rebinds-forward-decl
+    :bind ((?is-forward-declared entry-mocks-primitives-forward-declared) (?has-mock-value let-mock-rebinds-zero) (?is-computable let-mock-asserts))
+    :using (let-rebinds-forward-decl entry-mocks-primitives-forward-declared let-mock-rebinds-zero let-mock-asserts))
+
+(derive bound-import-transitive import-transitive
+    :bind ((?a-imports-b chain-demo-imports-app) (?b-imports-c chain-app-imports-lib) (?a-has-c chain-lib-has-facts))
+    :using (import-transitive chain-demo-imports-app chain-app-imports-lib chain-lib-has-facts))
+
+(derive bound-cross-module-bind cross-module-bind
+    :bind ((?axiom-in-module cross-bind-mixes-namespaces) (?bindings-from-local cross-bind-multiple-axioms) (?theorem-instantiated cross-bind-mixes-namespaces))
+    :using (cross-module-bind cross-bind-mixes-namespaces cross-bind-multiple-axioms))
+
+(derive bound-dot-import-resolves dot-import-resolves
+    :bind ((?dot-separated-name chain-demo-imports-app) (?maps-to-path flat-import-also-works))
+    :using (dot-import-resolves chain-demo-imports-app flat-import-also-works))
 
 (derive module-axioms-doc-count
     (count-exists alias-local-zero-exists let-rebinds-bare-alias primitives-are-forward-declared lib-has-run-on-entry let-mock-rebinds-zero chain-demo-imports-app cross-bind-mixes-namespaces)
     :using (count-exists counting.count-exists-base counting.count-exists-step
             alias-local-zero-exists let-rebinds-bare-alias primitives-are-forward-declared
             lib-has-run-on-entry let-mock-rebinds-zero chain-demo-imports-app cross-bind-mixes-namespaces
-            alias-resolves defterm-alias-is-lazy forward-decl-produces-formal
-            run-on-entry-gate let-rebind-proves-lazy let-rebinds-forward-decl
-            import-transitive cross-module-bind dot-import-resolves))
+            bound-alias-resolves bound-defterm-alias-is-lazy bound-forward-decl-produces-formal
+            bound-run-on-entry-gate bound-let-rebind-proves-lazy bound-let-rebinds-forward-decl
+            bound-import-transitive bound-cross-module-bind bound-dot-import-resolves))
 
 (defterm module-axioms-impl-count 7
     :evidence (evidence "apples_demo_pltg"

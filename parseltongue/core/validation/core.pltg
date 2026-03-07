@@ -10,6 +10,8 @@
 (import (quote readme))
 (import (quote demos))
 (import (quote loader))
+(import (quote ast_verifier))
+(import (quote lazy_loader))
 (import (quote pyproject))
 (import (quote verify_manual))
 
@@ -312,6 +314,72 @@
 (diff splat-readme-vs-demo
     :replace readme.readme-documents-splat-patterns
     :with demos.apples-splats-pltg-topic)
+
+; =====================================================================
+; AST module: kind count vs lang directive count
+; =====================================================================
+
+(print "")
+(print "--- AST vs lang ---")
+(print "  AST kind count:" ast_verifier.kind-count)
+(print "  Lang directive count + effect:" lang.module-doc-directive-count)
+
+; =====================================================================
+; Lazy loader: fault tolerance vs loader effects
+; =====================================================================
+
+(print "")
+(print "--- Lazy loader ---")
+(print "  Phases:" lazy_loader.phase-count)
+(print "  Fault tolerance mechanisms:" lazy_loader.fault-tolerance-count)
+
+; =====================================================================
+; README coverage stubs — AST
+; =====================================================================
+
+(print "")
+(print "--- README vs AST ---")
+(print "  README documents AST module:" readme.readme-documents-ast-module)
+(print "  AST public API count:" ast_verifier.public-api-count)
+(diff readme-vs-ast-module :replace readme.readme-documents-ast-module :with ast_verifier.public-api-count)
+
+(print "  README documents DirectiveNode:" readme.readme-documents-directive-node)
+(print "  DirectiveNode field count:" ast_verifier.node-field-count)
+(diff readme-vs-directive-node :replace readme.readme-documents-directive-node :with ast_verifier.node-field-count)
+
+(print "  README documents dep graph:" readme.readme-documents-dependency-graph)
+(print "  Graph behavior count:" ast_verifier.graph-behavior-count)
+(diff readme-vs-dep-graph :replace readme.readme-documents-dependency-graph :with ast_verifier.graph-behavior-count)
+
+(print "  README documents extract_symbols:" readme.readme-documents-extract-symbols)
+(print "  Extract behavior count:" ast_verifier.extract-behavior-count)
+(diff readme-vs-extract-symbols :replace readme.readme-documents-extract-symbols :with ast_verifier.extract-behavior-count)
+
+; =====================================================================
+; README coverage stubs — Lazy loader
+; =====================================================================
+
+(print "")
+(print "--- README vs Lazy loader ---")
+(print "  README documents lazy loader:" readme.readme-documents-lazy-loader)
+(print "  Lazy loader phase count:" lazy_loader.phase-count)
+(diff readme-vs-lazy-loader :replace readme.readme-documents-lazy-loader :with lazy_loader.phase-count)
+
+(print "  README documents fault tolerance:" readme.readme-documents-fault-tolerance)
+(print "  Fault tolerance count:" lazy_loader.fault-tolerance-count)
+(diff readme-vs-fault-tolerance :replace readme.readme-documents-fault-tolerance :with lazy_loader.fault-tolerance-count)
+
+(print "  README documents LazyLoadResult:" readme.readme-documents-lazy-load-result)
+(print "  Result method count:" lazy_loader.result-method-count)
+(diff readme-vs-lazy-load-result :replace readme.readme-documents-lazy-load-result :with lazy_loader.result-method-count)
+
+(print "  README documents lazy_load_pltg:" readme.readme-documents-lazy-load-pltg)
+(print "  Entry point count:" lazy_loader.entry-point-count)
+(diff readme-vs-lazy-load-pltg :replace readme.readme-documents-lazy-load-pltg :with lazy_loader.entry-point-count)
+
+(print "  README documents error cascade:" readme.readme-documents-error-cascade)
+(print "  Fault tolerance count:" lazy_loader.fault-tolerance-count)
+(diff readme-vs-error-cascade :replace readme.readme-documents-error-cascade :with lazy_loader.fault-tolerance-count)
 
 (print "")
 (print "========================================")

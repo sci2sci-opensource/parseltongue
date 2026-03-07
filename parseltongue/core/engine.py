@@ -996,6 +996,24 @@ def _execute_directive(engine: Engine, expr):
                 axiom_name = str(wff)
                 log.warning("Derive '%s' used axiom name '%s' as WFF — auto-expanding", name, axiom_name)
                 wff = engine.axioms[axiom_name].wff
+            # Check: non-rewrite axioms in :using without :bind is an error.
+            # Rewrite-eligible axioms have form (= <list-pattern> <rhs>) and fire
+            # automatically during evaluation. All other axioms (implies, etc.)
+            # can only be used via :bind.
+            for u in using:
+                if u in engine.axioms:
+                    ax = engine.axioms[u]
+                    w = ax.wff
+                    is_rewrite = isinstance(w, list) and len(w) == 3 and w[0] == EQ and isinstance(w[1], list)
+                    if not is_rewrite:
+                        ax_vars = free_vars(w)
+                        raise ValueError(
+                            f"Derive '{name}' references axiom '{u}' in :using without :bind. "
+                            f"Axiom has ?-variables {{{', '.join(str(v) for v in ax_vars)}}} "
+                            f"that must be bound via :bind. "
+                            f"(Rewrite-rule axioms with form (= <pattern> <rhs>) are allowed "
+                            f"in :using without :bind.)"
+                        )
         engine.derive(name, wff, using)
 
     elif head == DIFF:

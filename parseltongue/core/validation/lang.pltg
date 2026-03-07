@@ -310,7 +310,7 @@ SPLAT_PREFIX = \"?...\"")
 (derive axiom-evidence-doc-count
     (count-exists axiom-doc-rejects-ground parse-evidence-doc parse-evidence-expected-form)
     :using (count-exists counting.count-exists-base counting.count-exists-step
-            axiom-doc-rejects-ground parse-evidence-doc parse-evidence-expected-form keywords-are-strings))
+            axiom-doc-rejects-ground parse-evidence-doc parse-evidence-expected-form))
 
 (defterm axiom-evidence-impl-count 3
     :evidence (evidence "lang.py"

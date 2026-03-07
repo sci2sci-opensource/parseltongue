@@ -118,12 +118,24 @@
 
 (diff package-data-vs-usage :replace package-data-doc-count :with package-data-usage-count)
 
-; --- 2. Breakage axioms ---
+; --- 2. Breakage axioms (bound to concrete facts) ---
+
+(derive bound-pltg-breakage missing-pltg-breaks-install
+    :bind ((?uses-pltg project-ships-pltg-modules) (?ships-pltg package-data-includes-pltg) (?install-broken pltg-shipping-ok))
+    :using (missing-pltg-breaks-install project-ships-pltg-modules package-data-includes-pltg pltg-shipping-ok))
+
+(derive bound-txt-breakage missing-txt-breaks-demos
+    :bind ((?uses-txt demos-use-txt-resources) (?ships-txt package-data-includes-txt) (?demos-broken txt-shipping-ok))
+    :using (missing-txt-breaks-demos demos-use-txt-resources package-data-includes-txt txt-shipping-ok))
+
+(derive bound-tests-breakage missing-tests-breaks-ci
+    :bind ((?validation-exists validation-uses-pltg) (?tests-configured core-tests-in-testpaths) (?ci-broken ci-runs-consistency))
+    :using (missing-tests-breaks-ci validation-uses-pltg core-tests-in-testpaths ci-runs-consistency))
 
 (derive breakage-axioms-count
     (count-exists project-ships-pltg-modules validation-uses-pltg demos-use-txt-resources)
     :using (count-exists
-            missing-pltg-breaks-install missing-txt-breaks-demos missing-tests-breaks-ci
+            bound-pltg-breakage bound-txt-breakage bound-tests-breakage
             project-ships-pltg-modules validation-uses-pltg demos-use-txt-resources))
 
 ; --- 3. Shipping derives ---
