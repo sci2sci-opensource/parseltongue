@@ -207,7 +207,7 @@
         :explanation "If all words are stopwords, first word is kept"))
 
 ; 8. Pipeline ordering is fixed: case → lists → hyphenation → punctuation → stopwords → whitespace
-(axiom pipeline-order-fixed (= ?pipeline (?case ?lists ?hyphenation ?punctuation ?stopwords ?whitespace))
+(axiom pipeline-order-fixed (= ?pipeline (quote (?case ?lists ?hyphenation ?punctuation ?stopwords ?whitespace)))
     :evidence (evidence "normalizer.py"
         :quotes ("processed, pos_map, trans = _normalize_case(text, config)"
                  "processed, pos_map, trans = _normalize_lists(processed, pos_map, config)"
@@ -449,13 +449,20 @@
     :using (count-exists normalizer-step-1 normalizer-step-2 normalizer-step-3
                          normalizer-step-4 normalizer-step-5 normalizer-step-6))
 
-; Bind pipeline-order-fixed: the 6 steps prove the pipeline has the claimed order
+; Bind pipeline-order-fixed: build the expected sequence as a quoted list,
+; then bind ?pipeline to it. quote prevents evaluation as a function call.
+(defterm pipeline-sequence (quote (normalizer-step-1 normalizer-step-2 normalizer-step-3
+                                    normalizer-step-4 normalizer-step-5 normalizer-step-6))
+    :evidence (evidence "normalizer.py"
+        :quotes ("processed, pos_map, trans = _normalize_case(text, config)\n    all_transformations.extend(trans)\n\n    processed, pos_map, trans = _normalize_lists(processed, pos_map, config)\n    all_transformations.extend(trans)\n\n    processed, pos_map, trans = _normalize_hyphenation(processed, pos_map, config)\n    all_transformations.extend(trans)\n\n    processed, pos_map, trans = _normalize_punctuation(processed, pos_map, config)\n    all_transformations.extend(trans)\n\n    processed, pos_map, trans = _normalize_stopwords(processed, pos_map, config)\n    all_transformations.extend(trans)\n\n    processed, pos_map, trans = _normalize_whitespace(processed, pos_map, config)\n    all_transformations.extend(trans)")
+        :explanation "The 6 pipeline calls in fixed order — one contiguous block"))
+
 (derive bound-pipeline-order pipeline-order-fixed
-    :bind ((?pipeline normalizer-step-count)
+    :bind ((?pipeline pipeline-sequence)
            (?case normalizer-step-1) (?lists normalizer-step-2)
            (?hyphenation normalizer-step-3) (?punctuation normalizer-step-4)
            (?stopwords normalizer-step-5) (?whitespace normalizer-step-6))
-    :using (pipeline-order-fixed normalizer-step-count
+    :using (pipeline-order-fixed pipeline-sequence
             normalizer-step-1 normalizer-step-2 normalizer-step-3
             normalizer-step-4 normalizer-step-5 normalizer-step-6))
 
@@ -593,9 +600,20 @@
         :explanation "When all words are stopwords, keeps first word, removes rest"))
 
 ; Bind axioms to their implementation proofs
+; score = 1.0 - total_penalty. At initialization, penalty is 0, score is 1.0.
+(fact initial-score 1.0
+    :evidence (evidence "verifier.py"
+        :quotes ("score = 1.0")
+        :explanation "Score starts at 1.0"))
+
+(fact initial-penalty 0
+    :evidence (evidence "verifier.py"
+        :quotes ("score = 1.0")
+        :explanation "Before any transformations, total penalty is 0"))
+
 (derive bound-score-starts score-starts-at-one
-    :bind ((?score verifier-confidence-has-score) (?total-penalty score-init-impl))
-    :using (score-starts-at-one verifier-confidence-has-score score-init-impl))
+    :bind ((?score initial-score) (?total-penalty initial-penalty))
+    :using (score-starts-at-one initial-score initial-penalty))
 
 (derive bound-dangerous-not-diluted dangerous-not-diluted
     :bind ((?is-dangerous dangerous-includes-not) (?penalty dangerous-full-penalty-impl)

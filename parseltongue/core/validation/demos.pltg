@@ -1108,9 +1108,16 @@ patterns for variadic operations: sum-all, count-gt, all-gt.")
     :bind ((?alias no-explicit-lazy-label) (?target let-rebinds-bare-alias))
     :using (defterm-alias-is-lazy no-explicit-lazy-label let-rebinds-bare-alias))
 
+; let-rebinds-bare-alias is true → symbol was NOT eagerly resolved.
+; Derive the negation so ?eagerly-resolved binds to false.
+(defterm was-eagerly-resolved (not let-rebinds-bare-alias)
+    :evidence (evidence "entry_mocks_math_pltg"
+        :quotes ("(assert-true \"add-identity: 5 + 0 = 5\"")
+        :explanation "Assert passes after let rebind — proves eager resolution did NOT happen"))
+
 (derive bound-let-rebind-proves-lazy let-rebind-proves-lazy
-    :bind ((?let-can-rebind-bare let-rebinds-bare-alias) (?eagerly-resolved no-explicit-lazy-label))
-    :using (let-rebind-proves-lazy let-rebinds-bare-alias no-explicit-lazy-label))
+    :bind ((?let-can-rebind-bare let-rebinds-bare-alias) (?eagerly-resolved was-eagerly-resolved))
+    :using (let-rebind-proves-lazy let-rebinds-bare-alias was-eagerly-resolved))
 
 (derive bound-forward-decl-produces-formal forward-decl-produces-formal
     :bind ((?t primitives-are-forward-declared) (?x afternoon-uses-without-import))

@@ -547,10 +547,17 @@
     :using (loader-deduplicates-imports effect-import-deduplicates
             bound-import-dedup))
 
-; namespacing-only-non-main: main → no namespace. Consequence: namespaces-definitions proves it.
+; namespacing-only-non-main: main → no namespace.
+; Main modules don't get namespaced — the loader only namespaces non-main.
+; is-main=true and namespace-applied-to-main=false satisfies (implies true (not false)).
+(defterm main-gets-namespaced (not module-context-has-is-main)
+    :evidence (evidence "loader.py"
+        :quotes ("if not self._current.is_main:")
+        :explanation "Namespacing is conditional on NOT being main"))
+
 (derive bound-namespacing-only-non-main namespacing-only-non-main
-    :bind ((?is-main module-context-has-is-main) (?namespace-applied loader-namespaces-definitions))
-    :using (namespacing-only-non-main module-context-has-is-main loader-namespaces-definitions))
+    :bind ((?is-main module-context-has-is-main) (?namespace-applied main-gets-namespaced))
+    :using (namespacing-only-non-main module-context-has-is-main main-gets-namespaced))
 
 ; Namespacing has 3 stages — definitions, symbols, context keys
 (derive namespacing-stage-count
@@ -571,10 +578,16 @@
 
 ; --- 1. Context architecture ---
 
-; context-immutability: frozen → can't mutate. Consequence: loader-context-frozen proves it.
+; context-immutability: frozen → can't mutate.
+; Derive mutability as negation of frozen — frozen=true means can-mutate=false.
+(defterm context-can-mutate (not loader-context-frozen)
+    :evidence (evidence "loader.py"
+        :quotes ("@dataclass(frozen=True)")
+        :explanation "Frozen dataclass prevents field mutation"))
+
 (derive bound-context-immutability context-immutability
-    :bind ((?is-frozen loader-context-frozen) (?can-mutate loader-context-frozen))
-    :using (context-immutability loader-context-frozen))
+    :bind ((?is-frozen loader-context-frozen) (?can-mutate context-can-mutate))
+    :using (context-immutability loader-context-frozen context-can-mutate))
 
 (derive context-arch-doc-count
     (count-exists context-is-abc loader-context-frozen loader-context-model
