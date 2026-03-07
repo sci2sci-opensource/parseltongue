@@ -18,9 +18,10 @@
 (print "  Self-Test Execution Verification")
 (print "========================================")
 
-; Run all tests except the consistency meta-test
-; Uses _ctx (loader context) to resolve paths relative to this file
-(dangerously-eval "import subprocess, os; test_dir = os.path.normpath(os.path.join(_ctx.current_dir, '..', 'tests')); ignore = os.path.join(test_dir, 'test_parseltongue_core_consistency.py'); root = os.path.normpath(os.path.join(_ctx.current_dir, '..', '..', '..')); r = subprocess.run(['python', '-m', 'pytest', test_dir, '-q', '--ignore=' + ignore, '--tb=no'], capture_output=True, text=True, timeout=120, cwd=root); system.engine.set_fact('test-suite-result', r.returncode == 0, 'pytest suite execution via dangerously-eval')")
+; Run the FULL test suite including consistency — by temporarily removing
+; self_test from core.pltg to avoid infinite recursion, then restoring it.
+; Uses _ctx (loader context) to resolve paths relative to this file.
+(dangerously-eval "import subprocess, os; core_pltg = os.path.join(_ctx.current_dir, 'core.pltg'); f = open(core_pltg); src = f.read(); f.close(); patched = src.replace('(import (quote self_test))', '; (import (quote self_test))'); f = open(core_pltg, 'w'); f.write(patched); f.close(); test_dir = os.path.normpath(os.path.join(_ctx.current_dir, '..', 'tests')); root = os.path.normpath(os.path.join(_ctx.current_dir, '..', '..', '..')); r = subprocess.run(['python', '-m', 'pytest', test_dir, '-q', '--tb=no'], capture_output=True, text=True, timeout=300, cwd=root); f = open(core_pltg, 'w'); f.write(src); f.close(); system.engine.set_fact('test-suite-result', r.returncode == 0, 'full pytest suite execution via dangerously-eval (self_test temporarily excluded from core.pltg to prevent recursion)')")
 
 (print "  Test suite passed:" test-suite-result)
 
