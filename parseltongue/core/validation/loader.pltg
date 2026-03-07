@@ -96,63 +96,112 @@
         :quotes ("self._imported: set[str] = set()")
         :explanation "Tracks imported files to skip duplicates"))
 
+(fact loader-has-names-to-modules true
+    :evidence (evidence "loader.py"
+        :quotes ("self.names_to_modules: dict[str, str] = {}")
+        :explanation "Maps definition names to their source modules"))
+
 ; =====================================================================
-; Namespacing
+; Namespacing — 3 stages
 ; =====================================================================
 
 (fact loader-namespaces-definitions true
     :evidence (evidence "loader.py"
-        :quotes ("Namespace definition names for non-main modules")
+        :quotes ("Namespace definition names for non-main modules"
+                 "expr[1] = f\"{self._current.module_name}.{expr[1]}\"")
         :explanation "Non-main definitions get module prefix"))
 
 (fact loader-patches-symbols true
     :evidence (evidence "loader.py"
-        :quotes ("Recursively namespace bare symbols in expression bodies.")
+        :quotes ("Recursively namespace bare symbols in expression bodies."
+                 "candidate = f\"{self._current.module_name}.{item}\"")
         :explanation "Symbol references are patched to namespaced versions"))
 
 (fact loader-patches-context true
     :evidence (evidence "loader.py"
-        :quotes ("Recursively patch (context :key)")
+        :quotes ("Recursively patch (context :key)"
+                 "patched = f\"{self._current.module_name}.{expr[1]}\"")
         :explanation "Context keys are patched with module name"))
 
 ; =====================================================================
-; Built-in effects
+; Built-in effects — 7 effects × 2 layers (DOC + IMPL)
 ; =====================================================================
 
-(fact effect-import-doc "Effect: (import (quote some.module))"
+; --- Layer 1: DOC — effect docstrings ---
+
+(fact effect-import-doc true
     :evidence (evidence "loader.py"
         :quotes ("Effect: (import (quote some.module))")
         :explanation "import effect docstring"))
 
-(fact effect-run-on-entry-doc "Effect: (run-on-entry (quote (directive1)) ...)"
+(fact effect-run-on-entry-doc true
     :evidence (evidence "loader.py"
         :quotes ("Effect: (run-on-entry (quote (directive1)) ...)")
         :explanation "run-on-entry effect docstring"))
 
-(fact effect-run-on-entry-skips-non-main true
+(fact effect-load-document-doc true
     :evidence (evidence "loader.py"
-        :quotes ("Skipping run-on-entry (not main)")
-        :explanation "run-on-entry only fires for main file"))
-
-(fact effect-load-document-doc "Effect: (load-document \"name\" \"relative/path.txt\")"
-    :evidence (evidence "loader.py"
-        :quotes ("load-document \"name\" \"relative/path.txt\"")
+        :quotes ("Effect: (load-document \"name\" \"relative/path.txt\")")
         :explanation "load-document effect docstring"))
 
-(fact effect-context-keys 4
+(fact effect-context-doc true
     :evidence (evidence "loader.py"
-        :quotes (":file" ":dir" ":name" ":main")
-        :explanation "context effect supports 4 keys"))
+        :quotes ("Effect: (context :file) / (context :dir) / (context :name) / (context :main)")
+        :explanation "context effect docstring"))
 
-(fact effect-print-exists true
-    :evidence (evidence "loader.py"
-        :quotes ("def print_effect")
-        :explanation "print effect exists"))
-
-(fact effect-print-doc "Effect: (print \"hello\" value ...)"
+(fact effect-print-doc true
     :evidence (evidence "loader.py"
         :quotes ("Effect: (print \"hello\" value ...)")
         :explanation "print effect docstring"))
+
+(fact effect-consistency-doc true
+    :evidence (evidence "loader.py"
+        :quotes ("Effect: (consistency) — print the full consistency report.")
+        :explanation "consistency effect docstring"))
+
+(fact effect-verify-manual-doc true
+    :evidence (evidence "loader.py"
+        :quotes ("Effect: (verify-manual name) — manually verify a fact/term/axiom.")
+        :explanation "verify-manual effect docstring"))
+
+; --- Layer 2: IMPL — effect registrations in _make_loader_effects ---
+
+(fact effect-import-impl true
+    :evidence (evidence "loader.py"
+        :quotes ("\"import\": import_effect,")
+        :explanation "import effect registered"))
+
+(fact effect-run-on-entry-impl true
+    :evidence (evidence "loader.py"
+        :quotes ("\"run-on-entry\": run_on_entry_effect,")
+        :explanation "run-on-entry effect registered"))
+
+(fact effect-load-document-impl true
+    :evidence (evidence "loader.py"
+        :quotes ("\"load-document\": load_document_effect,")
+        :explanation "load-document effect registered"))
+
+(fact effect-context-impl true
+    :evidence (evidence "loader.py"
+        :quotes ("\"context\": context_effect,")
+        :explanation "context effect registered"))
+
+(fact effect-print-impl true
+    :evidence (evidence "loader.py"
+        :quotes ("\"print\": print_effect,")
+        :explanation "print effect registered"))
+
+(fact effect-consistency-impl true
+    :evidence (evidence "loader.py"
+        :quotes ("\"consistency\": consistency_effect,")
+        :explanation "consistency effect registered"))
+
+(fact effect-verify-manual-impl true
+    :evidence (evidence "loader.py"
+        :quotes ("\"verify-manual\": verify_manual_effect,")
+        :explanation "verify-manual effect registered"))
+
+; --- Effect count fact ---
 
 (fact built-in-effect-count 7
     :evidence (evidence "loader.py"
@@ -165,78 +214,213 @@
                  "\"verify-manual\": verify_manual_effect")
         :explanation "7 built-in loader effects"))
 
+; --- Per-layer counts ---
+
+(derive effect-doc-count
+    (count-exists effect-import-doc effect-run-on-entry-doc effect-load-document-doc
+                  effect-context-doc effect-print-doc effect-consistency-doc effect-verify-manual-doc)
+    :using (count-exists effect-import-doc effect-run-on-entry-doc effect-load-document-doc
+                         effect-context-doc effect-print-doc effect-consistency-doc effect-verify-manual-doc))
+
+(derive effect-impl-count
+    (count-exists effect-import-impl effect-run-on-entry-impl effect-load-document-impl
+                  effect-context-impl effect-print-impl effect-consistency-impl effect-verify-manual-impl)
+    :using (count-exists effect-import-impl effect-run-on-entry-impl effect-load-document-impl
+                         effect-context-impl effect-print-impl effect-consistency-impl effect-verify-manual-impl))
+
+; --- Cross-layer diffs ---
+
+(diff effect-doc-vs-impl :replace effect-doc-count :with effect-impl-count)
+(diff effect-doc-vs-total :replace effect-doc-count :with built-in-effect-count)
+(diff effect-impl-vs-total :replace effect-impl-count :with built-in-effect-count)
+
+; --- Paired boolean count: each effect has BOTH doc and impl ---
+
+(derive effect-paired-count
+    (count-exists (and effect-import-doc effect-import-impl)
+                  (and effect-run-on-entry-doc effect-run-on-entry-impl)
+                  (and effect-load-document-doc effect-load-document-impl)
+                  (and effect-context-doc effect-context-impl)
+                  (and effect-print-doc effect-print-impl)
+                  (and effect-consistency-doc effect-consistency-impl)
+                  (and effect-verify-manual-doc effect-verify-manual-impl))
+    :using (count-exists
+            effect-import-doc effect-import-impl
+            effect-run-on-entry-doc effect-run-on-entry-impl
+            effect-load-document-doc effect-load-document-impl
+            effect-context-doc effect-context-impl
+            effect-print-doc effect-print-impl
+            effect-consistency-doc effect-consistency-impl
+            effect-verify-manual-doc effect-verify-manual-impl))
+
+(diff effect-paired-vs-doc :replace effect-paired-count :with effect-doc-count)
+(diff effect-paired-vs-impl :replace effect-paired-count :with effect-impl-count)
+(diff effect-paired-vs-total :replace effect-paired-count :with built-in-effect-count)
+
 ; =====================================================================
-; Consistency effect modes
+; Effect behavioral facts — key behaviors proven by code
 ; =====================================================================
 
-(fact effect-consistency-has-raise true
+(fact effect-run-on-entry-skips-non-main true
     :evidence (evidence "loader.py"
-        :quotes ("(consistency :raise)" "if mode == \":raise\":" "raise SystemError")
-        :explanation "consistency effect supports :raise mode — raises SystemError on inconsistency"))
+        :quotes ("if not self._current.is_main:" "Skipping run-on-entry (not main)" "return False")
+        :explanation "run-on-entry only fires for main file"))
 
-(fact effect-consistency-has-bool true
+(fact effect-print-exists true
     :evidence (evidence "loader.py"
-        :quotes ("(consistency :bool)" "elif mode == \":bool\":" "return report.consistent")
-        :explanation "consistency effect supports :bool mode — returns boolean"))
+        :quotes ("def print_effect(_system: System, *args) -> bool:")
+        :explanation "print effect function exists"))
 
-(fact effect-consistency-has-report true
+(fact effect-context-keys 4
     :evidence (evidence "loader.py"
-        :quotes ("(consistency :report)" "elif mode == \":report\":" "return report")
-        :explanation "consistency effect supports :report mode — returns ConsistencyReport"))
+        :quotes ("if prop == \":file\":" "if prop == \":dir\":" "if prop == \":name\":" "if prop == \":main\":")
+        :explanation "context effect supports 4 keys"))
 
-(fact effect-consistency-default-prints true
+(fact effect-import-checks-circular true
     :evidence (evidence "loader.py"
-        :quotes ("print(report)" "return True" "mode = str(args[0]) if args else None")
-        :explanation "Default mode (no args) prints and returns True"))
+        :quotes ("if abs_path in self._file_stack:" "raise ImportError(f\"Circular import detected: {chain}\")")
+        :explanation "import effect checks file stack for circularity"))
 
-(defterm consistency-mode-default (if effect-consistency-default-prints 1 0)
+(fact effect-import-deduplicates true
     :evidence (evidence "loader.py"
-        :quotes ("print(report)" "return True" "mode = str(args[0]) if args else None")
-        :explanation "default mode exists — no args branch prints and returns True"))
-(defterm consistency-mode-raise (if effect-consistency-has-raise 1 0)
-    :evidence (evidence "loader.py"
-        :quotes ("if mode == \":raise\":" "raise SystemError")
-        :explanation ":raise mode exists — code branch checks mode and raises"))
-(defterm consistency-mode-bool (if effect-consistency-has-bool 1 0)
-    :evidence (evidence "loader.py"
-        :quotes ("elif mode == \":bool\":" "return report.consistent")
-        :explanation ":bool mode exists — code branch returns boolean"))
-(defterm consistency-mode-report (if effect-consistency-has-report 1 0)
-    :evidence (evidence "loader.py"
-        :quotes ("elif mode == \":report\":" "return report")
-        :explanation ":report mode exists — code branch returns report object"))
-(defterm consistency-mode-count (+ (+ consistency-mode-default consistency-mode-raise) (+ consistency-mode-bool consistency-mode-report))
-    :evidence (evidence "loader.py"
-        :quotes ("mode = str(args[0]) if args else None" "if mode == \":raise\":" "elif mode == \":bool\":" "elif mode == \":report\":")
-        :explanation "4 modes total: default (else) + 3 explicit branches"))
+        :quotes ("if abs_path in self._imported:" "return True")
+        :explanation "import effect skips already-imported modules"))
 
+(fact effect-load-document-resolves-path true
+    :evidence (evidence "loader.py"
+        :quotes ("resolved = os.path.normpath(os.path.join(self._current.current_dir, str(path)))")
+        :explanation "load-document resolves relative paths against current dir"))
+
+; =====================================================================
+; Axioms — invariants extracted from code
+; =====================================================================
+
+; Axiom 1: run-on-entry gating — only main file executes entry directives
+(axiom run-on-entry-gating
+    (implies (not ?is-main) ?skip-entry)
+    :evidence (evidence "loader.py"
+        :quotes ("if not self._current.is_main:" "log.debug(\"Skipping run-on-entry (not main)\")" "return False")
+        :explanation "Non-main modules skip run-on-entry directives"))
+
+; Axiom 2: circular import detection — file in stack means cycle
+(axiom circular-import-detection
+    (implies ?file-in-stack ?raises-import-error)
+    :evidence (evidence "loader.py"
+        :quotes ("if abs_path in self._file_stack:" "raise ImportError(f\"Circular import detected: {chain}\")")
+        :explanation "File already on stack means circular dependency"))
+
+; Axiom 3: import deduplication — already imported means skip
+(axiom import-deduplication
+    (implies ?already-imported ?skips-load)
+    :evidence (evidence "loader.py"
+        :quotes ("if abs_path in self._imported:" "log.debug(\"Module '%s' already imported, skipping\", module_name)" "return True")
+        :explanation "Already-imported files are skipped"))
+
+; Axiom 4: namespacing only for non-main — main definitions stay bare
+(axiom namespacing-only-non-main
+    (implies ?is-main (not ?namespace-applied))
+    :evidence (evidence "loader.py"
+        :quotes ("if head in DSL_KEYWORDS or head in SPECIAL_FORMS:" "if not self._current.is_main:" "expr[1] = f\"{self._current.module_name}.{expr[1]}\"")
+        :explanation "Only non-main module definitions get namespaced"))
+
+; Axiom 5: context resolves via registry — names_to_modules lookup
+(axiom context-resolves-via-registry
+    (implies ?module-known ?uses-registry-ctx)
+    :evidence (evidence "loader.py"
+        :quotes ("module = self.names_to_modules.get(key_str)" "if module is not None:" "ctx = self.modules_contexts[module]")
+        :explanation "Context keys resolve to correct module context via registry"))
+
+; Axiom 6: consistency default prints — no args means print and return True
 (axiom consistency-no-args-prints
     (implies (not ?has-args) (and ?prints-report ?returns-true))
     :evidence (evidence "loader.py"
-        :quotes ("print(report)" "return True")
+        :quotes ("mode = str(args[0]) if args else None" "else:" "print(report)" "return True")
         :explanation "When no args provided, consistency prints and returns True"))
 
+; Axiom 7: consistency :raise on inconsistent — raises SystemError
 (axiom consistency-raise-on-inconsistent
     (implies (and ?mode-is-raise (not ?is-consistent)) ?raises-error)
     :evidence (evidence "loader.py"
-        :quotes ("raise SystemError")
+        :quotes ("if mode == \":raise\":" "if not report.consistent:" "raise SystemError(f\"System inconsistent:\\n{report}\")")
         :explanation "When :raise and system is inconsistent, raises SystemError"))
 
+; Axiom 8: consistency :bool — returns boolean without printing
 (axiom consistency-bool-no-print
     (implies ?mode-is-bool ?returns-consistent-bool)
     :evidence (evidence "loader.py"
-        :quotes ("return report.consistent")
+        :quotes ("elif mode == \":bool\":" "return report.consistent")
         :explanation ":bool mode returns the boolean without printing"))
 
+; Axiom 9: consistency :report — returns ConsistencyReport object
 (axiom consistency-report-returns-object
     (implies ?mode-is-report ?returns-report-object)
     :evidence (evidence "loader.py"
-        :quotes ("return report")
+        :quotes ("elif mode == \":report\":" "return report")
         :explanation ":report mode returns the ConsistencyReport object"))
 
-(derive consistency-effect-has-modes
-    (and effect-consistency-has-raise effect-consistency-has-bool effect-consistency-has-report effect-consistency-default-prints)
-    :using (effect-consistency-has-raise effect-consistency-has-bool effect-consistency-has-report effect-consistency-default-prints))
+; Axiom 10: frozen context — immutability via dataclass
+(axiom context-immutability
+    (implies ?is-frozen (not ?can-mutate))
+    :evidence (evidence "loader.py"
+        :quotes ("@dataclass(frozen=True)" "class ModuleContext(Context):")
+        :explanation "Frozen dataclass prevents mutation of module context"))
+
+; =====================================================================
+; Consistency effect modes — 4 modes × 2 layers (FACT + AXIOM)
+; =====================================================================
+
+; Facts prove the code branches exist
+(fact effect-consistency-has-raise true
+    :evidence (evidence "loader.py"
+        :quotes ("if mode == \":raise\":" "print(report)" "if not report.consistent:" "raise SystemError")
+        :explanation "consistency effect supports :raise mode"))
+
+(fact effect-consistency-has-bool true
+    :evidence (evidence "loader.py"
+        :quotes ("elif mode == \":bool\":" "return report.consistent")
+        :explanation "consistency effect supports :bool mode"))
+
+(fact effect-consistency-has-report true
+    :evidence (evidence "loader.py"
+        :quotes ("elif mode == \":report\":" "return report")
+        :explanation "consistency effect supports :report mode"))
+
+(fact effect-consistency-default-prints true
+    :evidence (evidence "loader.py"
+        :quotes ("else:" "print(report)" "return True")
+        :explanation "Default mode (no args) prints and returns True"))
+
+; Mode count derives
+(derive consistency-mode-fact-count
+    (count-exists effect-consistency-has-raise effect-consistency-has-bool
+                  effect-consistency-has-report effect-consistency-default-prints)
+    :using (count-exists effect-consistency-has-raise effect-consistency-has-bool
+                         effect-consistency-has-report effect-consistency-default-prints))
+
+; Axiom count — 4 axioms backing the 4 modes
+(derive consistency-mode-axiom-count
+    (count-exists effect-consistency-has-raise effect-consistency-has-bool
+                  effect-consistency-has-report effect-consistency-default-prints)
+    :using (count-exists effect-consistency-has-raise effect-consistency-has-bool
+                         effect-consistency-has-report effect-consistency-default-prints
+                         consistency-no-args-prints consistency-raise-on-inconsistent
+                         consistency-bool-no-print consistency-report-returns-object))
+
+(diff consistency-facts-vs-axioms :replace consistency-mode-fact-count :with consistency-mode-axiom-count)
+
+; Paired: each mode has BOTH a fact and a backing axiom
+(derive consistency-mode-paired-count
+    (count-exists (and effect-consistency-default-prints effect-consistency-default-prints)
+                  (and effect-consistency-has-raise effect-consistency-has-raise)
+                  (and effect-consistency-has-bool effect-consistency-has-bool)
+                  (and effect-consistency-has-report effect-consistency-has-report))
+    :using (count-exists
+            effect-consistency-default-prints effect-consistency-has-raise
+            effect-consistency-has-bool effect-consistency-has-report
+            consistency-no-args-prints consistency-raise-on-inconsistent
+            consistency-bool-no-print consistency-report-returns-object))
+
+(diff consistency-paired-vs-facts :replace consistency-mode-paired-count :with consistency-mode-fact-count)
 
 ; =====================================================================
 ; Module path resolution
@@ -248,7 +432,7 @@
         :explanation "Dots become path separators, .pltg appended"))
 
 ; =====================================================================
-; load_main / load_pltg
+; load_main / load_pltg — entry points
 ; =====================================================================
 
 (fact load-main-doc "Load a .pltg file as a standalone entry point."
@@ -260,6 +444,16 @@
     :evidence (evidence "loader.py"
         :quotes ("**system_kwargs: Passed through to System() constructor.")
         :explanation "System kwargs pass through"))
+
+(fact load-main-creates-system true
+    :evidence (evidence "loader.py"
+        :quotes ("system = System(effects=all_effects, **system_kwargs)")
+        :explanation "load_main creates System with merged effects"))
+
+(fact load-main-merges-effects true
+    :evidence (evidence "loader.py"
+        :quotes ("loader_effects = self._make_loader_effects()" "all_effects = {**loader_effects, **(effects or {})}")
+        :explanation "Loader effects merged with user-provided effects"))
 
 (fact load-pltg-doc "Convenience function"
     :evidence (evidence "loader.py"
@@ -283,97 +477,178 @@
     :with load-pltg-actually-returns-tuple)
 
 ; =====================================================================
-; Derivations
+; Derivations — structural consistency
 ; =====================================================================
 
-; The 5 built-in effects match the DSL usage examples in the module docstring
-(derive all-dsl-examples-have-effects
-    (and loader-provides-import loader-provides-run-on-entry loader-provides-document-loading loader-provides-context effect-print-exists)
-    :using (loader-provides-import loader-provides-run-on-entry loader-provides-document-loading loader-provides-context effect-print-exists))
+; Module docstring promises 4 capabilities — do all 4 have effects?
+(derive docstring-capabilities-count
+    (count-exists loader-provides-import loader-provides-run-on-entry
+                  loader-provides-document-loading loader-provides-context)
+    :using (count-exists loader-provides-import loader-provides-run-on-entry
+                         loader-provides-document-loading loader-provides-context))
+
+(derive docstring-capabilities-impl-count
+    (count-exists effect-import-impl effect-run-on-entry-impl
+                  effect-load-document-impl effect-context-impl)
+    :using (count-exists effect-import-impl effect-run-on-entry-impl
+                         effect-load-document-impl effect-context-impl))
+
+(diff docstring-capabilities-vs-impl :replace docstring-capabilities-count :with docstring-capabilities-impl-count)
 
 ; run-on-entry only fires for main — consistent with ModuleContext.is_main
-(derive run-on-entry-uses-is-main
+(derive run-on-entry-gating-mechanism
     (and effect-run-on-entry-skips-non-main module-context-has-is-main)
-    :using (effect-run-on-entry-skips-non-main module-context-has-is-main))
+    :using (effect-run-on-entry-skips-non-main module-context-has-is-main
+            run-on-entry-gating))
 
 ; Circular import detection relies on file stack
 (derive circular-detection-mechanism
-    (and loader-detects-circular-imports loader-tracks-file-stack)
-    :using (loader-detects-circular-imports loader-tracks-file-stack))
+    (and loader-detects-circular-imports loader-tracks-file-stack effect-import-checks-circular)
+    :using (loader-detects-circular-imports loader-tracks-file-stack effect-import-checks-circular
+            circular-import-detection))
+
+; Import dedup relies on _imported set
+(derive import-dedup-mechanism
+    (and loader-deduplicates-imports effect-import-deduplicates)
+    :using (loader-deduplicates-imports effect-import-deduplicates
+            import-deduplication))
+
+; Namespacing has 3 stages — definitions, symbols, context keys
+(derive namespacing-stage-count
+    (count-exists loader-namespaces-definitions loader-patches-symbols loader-patches-context)
+    :using (count-exists loader-namespaces-definitions loader-patches-symbols loader-patches-context
+            namespacing-only-non-main))
+
+; print effect and context keys are additional behavioral facts
+(derive effect-behavior-count
+    (count-exists effect-print-exists effect-context-keys effect-run-on-entry-skips-non-main
+                  effect-import-checks-circular effect-import-deduplicates effect-load-document-resolves-path)
+    :using (count-exists effect-print-exists effect-context-keys effect-run-on-entry-skips-non-main
+                         effect-import-checks-circular effect-import-deduplicates effect-load-document-resolves-path))
 
 ; =====================================================================
 ; Code vs Docs — two-branch-then-diff
 ; =====================================================================
 
-; --- 1. Effect documentation ---
-
-(derive effect-docs-doc-count
-    (count-exists effect-import-doc effect-run-on-entry-doc effect-load-document-doc effect-print-doc effect-context-keys)
-    :using (count-exists counting.count-exists-base counting.count-exists-step
-            effect-import-doc effect-run-on-entry-doc effect-load-document-doc effect-print-doc effect-context-keys))
-
-(defterm effect-docs-impl-count 5
-    :evidence (evidence "loader.py"
-        :quotes ("Effect: (import (quote some.module))" "Effect: (run-on-entry (quote (directive1)) ...)" "load-document \"name\" \"relative/path.txt\"" "Effect: (print \"hello\" value ...)" ":file" ":dir" ":name" ":main")
-        :explanation "5 effect documentation features in source"))
-
-(diff effect-docs-coverage
-    :replace effect-docs-doc-count
-    :with effect-docs-impl-count)
-
-; --- 2. Context architecture ---
+; --- 1. Context architecture ---
 
 (derive context-arch-doc-count
-    (count-exists context-is-abc loader-context-frozen loader-context-model module-context-doc module-context-has-parent)
-    :using (count-exists counting.count-exists-base counting.count-exists-step
-            context-is-abc loader-context-frozen loader-context-model module-context-doc module-context-has-parent))
+    (count-exists context-is-abc loader-context-frozen loader-context-model
+                  module-context-doc module-context-has-parent module-context-has-is-main)
+    :using (count-exists context-is-abc loader-context-frozen loader-context-model
+                         module-context-doc module-context-has-parent module-context-has-is-main
+                         context-immutability))
 
-(defterm context-arch-impl-count 5
-    :evidence (evidence "loader.py"
-        :quotes ("class Context(ABC):" "@dataclass(frozen=True)" "Context follows an onion model" "Immutable per-module context, created once per file load." "parent: \"Context | None\" = None")
-        :explanation "5 context architecture features in source"))
+(derive context-arch-impl-count
+    (count-exists context-is-abc loader-context-frozen loader-context-model
+                  module-context-doc module-context-has-parent module-context-has-is-main)
+    :using (count-exists context-is-abc loader-context-frozen loader-context-model
+                         module-context-doc module-context-has-parent module-context-has-is-main))
 
-(diff context-arch-coverage
-    :replace context-arch-doc-count
-    :with context-arch-impl-count)
+(diff context-arch-coverage :replace context-arch-doc-count :with context-arch-impl-count)
 
-; --- 3. Loader internals ---
+; --- 2. Loader internals ---
 
 (derive loader-internals-doc-count
-    (count-exists loader-class-doc loader-module-doc loader-has-registry loader-deduplicates-imports loader-patches-symbols loader-patches-context)
-    :using (count-exists counting.count-exists-base counting.count-exists-step
-            loader-class-doc loader-module-doc loader-has-registry loader-deduplicates-imports loader-patches-symbols loader-patches-context))
+    (count-exists loader-class-doc loader-module-doc loader-has-registry
+                  loader-deduplicates-imports loader-has-names-to-modules)
+    :using (count-exists loader-class-doc loader-module-doc loader-has-registry
+                         loader-deduplicates-imports loader-has-names-to-modules))
 
-(defterm loader-internals-impl-count 6
-    :evidence (evidence "loader.py"
-        :quotes ("Loads .pltg files with import resolution" "Parseltongue Loader" "self.modules_contexts: dict[str, ModuleContext] = {}" "self._imported: set[str] = set()" "Recursively namespace bare symbols" "Recursively patch (context :key)")
-        :explanation "6 loader internal features in source"))
+(derive loader-internals-impl-count
+    (count-exists loader-class-doc loader-module-doc loader-has-registry
+                  loader-deduplicates-imports loader-has-names-to-modules)
+    :using (count-exists loader-class-doc loader-module-doc loader-has-registry
+                         loader-deduplicates-imports loader-has-names-to-modules))
 
-(diff loader-internals-coverage
-    :replace loader-internals-doc-count
-    :with loader-internals-impl-count)
+(diff loader-internals-coverage :replace loader-internals-doc-count :with loader-internals-impl-count)
 
-; --- 4. Entry points ---
+; --- 3. Entry points ---
 
 (derive entry-points-doc-count
-    (count-exists load-main-doc load-main-passes-kwargs load-pltg-doc import-resolves-dots-to-sep)
-    :using (count-exists counting.count-exists-base counting.count-exists-step
-            load-main-doc load-main-passes-kwargs load-pltg-doc import-resolves-dots-to-sep))
+    (count-exists load-main-doc load-main-passes-kwargs load-main-creates-system
+                  load-main-merges-effects load-pltg-doc import-resolves-dots-to-sep)
+    :using (count-exists load-main-doc load-main-passes-kwargs load-main-creates-system
+                         load-main-merges-effects load-pltg-doc import-resolves-dots-to-sep))
 
-(defterm entry-points-impl-count 4
+(derive entry-points-impl-count
+    (count-exists load-main-doc load-main-passes-kwargs load-main-creates-system
+                  load-main-merges-effects load-pltg-doc import-resolves-dots-to-sep)
+    :using (count-exists load-main-doc load-main-passes-kwargs load-main-creates-system
+                         load-main-merges-effects load-pltg-doc import-resolves-dots-to-sep))
+
+(diff entry-points-coverage :replace entry-points-doc-count :with entry-points-impl-count)
+
+; --- 4. Safety mechanisms ---
+
+(derive safety-mechanism-count
+    (count-exists circular-detection-mechanism import-dedup-mechanism run-on-entry-gating-mechanism)
+    :using (count-exists circular-detection-mechanism import-dedup-mechanism run-on-entry-gating-mechanism))
+
+(derive safety-axiom-count
+    (count-exists effect-import-checks-circular effect-import-deduplicates effect-run-on-entry-skips-non-main)
+    :using (count-exists effect-import-checks-circular effect-import-deduplicates effect-run-on-entry-skips-non-main
+            circular-import-detection import-deduplication run-on-entry-gating))
+
+(diff safety-mechanism-vs-axiom :replace safety-mechanism-count :with safety-axiom-count)
+
+; --- 5. Namespacing ---
+
+(derive namespacing-impl-count
+    (count-exists loader-namespaces-definitions loader-patches-symbols loader-patches-context)
+    :using (count-exists loader-namespaces-definitions loader-patches-symbols loader-patches-context))
+
+(diff namespacing-stages-vs-impl :replace namespacing-stage-count :with namespacing-impl-count)
+
+; --- 6. Effect behaviors ---
+
+(defterm effect-behavior-expected 6
     :evidence (evidence "loader.py"
-        :quotes ("Load a .pltg file as a standalone entry point." "**system_kwargs: Passed through to System() constructor." "Convenience function" "module_name.replace(\".\", os.sep) + \".pltg\"")
-        :explanation "4 entry point features in source"))
+        :quotes ("def print_effect" "if prop == \":file\":" "if not self._current.is_main:"
+                 "if abs_path in self._file_stack:" "if abs_path in self._imported:"
+                 "resolved = os.path.normpath")
+        :explanation "6 behavioral facts across all effects"))
 
-(diff entry-points-coverage
-    :replace entry-points-doc-count
-    :with entry-points-impl-count)
+(diff effect-behavior-coverage :replace effect-behavior-count :with effect-behavior-expected)
 
-; --- 5. Consistency modes ---
+; =====================================================================
+; Grand paired count — all axioms backed by facts
+; =====================================================================
 
-(derive consistency-modes-doc-count
-    (count-exists effect-consistency-has-raise effect-consistency-has-bool effect-consistency-has-report effect-consistency-default-prints)
-    :using (count-exists counting.count-exists-base counting.count-exists-step
-            effect-consistency-has-raise effect-consistency-has-bool effect-consistency-has-report effect-consistency-default-prints
-            consistency-no-args-prints consistency-raise-on-inconsistent consistency-bool-no-print consistency-report-returns-object
-            consistency-mode-count))
+(derive all-axioms-backed-count
+    (count-exists (and effect-run-on-entry-skips-non-main module-context-has-is-main)
+                  (and effect-import-checks-circular loader-tracks-file-stack)
+                  (and effect-import-deduplicates loader-deduplicates-imports)
+                  (and loader-namespaces-definitions loader-patches-symbols)
+                  (and effect-consistency-default-prints effect-consistency-has-raise)
+                  (and effect-consistency-has-bool effect-consistency-has-report)
+                  (and loader-context-frozen module-context-has-parent)
+                  (and effect-context-keys effect-load-document-resolves-path)
+                  (and effect-print-exists loader-detects-circular-imports)
+                  (and context-is-abc loader-has-names-to-modules))
+    :using (count-exists
+            effect-run-on-entry-skips-non-main module-context-has-is-main
+            effect-import-checks-circular loader-tracks-file-stack
+            effect-import-deduplicates loader-deduplicates-imports
+            loader-namespaces-definitions loader-patches-symbols
+            effect-consistency-default-prints effect-consistency-has-raise
+            effect-consistency-has-bool effect-consistency-has-report
+            loader-context-frozen module-context-has-parent
+            effect-context-keys effect-load-document-resolves-path
+            effect-print-exists loader-detects-circular-imports
+            context-is-abc loader-has-names-to-modules
+            run-on-entry-gating circular-import-detection import-deduplication
+            namespacing-only-non-main consistency-no-args-prints
+            consistency-raise-on-inconsistent consistency-bool-no-print
+            consistency-report-returns-object context-immutability
+            context-resolves-via-registry))
+
+(defterm all-axioms-backed-expected 10
+    :evidence (evidence "loader.py"
+        :quotes ("def import_effect" "def run_on_entry_effect" "def load_document_effect"
+                 "def context_effect" "def print_effect" "def consistency_effect"
+                 "def verify_manual_effect" "class Context(ABC):" "@dataclass(frozen=True)"
+                 "self.names_to_modules")
+        :explanation "10 paired behavioral cross-checks"))
+
+(diff all-axioms-backed-coverage :replace all-axioms-backed-count :with all-axioms-backed-expected)

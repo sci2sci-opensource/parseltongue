@@ -19,6 +19,137 @@
         :explanation "Core tagline"))
 
 ; =====================================================================
+; Rationale section — the "why"
+; =====================================================================
+
+(fact readme-rationale-llms-hallucinate true
+    :evidence (evidence "README"
+        :quotes ("LLMs hallucinate. They produce fluent, confident text that may have no basis in the source material.")
+        :explanation "README states the problem Parseltongue solves"))
+
+(fact readme-rationale-encode-as-logic true
+    :evidence (evidence "README"
+        :quotes ("we ask it to encode each of the documents as a logic system")
+        :explanation "README describes the approach — encode docs as logic"))
+
+(fact readme-rationale-facts-cite-quotes true
+    :evidence (evidence "README"
+        :quotes ("Every extracted fact must cite a verbatim quote. Every conclusion must derive from stated premises. And every derivation is checked.")
+        :explanation "README states the three invariants of the system"))
+
+(fact readme-rationale-hallucination-detection true
+    :evidence (evidence "README"
+        :quotes ("Hallucination detection." "Every claim traces back to a quote in a source document. If the LLM fabricates a fact, the quote verification fails")
+        :explanation "README claims hallucination detection via quote verification"))
+
+(fact readme-rationale-fabrication-contaminates true
+    :evidence (evidence "README"
+        :quotes ("that failure propagates automatically to every conclusion that depends on it. You don't just catch the lie; you see everything it contaminates.")
+        :explanation "README claims fabrication contamination propagation"))
+
+(fact readme-rationale-cross-doc-consistency true
+    :evidence (evidence "README"
+        :quotes ("Cross-document consistency checking." "we validate if the ground truth is trustable itself.")
+        :explanation "README claims cross-document consistency checking"))
+
+(fact readme-rationale-independent-paths true
+    :evidence (evidence "README"
+        :quotes ("compute the same value via independent paths" "When these paths disagree, the system flags a divergence")
+        :explanation "README describes independent computation paths as the diff mechanism"))
+
+; =====================================================================
+; Mathematical Aside — formal foundations
+; =====================================================================
+
+(fact readme-math-evidence-grounded true
+    :evidence (evidence "README"
+        :quotes ("the axiomatic basis is not assumed, it is grounded in evidence")
+        :explanation "README states core departure from classical formal systems"))
+
+(fact readme-math-ordinals-via-extension true
+    :evidence (evidence "README"
+        :quotes ("The system grows by extension." "Each layer of extension builds on everything below it. This is the ordinal hierarchy")
+        :explanation "README describes system growth as ordinal hierarchy"))
+
+(fact readme-math-each-ordinal-expands true
+    :evidence (evidence "README"
+        :quotes ("Each new ordinal" "expands what can be proved" "Each extension unlocks derivations that were previously unreachable")
+        :explanation "README claims each extension unlocks new derivations"))
+
+(fact readme-math-diffs-as-consistency true
+    :evidence (evidence "README"
+        :quotes ("Diffs as axiom consistency checks." "register two independent computation paths for the same quantity, and the system replays all dependent evaluations under both assumptions")
+        :explanation "README describes diffs as axiom consistency checks"))
+
+(fact readme-math-godel-limitation true
+    :evidence (evidence "README"
+        :quotes ("This is not a proof of consistency" "Godel tells us that's impossible for sufficiently strong systems" "but a practical detection mechanism")
+        :explanation "README acknowledges Godel limitation and positions diffs as practical detection"))
+
+(fact readme-math-fabrication-propagation-mechanism true
+    :evidence (evidence "README"
+        :quotes ("When evidence fails verification (a quote not found in its cited document), the taint propagates through the language." "Every theorem derived from a fabricated source inherits the flag")
+        :explanation "README describes fabrication propagation mechanism in detail"))
+
+(fact readme-math-turing-reference true
+    :evidence (evidence "README"
+        :quotes ("This is the core idea from Turing's" "Systems of Logic Based on Ordinals" "a sequence of logics, each extending the previous one by adding new axioms, can transcend the limitations of any single formal system")
+        :explanation "README grounds ordinal approach in Turing 1939"))
+
+; =====================================================================
+; Axioms — universal rules stated in the README
+; =====================================================================
+
+; Axiom 1: Every fact must cite a verbatim quote
+(axiom every-fact-cites-quote
+    (implies ?is-fact ?must-cite-quote)
+    :evidence (evidence "README"
+        :quotes ("Every extracted fact must cite a verbatim quote.")
+        :explanation "Universal rule: facts require quote citation"))
+
+; Axiom 2: Every conclusion must derive from stated premises
+(axiom every-conclusion-derives
+    (implies ?is-conclusion ?derives-from-premises)
+    :evidence (evidence "README"
+        :quotes ("Every conclusion must derive from stated premises.")
+        :explanation "Universal rule: conclusions require derivation"))
+
+; Axiom 3: Fabrication taints propagate through derivation chains
+(axiom fabrication-propagates
+    (implies ?source-unverified ?derivation-tainted)
+    :evidence (evidence "README"
+        :quotes ("If any source has unverified evidence, the derivation inherits the fabrication taint")
+        :explanation "Universal rule: fabrication propagates via derivation"))
+
+; Axiom 4: Axioms must have ?-variables
+(axiom axioms-require-variables
+    (implies ?is-axiom ?has-question-var)
+    :evidence (evidence "README"
+        :quotes ("Axioms MUST contain at least one ?-variable" "Ground statements (no ?-variables) are rejected")
+        :explanation "Universal rule: axioms require at least one ?-variable"))
+
+; Axiom 5: Diffs detect contradictions via independent paths
+(axiom diffs-detect-contradictions
+    (implies (and ?path-a ?path-b) ?divergence-detectable)
+    :evidence (evidence "README"
+        :quotes ("register two independent values for the same quantity, and the engine replays all dependent computations under both assumptions. Where results diverge, something is wrong")
+        :explanation "Universal rule: diffs expose contradictions between independent paths"))
+
+; Axiom 6: Evidence grounding inverts classical axiomatics
+(axiom evidence-inverts-classical
+    (implies ?has-evidence (not ?assumed-without-justification))
+    :evidence (evidence "README"
+        :quotes ("Parseltongue inverts this. Every axiom, every fact, every primitive term must cite its justification")
+        :explanation "Core departure: axioms are justified, not assumed"))
+
+; Axiom 7: System extension unlocks new derivations
+(axiom extension-unlocks-derivations
+    (implies ?new-axiom-added ?new-derivations-reachable)
+    :evidence (evidence "README"
+        :quotes ("Each new ordinal" "expands what can be proved" "each derivation is a new opportunity for the engine to catch a contradiction")
+        :explanation "Adding axioms extends what can be derived and checked"))
+
+; =====================================================================
 ; Directive types
 ; =====================================================================
 
@@ -29,28 +160,54 @@
 
 (fact readme-has-fact-directive true
     :evidence (evidence "README"
-        :quotes ("fact")
+        :quotes ("**`fact`** — a named value extracted from a document.")
         :explanation "fact listed as directive"))
 
 (fact readme-has-axiom-directive true
     :evidence (evidence "README"
-        :quotes ("axiom")
+        :quotes ("**`axiom`** — a parametric rewrite rule.")
         :explanation "axiom listed as directive"))
 
 (fact readme-has-defterm-directive true
     :evidence (evidence "README"
-        :quotes ("defterm")
+        :quotes ("**`defterm`** — a named concept.")
         :explanation "defterm listed as directive"))
 
 (fact readme-has-derive-directive true
     :evidence (evidence "README"
-        :quotes ("derive")
+        :quotes ("**`derive`** — a theorem proved from existing facts, terms, and axioms.")
         :explanation "derive listed as directive"))
 
 (fact readme-has-diff-directive true
     :evidence (evidence "README"
-        :quotes ("diff")
+        :quotes ("**`diff`** — a lazy consistency comparison between two symbols.")
         :explanation "diff listed as directive"))
+
+; Directive descriptions — what each directive does
+(fact readme-fact-description "a named value extracted from a document"
+    :evidence (evidence "README"
+        :quotes ("a named value extracted from a document. Facts are the atoms of the system")
+        :explanation "README describes fact as atomic data point"))
+
+(fact readme-axiom-description "a parametric rewrite rule"
+    :evidence (evidence "README"
+        :quotes ("a parametric rewrite rule. Axioms MUST contain at least one ?-variable")
+        :explanation "README describes axiom as parametric rewrite"))
+
+(fact readme-defterm-three-forms true
+    :evidence (evidence "README"
+        :quotes ("Terms come in three forms." "A forward declaration introduces a primitive symbol with no body" "A computed term is an expression evaluated on reference" "A conditional term uses if to branch")
+        :explanation "README describes 3 defterm forms: forward-decl, computed, conditional"))
+
+(fact readme-derive-restricted-eval true
+    :evidence (evidence "README"
+        :quotes ("Evaluation is restricted to symbols listed in :using; dependencies of axioms and terms are expanded transitively.")
+        :explanation "README documents :using restriction for derive"))
+
+(fact readme-diff-lazy true
+    :evidence (evidence "README"
+        :quotes ("a lazy consistency comparison between two symbols")
+        :explanation "README describes diff as lazy"))
 
 ; =====================================================================
 ; Built-in operators section
@@ -105,34 +262,54 @@
         :quotes ("a confidence score with a binary threshold for pass/fail")
         :explanation "README says binary threshold"))
 
+(fact readme-verifier-handles-artifacts true
+    :evidence (evidence "README"
+        :quotes ("The verifier handles PDF artifacts, line-break hyphens, formatted numbers" "and OCR noise")
+        :explanation "README lists artifact types the verifier handles"))
+
+(fact readme-verifier-collapsed-fallback true
+    :evidence (evidence "README"
+        :quotes ("A space-collapsed fallback catches cases where source documents split words across lines")
+        :explanation "README documents collapsed fallback matching"))
+
+(fact readme-verifier-penalty-semantics true
+    :evidence (evidence "README"
+        :quotes ("Removing semantically meaningful words" "receives a heavy penalty by default, because changing those words changes the meaning of the quote")
+        :explanation "README documents semantic penalty weighting"))
+
+(fact readme-verifier-inverted-index true
+    :evidence (evidence "README"
+        :quotes ("normalized and indexed into an inverted word-position index" "quote lookup is a candidate-set intersection rather than a linear scan")
+        :explanation "README documents inverted index architecture"))
+
 ; =====================================================================
 ; Consistency checking section
 ; =====================================================================
 
 (fact readme-issue-type-1 "unverified_evidence"
     :evidence (evidence "README"
-        :quotes ("unverified_evidence")
-        :explanation "Issue type listed in table"))
+        :quotes ("unverified_evidence" "Quote not found in the registered document")
+        :explanation "Issue type with description"))
 
 (fact readme-issue-type-2 "no_evidence"
     :evidence (evidence "README"
-        :quotes ("no_evidence")
-        :explanation "Issue type listed in table"))
+        :quotes ("no_evidence" "Statement has no evidence at all")
+        :explanation "Issue type with description"))
 
 (fact readme-issue-type-3 "potential_fabrication"
     :evidence (evidence "README"
-        :quotes ("potential_fabrication")
-        :explanation "Issue type listed in table"))
+        :quotes ("potential_fabrication" "Theorem depends on unverified evidence")
+        :explanation "Issue type with description"))
 
 (fact readme-issue-type-4 "diff_divergence"
     :evidence (evidence "README"
-        :quotes ("diff_divergence")
-        :explanation "Issue type listed in table"))
+        :quotes ("diff_divergence" "Downstream terms diverge when swapping one value for another")
+        :explanation "Issue type with description"))
 
 (fact readme-issue-type-5 "diff_value_divergence"
     :evidence (evidence "README"
-        :quotes ("diff_value_divergence")
-        :explanation "Issue type listed in table"))
+        :quotes ("diff_value_divergence" "The two values in a diff disagree directly")
+        :explanation "Issue type with description"))
 
 ; =====================================================================
 ; Custom environments section
@@ -148,24 +325,79 @@
         :quotes ("initial_env={}")
         :explanation "README documents initial_env parameter"))
 
+(fact readme-env-not-hardcoded true
+    :evidence (evidence "README"
+        :quotes ("The System engine does not hardcode any operators.")
+        :explanation "README states operators are not hardcoded"))
+
+(fact readme-env-blank-slate true
+    :evidence (evidence "README"
+        :quotes ("Blank slate — build everything from primitives" "System(initial_env={}, docs={})")
+        :explanation "README documents blank slate option"))
+
+(fact readme-env-domain-specific true
+    :evidence (evidence "README"
+        :quotes ("This is how you build domain-specific languages: strip the defaults, introduce your own primitives")
+        :explanation "README describes DSL building pattern"))
+
 ; =====================================================================
-; Demos section
+; Demos section — all 11 by name
 ; =====================================================================
 
 (fact readme-demo-apples true
     :evidence (evidence "README"
-        :quotes ("Apples")
+        :quotes ("**Apples** ([`demos/apples/`]")
         :explanation "Apples demo documented"))
+
+(fact readme-demo-apples-pltg true
+    :evidence (evidence "README"
+        :quotes ("**Apples (.pltg)** ([`demos/apples_pltg/`]")
+        :explanation "Apples pltg demo documented"))
 
 (fact readme-demo-revenue true
     :evidence (evidence "README"
-        :quotes ("Revenue Reports")
+        :quotes ("**Revenue Reports** ([`demos/revenue_reports/`]")
         :explanation "Revenue demo documented"))
 
 (fact readme-demo-biomarkers true
     :evidence (evidence "README"
-        :quotes ("Biomarkers")
+        :quotes ("**Biomarkers** ([`demos/biomarkers/`]")
         :explanation "Biomarkers demo documented"))
+
+(fact readme-demo-code-check true
+    :evidence (evidence "README"
+        :quotes ("**Code Check** ([`demos/code_check/`]")
+        :explanation "Code Check demo documented"))
+
+(fact readme-demo-doc-validation true
+    :evidence (evidence "README"
+        :quotes ("**Doc Validation** ([`demos/doc_validation/`]")
+        :explanation "Doc Validation demo documented"))
+
+(fact readme-demo-spec-validation true
+    :evidence (evidence "README"
+        :quotes ("**Spec Validation** ([`demos/spec_validation/`]")
+        :explanation "Spec Validation demo documented"))
+
+(fact readme-demo-extensibility true
+    :evidence (evidence "README"
+        :quotes ("**Extensibility** ([`demos/extensibility/`]")
+        :explanation "Extensibility demo documented"))
+
+(fact readme-demo-self-healing true
+    :evidence (evidence "README"
+        :quotes ("**Self-Healing** ([`demos/self_healing/`]")
+        :explanation "Self-Healing demo documented"))
+
+(fact readme-demo-deferred true
+    :evidence (evidence "README"
+        :quotes ("**Deferred (.pltg)** ([`demos/deferred_pltg/`]")
+        :explanation "Deferred demo documented"))
+
+(fact readme-demo-entry-mocks true
+    :evidence (evidence "README"
+        :quotes ("**Entry Mocks (.pltg)** ([`demos/entry_mocks_pltg/`]")
+        :explanation "Entry Mocks demo documented"))
 
 (fact readme-demo-count 11
     :evidence (evidence "README"
@@ -176,28 +408,24 @@
 ; Axiom claims — what README states as rules
 ; =====================================================================
 
-; "Axioms MUST contain at least one ?-variable"
 (fact readme-axiom-var-requirement true
     :evidence (evidence "README"
         :quotes ("Axioms MUST contain at least one ?-variable")
         :explanation "README states axiom variable requirement"))
 
-; "If any source has unverified evidence, the derivation inherits the fabrication taint"
 (fact readme-fabrication-propagation true
     :evidence (evidence "README"
         :quotes ("If any source has unverified evidence, the derivation inherits the fabrication taint")
         :explanation "README documents fabrication propagation"))
 
-; "Evidence is a first-class citizen"
 (fact readme-evidence-first-class true
     :evidence (evidence "README"
         :quotes ("Evidence is a first-class citizen")
         :explanation "README claims evidence is first-class"))
 
-; "Statements without evidence can be verified after the fact via system.verify_manual"
 (fact readme-verify-manual-described true
     :evidence (evidence "README"
-        :quotes ("system.verify_manual")
+        :quotes ("Statements without evidence can be verified after the fact via system.verify_manual")
         :explanation "README documents verify_manual"))
 
 ; =====================================================================
@@ -211,28 +439,38 @@
 
 (fact readme-loader-import-effect true
     :evidence (evidence "README"
-        :quotes ("(import (quote module.name))")
+        :quotes ("(import (quote module.name))" "Import another .pltg module")
         :explanation "README documents import effect"))
 
 (fact readme-loader-run-on-entry-effect true
     :evidence (evidence "README"
-        :quotes ("(run-on-entry (quote (directive ...)))")
+        :quotes ("(run-on-entry (quote (directive ...)))" "Execute directives only when file is the main entry point")
         :explanation "README documents run-on-entry effect"))
 
 (fact readme-loader-load-document-effect true
     :evidence (evidence "README"
-        :quotes ("(load-document \"name\" \"relative/path.txt\")")
+        :quotes ("(load-document \"name\" \"relative/path.txt\")" "Register a source document for evidence grounding")
         :explanation "README documents load-document effect"))
 
 (fact readme-loader-context-effect true
     :evidence (evidence "README"
-        :quotes ("(context :file)")
+        :quotes ("(context :file)" "Access per-module context")
         :explanation "README documents context effect"))
 
 (fact readme-loader-print-effect true
     :evidence (evidence "README"
-        :quotes ("(print \"label\" value ...)")
+        :quotes ("(print \"label\" value ...)" "Print computed values from the system")
         :explanation "README documents print effect"))
+
+(fact readme-loader-consistency-effect true
+    :evidence (evidence "README"
+        :quotes ("(consistency)" "With no arguments, prints the report and returns True")
+        :explanation "README documents consistency effect"))
+
+(fact readme-loader-verify-manual-effect true
+    :evidence (evidence "README"
+        :quotes ("(verify-manual name)" "Manually verify a fact, term, or axiom")
+        :explanation "README documents verify-manual effect"))
 
 (fact readme-loader-effect-count 7
     :evidence (evidence "README"
@@ -246,13 +484,28 @@
 
 (fact readme-loader-circular-detection true
     :evidence (evidence "README"
-        :quotes ("Circular imports are detected and raise an error")
+        :quotes ("Circular imports are detected and raise an error.")
         :explanation "README documents circular import detection"))
+
+(fact readme-loader-duplicate-skipped true
+    :evidence (evidence "README"
+        :quotes ("Duplicate imports are skipped.")
+        :explanation "README documents duplicate import skipping"))
+
+(fact readme-loader-dot-resolution true
+    :evidence (evidence "README"
+        :quotes ("Modules are resolved from dot-separated names to file paths" "utils.math" "utils/math.pltg")
+        :explanation "README documents dot-to-path resolution"))
 
 (fact readme-loader-context-onion true
     :evidence (evidence "README"
         :quotes ("immutable ModuleContext following an onion model")
         :explanation "README documents onion context model"))
+
+(fact readme-loader-context-namespaced true
+    :evidence (evidence "README"
+        :quotes ("Context keys are namespaced per-module so (context :file) in lib.pltg resolves to the library's file path")
+        :explanation "README documents per-module context namespacing"))
 
 (fact readme-loader-load-pltg true
     :evidence (evidence "README"
@@ -290,38 +543,38 @@
 
 (fact readme-documents-local-aliasing true
     :evidence (evidence "README"
-        :quotes ("### Local Aliasing")
-        :explanation "README has a Local Aliasing section documenting defterm aliases"))
+        :quotes ("### Local Aliasing" "Modules can create local aliases for namespaced symbols using defterm")
+        :explanation "README has a Local Aliasing section"))
 
 (fact readme-documents-forward-decl true
     :evidence (evidence "README"
-        :quotes ("### Forward-Declared Primitives")
+        :quotes ("### Forward-Declared Primitives" "A defterm with no body introduces a forward-declared primitive symbol")
         :explanation "README has a Forward-Declared Primitives section"))
 
 (fact readme-documents-run-on-entry-gating true
     :evidence (evidence "README"
-        :quotes ("### run-on-entry Gating")
+        :quotes ("### run-on-entry Gating" "run-on-entry directives execute only when the file is the main entry point")
         :explanation "README has a run-on-entry Gating section"))
 
 (fact readme-documents-let-mock true
     :evidence (evidence "README"
-        :quotes ("### let-mock Unit Testing")
+        :quotes ("### let-mock Unit Testing" "Combine run-on-entry with let to create self-contained unit tests that mock dependencies")
         :explanation "README has a let-mock Unit Testing section"))
 
 (fact readme-documents-import-chains true
     :evidence (evidence "README"
-        :quotes ("### Import Chains")
+        :quotes ("### Import Chains" "Imports are transitive through the module graph")
         :explanation "README has an Import Chains section"))
 
 (fact readme-documents-cross-module-bind true
     :evidence (evidence "README"
-        :quotes ("### Cross-Module Bind")
+        :quotes ("### Cross-Module Bind" "Axioms defined in one module can be instantiated with :bind using terms from another module")
         :explanation "README has a Cross-Module Bind section"))
 
 (fact readme-documents-defterm-lazy true
     :evidence (evidence "README"
-        :quotes ("### Lazy Evaluation")
-        :explanation "README has a Lazy Evaluation section documenting that all defterm definitions are lazy"))
+        :quotes ("### Lazy Evaluation" "All defterm definitions are lazy" "the body expression is stored unevaluated and resolved only when the term is referenced")
+        :explanation "README has a Lazy Evaluation section"))
 
 ; =====================================================================
 ; Packaging
@@ -349,152 +602,69 @@
 (fact readme-documents-splat-patterns false
     :origin "README has no mention of ?... splat patterns")
 
-; Cross-module diff (readme vs loader effect count) lives in core.pltg
-
 ; =====================================================================
-; Code vs Docs — two-branch-then-diff
+; Internal consistency — non-tautological diffs only
 ; =====================================================================
+; README exports expectations for core.pltg to consume cross-module.
+; Here we only prove internal consistency: stated counts vs listed items,
+; and paired coverage (listing + description for same item).
+; Most readme facts are correctly dangling — they're consumed externally.
 
-; --- 1. Top-level claims ---
+; --- 1. Directive count vs listing ---
+; README says "5 directive types" and lists them individually.
 
-(derive readme-identity-doc-count
-    (count-exists readme-title readme-tagline)
-    :using (count-exists counting.count-exists-base counting.count-exists-step
-            readme-title readme-tagline))
+(derive readme-directive-listing-count
+    (count-exists readme-has-fact-directive readme-has-axiom-directive
+                  readme-has-defterm-directive readme-has-derive-directive readme-has-diff-directive)
+    :using (count-exists readme-has-fact-directive readme-has-axiom-directive
+                         readme-has-defterm-directive readme-has-derive-directive readme-has-diff-directive))
 
-(defterm readme-identity-impl-count 2
-    :evidence (evidence "README"
-        :quotes ("# Parseltongue Core" "The formal language engine. No LLM dependency")
-        :explanation "2 top-level claims in README"))
+(diff readme-directive-listing-vs-stated :replace readme-directive-listing-count :with readme-directive-count)
 
-(diff readme-identity-coverage
-    :replace readme-identity-doc-count
-    :with readme-identity-impl-count)
+; --- 2. Directive paired coverage ---
+; Each directive has BOTH a listing fact AND a description fact.
 
-; --- 2. Directives ---
+(derive readme-directive-paired-count
+    (count-exists (and readme-has-fact-directive readme-fact-description)
+                  (and readme-has-axiom-directive readme-axiom-description)
+                  (and readme-has-defterm-directive readme-defterm-three-forms)
+                  (and readme-has-derive-directive readme-derive-restricted-eval)
+                  (and readme-has-diff-directive readme-diff-lazy))
+    :using (count-exists
+            readme-has-fact-directive readme-fact-description
+            readme-has-axiom-directive readme-axiom-description
+            readme-has-defterm-directive readme-defterm-three-forms
+            readme-has-derive-directive readme-derive-restricted-eval
+            readme-has-diff-directive readme-diff-lazy))
 
-(derive readme-directives-doc-count
-    (count-exists readme-directive-count readme-has-fact-directive readme-has-axiom-directive readme-has-defterm-directive readme-has-derive-directive readme-has-diff-directive)
-    :using (count-exists counting.count-exists-base counting.count-exists-step
-            readme-directive-count readme-has-fact-directive readme-has-axiom-directive readme-has-defterm-directive readme-has-derive-directive readme-has-diff-directive))
+(diff readme-directive-paired-vs-listing :replace readme-directive-paired-count :with readme-directive-listing-count)
 
-(defterm readme-directives-impl-count 6
-    :evidence (evidence "README"
-        :quotes ("Five directive types" "fact" "axiom" "defterm" "derive" "diff")
-        :explanation "6 directive documentation features in README"))
+; --- 3. Demo count vs listing ---
+; README says "11 demos" and lists them individually.
 
-(diff readme-directives-coverage
-    :replace readme-directives-doc-count
-    :with readme-directives-impl-count)
+(derive readme-demo-listing-count
+    (count-exists readme-demo-apples readme-demo-apples-pltg readme-demo-revenue
+                  readme-demo-biomarkers readme-demo-code-check readme-demo-doc-validation
+                  readme-demo-spec-validation readme-demo-extensibility readme-demo-self-healing
+                  readme-demo-deferred readme-demo-entry-mocks)
+    :using (count-exists readme-demo-apples readme-demo-apples-pltg readme-demo-revenue
+                         readme-demo-biomarkers readme-demo-code-check readme-demo-doc-validation
+                         readme-demo-spec-validation readme-demo-extensibility readme-demo-self-healing
+                         readme-demo-deferred readme-demo-entry-mocks))
 
-; --- 3. Built-in operators ---
+(diff readme-demo-listing-vs-count :replace readme-demo-listing-count :with readme-demo-count)
 
-(derive readme-operators-doc-count
-    (count-exists readme-arithmetic readme-comparison readme-logic)
-    :using (count-exists counting.count-exists-base counting.count-exists-step
-            readme-arithmetic readme-comparison readme-logic))
+; --- 4. Loader effect count vs listing ---
+; README says "7 built-in effects" and lists them individually.
 
-(defterm readme-operators-impl-count 3
-    :evidence (evidence "README"
-        :quotes ("+, -, *, /, mod" ">, <, >=, <=, =, !=" "and, or, not, implies")
-        :explanation "3 operator categories in README"))
+(derive readme-loader-effects-listing-count
+    (count-exists readme-loader-import-effect readme-loader-run-on-entry-effect
+                  readme-loader-load-document-effect readme-loader-context-effect
+                  readme-loader-print-effect readme-loader-consistency-effect
+                  readme-loader-verify-manual-effect)
+    :using (count-exists readme-loader-import-effect readme-loader-run-on-entry-effect
+                         readme-loader-load-document-effect readme-loader-context-effect
+                         readme-loader-print-effect readme-loader-consistency-effect
+                         readme-loader-verify-manual-effect))
 
-(diff readme-operators-coverage
-    :replace readme-operators-doc-count
-    :with readme-operators-impl-count)
-
-; --- 4. Evidence system ---
-
-(derive readme-evidence-doc-count
-    (count-exists readme-evidence-first-class readme-verify-manual-described readme-binary-threshold)
-    :using (count-exists counting.count-exists-base counting.count-exists-step
-            readme-evidence-first-class readme-verify-manual-described readme-binary-threshold))
-
-(defterm readme-evidence-impl-count 3
-    :evidence (evidence "README"
-        :quotes ("Evidence is a first-class citizen" "system.verify_manual" "a confidence score with a binary threshold")
-        :explanation "3 evidence system features in README"))
-
-(diff readme-evidence-coverage
-    :replace readme-evidence-doc-count
-    :with readme-evidence-impl-count)
-
-; --- 5. Issue types ---
-
-(derive readme-issue-types-doc-count
-    (count-exists readme-issue-type-1 readme-issue-type-2 readme-issue-type-3 readme-issue-type-4 readme-issue-type-5)
-    :using (count-exists counting.count-exists-base counting.count-exists-step
-            readme-issue-type-1 readme-issue-type-2 readme-issue-type-3 readme-issue-type-4 readme-issue-type-5))
-
-(defterm readme-issue-types-impl-count 5
-    :evidence (evidence "README"
-        :quotes ("unverified_evidence" "no_evidence" "potential_fabrication" "diff_divergence" "diff_value_divergence")
-        :explanation "5 issue types in README"))
-
-(diff readme-issue-types-coverage
-    :replace readme-issue-types-doc-count
-    :with readme-issue-types-impl-count)
-
-; --- 6. Custom environments ---
-
-(derive readme-custom-env-doc-count
-    (count-exists readme-docs-param-described readme-initial-env-described)
-    :using (count-exists counting.count-exists-base counting.count-exists-step
-            readme-docs-param-described readme-initial-env-described))
-
-(defterm readme-custom-env-impl-count 2
-    :evidence (evidence "README"
-        :quotes ("The docs= parameter controls what system.doc() returns" "initial_env={}")
-        :explanation "2 custom env features in README"))
-
-(diff readme-custom-env-coverage
-    :replace readme-custom-env-doc-count
-    :with readme-custom-env-impl-count)
-
-; --- 7. Demo examples ---
-
-(derive readme-demo-examples-doc-count
-    (count-exists readme-demo-apples readme-demo-revenue readme-demo-biomarkers)
-    :using (count-exists counting.count-exists-base counting.count-exists-step
-            readme-demo-apples readme-demo-revenue readme-demo-biomarkers))
-
-(defterm readme-demo-examples-impl-count 3
-    :evidence (evidence "README"
-        :quotes ("Apples" "Revenue Reports" "Biomarkers")
-        :explanation "3 demo examples in README"))
-
-(diff readme-demo-examples-coverage
-    :replace readme-demo-examples-doc-count
-    :with readme-demo-examples-impl-count)
-
-; --- 8. Loader effects in README ---
-
-(derive readme-loader-effects-doc-count
-    (count-exists readme-loader-import-effect readme-loader-run-on-entry-effect readme-loader-load-document-effect readme-loader-context-effect readme-loader-print-effect readme-loader-load-pltg)
-    :using (count-exists counting.count-exists-base counting.count-exists-step
-            readme-loader-import-effect readme-loader-run-on-entry-effect readme-loader-load-document-effect readme-loader-context-effect readme-loader-print-effect readme-loader-load-pltg))
-
-(defterm readme-loader-effects-impl-count 6
-    :evidence (evidence "README"
-        :quotes ("(import (quote module.name))" "(run-on-entry (quote (directive ...)))" "(load-document \"name\" \"relative/path.txt\")" "(context :file)" "(print \"label\" value ...)" "load_pltg")
-        :explanation "6 loader effect features in README"))
-
-(diff readme-loader-effects-coverage
-    :replace readme-loader-effects-doc-count
-    :with readme-loader-effects-impl-count)
-
-; --- 9. Loader architecture ---
-
-(derive readme-loader-arch-doc-count
-    (count-exists readme-loader-context-onion readme-documents-consistency-modes)
-    :using (count-exists counting.count-exists-base counting.count-exists-step
-            readme-loader-context-onion readme-documents-consistency-modes))
-
-(defterm readme-loader-arch-impl-count 2
-    :evidence (evidence "README"
-        :quotes ("immutable ModuleContext following an onion model" "(consistency :raise)" "(consistency :bool)" "(consistency :report)")
-        :explanation "2 loader architecture features in README"))
-
-(diff readme-loader-arch-coverage
-    :replace readme-loader-arch-doc-count
-    :with readme-loader-arch-impl-count)
+(diff readme-loader-effects-vs-count :replace readme-loader-effects-listing-count :with readme-loader-effect-count)

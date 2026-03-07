@@ -164,11 +164,19 @@
 ; Internal consistency
 ; =====================================================================
 
-; System docstring says "serialization" — Engine docstring says "No serialization"
-; System wraps Engine and ADDS serialization — this is intentional and consistent
-(derive system-adds-what-engine-lacks
-    (and system-serializes-terms system-serializes-facts system-serializes-axioms system-serializes-theorems)
-    :using (system-serializes-terms system-serializes-facts system-serializes-axioms system-serializes-theorems))
+; System docstring claims "serialization" — prove it with impl facts
+(derive serialization-impl-count
+    (count-exists system-serializes-terms system-serializes-facts system-serializes-axioms system-serializes-theorems)
+    :using (count-exists system-serializes-terms system-serializes-facts system-serializes-axioms system-serializes-theorems))
+
+; Docstring claims serialization — 1 claim, 4 impl facts
+(derive serialization-doc-count
+    (count-exists system-docstring)
+    :using (count-exists system-docstring))
+
+(diff serialization-doc-vs-impl
+    :replace serialization-doc-count
+    :with serialization-impl-count)
 
 ; Effects are injected into engine.env with system auto-injected as first arg
 (fact effects-auto-inject-system true

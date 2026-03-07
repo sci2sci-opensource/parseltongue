@@ -290,6 +290,79 @@ patterns for variadic operations: sum-all, count-gt, all-gt.")
 ; The demo exists to show diff detection; mismatches are expected
 ; =====================================================================
 
+; --- Spec validation: docstring documents 3 divergence types ---
+
+; Layer 1: DOC — docstring claims these divergences exist
+(fact spec-doc-claims-expiry-divergence true
+    :evidence (evidence "spec_validation"
+        :quotes ("tokens expire in 30 minutes" "1-hour expiry")
+        :explanation "Docstring claims expiry mismatch between spec and impl"))
+
+(fact spec-doc-claims-session-divergence true
+    :evidence (evidence "spec_validation"
+        :quotes ("max 3 sessions" "5 sessions")
+        :explanation "Docstring claims session limit mismatch"))
+
+(fact spec-doc-claims-md5-divergence true
+    :evidence (evidence "spec_validation"
+        :quotes ("MD5 must not be used" "uses MD5 for session IDs")
+        :explanation "Docstring claims MD5 used despite being prohibited"))
+
+; Layer 2: IMPL — demo code actually has these divergences
+(fact spec-impl-has-expiry-divergence true
+    :evidence (evidence "spec_validation"
+        :quotes ("(fact spec-token-expiry 1800" "(fact impl-token-expiry 3600")
+        :explanation "Spec says 1800s, impl says 3600s — divergence present in demo code"))
+
+(fact spec-impl-has-session-divergence true
+    :evidence (evidence "spec_validation"
+        :quotes ("(fact spec-max-sessions 3" "(fact impl-max-sessions 5")
+        :explanation "Spec says 3, impl says 5 — divergence present in demo code"))
+
+(fact spec-impl-has-md5-divergence true
+    :evidence (evidence "spec_validation"
+        :quotes ("(fact spec-md5-forbidden true" "(fact impl-session-hash \"md5\"")
+        :explanation "Spec forbids MD5, impl uses it — divergence present in demo code"))
+
+; Cross-layer diffs: docstring claim vs actual presence
+(diff spec-expiry-doc-vs-impl :replace spec-doc-claims-expiry-divergence :with spec-impl-has-expiry-divergence)
+(diff spec-session-doc-vs-impl :replace spec-doc-claims-session-divergence :with spec-impl-has-session-divergence)
+(diff spec-md5-doc-vs-impl :replace spec-doc-claims-md5-divergence :with spec-impl-has-md5-divergence)
+
+; Divergence counts
+(derive spec-divergence-doc-count
+    (count-exists spec-doc-claims-expiry-divergence spec-doc-claims-session-divergence spec-doc-claims-md5-divergence)
+    :using (count-exists spec-doc-claims-expiry-divergence spec-doc-claims-session-divergence spec-doc-claims-md5-divergence))
+
+(derive spec-divergence-impl-count
+    (count-exists spec-impl-has-expiry-divergence spec-impl-has-session-divergence spec-impl-has-md5-divergence)
+    :using (count-exists spec-impl-has-expiry-divergence spec-impl-has-session-divergence spec-impl-has-md5-divergence))
+
+(diff spec-divergence-doc-vs-impl :replace spec-divergence-doc-count :with spec-divergence-impl-count)
+
+; Paired: each divergence type documented AND present
+(derive spec-divergence-paired-count
+    (count-exists (and spec-doc-claims-expiry-divergence spec-impl-has-expiry-divergence)
+                  (and spec-doc-claims-session-divergence spec-impl-has-session-divergence)
+                  (and spec-doc-claims-md5-divergence spec-impl-has-md5-divergence))
+    :using (count-exists
+            spec-doc-claims-expiry-divergence spec-impl-has-expiry-divergence
+            spec-doc-claims-session-divergence spec-impl-has-session-divergence
+            spec-doc-claims-md5-divergence spec-impl-has-md5-divergence))
+
+(diff spec-divergence-paired-vs-doc :replace spec-divergence-paired-count :with spec-divergence-doc-count)
+
+; Raw value diffs — these SHOULD diverge, that's the demo's point
+(diff spec-raw-expiry :replace spec-validation-token-expiry-spec :with spec-validation-token-expiry-impl)
+(diff spec-raw-sessions :replace spec-validation-sessions-spec :with spec-validation-sessions-impl)
+(diff spec-raw-md5 :replace spec-validation-md5-prohibited :with spec-validation-md5-used)
+
+; spec validation has MD5 both prohibited and used — contradiction grounded in docs
+(derive spec-md5-contradiction
+    (and spec-validation-md5-prohibited spec-validation-md5-used)
+    :using (spec-validation-md5-prohibited spec-validation-md5-used))
+
+; Derives that connect catches-divergence to the mismatch proofs
 (derive spec-token-expiry-mismatch
     (implies (not (= spec-validation-token-expiry-spec spec-validation-token-expiry-impl)) spec-validation-catches-divergence)
     :using (spec-validation-token-expiry-spec spec-validation-token-expiry-impl spec-validation-catches-divergence))
@@ -297,6 +370,13 @@ patterns for variadic operations: sum-all, count-gt, all-gt.")
 (derive spec-session-limit-mismatch
     (implies (not (= spec-validation-sessions-spec spec-validation-sessions-impl)) spec-validation-catches-divergence)
     :using (spec-validation-sessions-spec spec-validation-sessions-impl spec-validation-catches-divergence))
+
+; Mismatch count — demo claims to catch "every divergence", prove there are 3
+(derive spec-mismatch-count
+    (count-exists spec-token-expiry-mismatch spec-session-limit-mismatch spec-md5-contradiction)
+    :using (count-exists spec-token-expiry-mismatch spec-session-limit-mismatch spec-md5-contradiction))
+
+(diff spec-mismatch-vs-divergence-doc :replace spec-mismatch-count :with spec-divergence-doc-count)
 
 ; =====================================================================
 ; Derivations
@@ -307,15 +387,131 @@ patterns for variadic operations: sum-all, count-gt, all-gt.")
     (= apples-topic apples-pltg-topic)
     :using (apples-topic apples-pltg-topic))
 
-; spec validation has MD5 both prohibited and used — contradiction grounded in docs
-(derive spec-md5-contradiction
-    (and spec-validation-md5-prohibited spec-validation-md5-used)
-    :using (spec-validation-md5-prohibited spec-validation-md5-used))
+(diff apples-topic-consistency :replace apples-topic :with apples-pltg-topic)
+
+; apples splats is a separate demo with its own topic
+(diff apples-splats-topic-vs-apples :replace apples-splats-pltg-topic :with apples-topic)
+
+; --- Self-healing: docstring documents 6 effects, code registers them ---
+
+; Layer 1: DOC — docstring lists effects
+(fact self-healing-doc-has-load-data true
+    :evidence (evidence "self_healing"
+        :quotes ("(load-data name path)")
+        :explanation "Docstring lists load-data effect"))
+
+(fact self-healing-doc-has-check-diff true
+    :evidence (evidence "self_healing"
+        :quotes ("(check-diff name)")
+        :explanation "Docstring lists check-diff effect"))
+
+(fact self-healing-doc-has-check-consistency true
+    :evidence (evidence "self_healing"
+        :quotes ("(check-consistency)")
+        :explanation "Docstring lists check-consistency effect"))
+
+(fact self-healing-doc-has-snapshot true
+    :evidence (evidence "self_healing"
+        :quotes ("(snapshot name)")
+        :explanation "Docstring lists snapshot effect"))
+
+(fact self-healing-doc-has-patch-fact true
+    :evidence (evidence "self_healing"
+        :quotes ("(patch-fact name value)")
+        :explanation "Docstring lists patch-fact effect"))
+
+(fact self-healing-doc-has-rollback true
+    :evidence (evidence "self_healing"
+        :quotes ("(rollback name)")
+        :explanation "Docstring lists rollback effect"))
+
+; Layer 2: IMPL — effects registered in System constructor
+(fact self-healing-impl-has-load-data true
+    :evidence (evidence "self_healing"
+        :quotes ("\"load-data\": load_data,")
+        :explanation "load-data effect registered"))
+
+(fact self-healing-impl-has-check-diff true
+    :evidence (evidence "self_healing"
+        :quotes ("\"check-diff\": check_diff,")
+        :explanation "check-diff effect registered"))
+
+(fact self-healing-impl-has-check-consistency true
+    :evidence (evidence "self_healing"
+        :quotes ("\"check-consistency\": check_consistency,")
+        :explanation "check-consistency effect registered"))
+
+(fact self-healing-impl-has-snapshot true
+    :evidence (evidence "self_healing"
+        :quotes ("\"snapshot\": snapshot,")
+        :explanation "snapshot effect registered"))
+
+(fact self-healing-impl-has-patch-fact true
+    :evidence (evidence "self_healing"
+        :quotes ("\"patch-fact\": patch_fact,")
+        :explanation "patch-fact effect registered"))
+
+(fact self-healing-impl-has-rollback true
+    :evidence (evidence "self_healing"
+        :quotes ("\"rollback\": rollback,")
+        :explanation "rollback effect registered"))
+
+; Per-layer counts
+(derive self-healing-doc-count
+    (count-exists self-healing-doc-has-load-data self-healing-doc-has-check-diff
+                  self-healing-doc-has-check-consistency self-healing-doc-has-snapshot
+                  self-healing-doc-has-patch-fact self-healing-doc-has-rollback)
+    :using (count-exists self-healing-doc-has-load-data self-healing-doc-has-check-diff
+                         self-healing-doc-has-check-consistency self-healing-doc-has-snapshot
+                         self-healing-doc-has-patch-fact self-healing-doc-has-rollback))
+
+(derive self-healing-impl-count
+    (count-exists self-healing-impl-has-load-data self-healing-impl-has-check-diff
+                  self-healing-impl-has-check-consistency self-healing-impl-has-snapshot
+                  self-healing-impl-has-patch-fact self-healing-impl-has-rollback)
+    :using (count-exists self-healing-impl-has-load-data self-healing-impl-has-check-diff
+                         self-healing-impl-has-check-consistency self-healing-impl-has-snapshot
+                         self-healing-impl-has-patch-fact self-healing-impl-has-rollback))
+
+(diff self-healing-doc-vs-impl :replace self-healing-doc-count :with self-healing-impl-count)
+
+; Paired: each effect documented AND registered
+(derive self-healing-paired-count
+    (count-exists (and self-healing-doc-has-load-data self-healing-impl-has-load-data)
+                  (and self-healing-doc-has-check-diff self-healing-impl-has-check-diff)
+                  (and self-healing-doc-has-check-consistency self-healing-impl-has-check-consistency)
+                  (and self-healing-doc-has-snapshot self-healing-impl-has-snapshot)
+                  (and self-healing-doc-has-patch-fact self-healing-impl-has-patch-fact)
+                  (and self-healing-doc-has-rollback self-healing-impl-has-rollback))
+    :using (count-exists
+            self-healing-doc-has-load-data self-healing-impl-has-load-data
+            self-healing-doc-has-check-diff self-healing-impl-has-check-diff
+            self-healing-doc-has-check-consistency self-healing-impl-has-check-consistency
+            self-healing-doc-has-snapshot self-healing-impl-has-snapshot
+            self-healing-doc-has-patch-fact self-healing-impl-has-patch-fact
+            self-healing-doc-has-rollback self-healing-impl-has-rollback))
+
+(diff self-healing-paired-vs-doc :replace self-healing-paired-count :with self-healing-doc-count)
 
 ; self-healing demo can recover: it has snapshot, patch, and rollback
+; These 3 are the recovery subset — connect old dangling facts
 (derive self-healing-can-recover
     (and self-healing-has-snapshot self-healing-has-patch self-healing-has-rollback)
     :using (self-healing-has-snapshot self-healing-has-patch self-healing-has-rollback))
+
+(derive self-healing-recovery-count
+    (count-exists self-healing-has-snapshot self-healing-has-patch self-healing-has-rollback)
+    :using (count-exists self-healing-has-snapshot self-healing-has-patch self-healing-has-rollback
+            self-healing-can-recover))
+
+(defterm self-healing-recovery-expected 3
+    :evidence (evidence "self_healing"
+        :quotes ("(snapshot name)" "(rollback name)" "(patch-fact name value)")
+        :explanation "3 recovery effects in self-healing demo"))
+
+(diff self-healing-recovery-coverage
+    :replace self-healing-recovery-count
+    :with self-healing-recovery-expected)
 
 ; =====================================================================
 ; MODULE SYSTEM AXIOMS — universal rules proved by .pltg demos
@@ -645,7 +841,8 @@ patterns for variadic operations: sum-all, count-gt, all-gt.")
 (derive apples-features-doc-count
     (count-exists apples-starts-empty apples-uses-successor-notation)
     :using (count-exists counting.count-exists-base counting.count-exists-step
-            apples-starts-empty apples-uses-successor-notation))
+            apples-starts-empty apples-uses-successor-notation
+            apples-demos-same-topic))
 
 (defterm apples-features-impl-count 2
     :evidence (evidence "apples"
@@ -681,12 +878,74 @@ patterns for variadic operations: sum-all, count-gt, all-gt.")
              src.afternoon.serpent-afternoon src.afternoon.eve-afternoon)")
         :explanation "demo.pltg replaces nested (+ (+ ...)) with flat (sum-all ...) call"))
 
-(derive apples-splats-paired-count
-    (count-exists (and apples-splats-uses-splat-patterns apples-splats-uses-splat-patterns-impl)
-                  (and apples-splats-replaces-nested-ops apples-splats-replaces-nested-ops-impl))
-    :using (count-exists apples-splats-uses-splat-patterns apples-splats-uses-splat-patterns-impl
-                         apples-splats-replaces-nested-ops apples-splats-replaces-nested-ops-impl))
+; --- Apples splats: docstring claims 3 variadic ops, axioms.pltg implements them ---
 
+; Layer 1: DOC — docstring claims these variadic operations
+(fact apples-splats-doc-sum-all true
+    :evidence (evidence "apples_splats_pltg"
+        :quotes ("sum-all")
+        :explanation "Docstring lists sum-all as a variadic operation"))
+
+(fact apples-splats-doc-count-gt true
+    :evidence (evidence "apples_splats_pltg"
+        :quotes ("count-gt")
+        :explanation "Docstring lists count-gt as a variadic operation"))
+
+(fact apples-splats-doc-all-gt true
+    :evidence (evidence "apples_splats_pltg"
+        :quotes ("all-gt")
+        :explanation "Docstring lists all-gt as a variadic operation"))
+
+; Layer 2: IMPL — axioms.pltg defines splat axioms for each
+(fact apples-splats-impl-sum-all true
+    :evidence (evidence "splats_axioms_pltg"
+        :quotes ("(axiom sum-all-base (= (sum-all ?x) ?x)"
+                 "(axiom sum-all-step (= (sum-all ?x ?y ?...rest) (+ ?x (sum-all ?y ?...rest)))")
+        :explanation "sum-all has base and step axioms using ?...rest"))
+
+(fact apples-splats-impl-count-gt true
+    :evidence (evidence "splats_axioms_pltg"
+        :quotes ("(axiom count-gt-base (= (count-gt ?t ?x) (+ (if (> ?x ?t) 1 0) 0))"
+                 "(axiom count-gt-step"
+                 "(= (count-gt ?t ?x ?y ?...rest)")
+        :explanation "count-gt has base and step axioms using ?...rest"))
+
+(fact apples-splats-impl-all-gt true
+    :evidence (evidence "splats_axioms_pltg"
+        :quotes ("(axiom all-gt-base (= (all-gt ?t ?x) (> ?x ?t))"
+                 "(axiom all-gt-step"
+                 "(= (all-gt ?t ?x ?y ?...rest)")
+        :explanation "all-gt has base and step axioms using ?...rest"))
+
+; Cross-layer diffs
+(diff apples-splats-sum-all-doc-vs-impl :replace apples-splats-doc-sum-all :with apples-splats-impl-sum-all)
+(diff apples-splats-count-gt-doc-vs-impl :replace apples-splats-doc-count-gt :with apples-splats-impl-count-gt)
+(diff apples-splats-all-gt-doc-vs-impl :replace apples-splats-doc-all-gt :with apples-splats-impl-all-gt)
+
+; Per-layer counts
+(derive apples-splats-doc-count
+    (count-exists apples-splats-doc-sum-all apples-splats-doc-count-gt apples-splats-doc-all-gt)
+    :using (count-exists apples-splats-doc-sum-all apples-splats-doc-count-gt apples-splats-doc-all-gt))
+
+(derive apples-splats-impl-count
+    (count-exists apples-splats-impl-sum-all apples-splats-impl-count-gt apples-splats-impl-all-gt)
+    :using (count-exists apples-splats-impl-sum-all apples-splats-impl-count-gt apples-splats-impl-all-gt))
+
+(diff apples-splats-doc-vs-impl :replace apples-splats-doc-count :with apples-splats-impl-count)
+
+; Paired: each variadic op documented AND implemented
+(derive apples-splats-paired-count
+    (count-exists (and apples-splats-doc-sum-all apples-splats-impl-sum-all)
+                  (and apples-splats-doc-count-gt apples-splats-impl-count-gt)
+                  (and apples-splats-doc-all-gt apples-splats-impl-all-gt))
+    :using (count-exists
+            apples-splats-doc-sum-all apples-splats-impl-sum-all
+            apples-splats-doc-count-gt apples-splats-impl-count-gt
+            apples-splats-doc-all-gt apples-splats-impl-all-gt))
+
+(diff apples-splats-paired-vs-doc :replace apples-splats-paired-count :with apples-splats-doc-count)
+
+; Original feature-level diffs — splat patterns and nested ops replacement
 (diff apples-splats-splat-pair
     :replace apples-splats-uses-splat-patterns
     :with apples-splats-uses-splat-patterns-impl)

@@ -33,10 +33,35 @@
         :quotes ("self.documents: dict[str, str] = {}")
         :explanation "Engine stores documents in a dict"))
 
-; Both docstrings now agree — and implementation confirms
+; Implementation confirms doc management exists
 (derive engine-has-doc-mgmt
     (and engine-has-register-document engine-has-load-document engine-has-documents-dict)
     :using (engine-has-register-document engine-has-load-document engine-has-documents-dict))
+
+; Doc claims count
+(derive doc-mgmt-doc-count
+    (count-exists module-doc-claims-doc-mgmt class-doc-claims-doc-mgmt)
+    :using (count-exists module-doc-claims-doc-mgmt class-doc-claims-doc-mgmt))
+
+; Impl evidence count
+(derive doc-mgmt-impl-count
+    (count-exists engine-has-register-document engine-has-load-document engine-has-documents-dict)
+    :using (count-exists engine-has-register-document engine-has-load-document engine-has-documents-dict))
+
+; Paired: each doc claim matched with impl
+(derive doc-mgmt-paired-count
+    (count-exists (and module-doc-claims-doc-mgmt engine-has-doc-mgmt)
+                  (and class-doc-claims-doc-mgmt engine-has-doc-mgmt))
+    :using (count-exists module-doc-claims-doc-mgmt class-doc-claims-doc-mgmt
+                         engine-has-doc-mgmt engine-has-register-document engine-has-load-document engine-has-documents-dict))
+
+(diff doc-mgmt-paired-vs-doc
+    :replace doc-mgmt-doc-count
+    :with doc-mgmt-paired-count)
+
+(diff doc-mgmt-paired-vs-impl
+    :replace doc-mgmt-impl-count
+    :with doc-mgmt-paired-count)
 
 (diff module-vs-class-docstring
     :replace module-doc-claims-doc-mgmt

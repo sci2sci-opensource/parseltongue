@@ -109,32 +109,31 @@
 ; --- 1. Package data file types ---
 
 (derive package-data-doc-count
-    (count-exists demos-use-pltg package-data-includes-md demos-use-txt-resources)
-    :using (count-exists counting.count-exists-base counting.count-exists-step
-            demos-use-pltg package-data-includes-md demos-use-txt-resources))
+    (count-exists package-data-includes-pltg package-data-includes-txt package-data-includes-md)
+    :using (count-exists package-data-includes-pltg package-data-includes-txt package-data-includes-md))
 
-(defterm package-data-impl-count 3
-    :evidence (evidence "pyproject"
-        :quotes ("*.pltg" "*.md" "*.txt")
-        :explanation "3 file types in package-data glob"))
+(derive package-data-usage-count
+    (count-exists demos-use-pltg demos-use-txt-resources validation-uses-pltg)
+    :using (count-exists demos-use-pltg demos-use-txt-resources validation-uses-pltg))
 
-(diff package-data-coverage
-    :replace package-data-doc-count
-    :with package-data-impl-count)
+(diff package-data-vs-usage :replace package-data-doc-count :with package-data-usage-count)
 
 ; --- 2. Breakage axioms ---
 
-(derive breakage-axioms-doc-count
+(derive breakage-axioms-count
     (count-exists project-ships-pltg-modules validation-uses-pltg demos-use-txt-resources)
-    :using (count-exists counting.count-exists-base counting.count-exists-step
-            project-ships-pltg-modules validation-uses-pltg demos-use-txt-resources
-            missing-pltg-breaks-install missing-txt-breaks-demos missing-tests-breaks-ci))
+    :using (count-exists
+            missing-pltg-breaks-install missing-txt-breaks-demos missing-tests-breaks-ci
+            project-ships-pltg-modules validation-uses-pltg demos-use-txt-resources))
 
-(defterm breakage-axioms-impl-count 3
-    :evidence (evidence "pyproject"
-        :quotes ("*.pltg" "*.txt" "parseltongue/core/tests")
-        :explanation "3 file types that would break install if missing"))
+; --- 3. Shipping derives ---
 
-(diff breakage-axioms-coverage
-    :replace breakage-axioms-doc-count
-    :with breakage-axioms-impl-count)
+(derive shipping-ok-count
+    (count-exists pltg-shipping-ok txt-shipping-ok ci-runs-consistency)
+    :using (count-exists pltg-shipping-ok txt-shipping-ok ci-runs-consistency))
+
+(diff shipping-vs-breakage :replace shipping-ok-count :with breakage-axioms-count)
+
+; --- 4. Full packaging check ---
+
+(diff packaging-vs-shipping :replace packaging-consistent :with shipping-ok-count)

@@ -80,6 +80,7 @@ def llm_doc() -> str:
             _example_entry_mocks(),
             _workflow(),
             _tips(),
+            _validation_patterns(),
             "\n## Built-in System Reference\n",
             system_doc,
         ]
@@ -627,7 +628,7 @@ def _tips() -> str:
 ## Tips for LLMs
 
 1. **Always ground claims** — use :evidence with :quotes from loaded documents.
-   :origin is for imports, hypotheticals, and synthesized conclusions only. 
+   :origin is for imports, hypotheticals, and synthesized conclusions only.
    Grounding MUST make the quote unique for the doc.
 
 2. **Axioms need ?-variables** — `(axiom name (= ?x ?x))` not `(axiom name (= 1 1))`.
@@ -660,3 +661,335 @@ def _tips() -> str:
    system.provenance(name)  # derivation chain
    system.evaluate(expr)    # evaluate expression
    ```"""
+
+
+def _validation_patterns() -> str:
+    return """
+## Validation Patterns: Counting, Pairing, and Proving
+
+When building self-validating .pltg modules that prove code is correct,
+follow these patterns. The goal: every fact is reachable from a diff,
+every claim is grounded in source quotes, and cross-checks surface
+real bugs.
+
+### Pattern 1: Items × Layers (count-exists)
+
+When a codebase has N items that each appear in multiple representations
+(declaration, documentation, implementation), create a fact per item
+per layer, then count and diff.
+
+**Example**: 15 operators × 3 layers (declaration, docs, implementation).
+
+```scheme
+; Layer 1: DECL — Symbol constants
+(fact add-decl true
+    :evidence (evidence "source.py"
+        :quotes ("ADD = Symbol(\\\"+ \\\")")
+        :explanation "ADD symbol declared"))
+
+; Layer 2: DOCS — documentation entries
+(fact add-docs true
+    :evidence (evidence "source.py"
+        :quotes ("Add two numbers.")
+        :explanation "ADD has docs entry"))
+
+; Layer 3: IMPL — runtime mapping
+(fact add-impl true
+    :evidence (evidence "source.py"
+        :quotes ("ADD: operator.add,")
+        :explanation "ADD maps to operator.add"))
+
+; ... repeat for all items ...
+
+; Per-layer counts
+(derive decl-count (count-exists add-decl sub-decl mul-decl ...)
+    :using (count-exists add-decl sub-decl mul-decl ...))
+(derive docs-count (count-exists add-docs sub-docs mul-docs ...)
+    :using (count-exists add-docs sub-docs mul-docs ...))
+(derive impl-count (count-exists add-impl sub-impl mul-impl ...)
+    :using (count-exists add-impl sub-impl mul-impl ...))
+
+; Cross-layer diffs — layers must agree
+(diff decl-vs-docs :replace decl-count :with docs-count)
+(diff docs-vs-impl :replace docs-count :with impl-count)
+```
+
+**Key rule**: Never hardcode counts as `(defterm X-count 5 :evidence ...)`.
+Always derive counts from facts using `count-exists`. The count must
+emerge from the evidence, not be asserted.
+
+### Pattern 2: Paired Boolean Count (and)
+
+When you need to prove that EVERY item has ALL layers confirmed,
+use the paired `(and ...)` inside `count-exists`:
+
+```scheme
+(derive all-layers-paired-count
+    (count-exists (and add-decl add-docs add-impl)
+                  (and sub-decl sub-docs sub-impl)
+                  (and mul-decl mul-docs mul-impl)
+                  ...)
+    :using (count-exists
+            add-decl add-docs add-impl
+            sub-decl sub-docs sub-impl
+            mul-decl mul-docs mul-impl ...))
+
+; Paired count must match each individual layer total
+(diff paired-vs-decl :replace all-layers-paired-count :with decl-count)
+(diff paired-vs-docs :replace all-layers-paired-count :with docs-count)
+(diff paired-vs-impl :replace all-layers-paired-count :with impl-count)
+```
+
+If any item is missing a layer, the paired count drops below the
+layer count and the diff fires. This catches partial coverage.
+
+### Pattern 3: Extracting Axioms from Code
+
+Source code contains implicit invariants. Extract them as axioms
+with ?-variables, then prove each instance with derives.
+
+**What to look for**:
+- Ordering invariants (penalty chains, priority levels)
+- Conditional rules (if X then Y patterns)
+- Safety invariants (never empty, always positive, fallback behavior)
+- Computation rules (score = 1.0 - penalties, dilution formulas)
+
+```scheme
+; Axiom: penalties are ordered by semantic impact
+(axiom penalty-ordering (> ?heavy ?light)
+    :evidence (evidence "config.py"
+        :quotes ("dangerous: 0.31" "stopword: 0.125" "case: 0.01")
+        :explanation "Penalties ordered by impact"))
+
+; Axiom: empty input is rejected
+(axiom empty-rejected (implies (not ?has-content) (= ?verified false))
+    :evidence (evidence "verifier.py"
+        :quotes ("if not quote.strip():
+            return {
+                ...
+                \\\"verified\\\": False,
+                \\\"reason\\\": \\\"Empty quote\\\",
+            }, False")
+        :explanation "Empty quotes return not-verified"))
+
+; Axiom: safety net keeps at least one word
+(axiom keep-one (implies ?all-stopwords (= ?kept 1))
+    :evidence (evidence "normalizer.py"
+        :quotes ("all_stopwords = all(w.lower() in config.stopwords for w in words)
+    if all_stopwords:
+        words_to_keep = [words[0]]")
+        :explanation "First word kept when all are stopwords"))
+```
+
+**Quoting rule**: Quote the contiguous code segment that PROVES the
+claim. Not the minimum substring, not a comment — the actual code
+path that demonstrates the behavior. Include the condition AND the
+consequence.
+
+### Pattern 4: Connecting Axioms to Derives
+
+Axioms are patterns, not values. They cannot appear in `(and ...)`
+expressions. Connect them via `:using` in derives:
+
+```scheme
+; Each derive proves one instance of the axiom
+(derive whitespace-lt-case
+    (< penalty-whitespace penalty-case)
+    :using (penalty-ordering penalty-whitespace penalty-case))
+
+; The axiom appears in :using — it's a dependency, not an operand
+```
+
+For axioms about code behavior (not rewrite rules), create impl
+facts that quote the actual code, then count the impl facts with
+the axioms as `:using` dependencies:
+
+```scheme
+(fact empty-rejected-impl true
+    :evidence (evidence "verifier.py"
+        :quotes ("if not quote.strip(): ... \\\"verified\\\": False")
+        :explanation "Empty quotes rejected in pre_validate"))
+
+(derive axiom-impl-count
+    (count-exists empty-rejected-impl keep-one-impl score-init-impl ...)
+    :using (count-exists
+            empty-rejected keep-one score-starts-at-one  ; axioms as deps
+            empty-rejected-impl keep-one-impl score-init-impl ...))
+```
+
+### Pattern 5: Category Counts vs Individual Counts
+
+When items belong to categories, verify both directions:
+
+```scheme
+; Category membership fact
+(fact arithmetic-op-count 5
+    :evidence (evidence "source.py"
+        :quotes ("ARITHMETIC_OPS = (ADD, SUB, MUL, DIV, MOD)")
+        :explanation "5 arithmetic operators"))
+
+; Individual item count per category
+(derive arith-decl-count
+    (count-exists add-decl sub-decl mul-decl div-decl mod-decl)
+    :using (count-exists add-decl sub-decl mul-decl div-decl mod-decl))
+
+; Category count must match individual count
+(diff arith-decl-vs-category :replace arith-decl-count :with arithmetic-op-count)
+```
+
+### Pattern 6: Multi-Stage Proof Ending in Diffs
+
+A complete validation module follows this structure:
+
+1. **Facts** — one per claim, grounded in source quotes
+2. **Axioms** — invariants extracted from code patterns
+3. **Per-group count-exists derives** — count facts per layer/category
+4. **Ordering/relationship derives** — prove invariants hold
+5. **Paired boolean count** — prove all items have all layers
+6. **Diffs** — compare counts that should match
+
+Every fact must be reachable from at least one diff (no dangling).
+Every axiom must appear in at least one derive's `:using`.
+Every derive must feed into a diff or another derive that does.
+
+**Ordering constraint**: Diffs can only reference definitions that
+appear BEFORE them in the file. The loader namespaces symbols as
+they're registered, so a diff referencing a not-yet-defined derive
+will fail to resolve.
+
+### Anti-Patterns
+
+- **Hardcoded counts**: `(defterm count 5 :evidence ...)` — always
+  derive counts from facts via count-exists
+- **Quoting comments as impl**: `"# This does X"` is not implementation.
+  Quote the actual code that does X.
+- **Minimum quotes**: Don't reduce quotes to the smallest substring.
+  Quote enough to prove the claim — the condition AND the consequence.
+- **Tautological diffs**: Don't diff things that can't meaningfully
+  diverge. `count-exists(a, b, c) = 3` vs `(+ 1 2) = 3` proves nothing.
+- **Dangling definitions**: If a fact isn't reachable from any diff,
+  it's dead weight. Either connect it or remove it.
+  Exception: specification modules (see Pattern 7).
+
+### Pattern 7: Specification / README Modules
+
+A specification module (README, API spec, design doc) exports
+**expectations** — claims about what the codebase should do. These
+expectations are consumed by a cross-check module that diffs them
+against implementation facts.
+
+**Key principle**: A specification module can only prove its OWN
+internal consistency. It cannot prove the codebase is correct — that
+happens in the cross-check module. Most of its facts will be
+correctly dangling.
+
+#### What a spec module contains
+
+1. **Facts** — one per claim the spec makes, grounded in spec quotes
+2. **Axioms** — universal rules the spec states ("every fact must
+   cite a quote", "axioms require ?-variables")
+3. **Internal diffs** — ONLY where the spec states a numeric count
+   AND separately lists the individual items
+
+#### The stated-count pattern (the only valid internal diff)
+
+A README says "five directive types" (a count fact) and then lists
+fact, axiom, defterm, derive, diff (individual listing facts). The
+stated count and the listing are two independent claims in the same
+document. Diff them:
+
+```scheme
+; Stated count from prose
+(fact directive-count 5
+    :evidence (evidence "README"
+        :quotes ("five directive types")
+        :explanation "README states the count"))
+
+; Individual listings
+(fact has-fact-directive true
+    :evidence (evidence "README"
+        :quotes ("**fact** — ground truth")
+        :explanation "README lists fact directive"))
+; ... 4 more listing facts ...
+
+; Count the listings
+(derive directive-listing-count
+    (count-exists has-fact-directive has-axiom-directive
+                  has-defterm-directive has-derive-directive has-diff-directive)
+    :using (count-exists has-fact-directive has-axiom-directive
+                         has-defterm-directive has-derive-directive has-diff-directive))
+
+; Diff stated count vs actual listing — catches "says 5 but lists 4"
+(diff directive-listing-vs-stated
+    :replace directive-listing-count :with directive-count)
+```
+
+#### Paired coverage across layers within the spec
+
+When the spec has two independent layers per item (e.g., a listing
+AND a description), use paired boolean count:
+
+```scheme
+; Each directive has a listing AND a description
+(derive directive-paired-count
+    (count-exists (and has-fact-directive fact-description)
+                  (and has-axiom-directive axiom-description)
+                  (and has-defterm-directive defterm-description)
+                  (and has-derive-directive derive-description)
+                  (and has-diff-directive diff-description))
+    :using (count-exists
+            has-fact-directive fact-description
+            has-axiom-directive axiom-description
+            has-defterm-directive defterm-description
+            has-derive-directive derive-description
+            has-diff-directive diff-description))
+
+; Paired must match listing count
+(diff directive-paired-vs-listing
+    :replace directive-paired-count :with directive-listing-count)
+```
+
+#### What is NOT a valid internal diff
+
+- **Counting your own inventory**: If you wrote 7 facts about
+  rationale claims, `(count-exists claim1 claim2 ... claim7) = 7`
+  vs `(count-exists claim1 claim2 ... claim7) = 7` is tautological.
+  Both sides count the same facts you just wrote. There is no
+  independent source to disagree.
+
+- **Axiom-backing counts**: In a spec module, every axiom already
+  has a backing fact because every claim cites a quote from the
+  spec document. Checking "does this axiom have evidence?" is
+  tautological — you wrote both.
+
+- **Section inventories**: Counting how many facts you extracted
+  from a section and diffing against... the same count. You are
+  the only source of both numbers.
+
+#### Valid internal diffs require TWO INDEPENDENT claims
+
+The spec must make the same claim in two different ways:
+1. A prose count ("ships with 11 demos") — one fact
+2. An enumerated list (11 individual demo entries) — N facts
+
+These are independent because the author could write "11" in prose
+but list 10 items. The diff catches that.
+
+#### Dangling exports are correct
+
+Most spec facts will be dangling in the spec module. They are
+consumed by the cross-check module:
+
+```scheme
+; In cross_check.pltg:
+(import (quote readme))
+(import (quote code))
+
+; Diff README's expectation against code's reality
+(diff timeout-mismatch
+    :replace readme.readme-timeout
+    :with code.actual-timeout)
+```
+
+The spec module's job is to faithfully extract what the spec says.
+The cross-check module's job is to verify the code matches."""

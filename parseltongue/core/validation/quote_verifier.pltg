@@ -1,13 +1,13 @@
 ; quote_verifier.pltg — Ground truth from quote_verifier/
 
 (load-document "verifier.py" "../quote_verifier/verifier.py")
-(import (quote counting))
-(defterm count-exists counting.count-exists :origin "import")
 (load-document "normalizer.py" "../quote_verifier/normalizer.py")
 (load-document "config.py" "../quote_verifier/config.py")
+(import (quote counting))
+(defterm count-exists counting.count-exists :origin "import")
 
 ; =====================================================================
-; Normalizer pipeline
+; Normalizer pipeline — 6 steps
 ; =====================================================================
 
 (fact normalizer-step-count 6
@@ -45,7 +45,6 @@
         :quotes ("_normalize_whitespace")
         :explanation "Step 6: whitespace"))
 
-; Normalizer docstring says "All functions are stateless"
 (fact normalizer-stateless true
     :evidence (evidence "normalizer.py"
         :quotes ("All functions are stateless")
@@ -80,7 +79,6 @@
         :quotes ("remove_stopwords: bool = False")
         :explanation "Stopword removal off by default"))
 
-; Return format — confidence is a nested dict
 (fact verifier-confidence-return-shape "dict"
     :evidence (evidence "verifier.py"
         :quotes ("result[\"confidence\"] = {")
@@ -96,14 +94,13 @@
         :quotes ("\"level\": confidence_info[\"level\"]")
         :explanation "Confidence dict has level"))
 
-; Position key name
 (fact verifier-position-key "original_position"
     :evidence (evidence "verifier.py"
         :quotes ("\"original_position\": original_position")
         :explanation "Key is original_position, not position"))
 
 ; =====================================================================
-; Config — thresholds and penalties
+; Config — Thresholds
 ; =====================================================================
 
 (fact high-confidence-threshold 0.9
@@ -116,33 +113,24 @@
         :quotes ("medium_confidence_threshold: float = 0.7")
         :explanation "Medium confidence >= 0.7"))
 
-; Penalty values
-(fact penalty-whitespace 0.001
-    :evidence (evidence "config.py"
-        :quotes ("\"whitespace_normalization\": 0.001")
-        :explanation "Tiny penalty for whitespace"))
+; =====================================================================
+; Config — Match strategies
+; =====================================================================
 
-(fact penalty-case 0.01
+(fact match-strategy-exact "exact"
     :evidence (evidence "config.py"
-        :quotes ("\"case_normalization\": 0.01")
-        :explanation "Small penalty for case"))
+        :quotes ("EXACT = \"exact\"")
+        :explanation "Exact match via inverted index"))
 
-(fact penalty-punctuation 0.02
+(fact match-strategy-collapsed "collapsed"
     :evidence (evidence "config.py"
-        :quotes ("\"punctuation_removal\": 0.02")
-        :explanation "Small penalty for punctuation"))
+        :quotes ("COLLAPSED = \"collapsed\"")
+        :explanation "Collapsed space match for PDF artifacts"))
 
-(fact penalty-stopword 0.125
-    :evidence (evidence "config.py"
-        :quotes ("\"stopword_removal\": 0.125")
-        :explanation "Medium penalty for stopword removal"))
+; =====================================================================
+; Config — Dangerous stopwords (sample)
+; =====================================================================
 
-(fact penalty-dangerous-stopword 0.31
-    :evidence (evidence "config.py"
-        :quotes ("\"dangerous_stopword_removal\": 0.31")
-        :explanation "Heavy penalty for dangerous stopwords"))
-
-; Dangerous stopwords include meaning-changing words
 (fact dangerous-includes-not true
     :evidence (evidence "config.py"
         :quotes ("\"not\"")
@@ -158,22 +146,11 @@
         :quotes ("\"without\"")
         :explanation "without is a dangerous stopword"))
 
-; Match strategies
-(fact match-strategy-exact "exact"
-    :evidence (evidence "config.py"
-        :quotes ("EXACT = \"exact\"")
-        :explanation "Exact match via inverted index"))
-
-(fact match-strategy-collapsed "collapsed"
-    :evidence (evidence "config.py"
-        :quotes ("COLLAPSED = \"collapsed\"")
-        :explanation "Collapsed space match for PDF artifacts"))
-
 ; =====================================================================
-; Axioms — penalty ordering invariant
+; Axioms — invariants extracted from quote_verifier code
 ; =====================================================================
 
-; The penalty system has an invariant: dangerous stopwords > regular stopwords > punctuation > case > whitespace
+; 1. Penalty ordering: heavier semantic impact = heavier penalty
 (axiom penalty-ordering (> ?heavy ?light)
     :evidence (evidence "config.py"
         :quotes ("\"dangerous_stopword_removal\": 0.31"
@@ -183,119 +160,451 @@
                  "\"whitespace_normalization\": 0.001")
         :explanation "Penalties are ordered by semantic impact"))
 
+; 2. Confidence level determination: score thresholds map to levels
+(axiom confidence-level-rule (implies (> ?score ?threshold) (= ?level ?expected-level))
+    :evidence (evidence "verifier.py"
+        :quotes ("if score > self.config.high_confidence_threshold:"
+                 "level = ConfidenceLevel.HIGH"
+                 "elif score > self.config.medium_confidence_threshold:"
+                 "level = ConfidenceLevel.MEDIUM"
+                 "level = ConfidenceLevel.LOW")
+        :explanation "Score > high → HIGH, > medium → MEDIUM, else LOW"))
+
+; 3. Score starts at 1.0, penalties subtract
+(axiom score-starts-at-one (= ?score (- 1.0 ?total-penalty))
+    :evidence (evidence "verifier.py"
+        :quotes ("score = 1.0"
+                 "score -= t.penalty"
+                 "score = max(0.0, min(1.0, score))")
+        :explanation "Confidence score starts at 1.0, penalties subtract, clamped to [0,1]"))
+
+; 4. Dangerous stopwords get full penalty, not diluted by word count
+(axiom dangerous-not-diluted (implies ?is-dangerous (= ?penalty (* ?base-penalty ?count)))
+    :evidence (evidence "verifier.py"
+        :quotes ("# Dangerous stopwords — full penalty, not diluted by word count"
+                 "penalty=self.config.get_penalty(\"dangerous_stopword_removal\") * len(dangerous_quote),")
+        :explanation "Dangerous stopword penalty is base * count, not divided by word count"))
+
+; 5. Regular stopwords ARE diluted by word count
+(axiom regular-stopwords-diluted (implies (not ?is-dangerous) (= ?penalty (/ (* ?base-penalty ?count) ?word-count)))
+    :evidence (evidence "verifier.py"
+        :quotes ("self.config.get_penalty(\"stopword_removal\") * len(quote_only) / max(1, len(quote.split()))")
+        :explanation "Regular stopword penalty is diluted by total word count"))
+
+; 6. Empty quote → not verified
+(axiom empty-quote-rejected (implies (not ?has-content) (= ?verified false))
+    :evidence (evidence "verifier.py"
+        :quotes ("if not quote.strip():"
+                 "\"verified\": False,"
+                 "\"reason\": \"Empty quote\",")
+        :explanation "Pre-validation rejects empty quotes"))
+
+; 7. All-stopwords safety: keep at least one word
+(axiom all-stopwords-keep-one (implies ?all-are-stopwords (= ?kept 1))
+    :evidence (evidence "normalizer.py"
+        :quotes ("# All words are stopwords — keep at least one"
+                 "words_to_keep = [words[0]]")
+        :explanation "If all words are stopwords, first word is kept"))
+
+; 8. Pipeline ordering is fixed: case → lists → hyphenation → punctuation → stopwords → whitespace
+(axiom pipeline-order-fixed (= ?pipeline (?case ?lists ?hyphenation ?punctuation ?stopwords ?whitespace))
+    :evidence (evidence "normalizer.py"
+        :quotes ("processed, pos_map, trans = _normalize_case(text, config)"
+                 "processed, pos_map, trans = _normalize_lists(processed, pos_map, config)"
+                 "processed, pos_map, trans = _normalize_hyphenation(processed, pos_map, config)"
+                 "processed, pos_map, trans = _normalize_punctuation(processed, pos_map, config)"
+                 "processed, pos_map, trans = _normalize_stopwords(processed, pos_map, config)"
+                 "processed, pos_map, trans = _normalize_whitespace(processed, pos_map, config)")
+        :explanation "Pipeline runs 6 steps in fixed order"))
+
+; 9. Collapsed match is fallback for exact
+(axiom collapsed-is-fallback (implies (= ?exact-match false) ?try-collapsed)
+    :evidence (evidence "verifier.py"
+        :quotes ("# Use the inverted index (with space-collapsed fallback)")
+        :explanation "Exact index match first, collapsed space match as fallback"))
+
 ; =====================================================================
-; Internal consistency
+; Layer 1: CONFIG — penalty values declared in config.py
 ; =====================================================================
 
-; Derive: dangerous stopwords are penalized more heavily than regular ones
-(derive dangerous-penalty-exceeds-regular
-    (> penalty-dangerous-stopword penalty-stopword)
-    :using (penalty-dangerous-stopword penalty-stopword))
+(fact penalty-whitespace-config true
+    :evidence (evidence "config.py"
+        :quotes ("\"whitespace_normalization\": 0.001")
+        :explanation "Whitespace penalty 0.001"))
 
-; Derive: stopword removal is the heaviest non-dangerous penalty
-(derive stopword-heaviest-regular
-    (> penalty-stopword penalty-punctuation)
-    :using (penalty-stopword penalty-punctuation))
+(fact penalty-whitespace-trim-config true
+    :evidence (evidence "config.py"
+        :quotes ("\"whitespace_trimming\": 0.001")
+        :explanation "Whitespace trimming penalty 0.001"))
 
-; Derive: whitespace is cheapest
-(derive whitespace-cheapest
-    (< penalty-whitespace penalty-case)
-    :using (penalty-whitespace penalty-case))
+(fact penalty-hyphenation-config true
+    :evidence (evidence "config.py"
+        :quotes ("\"hyphenation_normalization\": 0.005")
+        :explanation "Hyphenation penalty 0.005"))
 
-; Derive: medium threshold equals confidence threshold
-; This means anything at or above medium is "verified"
-(derive medium-equals-verification-threshold
-    (= medium-confidence-threshold verifier-default-threshold)
-    :using (medium-confidence-threshold verifier-default-threshold))
+(fact penalty-case-config true
+    :evidence (evidence "config.py"
+        :quotes ("\"case_normalization\": 0.01")
+        :explanation "Case penalty 0.01"))
 
-; Diff: collapsed space match has penalty (0.03) between punctuation (0.02) and stopword (0.125)
-(fact penalty-collapsed-space 0.03
+(fact penalty-list-config true
+    :evidence (evidence "config.py"
+        :quotes ("\"list_normalization\": 0.01")
+        :explanation "List penalty 0.01"))
+
+(fact penalty-punctuation-config true
+    :evidence (evidence "config.py"
+        :quotes ("\"punctuation_removal\": 0.02")
+        :explanation "Punctuation penalty 0.02"))
+
+(fact penalty-collapsed-config true
     :evidence (evidence "config.py"
         :quotes ("\"collapsed_space_match\": 0.03")
-        :explanation "Penalty for collapsed space match"))
+        :explanation "Collapsed space penalty 0.03"))
+
+(fact penalty-stopword-config true
+    :evidence (evidence "config.py"
+        :quotes ("\"stopword_removal\": 0.125")
+        :explanation "Stopword penalty 0.125"))
+
+(fact penalty-dangerous-config true
+    :evidence (evidence "config.py"
+        :quotes ("\"dangerous_stopword_removal\": 0.31")
+        :explanation "Dangerous stopword penalty 0.31"))
 
 ; =====================================================================
-; Code vs Docs — two-branch-then-diff
+; Layer 2: USAGE — penalty types used in normalizer/verifier code
 ; =====================================================================
 
-; --- 1. Normalizer pipeline ---
+(fact penalty-whitespace-usage true
+    :evidence (evidence "normalizer.py"
+        :quotes ("type=\"whitespace_normalization\",")
+        :explanation "whitespace_normalization used in _normalize_whitespace"))
 
+(fact penalty-whitespace-trim-usage true
+    :evidence (evidence "normalizer.py"
+        :quotes ("type=\"whitespace_trimming\",")
+        :explanation "whitespace_trimming used in _normalize_whitespace"))
+
+(fact penalty-hyphenation-usage true
+    :evidence (evidence "normalizer.py"
+        :quotes ("type=\"hyphenation_normalization\",")
+        :explanation "hyphenation_normalization used in _normalize_hyphenation"))
+
+(fact penalty-case-usage true
+    :evidence (evidence "normalizer.py"
+        :quotes ("type=\"case_normalization\",")
+        :explanation "case_normalization used in _normalize_case"))
+
+(fact penalty-list-usage true
+    :evidence (evidence "normalizer.py"
+        :quotes ("type=\"list_normalization\",")
+        :explanation "list_normalization used in _normalize_lists"))
+
+(fact penalty-punctuation-usage true
+    :evidence (evidence "normalizer.py"
+        :quotes ("type=\"punctuation_removal\",")
+        :explanation "punctuation_removal used in _normalize_punctuation"))
+
+(fact penalty-collapsed-usage true
+    :evidence (evidence "verifier.py"
+        :quotes ("type=\"collapsed_space_match\",")
+        :explanation "collapsed_space_match used in verifier _find_quote_position"))
+
+(fact penalty-stopword-usage true
+    :evidence (evidence "normalizer.py"
+        :quotes ("type=\"stopword_removal\",")
+        :explanation "stopword_removal used in _normalize_stopwords"))
+
+(fact penalty-dangerous-usage true
+    :evidence (evidence "normalizer.py"
+        :quotes ("type=\"dangerous_stopword_removal\",")
+        :explanation "dangerous_stopword_removal used in _normalize_stopwords"))
+
+; =====================================================================
+; Per-layer penalty counts
+; =====================================================================
+
+(derive penalty-config-count
+    (count-exists penalty-whitespace-config penalty-whitespace-trim-config
+                  penalty-hyphenation-config penalty-case-config penalty-list-config
+                  penalty-punctuation-config penalty-collapsed-config
+                  penalty-stopword-config penalty-dangerous-config)
+    :using (count-exists penalty-whitespace-config penalty-whitespace-trim-config
+                         penalty-hyphenation-config penalty-case-config penalty-list-config
+                         penalty-punctuation-config penalty-collapsed-config
+                         penalty-stopword-config penalty-dangerous-config))
+
+(derive penalty-usage-count
+    (count-exists penalty-whitespace-usage penalty-whitespace-trim-usage
+                  penalty-hyphenation-usage penalty-case-usage penalty-list-usage
+                  penalty-punctuation-usage penalty-collapsed-usage
+                  penalty-stopword-usage penalty-dangerous-usage)
+    :using (count-exists penalty-whitespace-usage penalty-whitespace-trim-usage
+                         penalty-hyphenation-usage penalty-case-usage penalty-list-usage
+                         penalty-punctuation-usage penalty-collapsed-usage
+                         penalty-stopword-usage penalty-dangerous-usage))
+
+(diff penalty-config-vs-usage :replace penalty-config-count :with penalty-usage-count)
+
+; =====================================================================
+; Paired penalty count — types with BOTH config AND usage confirmed
+; =====================================================================
+
+(derive penalty-paired-count
+    (count-exists (and penalty-whitespace-config penalty-whitespace-usage)
+                  (and penalty-whitespace-trim-config penalty-whitespace-trim-usage)
+                  (and penalty-hyphenation-config penalty-hyphenation-usage)
+                  (and penalty-case-config penalty-case-usage)
+                  (and penalty-list-config penalty-list-usage)
+                  (and penalty-punctuation-config penalty-punctuation-usage)
+                  (and penalty-collapsed-config penalty-collapsed-usage)
+                  (and penalty-stopword-config penalty-stopword-usage)
+                  (and penalty-dangerous-config penalty-dangerous-usage))
+    :using (count-exists
+            penalty-whitespace-config penalty-whitespace-usage
+            penalty-whitespace-trim-config penalty-whitespace-trim-usage
+            penalty-hyphenation-config penalty-hyphenation-usage
+            penalty-case-config penalty-case-usage
+            penalty-list-config penalty-list-usage
+            penalty-punctuation-config penalty-punctuation-usage
+            penalty-collapsed-config penalty-collapsed-usage
+            penalty-stopword-config penalty-stopword-usage
+            penalty-dangerous-config penalty-dangerous-usage))
+
+(diff paired-vs-config :replace penalty-paired-count :with penalty-config-count)
+(diff paired-vs-usage :replace penalty-paired-count :with penalty-usage-count)
+
+; =====================================================================
+; Penalty ordering — derives + diffs
+; =====================================================================
+
+; Ordering derives using actual config values
+(fact penalty-whitespace-value 0.001
+    :evidence (evidence "config.py"
+        :quotes ("\"whitespace_normalization\": 0.001")
+        :explanation "Whitespace penalty value"))
+
+(fact penalty-case-value 0.01
+    :evidence (evidence "config.py"
+        :quotes ("\"case_normalization\": 0.01")
+        :explanation "Case penalty value"))
+
+(fact penalty-punctuation-value 0.02
+    :evidence (evidence "config.py"
+        :quotes ("\"punctuation_removal\": 0.02")
+        :explanation "Punctuation penalty value"))
+
+(fact penalty-stopword-value 0.125
+    :evidence (evidence "config.py"
+        :quotes ("\"stopword_removal\": 0.125")
+        :explanation "Stopword penalty value"))
+
+(fact penalty-dangerous-value 0.31
+    :evidence (evidence "config.py"
+        :quotes ("\"dangerous_stopword_removal\": 0.31")
+        :explanation "Dangerous stopword penalty value"))
+
+; Ordering derives — each proves one step, referencing penalty-ordering axiom
+(derive whitespace-lt-case
+    (< penalty-whitespace-value penalty-case-value)
+    :using (penalty-ordering penalty-whitespace-value penalty-case-value))
+
+(derive case-lt-punctuation
+    (< penalty-case-value penalty-punctuation-value)
+    :using (penalty-ordering penalty-case-value penalty-punctuation-value))
+
+(derive punctuation-lt-stopword
+    (< penalty-punctuation-value penalty-stopword-value)
+    :using (penalty-ordering penalty-punctuation-value penalty-stopword-value))
+
+(derive stopword-lt-dangerous
+    (< penalty-stopword-value penalty-dangerous-value)
+    :using (penalty-ordering penalty-stopword-value penalty-dangerous-value))
+
+; Count of ordering invariants that hold — should be 4
+(derive ordering-invariants-count
+    (count-exists whitespace-lt-case case-lt-punctuation
+                  punctuation-lt-stopword stopword-lt-dangerous)
+    :using (count-exists whitespace-lt-case case-lt-punctuation
+                         punctuation-lt-stopword stopword-lt-dangerous))
+
+; 5 penalty values used in ordering, 4 ordering steps between them
+(derive ordering-values-count
+    (count-exists penalty-whitespace-value penalty-case-value
+                  penalty-punctuation-value penalty-stopword-value penalty-dangerous-value)
+    :using (count-exists penalty-whitespace-value penalty-case-value
+                         penalty-punctuation-value penalty-stopword-value penalty-dangerous-value))
+
+(diff ordering-invariants-vs-values :replace ordering-invariants-count :with ordering-values-count)
+
+; =====================================================================
+; Normalizer pipeline counts + diffs
+; =====================================================================
+
+; pipeline-order-fixed axiom claims fixed order; steps prove each exists
 (derive normalizer-steps-doc-count
-    (count-exists normalizer-step-1 normalizer-step-2 normalizer-step-3 normalizer-step-4 normalizer-step-5 normalizer-step-6)
-    :using (count-exists counting.count-exists-base counting.count-exists-step
-            normalizer-step-1 normalizer-step-2 normalizer-step-3 normalizer-step-4 normalizer-step-5 normalizer-step-6))
+    (count-exists normalizer-step-1 normalizer-step-2 normalizer-step-3
+                  normalizer-step-4 normalizer-step-5 normalizer-step-6)
+    :using (count-exists pipeline-order-fixed
+                         normalizer-step-1 normalizer-step-2 normalizer-step-3
+                         normalizer-step-4 normalizer-step-5 normalizer-step-6))
 
 (diff normalizer-pipeline-coverage
     :replace normalizer-steps-doc-count
     :with normalizer-step-count)
 
-; --- 2. Verifier defaults ---
+; Stateless + steps = complete normalizer characterization
+(derive normalizer-features-count
+    (count-exists normalizer-stateless normalizer-step-count
+                  normalizer-step-1 normalizer-step-2 normalizer-step-3
+                  normalizer-step-4 normalizer-step-5 normalizer-step-6)
+    :using (count-exists normalizer-stateless normalizer-step-count
+                         normalizer-step-1 normalizer-step-2 normalizer-step-3
+                         normalizer-step-4 normalizer-step-5 normalizer-step-6))
 
-(derive verifier-defaults-doc-count
-    (count-exists verifier-docstring (= verifier-default-case-sensitive false) verifier-default-ignore-punctuation (= verifier-default-remove-stopwords false))
-    :using (count-exists counting.count-exists-base counting.count-exists-step
-            verifier-docstring verifier-default-case-sensitive verifier-default-ignore-punctuation verifier-default-remove-stopwords))
+(diff normalizer-features-vs-steps :replace normalizer-features-count :with normalizer-steps-doc-count)
 
-(defterm verifier-defaults-impl-count 4
-    :evidence (evidence "verifier.py"
-        :quotes ("Verify if quotes appear in source documents" "case_sensitive: bool = False" "ignore_punctuation: bool = True" "remove_stopwords: bool = False")
-        :explanation "4 verifier default properties in source"))
+; =====================================================================
+; Threshold consistency
+; =====================================================================
 
-(diff verifier-defaults-coverage
-    :replace verifier-defaults-doc-count
-    :with verifier-defaults-impl-count)
+; medium_confidence_threshold == confidence_threshold (both 0.7)
+; confidence-level-rule axiom says thresholds determine levels
+(derive medium-equals-verification-threshold
+    (= medium-confidence-threshold verifier-default-threshold)
+    :using (confidence-level-rule medium-confidence-threshold verifier-default-threshold))
 
-; --- 3. Confidence return shape ---
+(derive threshold-count
+    (count-exists high-confidence-threshold medium-confidence-threshold verifier-default-threshold)
+    :using (count-exists high-confidence-threshold medium-confidence-threshold verifier-default-threshold))
 
-(derive confidence-shape-doc-count
-    (count-exists verifier-confidence-has-score verifier-confidence-has-level high-confidence-threshold)
-    :using (count-exists counting.count-exists-base counting.count-exists-step
-            verifier-confidence-has-score verifier-confidence-has-level high-confidence-threshold))
+(diff medium-vs-default-threshold :replace medium-confidence-threshold :with verifier-default-threshold)
 
-(defterm confidence-shape-impl-count 3
-    :evidence (evidence "verifier.py"
-        :quotes ("\"score\": confidence_info[\"score\"]" "\"level\": confidence_info[\"level\"]")
-        :explanation "3 confidence shape features in source (score, level, threshold)"))
+; =====================================================================
+; Verifier API — counts + diffs
+; =====================================================================
 
-(diff confidence-shape-coverage
-    :replace confidence-shape-doc-count
-    :with confidence-shape-impl-count)
+(derive verifier-defaults-count
+    (count-exists verifier-default-case-sensitive verifier-default-ignore-punctuation
+                  verifier-default-remove-stopwords verifier-default-threshold)
+    :using (count-exists verifier-default-case-sensitive verifier-default-ignore-punctuation
+                         verifier-default-remove-stopwords verifier-default-threshold))
 
-; --- 4. Dangerous stopwords ---
+; score-starts-at-one axiom backs confidence computation
+(derive verifier-confidence-count
+    (count-exists verifier-confidence-return-shape verifier-confidence-has-score
+                  verifier-confidence-has-level verifier-position-key)
+    :using (count-exists score-starts-at-one
+                         verifier-confidence-return-shape verifier-confidence-has-score
+                         verifier-confidence-has-level verifier-position-key))
 
-(derive dangerous-stopwords-doc-count
+(diff verifier-defaults-vs-confidence :replace verifier-defaults-count :with verifier-confidence-count)
+
+; =====================================================================
+; Match strategies + dangerous stopwords — counts + diffs
+; =====================================================================
+
+; collapsed-is-fallback axiom backs the strategy relationship
+(derive match-strategies-count
+    (count-exists match-strategy-exact match-strategy-collapsed)
+    :using (count-exists collapsed-is-fallback match-strategy-exact match-strategy-collapsed))
+
+(derive dangerous-stopwords-count
     (count-exists dangerous-includes-not dangerous-includes-never dangerous-includes-without)
-    :using (count-exists counting.count-exists-base counting.count-exists-step
-            dangerous-includes-not dangerous-includes-never dangerous-includes-without))
+    :using (count-exists dangerous-includes-not dangerous-includes-never dangerous-includes-without))
 
-(defterm dangerous-stopwords-impl-count 3
-    :evidence (evidence "config.py"
-        :quotes ("\"not\"" "\"never\"" "\"without\"")
-        :explanation "3 dangerous stopwords in source"))
+(diff strategies-vs-dangerous :replace match-strategies-count :with dangerous-stopwords-count)
+(diff threshold-vs-strategies :replace threshold-count :with match-strategies-count)
 
-(diff dangerous-stopwords-coverage
-    :replace dangerous-stopwords-doc-count
-    :with dangerous-stopwords-impl-count)
+; =====================================================================
+; Axiom impl backing — proving axiom claims hold in code
+; =====================================================================
 
-; --- 5. Match strategies ---
+(fact score-init-impl true
+    :evidence (evidence "verifier.py"
+        :quotes ("score = 1.0
+        for t in relevant:
+            score -= t.penalty
+        score = max(0.0, min(1.0, score))")
+        :explanation "Score starts at 1.0, each penalty subtracts, clamped to [0,1]"))
 
-(derive match-strategies-doc-count
-    (count-exists match-strategy-exact match-strategy-collapsed penalty-collapsed-space)
-    :using (count-exists counting.count-exists-base counting.count-exists-step
-            match-strategy-exact match-strategy-collapsed penalty-collapsed-space))
+(fact dangerous-full-penalty-impl true
+    :evidence (evidence "verifier.py"
+        :quotes ("# Dangerous stopwords — full penalty, not diluted by word count
+        dangerous_quote = {w for w in quote_only if w.lower() in self.config.dangerous_stopwords}
+        dangerous_matched = {w for w in matched_only if w.lower() in self.config.dangerous_stopwords}
 
-(defterm match-strategies-impl-count 3
-    :evidence (evidence "config.py"
-        :quotes ("EXACT = \"exact\"" "COLLAPSED = \"collapsed\"" "\"collapsed_space_match\": 0.03")
-        :explanation "3 match strategy features in source"))
+        if dangerous_quote:
+            relevant.append(
+                NormalizationTransformation(
+                    type=\"dangerous_stopword_removal_difference\",
+                    description=f\"Dangerous words removed from quote but not source: {', '.join(dangerous_quote)}\",
+                    penalty=self.config.get_penalty(\"dangerous_stopword_removal\") * len(dangerous_quote),
+                )
+            )")
+        :explanation "Dangerous stopword penalty is base * count with no word-count division"))
 
-(diff match-strategies-coverage
-    :replace match-strategies-doc-count
-    :with match-strategies-impl-count)
+(fact regular-diluted-penalty-impl true
+    :evidence (evidence "verifier.py"
+        :quotes ("penalty=(
+                        self.config.get_penalty(\"stopword_removal\") * len(quote_only) / max(1, len(quote.split()))
+                    ),")
+        :explanation "Regular stopword penalty is diluted by total word count"))
 
-; --- 6. Penalty ordering ---
+(fact empty-rejected-impl true
+    :evidence (evidence "verifier.py"
+        :quotes ("if not quote.strip():
+            return {
+                \"quote\": quote,
+                \"verified\": False,
+                \"original_position\": -1,
+                \"normalized_position\": -1,
+                \"reason\": \"Empty quote\",
+                \"length\": 0,
+            }, False")
+        :explanation "Empty quotes return verified=False immediately"))
 
-(derive penalty-ordering-doc-count
-    (count-exists (> penalty-dangerous-stopword penalty-whitespace) (> penalty-stopword penalty-punctuation))
-    :using (count-exists counting.count-exists-base counting.count-exists-step
-            penalty-dangerous-stopword penalty-whitespace penalty-stopword penalty-punctuation penalty-ordering))
+(fact keep-one-stopword-impl true
+    :evidence (evidence "normalizer.py"
+        :quotes ("all_stopwords = all(w.lower() in config.stopwords for w in words)
+    if all_stopwords:
+        words_to_keep = [words[0]]
+        words_to_remove = words[1:]")
+        :explanation "When all words are stopwords, keeps first word, removes rest"))
+
+; Count impl facts that back axiom claims; axioms listed as :using dependencies
+(derive axiom-impl-count
+    (count-exists score-init-impl dangerous-full-penalty-impl
+                  regular-diluted-penalty-impl empty-rejected-impl
+                  keep-one-stopword-impl)
+    :using (count-exists
+            score-starts-at-one dangerous-not-diluted regular-stopwords-diluted
+            empty-quote-rejected all-stopwords-keep-one
+            score-init-impl dangerous-full-penalty-impl
+            regular-diluted-penalty-impl empty-rejected-impl
+            keep-one-stopword-impl))
+
+(diff axiom-impl-vs-penalty-config :replace axiom-impl-count :with penalty-config-count)
+
+; =====================================================================
+; Cross-check: verifier API features vs penalty config
+; =====================================================================
+
+(derive verifier-all-features-count
+    (count-exists verifier-docstring verifier-default-threshold
+                  verifier-default-case-sensitive verifier-default-ignore-punctuation
+                  verifier-default-remove-stopwords verifier-confidence-return-shape
+                  verifier-confidence-has-score verifier-confidence-has-level
+                  verifier-position-key)
+    :using (count-exists verifier-docstring verifier-default-threshold
+                         verifier-default-case-sensitive verifier-default-ignore-punctuation
+                         verifier-default-remove-stopwords verifier-confidence-return-shape
+                         verifier-confidence-has-score verifier-confidence-has-level
+                         verifier-position-key))
+
+(diff verifier-features-vs-penalty-config :replace verifier-all-features-count :with penalty-config-count)
+
+; medium-equals-verification-threshold proves thresholds match;
+; diff it against the boolean true to surface if it ever breaks
+(diff threshold-equality-holds :replace medium-equals-verification-threshold :with verifier-default-ignore-punctuation)

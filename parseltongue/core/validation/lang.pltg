@@ -215,11 +215,13 @@ SPLAT_PREFIX = \"?...\"")
 ; Internal consistency
 ; =====================================================================
 
-; DSL_KEYWORDS has 6 members but only 5 are directives (EVIDENCE is structural)
-; Module docstring says 5 directives — consistent with intent
-(derive directive-vs-keyword-count-explained
-    (> dsl-keywords-tuple-size module-doc-directive-count)
+(derive directive-equals-keyword-count
+    (= dsl-keywords-tuple-size module-doc-directive-count)
     :using (dsl-keywords-tuple-size module-doc-directive-count))
+
+(diff directive-vs-keyword-count
+    :replace module-doc-directive-count
+    :with dsl-keywords-tuple-size)
 
 ; Derive doc forbids mixing modes but engine.py _execute_directive
 ; doesn't enforce this at parse level — it's a documentation contract only

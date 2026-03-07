@@ -5,7 +5,7 @@
 (defterm count-exists counting.count-exists :origin "import")
 
 ; =====================================================================
-; Operator counts
+; Category membership counts
 ; =====================================================================
 
 (fact arithmetic-op-count 5
@@ -29,74 +29,396 @@
     :using (arithmetic-op-count comparison-op-count logic-op-count))
 
 ; =====================================================================
-; Operator implementations
+; Layer 1: DECL — Symbol constant declarations
 ; =====================================================================
 
-(fact eq-impl "operator.eq"
+; --- Arithmetic ---
+(fact add-decl true
     :evidence (evidence "default_system_settings.py"
-        :quotes ("EQ: operator.eq")
-        :explanation "= maps to Python operator.eq"))
+        :quotes ("ADD = Symbol(\"+\")")
+        :explanation "ADD symbol declared"))
 
-(fact add-impl "operator.add"
+(fact sub-decl true
     :evidence (evidence "default_system_settings.py"
-        :quotes ("ADD: operator.add")
-        :explanation "+ maps to operator.add"))
+        :quotes ("SUB = Symbol(\"-\")")
+        :explanation "SUB symbol declared"))
 
-(fact div-impl "operator.truediv"
+(fact mul-decl true
     :evidence (evidence "default_system_settings.py"
-        :quotes ("DIV: operator.truediv")
-        :explanation "/ maps to truediv, not floordiv"))
+        :quotes ("MUL = Symbol(\"*\")")
+        :explanation "MUL symbol declared"))
 
-(fact and-is-variadic true
+(fact div-decl true
     :evidence (evidence "default_system_settings.py"
-        :quotes ("AND: lambda *args: all(args)")
-        :explanation "and accepts variadic args via all()"))
+        :quotes ("DIV = Symbol(\"/\")")
+        :explanation "DIV symbol declared"))
 
-(fact or-is-variadic true
+(fact mod-decl true
     :evidence (evidence "default_system_settings.py"
-        :quotes ("OR: lambda *args: any(args)")
-        :explanation "or accepts variadic args via any()"))
+        :quotes ("MOD = Symbol(\"mod\")")
+        :explanation "MOD symbol declared"))
 
-(fact implies-impl "not-a-or-b"
+; --- Comparison ---
+(fact gt-decl true
     :evidence (evidence "default_system_settings.py"
-        :quotes ("IMPLIES: lambda a, b: (not a) or b")
-        :explanation "implies is material conditional"))
+        :quotes ("GT = Symbol(\">\")")
+        :explanation "GT symbol declared"))
+
+(fact lt-decl true
+    :evidence (evidence "default_system_settings.py"
+        :quotes ("LT = Symbol(\"<\")")
+        :explanation "LT symbol declared"))
+
+(fact ge-decl true
+    :evidence (evidence "default_system_settings.py"
+        :quotes ("GE = Symbol(\">=\")")
+        :explanation "GE symbol declared"))
+
+(fact le-decl true
+    :evidence (evidence "default_system_settings.py"
+        :quotes ("LE = Symbol(\"<=\")")
+        :explanation "LE symbol declared"))
+
+(fact eq-decl true
+    :evidence (evidence "default_system_settings.py"
+        :quotes ("from .lang import EQ")
+        :explanation "EQ imported from lang.py"))
+
+(fact ne-decl true
+    :evidence (evidence "default_system_settings.py"
+        :quotes ("NE = Symbol(\"!=\")")
+        :explanation "NE symbol declared"))
+
+; --- Logic ---
+(fact and-decl true
+    :evidence (evidence "default_system_settings.py"
+        :quotes ("AND = Symbol(\"and\")")
+        :explanation "AND symbol declared"))
+
+(fact or-decl true
+    :evidence (evidence "default_system_settings.py"
+        :quotes ("OR = Symbol(\"or\")")
+        :explanation "OR symbol declared"))
+
+(fact not-decl true
+    :evidence (evidence "default_system_settings.py"
+        :quotes ("NOT = Symbol(\"not\")")
+        :explanation "NOT symbol declared"))
+
+(fact implies-decl true
+    :evidence (evidence "default_system_settings.py"
+        :quotes ("IMPLIES = Symbol(\"implies\")")
+        :explanation "IMPLIES symbol declared"))
 
 ; =====================================================================
-; Internal consistency
+; Layer 2: DOCS — ENGINE_DOCS entries
 ; =====================================================================
 
-; EQ appears in both COMPARISON_OPS and as a special form in lang.py
-; This dual role is intentional — it's both a comparison operator and
-; the core of the rewrite mechanism
-(fact eq-is-comparison true
+; --- Arithmetic ---
+(fact add-docs true
     :evidence (evidence "default_system_settings.py"
-        :quotes ("EQ: operator.eq")
-        :explanation "EQ is in DEFAULT_OPERATORS as comparison"))
+        :quotes ("Add two numbers.  Also used symbolically in formal terms: (+ eve-morning adam-morning).")
+        :explanation "ADD has ENGINE_DOCS entry"))
 
-; Division is true division not integer division
-(derive division-returns-float
-    (= div-impl "operator.truediv")
-    :using (div-impl))
-
-; --- Operator implementations: docs vs code ---
-
-(derive operator-impls-doc-count
-    (count-exists add-impl eq-impl implies-impl and-is-variadic or-is-variadic eq-is-comparison)
-    :using (count-exists counting.count-exists-base counting.count-exists-step
-            add-impl eq-impl implies-impl and-is-variadic or-is-variadic eq-is-comparison))
-
-(defterm operator-impls-impl-count 6
+(fact sub-docs true
     :evidence (evidence "default_system_settings.py"
-        :quotes ("ADD: operator.add" "EQ: operator.eq" "IMPLIES: lambda a, b: (not a) or b" "AND: lambda *args: all(args)" "OR: lambda *args: any(args)" "EQ: operator.eq")
-        :explanation "6 operator implementation properties in source"))
+        :quotes ("Subtract second from first.")
+        :explanation "SUB has ENGINE_DOCS entry"))
 
-(diff operator-impls-coverage
-    :replace operator-impls-doc-count
-    :with operator-impls-impl-count)
+(fact mul-docs true
+    :evidence (evidence "default_system_settings.py"
+        :quotes ("Multiply two numbers.")
+        :explanation "MUL has ENGINE_DOCS entry"))
 
-; --- Total operator count: docs vs code ---
+(fact div-docs true
+    :evidence (evidence "default_system_settings.py"
+        :quotes ("Divide first by second (true division).")
+        :explanation "DIV has ENGINE_DOCS entry"))
 
-(derive total-operators-verified
-    (= total-default-operators 15)
-    :using (total-default-operators arithmetic-op-count comparison-op-count logic-op-count))
+(fact mod-docs true
+    :evidence (evidence "default_system_settings.py"
+        :quotes ("Remainder of first divided by second.")
+        :explanation "MOD has ENGINE_DOCS entry"))
+
+; --- Comparison ---
+(fact gt-docs true
+    :evidence (evidence "default_system_settings.py"
+        :quotes ("True if first is strictly greater than second.")
+        :explanation "GT has ENGINE_DOCS entry"))
+
+(fact lt-docs true
+    :evidence (evidence "default_system_settings.py"
+        :quotes ("True if first is strictly less than second.")
+        :explanation "LT has ENGINE_DOCS entry"))
+
+(fact ge-docs true
+    :evidence (evidence "default_system_settings.py"
+        :quotes ("True if first is greater than or equal to second.")
+        :explanation "GE has ENGINE_DOCS entry"))
+
+(fact le-docs true
+    :evidence (evidence "default_system_settings.py"
+        :quotes ("True if first is less than or equal to second.")
+        :explanation "LE has ENGINE_DOCS entry"))
+
+(fact eq-docs true
+    :evidence (evidence "default_system_settings.py"
+        :quotes ("True if both values are equal.")
+        :explanation "EQ has ENGINE_DOCS entry"))
+
+(fact ne-docs true
+    :evidence (evidence "default_system_settings.py"
+        :quotes ("True if values are not equal.")
+        :explanation "NE has ENGINE_DOCS entry"))
+
+; --- Logic ---
+(fact and-docs true
+    :evidence (evidence "default_system_settings.py"
+        :quotes ("Logical AND (variadic).  True only if all operands are true.")
+        :explanation "AND has ENGINE_DOCS entry"))
+
+(fact or-docs true
+    :evidence (evidence "default_system_settings.py"
+        :quotes ("Logical OR (variadic).  True if at least one operand is true.")
+        :explanation "OR has ENGINE_DOCS entry"))
+
+(fact not-docs true
+    :evidence (evidence "default_system_settings.py"
+        :quotes ("Logical NOT.  Negates a boolean.")
+        :explanation "NOT has ENGINE_DOCS entry"))
+
+(fact implies-docs true
+    :evidence (evidence "default_system_settings.py"
+        :quotes ("Logical implication.  False only when antecedent is true and consequent is false.")
+        :explanation "IMPLIES has ENGINE_DOCS entry"))
+
+; =====================================================================
+; Layer 3: IMPL — DEFAULT_OPERATORS entries
+; =====================================================================
+
+; --- Arithmetic ---
+(fact add-impl true
+    :evidence (evidence "default_system_settings.py"
+        :quotes ("ADD: operator.add,")
+        :explanation "ADD maps to operator.add"))
+
+(fact sub-impl true
+    :evidence (evidence "default_system_settings.py"
+        :quotes ("SUB: operator.sub,")
+        :explanation "SUB maps to operator.sub"))
+
+(fact mul-impl true
+    :evidence (evidence "default_system_settings.py"
+        :quotes ("MUL: operator.mul,")
+        :explanation "MUL maps to operator.mul"))
+
+(fact div-impl true
+    :evidence (evidence "default_system_settings.py"
+        :quotes ("DIV: operator.truediv,")
+        :explanation "DIV maps to operator.truediv"))
+
+(fact mod-impl true
+    :evidence (evidence "default_system_settings.py"
+        :quotes ("MOD: operator.mod,")
+        :explanation "MOD maps to operator.mod"))
+
+; --- Comparison ---
+(fact gt-impl true
+    :evidence (evidence "default_system_settings.py"
+        :quotes ("GT: operator.gt,")
+        :explanation "GT maps to operator.gt"))
+
+(fact lt-impl true
+    :evidence (evidence "default_system_settings.py"
+        :quotes ("LT: operator.lt,")
+        :explanation "LT maps to operator.lt"))
+
+(fact ge-impl true
+    :evidence (evidence "default_system_settings.py"
+        :quotes ("GE: operator.ge,")
+        :explanation "GE maps to operator.ge"))
+
+(fact le-impl true
+    :evidence (evidence "default_system_settings.py"
+        :quotes ("LE: operator.le,")
+        :explanation "LE maps to operator.le"))
+
+(fact eq-impl true
+    :evidence (evidence "default_system_settings.py"
+        :quotes ("EQ: operator.eq,")
+        :explanation "EQ maps to operator.eq (special case from lang)"))
+
+(fact ne-impl true
+    :evidence (evidence "default_system_settings.py"
+        :quotes ("NE: operator.ne,")
+        :explanation "NE maps to operator.ne"))
+
+; --- Logic ---
+(fact and-impl true
+    :evidence (evidence "default_system_settings.py"
+        :quotes ("AND: lambda *args: all(args),")
+        :explanation "AND is variadic via all()"))
+
+(fact or-impl true
+    :evidence (evidence "default_system_settings.py"
+        :quotes ("OR: lambda *args: any(args),")
+        :explanation "OR is variadic via any()"))
+
+(fact not-impl true
+    :evidence (evidence "default_system_settings.py"
+        :quotes ("NOT: lambda a: not a,")
+        :explanation "NOT negates a single arg"))
+
+(fact implies-impl true
+    :evidence (evidence "default_system_settings.py"
+        :quotes ("IMPLIES: lambda a, b: (not a) or b,")
+        :explanation "IMPLIES is material conditional"))
+
+; =====================================================================
+; Per-category layer counts
+; =====================================================================
+
+; --- Arithmetic (5 operators) ---
+
+(derive arith-decl-count
+    (count-exists add-decl sub-decl mul-decl div-decl mod-decl)
+    :using (count-exists add-decl sub-decl mul-decl div-decl mod-decl))
+
+(derive arith-docs-count
+    (count-exists add-docs sub-docs mul-docs div-docs mod-docs)
+    :using (count-exists add-docs sub-docs mul-docs div-docs mod-docs))
+
+(derive arith-impl-count
+    (count-exists add-impl sub-impl mul-impl div-impl mod-impl)
+    :using (count-exists add-impl sub-impl mul-impl div-impl mod-impl))
+
+(diff arith-decl-vs-docs :replace arith-decl-count :with arith-docs-count)
+(diff arith-docs-vs-impl :replace arith-docs-count :with arith-impl-count)
+
+; --- Comparison (6 operators) ---
+
+(derive comp-decl-count
+    (count-exists gt-decl lt-decl ge-decl le-decl eq-decl ne-decl)
+    :using (count-exists gt-decl lt-decl ge-decl le-decl eq-decl ne-decl))
+
+(derive comp-docs-count
+    (count-exists gt-docs lt-docs ge-docs le-docs eq-docs ne-docs)
+    :using (count-exists gt-docs lt-docs ge-docs le-docs eq-docs ne-docs))
+
+(derive comp-impl-count
+    (count-exists gt-impl lt-impl ge-impl le-impl eq-impl ne-impl)
+    :using (count-exists gt-impl lt-impl ge-impl le-impl eq-impl ne-impl))
+
+(diff comp-decl-vs-docs :replace comp-decl-count :with comp-docs-count)
+(diff comp-docs-vs-impl :replace comp-docs-count :with comp-impl-count)
+
+; --- Logic (4 operators) ---
+
+(derive logic-decl-count
+    (count-exists and-decl or-decl not-decl implies-decl)
+    :using (count-exists and-decl or-decl not-decl implies-decl))
+
+(derive logic-docs-count
+    (count-exists and-docs or-docs not-docs implies-docs)
+    :using (count-exists and-docs or-docs not-docs implies-docs))
+
+(derive logic-impl-count
+    (count-exists and-impl or-impl not-impl implies-impl)
+    :using (count-exists and-impl or-impl not-impl implies-impl))
+
+(diff logic-decl-vs-docs :replace logic-decl-count :with logic-docs-count)
+(diff logic-docs-vs-impl :replace logic-docs-count :with logic-impl-count)
+
+; =====================================================================
+; Cross-layer totals
+; =====================================================================
+
+(derive total-decl-count
+    (count-exists add-decl sub-decl mul-decl div-decl mod-decl
+                  gt-decl lt-decl ge-decl le-decl eq-decl ne-decl
+                  and-decl or-decl not-decl implies-decl)
+    :using (count-exists add-decl sub-decl mul-decl div-decl mod-decl
+                         gt-decl lt-decl ge-decl le-decl eq-decl ne-decl
+                         and-decl or-decl not-decl implies-decl))
+
+(derive total-docs-count
+    (count-exists add-docs sub-docs mul-docs div-docs mod-docs
+                  gt-docs lt-docs ge-docs le-docs eq-docs ne-docs
+                  and-docs or-docs not-docs implies-docs)
+    :using (count-exists add-docs sub-docs mul-docs div-docs mod-docs
+                         gt-docs lt-docs ge-docs le-docs eq-docs ne-docs
+                         and-docs or-docs not-docs implies-docs))
+
+(derive total-impl-count
+    (count-exists add-impl sub-impl mul-impl div-impl mod-impl
+                  gt-impl lt-impl ge-impl le-impl eq-impl ne-impl
+                  and-impl or-impl not-impl implies-impl)
+    :using (count-exists add-impl sub-impl mul-impl div-impl mod-impl
+                         gt-impl lt-impl ge-impl le-impl eq-impl ne-impl
+                         and-impl or-impl not-impl implies-impl))
+
+; All three layer totals must match total-default-operators (15)
+(diff total-decl-vs-total :replace total-decl-count :with total-default-operators)
+(diff total-docs-vs-total :replace total-docs-count :with total-default-operators)
+(diff total-impl-vs-total :replace total-impl-count :with total-default-operators)
+
+; All three layers must agree with each other
+(diff decl-vs-docs-total :replace total-decl-count :with total-docs-count)
+(diff docs-vs-impl-total :replace total-docs-count :with total-impl-count)
+
+; =====================================================================
+; Per-category: layer count vs declared category count
+; =====================================================================
+
+; Arithmetic layer counts (each should be 5) vs arithmetic-op-count fact (5)
+(diff arith-decl-vs-category :replace arith-decl-count :with arithmetic-op-count)
+(diff arith-docs-vs-category :replace arith-docs-count :with arithmetic-op-count)
+(diff arith-impl-vs-category :replace arith-impl-count :with arithmetic-op-count)
+
+; Comparison layer counts (each should be 6) vs comparison-op-count fact (6)
+(diff comp-decl-vs-category :replace comp-decl-count :with comparison-op-count)
+(diff comp-docs-vs-category :replace comp-docs-count :with comparison-op-count)
+(diff comp-impl-vs-category :replace comp-impl-count :with comparison-op-count)
+
+; Logic layer counts (each should be 4) vs logic-op-count fact (4)
+(diff logic-decl-vs-category :replace logic-decl-count :with logic-op-count)
+(diff logic-docs-vs-category :replace logic-docs-count :with logic-op-count)
+(diff logic-impl-vs-category :replace logic-impl-count :with logic-op-count)
+
+; =====================================================================
+; Paired three-layer count — operators with ALL layers confirmed
+; =====================================================================
+
+(derive all-layers-paired-count
+    (count-exists (and add-decl add-docs add-impl)
+                  (and sub-decl sub-docs sub-impl)
+                  (and mul-decl mul-docs mul-impl)
+                  (and div-decl div-docs div-impl)
+                  (and mod-decl mod-docs mod-impl)
+                  (and gt-decl gt-docs gt-impl)
+                  (and lt-decl lt-docs lt-impl)
+                  (and ge-decl ge-docs ge-impl)
+                  (and le-decl le-docs le-impl)
+                  (and eq-decl eq-docs eq-impl)
+                  (and ne-decl ne-docs ne-impl)
+                  (and and-decl and-docs and-impl)
+                  (and or-decl or-docs or-impl)
+                  (and not-decl not-docs not-impl)
+                  (and implies-decl implies-docs implies-impl))
+    :using (count-exists
+            add-decl add-docs add-impl sub-decl sub-docs sub-impl
+            mul-decl mul-docs mul-impl div-decl div-docs div-impl
+            mod-decl mod-docs mod-impl gt-decl gt-docs gt-impl
+            lt-decl lt-docs lt-impl ge-decl ge-docs ge-impl
+            le-decl le-docs le-impl eq-decl eq-docs eq-impl
+            ne-decl ne-docs ne-impl and-decl and-docs and-impl
+            or-decl or-docs or-impl not-decl not-docs not-impl
+            implies-decl implies-docs implies-impl))
+
+; Paired count must match each individual layer total
+(diff paired-vs-decl-total :replace all-layers-paired-count :with total-decl-count)
+(diff paired-vs-docs-total :replace all-layers-paired-count :with total-docs-count)
+(diff paired-vs-impl-total :replace all-layers-paired-count :with total-impl-count)
+
+; Paired count must match total-default-operators (15)
+(diff paired-vs-total :replace all-layers-paired-count :with total-default-operators)

@@ -217,7 +217,7 @@
 (print "  Loader has :report:" loader.effect-consistency-has-report)
 (diff consistency-report :replace readme.readme-documents-consistency-report :with loader.effect-consistency-has-report)
 
-(print "  Consistency mode count:" loader.consistency-mode-count)
+(print "  Consistency mode count:" loader.consistency-mode-fact-count)
 
 ; =====================================================================
 ; Module system patterns: README coverage vs demos
