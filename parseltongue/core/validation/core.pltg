@@ -307,7 +307,7 @@
 
 (diff splat-readme-vs-demo
     :replace readme.readme-documents-splat-patterns
-    :with demos.apples-splats-pltg-topic)
+    :with demos.apples-splats-uses-splat-patterns)
 
 ; =====================================================================
 ; AST module: kind count vs lang directive count

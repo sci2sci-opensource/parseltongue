@@ -741,6 +741,48 @@ downstream = walk_dependents(node)  # stack-based, deduplicates
 
 `extract_symbols` recursively collects symbol references from an expression, skipping `?`-variables. `resolve_graph` builds a name→node index, links `children` and `dependents`, and ignores references to symbols not in the current graph (external dependencies). `DirectiveNode` uses identity hashing (`__hash__=id`, `__eq__=identity`) so nodes can be stored in sets.
 
+## Implementation Details
+
+These are lower-level details of the implementation that are important to know if you're working with or extending the system. The sections above cover the user-facing API; this section covers the machinery underneath.
+
+### Atoms
+
+The `atoms` module defines the core data types. `Symbol` is a `str` subclass — symbols are just strings with identity semantics, so they work as dictionary keys and in sets. All data types — `Fact`, `Axiom`, `Theorem`, `Term`, `Evidence` — are frozen dataclasses (immutable after creation). `Fact` extends `Axiom` (a fact is an axiom with no `?`-variables). Evidence is grounded if it is either verified (quotes found in the document) or manually verified via `verify-manual`.
+
+### Parser
+
+The parser pipeline has three stages:
+
+1. **`tokenize()`** — splits source text into tokens, stripping `;` comments
+2. **`read_tokens()`** — recursive descent parse of the token list into nested Python lists (s-expressions)
+3. **`parse()` / `parse_all()`** — public API that combines tokenizing and reading into one call
+
+`to_sexp()` converts Python structures back to s-expression strings, handling boolean roundtrip (`true`/`false` ↔ `True`/`False`).
+
+### Pattern Matching
+
+`match()` and `substitute()` implement pattern matching with `?`-variables. `match(pattern, expr)` returns a binding dict mapping `?`-variables to matched subexpressions (or `None` on failure). `substitute(pattern, bindings)` replaces `?`-variables with their bound values. `free_vars()` extracts the set of `?`-variables from a pattern. All three handle `?...`-prefixed splat variables that collect trailing arguments.
+
+### Directive Dispatch
+
+`load_source()` is the directive dispatcher — it parses s-expressions and routes each one to the appropriate handler. It processes all 6 directive types (`fact`, `axiom`, `defterm`, `derive`, `diff`, `evidence`) plus a fallback `eval` for unrecognized expressions (which is how effects fire). `parse_evidence()` parses an `evidence` s-expression into an `Evidence` object.
+
+### Engine Internals
+
+`retract()` removes a fact, axiom, term, theorem, or diff from the system by name. `rederive()` re-runs a derivation to refresh its fabrication status — useful after manually verifying evidence that was previously unverified.
+
+`LANG_DOCS` (in `lang.py`) is a structured dictionary providing documentation for each operator and directive — category, description, example, expected result. This is the data fed to LLMs via `llm_doc()` so they can use the language correctly.
+
+### Quote Verifier Configuration
+
+The `QuoteVerifierConfig` controls 5 feature flags: `case_sensitive`, `ignore_punctuation`, `normalize_lists`, `normalize_hyphenation`, and `remove_stopwords`. Each flag gates a normalization step — when disabled, that step returns immediately with no transformations.
+
+The verifier maintains a **dangerous stopwords** list — words like "not", "never", "without" that change the meaning of a quote. Removing a dangerous stopword applies a full penalty (default 0.31), which by design drops the confidence score below the confirmation threshold. This means a quote that differs from the source only by a missing "not" will fail verification. Regular stopword removal is diluted by word count; dangerous stopword removal is not.
+
+Edge cases are rejected early: empty quotes, single-stopword quotes (when `remove_stopwords` is enabled), and quotes that normalize to empty strings all return `verified: False` before reaching the matching stage.
+
+Penalty values range from 0.001 (whitespace normalization) to 0.31 (dangerous stopword removal). The sum of all non-dangerous penalties (0.202) is less than a single dangerous penalty — one dangerous stopword is enough to fail. The final score is clamped to [0.0, 1.0].
+
 ## Demos
 
 12 demos covering the full feature set. Each is a standalone script. Demos marked `.pltg` are written entirely in Parseltongue — Python only serves as the entry point to configure the environment.

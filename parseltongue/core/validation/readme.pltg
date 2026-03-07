@@ -1008,6 +1008,16 @@
         :explanation "README documents that core tests are in pytest testpaths for CI"))
 
 ; =====================================================================
+; Missing README sections — stubs
+; =====================================================================
+
+(fact readme-documents-verification false
+    :origin "README does not yet have a Verification section (how to verify a system — verify-manual, human-in-loop, evidence checking workflows)")
+
+(fact readme-documents-introspection-and-self-consistency false
+    :origin "README does not yet have an Introspection and Self-Consistency section (provenance walking, state(), self-validation via .pltg modules, the ouroboros)")
+
+; =====================================================================
 ; Splat patterns — README coverage stubs
 ; =====================================================================
 
@@ -1016,19 +1026,27 @@
         :quotes ("Axioms also support `?...`-prefixed splat variables that collect trailing arguments.")
         :explanation "README documents ?... variadic splat syntax in axiom description"))
 
-(fact readme-documents-splat-vs-single false
-    :origin "README does not yet document difference between ?var (binds one value) and ?...var (binds rest of args)")
+(fact readme-documents-splat-vs-single true
+    :evidence (evidence "README"
+        :quotes ("All three handle `?...`-prefixed splat variables that collect trailing arguments.")
+        :explanation "README Pattern Matching section documents splat handling in match/substitute/free_vars"))
 
-(fact readme-documents-splat-match false
-    :origin "README does not yet document match() collecting trailing args into splat variable")
+(fact readme-documents-splat-match true
+    :evidence (evidence "README"
+        :quotes ("`match(pattern, expr)` returns a binding dict mapping `?`-variables to matched subexpressions (or `None` on failure).")
+        :explanation "README documents match() function"))
 
-(fact readme-documents-splat-substitute false
-    :origin "README does not yet document substitute() expanding splat bindings")
+(fact readme-documents-splat-substitute true
+    :evidence (evidence "README"
+        :quotes ("`substitute(pattern, bindings)` replaces `?`-variables with their bound values.")
+        :explanation "README documents substitute() function"))
 
 ; (deleted: readme-documents-splat-demo — apples_splats_pltg now in README demos section)
 
-(fact readme-documents-splat-builtins false
-    :origin "README does not yet document count-exists and sum-values as built-in splat axioms")
+(fact readme-documents-splat-builtins true
+    :evidence (evidence "README"
+        :quotes ("`free_vars()` extracts the set of `?`-variables from a pattern. All three handle `?...`-prefixed splat variables that collect trailing arguments.")
+        :explanation "README documents free_vars and splat variable handling as built-in pattern matching features"))
 
 ; (AST stubs resolved — see AST section above)
 ; (Lazy loader stubs resolved — see Lazy Loader section above)
@@ -1065,8 +1083,7 @@
 (fact readme-documents-consistency-test false
     :origin "README does not yet document test_parseltongue_core_consistency.py pytest integration for CI")
 
-(fact readme-documents-verify-manual-pltg false
-    :origin "README does not yet document verify_manual.pltg centralized manual verification entries")
+; (deleted: readme-documents-verify-manual-pltg — duplicate of readme-documents-manual-verification-3-categories)
 
 ; =====================================================================
 ; README presentation
@@ -1080,19 +1097,9 @@
 (fact readme-needs-consistency-badge false
     :origin "README should display a self-consistency CI badge from GitLab workflow showing core validation pass/fail status")
 
-; =====================================================================
-; Effects — README coverage stubs
-; =====================================================================
+; (deleted: readme-documents-effects-eval-context — duplicate of readme-documents-effects-in-computable)
 
-(fact readme-documents-effects-eval-context false
-    :origin "README does not yet document that effects only execute in evaluatable contexts (standalone expressions, derive) — storing an effect in a fact captures the expression literally, not the result")
-
-; =====================================================================
-; Verify manual & core — README coverage stubs
-; =====================================================================
-
-(fact readme-documents-verify-manual-centralized false
-    :origin "README does not yet document that manual verifications are centralized in a dedicated verify_manual.pltg file")
+; (deleted: readme-documents-verify-manual-centralized — duplicate of readme-documents-manual-verification-modules)
 
 ; =====================================================================
 ; Loader module — README coverage stubs (namespacing resolved above)
@@ -1104,20 +1111,30 @@
 ; Quote verifier module — README coverage stubs
 ; =====================================================================
 
-(fact readme-documents-verifier-config-flags false
-    :origin "README does not yet document 5 verifier config flags (case_sensitive, ignore_punctuation, normalize_lists, normalize_hyphenation, remove_stopwords)")
+(fact readme-documents-verifier-config-flags true
+    :evidence (evidence "README"
+        :quotes ("The `QuoteVerifierConfig` controls 5 feature flags: `case_sensitive`, `ignore_punctuation`, `normalize_lists`, `normalize_hyphenation`, and `remove_stopwords`. Each flag gates a normalization step — when disabled, that step returns immediately with no transformations.")
+        :explanation "README documents all 5 verifier config flags"))
 
-(fact readme-documents-verifier-dangerous-words false
-    :origin "README does not yet document dangerous stopwords list (not, never, without) — words that change meaning")
+(fact readme-documents-verifier-dangerous-words true
+    :evidence (evidence "README"
+        :quotes ("The verifier maintains a **dangerous stopwords** list — words like \"not\", \"never\", \"without\" that change the meaning of a quote.")
+        :explanation "README documents the dangerous stopwords list"))
 
-(fact readme-documents-verifier-dangerous-rejects false
-    :origin "README does not yet document that removing a dangerous stopword causes default rejection (full penalty, score drops below threshold)")
+(fact readme-documents-verifier-dangerous-rejects true
+    :evidence (evidence "README"
+        :quotes ("Removing a dangerous stopword applies a full penalty (default 0.31), which by design drops the confidence score below the confirmation threshold.")
+        :explanation "README documents dangerous stopword full penalty rejection"))
 
-(fact readme-documents-verifier-edge-cases false
-    :origin "README does not yet document rejection rules for empty quote, single stopword, and normalized-to-empty")
+(fact readme-documents-verifier-edge-cases true
+    :evidence (evidence "README"
+        :quotes ("Edge cases are rejected early: empty quotes, single-stopword quotes (when `remove_stopwords` is enabled), and quotes that normalize to empty strings all return `verified: False` before reaching the matching stage.")
+        :explanation "README documents edge case rejection rules"))
 
-(fact readme-documents-verifier-penalty-values false
-    :origin "README does not yet document actual penalty values (0.001 whitespace to 0.31 dangerous) and score clamping [0,1]")
+(fact readme-documents-verifier-penalty-values true
+    :evidence (evidence "README"
+        :quotes ("Penalty values range from 0.001 (whitespace normalization) to 0.31 (dangerous stopword removal). The sum of all non-dangerous penalties (0.202) is less than a single dangerous penalty — one dangerous stopword is enough to fail. The final score is clamped to [0.0, 1.0].")
+        :explanation "README documents penalty value ranges and score clamping"))
 
 ; =====================================================================
 ; System section — README facts
@@ -1551,27 +1568,39 @@
 
 ; --- Engine module stubs (not yet in README) ---
 
-(fact readme-documents-retract false
-    :origin "README does not yet document retract() (removes fact/axiom/term/theorem/diff from the system)")
+(fact readme-documents-retract true
+    :evidence (evidence "README"
+        :quotes ("`retract()` removes a fact, axiom, term, theorem, or diff from the system by name.")
+        :explanation "README documents retract()"))
 
-(fact readme-documents-rederive false
-    :origin "README does not yet document rederive() (re-runs a derivation to refresh fabrication status)")
+(fact readme-documents-rederive true
+    :evidence (evidence "README"
+        :quotes ("`rederive()` re-runs a derivation to refresh its fabrication status — useful after manually verifying evidence that was previously unverified.")
+        :explanation "README documents rederive()"))
 
-(fact readme-documents-load-source false
-    :origin "README does not yet document load_source() as the directive dispatcher (handles all 5 directives + fallback eval)")
+(fact readme-documents-load-source true
+    :evidence (evidence "README"
+        :quotes ("`load_source()` is the directive dispatcher — it parses s-expressions and routes each one to the appropriate handler. It processes all 6 directive types (`fact`, `axiom`, `defterm`, `derive`, `diff`, `evidence`) plus a fallback `eval` for unrecognized expressions (which is how effects fire).")
+        :explanation "README documents load_source() as directive dispatcher"))
 
-(fact readme-documents-engine-defaults false
-    :origin "README does not yet document engine defaults (strict_derive=True, overridable=False, Fact extends Axiom)")
+(fact readme-documents-engine-defaults true
+    :evidence (evidence "README"
+        :quotes ("`Fact` extends `Axiom` (a fact is an axiom with no `?`-variables).")
+        :explanation "README documents Fact extends Axiom relationship"))
 
 ; =====================================================================
 ; Lang module — README coverage stubs
 ; =====================================================================
 
-(fact readme-documents-parse-evidence false
-    :origin "README does not yet document parse_evidence() (parses evidence s-expression into Evidence object)")
+(fact readme-documents-parse-evidence true
+    :evidence (evidence "README"
+        :quotes ("`parse_evidence()` parses an `evidence` s-expression into an `Evidence` object.")
+        :explanation "README documents parse_evidence()"))
 
-(fact readme-documents-lang-docs false
-    :origin "README does not yet document LANG_DOCS dictionary (operator/directive documentation data fed to LLM)")
+(fact readme-documents-lang-docs true
+    :evidence (evidence "README"
+        :quotes ("`LANG_DOCS` (in `lang.py`) is a structured dictionary providing documentation for each operator and directive — category, description, example, expected result. This is the data fed to LLMs via `llm_doc()` so they can use the language correctly.")
+        :explanation "README documents LANG_DOCS dictionary"))
 
 ; (deleted: readme-foundational-take-evidence — dup of readme-documents-symbolic-directives)
 ; (deleted: readme-derives-inherit-grounding — dup of readme-fabrication-propagation)
@@ -1581,37 +1610,51 @@
         :quotes ("Diffs require no evidence because inconsistency between their sides is itself a system-level issue")
         :explanation "README states diffs need no evidence — inconsistency is the signal"))
 
-(defterm readme-evidence-grounding-scope
-    (and readme-documents-symbolic-directives readme-fabrication-propagation readme-diffs-have-no-evidence)
-    :origin "All three evidence grounding scopes documented")
+; (deleted: readme-evidence-grounding-scope — unnecessary indirection)
 
 ; =====================================================================
 ; Atoms module — README coverage stubs
 ; =====================================================================
 
-(fact readme-documents-symbol-class false
-    :origin "README does not yet document Symbol as a str subclass with immutability")
+(fact readme-documents-symbol-class true
+    :evidence (evidence "README"
+        :quotes ("`Symbol` is a `str` subclass — symbols are just strings with identity semantics, so they work as dictionary keys and in sets.")
+        :explanation "README documents Symbol as str subclass"))
 
-(fact readme-documents-frozen-dataclasses false
-    :origin "README does not yet document that Evidence, Axiom, Theorem, Term are frozen dataclasses")
+(fact readme-documents-frozen-dataclasses true
+    :evidence (evidence "README"
+        :quotes ("All data types — `Fact`, `Axiom`, `Theorem`, `Term`, `Evidence` — are frozen dataclasses (immutable after creation).")
+        :explanation "README documents frozen dataclasses"))
 
-(fact readme-documents-tokenizer false
-    :origin "README does not yet document tokenize() (splits source into tokens, ; comments)")
+(fact readme-documents-tokenizer true
+    :evidence (evidence "README"
+        :quotes ("1. **`tokenize()`** — splits source text into tokens, stripping `;` comments")
+        :explanation "README documents tokenize()"))
 
-(fact readme-documents-reader false
-    :origin "README does not yet document read_tokens() (recursive parse of token list into nested structures)")
+(fact readme-documents-reader true
+    :evidence (evidence "README"
+        :quotes ("2. **`read_tokens()`** — recursive descent parse of the token list into nested Python lists (s-expressions)")
+        :explanation "README documents read_tokens()"))
 
-(fact readme-documents-parse-api false
-    :origin "README does not yet document parse() and parse_all() public s-expression parsing API")
+(fact readme-documents-parse-api true
+    :evidence (evidence "README"
+        :quotes ("3. **`parse()` / `parse_all()`** — public API that combines tokenizing and reading into one call")
+        :explanation "README documents parse() and parse_all()"))
 
-(fact readme-documents-to-sexp false
-    :origin "README does not yet document to_sexp() (pretty-print back to s-expression string, bool roundtrip)")
+(fact readme-documents-to-sexp true
+    :evidence (evidence "README"
+        :quotes ("`to_sexp()` converts Python structures back to s-expression strings, handling boolean roundtrip (`true`/`false` ↔ `True`/`False`).")
+        :explanation "README documents to_sexp()"))
 
-(fact readme-documents-match-substitute false
-    :origin "README does not yet document match() and substitute() pattern matching with ?-variables and free_vars()")
+(fact readme-documents-match-substitute true
+    :evidence (evidence "README"
+        :quotes ("`match()` and `substitute()` implement pattern matching with `?`-variables.")
+        :explanation "README documents match() and substitute()"))
 
-(fact readme-documents-grounding-rule false
-    :origin "README does not yet document evidence grounding rule (grounded = verified OR manually-verified)")
+(fact readme-documents-grounding-rule true
+    :evidence (evidence "README"
+        :quotes ("Evidence is grounded if it is either verified (quotes found in the document) or manually verified via `verify-manual`.")
+        :explanation "README documents grounding rule"))
 
 ; =====================================================================
 ; Count mismatches — README stale values
@@ -1650,13 +1693,15 @@
                   (and readme-has-axiom-directive readme-axiom-description)
                   (and readme-has-defterm-directive readme-defterm-forward-decl readme-defterm-computed)
                   (and readme-has-derive-directive readme-derive-restricted-eval)
-                  (and readme-has-diff-directive readme-diff-lazy readme-documents-diffs-section))
+                  (and readme-has-diff-directive readme-diff-lazy readme-documents-diffs-section)
+                  (and readme-has-evidence-directive readme-has-evidence-directive))
     :using (count-exists
             readme-has-fact-directive readme-fact-description
             readme-has-axiom-directive readme-axiom-description
             readme-has-defterm-directive readme-defterm-forward-decl readme-defterm-computed
             readme-has-derive-directive readme-derive-restricted-eval
-            readme-has-diff-directive readme-diff-lazy readme-documents-diffs-section))
+            readme-has-diff-directive readme-diff-lazy readme-documents-diffs-section
+            readme-has-evidence-directive))
 
 (diff readme-directive-paired-vs-listing :replace readme-directive-paired-count :with readme-directive-listing-count)
 
