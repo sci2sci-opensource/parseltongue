@@ -65,6 +65,18 @@ class TestParseltongueCoreConsistency(unittest.TestCase):
 
         referenced = referenced_by_derives | referenced_by_diffs
 
+        # Rewrite-rule axioms: axioms whose WFF references a symbol
+        # that is already referenced are themselves in use — the
+        # engine applies them automatically during evaluation.
+        referenced_by_rewrites = set()
+        for ax_name, ax in engine.axioms.items():
+            if ax_name in referenced:
+                continue
+            ax_symbols = _collect_symbols(ax.wff)
+            if ax_symbols & referenced:
+                referenced_by_rewrites.add(ax_name)
+        referenced = referenced | referenced_by_rewrites
+
         all_facts = set(engine.facts.keys())
         all_axioms = set(engine.axioms.keys())
         all_terms = set(engine.terms.keys())
@@ -89,6 +101,7 @@ class TestParseltongueCoreConsistency(unittest.TestCase):
         print("")
         print(f"  Reachable from derives: {len(all_definitions & referenced_by_derives)}")
         print(f"  Reachable from diffs: {len(all_definitions & referenced_by_diffs)}")
+        print(f"  Reachable via rewrites: {len(referenced_by_rewrites)}")
         print(f"  Total reachable: {len(all_definitions & referenced)} / {len(all_definitions)}")
         print(f"  Coverage: {100 * len(all_definitions & referenced) / len(all_definitions):.1f}%")
         print("")
@@ -157,6 +170,13 @@ class TestParseltongueCoreConsistency(unittest.TestCase):
                         if sym in engine.facts or sym in engine.terms or sym in engine.theorems or sym in engine.axioms:
                             _reachable(sym, visited)
 
+            # If it's an axiom, follow symbols in its WFF (rewrite rules
+            # reference the terms they rewrite for)
+            if name in engine.axioms:
+                for sym in _collect_symbols(engine.axioms[name].wff):
+                    if sym in engine.facts or sym in engine.terms or sym in engine.theorems or sym in engine.axioms:
+                        _reachable(sym, visited)
+
             # If it's a diff, follow replace and with
             if name in engine.diffs:
                 params = engine.diffs[name]
@@ -172,6 +192,14 @@ class TestParseltongueCoreConsistency(unittest.TestCase):
             reachable.add(diff_name)
             _reachable(params["replace"], reachable)
             _reachable(params["with"], reachable)
+
+        # Rewrite-rule axioms: axioms whose WFF references a reachable
+        # symbol are themselves in use (the engine applies them automatically)
+        for ax_name, ax in engine.axioms.items():
+            if ax_name not in reachable:
+                ax_symbols = _collect_symbols(ax.wff)
+                if ax_symbols & reachable:
+                    _reachable(ax_name, reachable)
 
         all_facts = set(engine.facts.keys())
         all_axioms = set(engine.axioms.keys())
@@ -271,6 +299,14 @@ class TestParseltongueCoreConsistency(unittest.TestCase):
                 for sym in _collect_symbols(term.definition):
                     referenced_by.setdefault(sym, set()).add(term_name)
 
+        # Rewrite-rule axioms: if an axiom's WFF references a known name,
+        # that name effectively "uses" the axiom (the engine applies it
+        # as a rewrite rule during evaluation)
+        for ax_name, ax in engine.axioms.items():
+            for sym in _collect_symbols(ax.wff):
+                if sym in engine.terms or sym in engine.facts or sym in engine.axioms or sym in engine.theorems:
+                    referenced_by.setdefault(ax_name, set()).add(sym)
+
         # Top-level danglings: no one references them AND they are not diffs
         diff_names = set(engine.diffs.keys())
         all_names = set(engine.facts) | set(engine.axioms) | set(engine.terms) | set(engine.theorems)
@@ -344,6 +380,14 @@ class TestParseltongueCoreConsistency(unittest.TestCase):
                 _follow_terms(params["with"], referenced_by_diffs)
 
             referenced = referenced_by_derives | referenced_by_diffs
+
+            # Rewrite-rule axioms: axioms whose WFF references a
+            # referenced symbol are themselves in use
+            for ax_name, ax in engine.axioms.items():
+                if ax_name not in referenced:
+                    if _collect_symbols(ax.wff) & referenced:
+                        referenced.add(ax_name)
+
             all_definitions = set(engine.facts.keys()) | set(engine.axioms.keys()) | set(engine.terms.keys())
             return all_definitions - referenced
 

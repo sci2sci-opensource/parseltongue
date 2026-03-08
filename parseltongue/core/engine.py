@@ -646,26 +646,68 @@ class Engine:
     # Diff
     # ----------------------------------------------------------
 
-    def _dependents(self, symbol_name: str) -> list[str]:
-        """Find all terms whose definitions transitively reference a symbol."""
+    @staticmethod
+    def _expr_references(expr, name: str) -> bool:
+        """Check if an expression tree contains a Symbol matching name."""
+        if isinstance(expr, Symbol):
+            return str(expr) == name
+        if isinstance(expr, list):
+            return any(Engine._expr_references(sub, name) for sub in expr)
+        return False
 
-        def references(expr, name):
-            if isinstance(expr, Symbol):
-                return str(expr) == name
-            if isinstance(expr, list):
-                return any(references(sub, name) for sub in expr)
+    def _dependents(self, symbol_name: str, exclude_diff: str | None = None) -> list[tuple[str, str]]:
+        """Find all definitions that transitively reference a symbol.
+
+        Returns a list of (name, kind) tuples where kind is one of
+        'term', 'fact', 'axiom', 'theorem', or 'diff'.
+
+        Args:
+            exclude_diff: diff name to exclude (the calling diff itself).
+        """
+        references = self._expr_references
+
+        def _all_named_exprs():
+            for n, t in self.terms.items():
+                yield n, "term", t.definition
+            for n, f in self.facts.items():
+                yield n, "fact", f.wff
+            for n, a in self.axioms.items():
+                yield n, "axiom", a.wff
+            for n, th in self.theorems.items():
+                yield n, "theorem", th.wff
+            for n, d in self.diffs.items():
+                if n != exclude_diff:
+                    yield n, "diff", [Symbol(d["replace"]), Symbol(d["with"])]
+
+        def _mentions(name_to_find, n, kind, expr):
+            """Check if a definition mentions name_to_find — via expression
+            symbols OR via the theorem's derivation (`:using`) list.
+
+            Theorems whose WFF was evaluated to a literal at derive-time
+            no longer contain Symbol references, but their .derivation
+            records the names they depended on.
+            """
+            if references(expr, name_to_find):
+                return True
+            if kind == "theorem" and name_to_find in self.theorems[n].derivation:
+                return True
             return False
 
-        direct = {n for n, t in self.terms.items() if references(t.definition, symbol_name)}
-        result = set()
+        direct: set[tuple[str, str]] = set()
+        for n, kind, expr in _all_named_exprs():
+            if _mentions(symbol_name, n, kind, expr):
+                direct.add((n, kind))
+
+        result: set[tuple[str, str]] = set()
         frontier = direct
         while frontier:
             result |= frontier
-            frontier = {
-                n
-                for n, t in self.terms.items()
-                if n not in result and any(references(t.definition, r) for r in frontier)
-            }
+            frontier_names = {n for n, _ in frontier}
+            next_frontier: set[tuple[str, str]] = set()
+            for n, kind, expr in _all_named_exprs():
+                if (n, kind) not in result and any(_mentions(fn, n, kind, expr) for fn in frontier_names):
+                    next_frontier.add((n, kind))
+            frontier = next_frontier
         return list(result)
 
     def register_diff(self, name: str, replace: str, with_: str):
@@ -712,20 +754,53 @@ class Engine:
         original = self._resolve_value(replace)
         substitute_val = self._resolve_value(with_)
 
-        affected = self._dependents(replace)
+        affected = self._dependents(replace, exclude_diff=name)
 
         divergences = {}
-        for term_name in affected:
-            defn = self.terms[term_name].definition
+        for dep_name, dep_kind in affected:
+            if dep_kind == "term":
+                defn = self.terms[dep_name].definition
+            elif dep_kind == "fact":
+                defn = self.facts[dep_name].wff
+            elif dep_kind == "axiom":
+                defn = self.axioms[dep_name].wff
+            elif dep_kind == "theorem":
+                defn = self.theorems[dep_name].wff
+            elif dep_kind == "diff":
+                # The dependent diff references the replaced symbol
+                # in its :replace or :with — flag as contaminated.
+                dep_params = self.diffs[dep_name]
+                divergences[dep_name] = [
+                    f"diff({dep_params['replace']} vs {dep_params['with']})",
+                    f"<contaminated: references {replace}>",
+                ]
+                continue
+            else:
+                continue
+
+            # For theorems found via .derivation whose WFF is already
+            # evaluated to a literal: substitution into the WFF won't
+            # change anything, but the derivation *used* the replaced
+            # symbol so the result is contaminated.  Flag as divergent
+            # since re-derivation with different input could change
+            # the outcome.
+            if (
+                dep_kind == "theorem"
+                and not self._expr_references(defn, replace)
+                and replace in self.theorems[dep_name].derivation
+            ):
+                divergences[dep_name] = [defn, f"<contaminated: uses {replace}>"]
+                continue
+
             try:
                 result_a = self.evaluate(defn)
                 result_b = self.evaluate(defn, {Symbol(replace): substitute_val})
             except (NameError, TypeError):
-                # Formal terms — compare structurally via substitution
+                # Formal expressions — compare structurally via substitution
                 result_a = defn
                 result_b = substitute(defn, {Symbol(replace): substitute_val})
             if result_a != result_b:
-                divergences[term_name] = [result_a, result_b]
+                divergences[dep_name] = [result_a, result_b]
 
         return DiffResult(
             name=name,

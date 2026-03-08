@@ -547,6 +547,191 @@
     :using (lang.diff-no-evidence load-source-handles-diff diff-evaluated-structurally diff-calls-resolve-origin))
 
 ; =====================================================================
+; _expr_references — static symbol search
+; =====================================================================
+
+(fact expr-references-is-static true
+    :evidence (evidence "engine.py"
+        :quotes ("@staticmethod\n    def _expr_references(expr, name: str) -> bool:\n        \"\"\"Check if an expression tree contains a Symbol matching name.\"\"\"")
+        :explanation "_expr_references is a static method for recursive symbol search"))
+
+(fact expr-references-checks-symbol true
+    :evidence (evidence "engine.py"
+        :quotes ("if isinstance(expr, Symbol):\n            return str(expr) == name")
+        :explanation "_expr_references matches Symbol by string equality"))
+
+(fact expr-references-recurses-lists true
+    :evidence (evidence "engine.py"
+        :quotes ("return any(Engine._expr_references(sub, name) for sub in expr)")
+        :explanation "_expr_references recurses into list expressions via Engine static call"))
+
+; =====================================================================
+; _dependents — cross-type dependency tracking (Items × Layers)
+; =====================================================================
+
+; Layer 1: IMPL — what _dependents actually scans in _all_named_exprs
+(fact dependents-scans-terms true
+    :evidence (evidence "engine.py"
+        :quotes ("for n, t in self.terms.items():\n                yield n, \"term\", t.definition")
+        :explanation "_dependents scans term definitions"))
+
+(fact dependents-scans-facts true
+    :evidence (evidence "engine.py"
+        :quotes ("for n, f in self.facts.items():\n                yield n, \"fact\", f.wff")
+        :explanation "_dependents scans fact WFFs"))
+
+(fact dependents-scans-axioms true
+    :evidence (evidence "engine.py"
+        :quotes ("for n, a in self.axioms.items():\n                yield n, \"axiom\", a.wff")
+        :explanation "_dependents scans axiom WFFs"))
+
+(fact dependents-scans-theorems true
+    :evidence (evidence "engine.py"
+        :quotes ("for n, t in self.theorems.items():\n                yield n, \"theorem\", t.wff")
+        :explanation "_dependents scans theorem WFFs"))
+
+(fact dependents-scans-diffs true
+    :evidence (evidence "engine.py"
+        :quotes ("for n, d in self.diffs.items():\n                if n != exclude_diff:\n                    yield n, \"diff\", [Symbol(d[\"replace\"]), Symbol(d[\"with\"])]")
+        :explanation "_dependents scans diff replace/with references, excluding calling diff"))
+
+; Layer 2: DOC — what the docstring claims _dependents covers
+(fact dependents-doc-term true
+    :evidence (evidence "engine.py"
+        :quotes ("Returns a list of (name, kind) tuples where kind is one of\n        'term', 'fact', 'axiom', 'theorem', or 'diff'.")
+        :explanation "Docstring lists term as a tracked kind"))
+
+(fact dependents-doc-fact true
+    :evidence (evidence "engine.py"
+        :quotes ("Returns a list of (name, kind) tuples where kind is one of\n        'term', 'fact', 'axiom', 'theorem', or 'diff'.")
+        :explanation "Docstring lists fact as a tracked kind"))
+
+(fact dependents-doc-axiom true
+    :evidence (evidence "engine.py"
+        :quotes ("Returns a list of (name, kind) tuples where kind is one of\n        'term', 'fact', 'axiom', 'theorem', or 'diff'.")
+        :explanation "Docstring lists axiom as a tracked kind"))
+
+(fact dependents-doc-theorem true
+    :evidence (evidence "engine.py"
+        :quotes ("Returns a list of (name, kind) tuples where kind is one of\n        'term', 'fact', 'axiom', 'theorem', or 'diff'.")
+        :explanation "Docstring lists theorem as a tracked kind"))
+
+(fact dependents-doc-diff true
+    :evidence (evidence "engine.py"
+        :quotes ("Returns a list of (name, kind) tuples where kind is one of\n        'term', 'fact', 'axiom', 'theorem', or 'diff'.")
+        :explanation "Docstring lists diff as a tracked kind"))
+
+; Per-layer counts
+(derive dependents-impl-count
+    (count-exists dependents-scans-terms dependents-scans-facts dependents-scans-axioms dependents-scans-theorems dependents-scans-diffs)
+    :using (count-exists counting.count-exists-base counting.count-exists-step
+            dependents-scans-terms dependents-scans-facts dependents-scans-axioms dependents-scans-theorems dependents-scans-diffs))
+
+(derive dependents-doc-count
+    (count-exists dependents-doc-term dependents-doc-fact dependents-doc-axiom dependents-doc-theorem dependents-doc-diff)
+    :using (count-exists counting.count-exists-base counting.count-exists-step
+            dependents-doc-term dependents-doc-fact dependents-doc-axiom dependents-doc-theorem dependents-doc-diff))
+
+; Paired: each doc claim matched with its impl
+(derive dependents-paired-count
+    (count-exists (and dependents-doc-term dependents-scans-terms)
+                  (and dependents-doc-fact dependents-scans-facts)
+                  (and dependents-doc-axiom dependents-scans-axioms)
+                  (and dependents-doc-theorem dependents-scans-theorems)
+                  (and dependents-doc-diff dependents-scans-diffs))
+    :using (count-exists
+            dependents-doc-term dependents-scans-terms
+            dependents-doc-fact dependents-scans-facts
+            dependents-doc-axiom dependents-scans-axioms
+            dependents-doc-theorem dependents-scans-theorems
+            dependents-doc-diff dependents-scans-diffs))
+
+; Cross-layer diffs
+(diff dependents-paired-vs-doc :replace dependents-paired-count :with dependents-doc-count)
+(diff dependents-paired-vs-impl :replace dependents-paired-count :with dependents-impl-count)
+
+; Behavioral properties
+(fact dependents-checks-derivation-list true
+    :evidence (evidence "engine.py"
+        :quotes ("if kind == \"theorem\" and name_to_find in self.theorems[n].derivation:\n                return True")
+        :explanation "_dependents also checks theorem .derivation lists for contamination"))
+
+(fact dependents-is-transitive true
+    :evidence (evidence "engine.py"
+        :quotes ("while frontier:\n            result |= frontier\n            frontier_names = {n for n, _ in frontier}\n            next_frontier: set[tuple[str, str]] = set()")
+        :explanation "_dependents expands transitively until no new dependents found"))
+
+; =====================================================================
+; eval_diff — contamination detection
+; =====================================================================
+
+(fact eval-diff-handles-theorem-contamination true
+    :evidence (evidence "engine.py"
+        :quotes ("if (\n                dep_kind == \"theorem\"\n                and not self._expr_references(defn, replace)\n                and replace in self.theorems[dep_name].derivation\n            ):\n                divergences[dep_name] = [defn, f\"<contaminated: uses {replace}>\"]")
+        :explanation "eval_diff flags theorems whose WFF is a literal but whose derivation used the replaced symbol"))
+
+(fact eval-diff-handles-diff-contamination true
+    :evidence (evidence "engine.py"
+        :quotes ("elif dep_kind == \"diff\":\n                # The dependent diff references the replaced symbol\n                # in its :replace or :with — flag as contaminated.\n                dep_params = self.diffs[dep_name]\n                divergences[dep_name] = [\n                    f\"diff({dep_params['replace']} vs {dep_params['with']})\",\n                    f\"<contaminated: references {replace}>\",\n                ]")
+        :explanation "eval_diff flags dependent diffs that reference the replaced symbol"))
+
+(fact eval-diff-excludes-self true
+    :evidence (evidence "engine.py"
+        :quotes ("affected = self._dependents(replace, exclude_diff=name)")
+        :explanation "eval_diff excludes its own diff from the dependency scan"))
+
+; Layer 1: DOC — eval_diff docstring does NOT document contamination yet
+(fact eval-diff-doc-theorem-contamination false
+    :origin "eval_diff docstring does not document theorem contamination via .derivation")
+
+(fact eval-diff-doc-diff-contamination false
+    :origin "eval_diff docstring does not document dependent diff contamination")
+
+(fact eval-diff-doc-excludes-self false
+    :origin "eval_diff docstring does not document self-exclusion via exclude_diff")
+
+; Layer 2: IMPL — each contamination path in source
+(fact eval-diff-impl-theorem-contamination true
+    :evidence (evidence "engine.py"
+        :quotes ("# For theorems found via .derivation whose WFF is already\n            # evaluated to a literal: substitution into the WFF won't\n            # change anything, but the derivation *used* the replaced\n            # symbol so the result is contaminated.  Flag as divergent\n            # since re-derivation with different input could change\n            # the outcome.\n            if (\n                dep_kind == \"theorem\"\n                and not self._expr_references(defn, replace)\n                and replace in self.theorems[dep_name].derivation\n            ):\n                divergences[dep_name] = [defn, f\"<contaminated: uses {replace}>\"]")
+        :explanation "Theorem contamination detection block in eval_diff"))
+
+(fact eval-diff-impl-diff-contamination true
+    :evidence (evidence "engine.py"
+        :quotes ("elif dep_kind == \"diff\":\n                # The dependent diff references the replaced symbol\n                # in its :replace or :with — flag as contaminated.\n                dep_params = self.diffs[dep_name]\n                divergences[dep_name] = [\n                    f\"diff({dep_params['replace']} vs {dep_params['with']})\",\n                    f\"<contaminated: references {replace}>\",\n                ]")
+        :explanation "Diff contamination detection block in eval_diff"))
+
+(fact eval-diff-impl-excludes-self true
+    :evidence (evidence "engine.py"
+        :quotes ("affected = self._dependents(replace, exclude_diff=name)")
+        :explanation "eval_diff passes its own name as exclude_diff"))
+
+; Per-layer counts
+(derive eval-diff-contamination-doc-count
+    (count-exists eval-diff-doc-theorem-contamination eval-diff-doc-diff-contamination eval-diff-doc-excludes-self)
+    :using (count-exists counting.count-exists-base counting.count-exists-step
+            eval-diff-doc-theorem-contamination eval-diff-doc-diff-contamination eval-diff-doc-excludes-self))
+
+(derive eval-diff-contamination-impl-count
+    (count-exists eval-diff-impl-theorem-contamination eval-diff-impl-diff-contamination eval-diff-impl-excludes-self)
+    :using (count-exists counting.count-exists-base counting.count-exists-step
+            eval-diff-impl-theorem-contamination eval-diff-impl-diff-contamination eval-diff-impl-excludes-self))
+
+; Paired: doc × impl
+(derive eval-diff-contamination-paired
+    (count-exists (and eval-diff-doc-theorem-contamination eval-diff-impl-theorem-contamination)
+                  (and eval-diff-doc-diff-contamination eval-diff-impl-diff-contamination)
+                  (and eval-diff-doc-excludes-self eval-diff-impl-excludes-self))
+    :using (count-exists
+            eval-diff-doc-theorem-contamination eval-diff-impl-theorem-contamination
+            eval-diff-doc-diff-contamination eval-diff-impl-diff-contamination
+            eval-diff-doc-excludes-self eval-diff-impl-excludes-self))
+
+; Cross-layer diffs — will diverge until docstring is updated
+(diff eval-diff-contamination-paired-vs-doc :replace eval-diff-contamination-paired :with eval-diff-contamination-doc-count)
+(diff eval-diff-contamination-paired-vs-impl :replace eval-diff-contamination-paired :with eval-diff-contamination-impl-count)
+
+; =====================================================================
 ; Exports — for core.pltg cross-checks against README
 ; =====================================================================
 
@@ -666,4 +851,27 @@
 (derive export-rederive
     (util.export rederive-exists)
     :using (util.export rederive-exists))
+
+; --- _dependents cross-type coverage ---
+(derive export-dependents-types
+    (util.export dependents-paired-count)
+    :using (util.export dependents-paired-count))
+
+(derive export-dependents-transitivity
+    (util.export dependents-is-transitive)
+    :using (util.export dependents-is-transitive))
+
+(derive export-dependents-derivation-check
+    (util.export dependents-checks-derivation-list)
+    :using (util.export dependents-checks-derivation-list))
+
+; --- eval_diff contamination doc vs impl ---
+(derive export-eval-diff-contamination
+    (util.export eval-diff-contamination-paired)
+    :using (util.export eval-diff-contamination-paired))
+
+; --- _expr_references ---
+(derive export-expr-references
+    (util.export expr-references-is-static)
+    :using (util.export expr-references-is-static))
 
