@@ -2,6 +2,7 @@
 
 (load-document "system.py" "../system.py")
 (import (quote counting))
+(import (quote util))
 (defterm count-exists counting.count-exists :origin "import")
 
 ; =====================================================================
@@ -305,3 +306,68 @@
 (diff effects-coverage
     :replace effects-doc-count
     :with effects-impl-count)
+
+; =====================================================================
+; Exports — for core.pltg cross-checks against README
+; =====================================================================
+
+(derive export-extensible-directives
+    (util.export system-effects-param)
+    :using (util.export system-effects-param))
+
+(derive export-conditional-side-effects
+    (util.export effects-auto-inject-system)
+    :using (util.export effects-auto-inject-system))
+
+(derive export-provenance
+    (util.export provenance-returns-dict)
+    :using (util.export provenance-returns-dict))
+
+(derive export-consistency-call
+    (util.export system-delegates-consistency)
+    :using (util.export system-delegates-consistency))
+
+(derive initial-env-param-exists (= system-initial-env-default "None") :using (system-initial-env-default))
+(derive export-initial-env-param
+    (util.export initial-env-param-exists)
+    :using (util.export initial-env-param-exists))
+
+(derive export-load-source
+    (util.export load-source-is-module-fn)
+    :using (util.export load-source-is-module-fn))
+
+(derive export-delegates-evaluate
+    (util.export system-delegates-evaluate)
+    :using (util.export system-delegates-evaluate))
+
+(derive export-exposes-properties
+    (util.export system-exposes-facts)
+    :using (util.export system-exposes-facts))
+
+(derive export-provenance-recurses
+    (util.export provenance-recurses-for-theorems)
+    :using (util.export provenance-recurses-for-theorems))
+
+(derive export-provenance-walks-stores
+    (util.export provenance-checks-facts)
+    :using (util.export provenance-checks-facts))
+
+(derive docs-param-exists (= system-docs-default "None") :using (system-docs-default))
+(derive export-docs-default
+    (util.export docs-param-exists)
+    :using (util.export docs-param-exists))
+
+(derive export-effects-param
+    (util.export system-effects-param)
+    :using (util.export system-effects-param))
+
+(derive docstring-confirms-composition
+    (= system-docstring "Composes Engine with default operators, serialization, and introspection.")
+    :using (system-docstring))
+(derive export-docstring
+    (util.export docstring-confirms-composition)
+    :using (util.export docstring-confirms-composition))
+
+(derive export-serialization
+    (util.export system-serializes-terms)
+    :using (util.export system-serializes-terms))

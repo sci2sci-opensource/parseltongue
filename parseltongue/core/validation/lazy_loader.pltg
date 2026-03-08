@@ -391,3 +391,47 @@
                   (and doc-patch-resolves-names patch-from-names-checks-set))
     :using (count-exists doc-patch-resolves-names patch-from-names-exists patch-from-names-checks-set))
 
+; =====================================================================
+; Exports — for core.pltg cross-checks against README
+; =====================================================================
+
+(derive export-has-lazy-load-pltg
+    (util.export has-lazy-load-pltg)
+    :using (util.export has-lazy-load-pltg))
+
+(derive export-result-ok
+    (util.export result-has-ok)
+    :using (util.export result-has-ok))
+
+(derive export-result-partial
+    (util.export result-has-partial)
+    :using (util.export result-has-partial))
+
+(derive export-result-errors
+    (util.export result-has-errors)
+    :using (util.export result-has-errors))
+
+(derive export-result-skipped
+    (util.export result-has-skipped)
+    :using (util.export result-has-skipped))
+
+(derive export-result-loaded
+    (util.export result-has-loaded)
+    :using (util.export result-has-loaded))
+
+(derive export-root-cause
+    (util.export result-has-root-cause)
+    :using (util.export result-has-root-cause))
+
+(derive export-error-trees
+    (util.export result-has-error-trees)
+    :using (util.export result-has-error-trees))
+
+(derive export-summary
+    (util.export result-has-summary)
+    :using (util.export result-has-summary))
+
+(derive export-fault-tolerant
+    (util.export catches-parse-errors)
+    :using (util.export catches-parse-errors))
+

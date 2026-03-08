@@ -390,3 +390,16 @@ SPLAT_PREFIX = \"?...\"")
 (diff axiom-evidence-coverage
     :replace axiom-evidence-doc-count
     :with axiom-evidence-impl-count)
+
+; =====================================================================
+; Exports — for core.pltg cross-checks against README
+; =====================================================================
+
+(derive parse-evidence-exists (= parse-evidence-doc "Parse an evidence s-expression into an Evidence object.") :using (parse-evidence-doc))
+(derive export-parse-evidence
+    (util.export parse-evidence-exists)
+    :using (util.export parse-evidence-exists))
+
+(derive export-lang-docs
+    (util.export splat-lang-docs-impl)
+    :using (util.export splat-lang-docs-impl))

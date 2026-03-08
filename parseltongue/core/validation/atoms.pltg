@@ -2,6 +2,7 @@
 
 (load-document "atoms.py" "../atoms.py")
 (import (quote counting))
+(import (quote util))
 (defterm count-exists counting.count-exists :origin "import")
 
 ; =====================================================================
@@ -786,4 +787,44 @@ No domain knowledge, no state.")
 (diff wff-paired-vs-doc :replace wff-paired-count :with wff-doc-count)
 (diff wff-paired-vs-impl :replace wff-paired-count :with wff-impl-count)
 
+; =====================================================================
+; Exports — for core.pltg cross-checks against README
+; =====================================================================
 
+(derive export-core-types-confirmed
+    (util.export module-claims-pure-types)
+    :using (util.export module-claims-pure-types))
+
+(derive export-splat-confirmed
+    (util.export match-splat-impl)
+    :using (util.export match-splat-impl))
+
+(derive export-frozen-dataclasses
+    (util.export evidence-is-frozen)
+    :using (util.export evidence-is-frozen))
+
+(derive export-symbol-is-str
+    (util.export symbol-is-immutable)
+    :using (util.export symbol-is-immutable))
+
+(derive to-sexp-exists (= to-sexp-doc "Pretty-print a Python object back to s-expression string.") :using (to-sexp-doc))
+(derive export-to-sexp
+    (util.export to-sexp-exists)
+    :using (util.export to-sexp-exists))
+
+(derive export-match-substitute
+    (util.export match-splat-doc)
+    :using (util.export match-splat-doc))
+
+(derive export-substitute-splat
+    (util.export substitute-splat-doc)
+    :using (util.export substitute-splat-doc))
+
+; Parser pipeline stages: tokenize, read_tokens, parse/parse_all
+(derive parser-stages-count
+    (count-exists tokenize-doc read-tokens-doc parse-doc)
+    :using (count-exists tokenize-doc read-tokens-doc parse-doc))
+
+(derive export-parser-stages-count
+    (util.export parser-stages-count)
+    :using (util.export parser-stages-count))

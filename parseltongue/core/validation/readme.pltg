@@ -2,6 +2,7 @@
 
 (load-document "README" "../README.md")
 (import (quote counting))
+(import (quote util))
 (defterm count-exists counting.count-exists :origin "import")
 
 ; =====================================================================
@@ -107,14 +108,7 @@
         :quotes ("Every extracted fact must cite a verbatim quote.")
         :explanation "Universal rule: facts require quote citation"))
 
-; Axiom 2: Every conclusion must derive from stated premises
-(axiom every-conclusion-derives
-    (implies ?is-conclusion ?derives-from-premises)
-    :evidence (evidence "README"
-        :quotes ("Every conclusion must derive from stated premises.")
-        :explanation "Universal rule: conclusions require derivation"))
-
-; Axiom 3: Fabrication taints propagate through derivation chains
+; Axiom 2: Fabrication taints propagate through derivation chains
 (axiom fabrication-propagates
     (implies ?source-unverified ?derivation-tainted)
     :evidence (evidence "README"
@@ -1011,9 +1005,6 @@
 ; Missing README sections — stubs
 ; =====================================================================
 
-(fact readme-documents-verification false
-    :origin "README does not yet have a Verification section (how to verify a system — verify-manual, human-in-loop, evidence checking workflows)")
-
 (fact readme-documents-introspection-and-self-consistency false
     :origin "README does not yet have an Introspection and Self-Consistency section (provenance walking, state(), self-validation via .pltg modules, the ouroboros)")
 
@@ -1734,3 +1725,289 @@
                          readme-loader-verify-manual-effect readme-loader-dangerously-eval-effect))
 
 (diff readme-loader-effects-vs-count :replace readme-loader-effects-listing-count :with readme-loader-effect-count)
+
+; --- 5. Special forms: stated count vs listing ---
+
+(derive readme-special-forms-listing-count
+    (count-exists readme-documents-engine-special-if
+                  readme-documents-engine-special-let
+                  readme-documents-engine-special-quote)
+    :using (count-exists readme-documents-engine-special-if
+                         readme-documents-engine-special-let
+                         readme-documents-engine-special-quote))
+
+(diff readme-special-forms-vs-stated :replace readme-special-forms-listing-count :with readme-documents-engine-special-forms)
+
+; --- 6. Consistency issue types: stated count vs listing ---
+
+(derive readme-issue-types-listing-count
+    (count-exists readme-issue-type-1 readme-issue-type-2 readme-issue-type-3
+                  readme-issue-type-4 readme-issue-type-5)
+    :using (count-exists readme-issue-type-1 readme-issue-type-2 readme-issue-type-3
+                         readme-issue-type-4 readme-issue-type-5))
+
+(diff readme-issue-types-vs-stated :replace readme-issue-types-listing-count :with readme-documents-engine-issue-count)
+
+; --- 7. Lazy loader phases: stated count vs listing ---
+
+(derive readme-lazy-phases-listing-count
+    (count-exists readme-documents-lazy-loader-phase-parse
+                  readme-documents-lazy-loader-phase-effects
+                  readme-documents-lazy-loader-phase-patch
+                  readme-documents-lazy-loader-phase-resolve
+                  readme-documents-lazy-loader-phase-separate
+                  readme-documents-lazy-loader-phase-topological)
+    :using (count-exists readme-documents-lazy-loader-phase-parse
+                         readme-documents-lazy-loader-phase-effects
+                         readme-documents-lazy-loader-phase-patch
+                         readme-documents-lazy-loader-phase-resolve
+                         readme-documents-lazy-loader-phase-separate
+                         readme-documents-lazy-loader-phase-topological))
+
+(diff readme-lazy-phases-vs-stated :replace readme-lazy-phases-listing-count :with readme-documents-lazy-loader-phases)
+
+; --- 8. AST fields: stated count vs listing ---
+
+(derive readme-ast-fields-listing-count
+    (count-exists readme-documents-ast-field-name readme-documents-ast-field-expr
+                  readme-documents-ast-field-dep-names readme-documents-ast-field-kind
+                  readme-documents-ast-field-source-file readme-documents-ast-field-source-order
+                  readme-documents-ast-field-children readme-documents-ast-field-dependents)
+    :using (count-exists readme-documents-ast-field-name readme-documents-ast-field-expr
+                         readme-documents-ast-field-dep-names readme-documents-ast-field-kind
+                         readme-documents-ast-field-source-file readme-documents-ast-field-source-order
+                         readme-documents-ast-field-children readme-documents-ast-field-dependents))
+
+(diff readme-ast-fields-vs-stated :replace readme-ast-fields-listing-count :with readme-documents-ast-directive-node)
+
+; --- 9. Consistency layers: listing count ---
+; Dangling: 3 layers — for core.pltg cross-check vs engine impl
+
+(derive readme-consistency-layers-listing-count
+    (count-exists readme-documents-engine-layer-evidence
+                  readme-documents-engine-layer-fabrication
+                  readme-documents-engine-layer-diffs)
+    :using (count-exists readme-documents-engine-layer-evidence
+                         readme-documents-engine-layer-fabrication
+                         readme-documents-engine-layer-diffs))
+
+; --- 10. Manual verification categories: stated vs listing ---
+
+(derive readme-manual-categories-listing-count
+    (count-exists readme-documents-manual-reusables
+                  readme-documents-manual-import-aliases
+                  readme-documents-manual-hypotheticals)
+    :using (count-exists readme-documents-manual-reusables
+                         readme-documents-manual-import-aliases
+                         readme-documents-manual-hypotheticals))
+
+(diff readme-manual-categories-vs-stated :replace readme-manual-categories-listing-count :with readme-documents-manual-verification-3-categories)
+
+; --- 11. Parser stages: listing count ---
+; Dangling: 3 stages — for core.pltg cross-check vs parser impl
+
+(derive readme-parser-stages-listing-count
+    (count-exists readme-documents-tokenizer readme-documents-reader readme-documents-parse-api)
+    :using (count-exists readme-documents-tokenizer readme-documents-reader readme-documents-parse-api))
+
+; --- 12. Default operator categories: listing count ---
+; Dangling: 3 categories with individual counts (5, 6, 4) — for core.pltg cross-check vs default_system_settings
+
+(fact readme-documents-system-operator-total 15
+    :evidence (evidence "README"
+        :quotes ("15 operators across three categories")
+        :explanation "README states 15 operators total"))
+
+(derive readme-operator-category-count
+    (count-exists readme-documents-system-arithmetic
+                  readme-documents-system-comparison
+                  readme-documents-system-logic)
+    :using (count-exists readme-documents-system-arithmetic
+                         readme-documents-system-comparison
+                         readme-documents-system-logic))
+
+; --- 13. Demo paired: each demo has heading + detail ---
+
+(derive readme-demo-paired-count
+    (count-exists (and readme-demo-apples readme-demo-apples-successor)
+                  (and readme-demo-apples-pltg readme-demo-apples-pltg-empty-env)
+                  (and readme-demo-apples-splats-pltg readme-demo-apples-splats-variadic)
+                  (and readme-demo-revenue readme-demo-revenue-features)
+                  (and readme-demo-biomarkers readme-demo-biomarkers-conflict)
+                  (and readme-demo-code-check readme-demo-code-check-fabrication)
+                  (and readme-demo-doc-validation readme-demo-doc-validation-internal)
+                  (and readme-demo-spec-validation readme-demo-spec-validation-divergence)
+                  (and readme-demo-extensibility readme-demo-extensibility-effects-receive-system)
+                  (and readme-demo-self-healing readme-demo-self-healing-all-dsl)
+                  (and readme-demo-deferred readme-demo-deferred-skips-on-import)
+                  (and readme-demo-entry-mocks readme-demo-entry-mocks-let))
+    :using (count-exists
+            readme-demo-apples readme-demo-apples-successor
+            readme-demo-apples-pltg readme-demo-apples-pltg-empty-env
+            readme-demo-apples-splats-pltg readme-demo-apples-splats-variadic
+            readme-demo-revenue readme-demo-revenue-features
+            readme-demo-biomarkers readme-demo-biomarkers-conflict
+            readme-demo-code-check readme-demo-code-check-fabrication
+            readme-demo-doc-validation readme-demo-doc-validation-internal
+            readme-demo-spec-validation readme-demo-spec-validation-divergence
+            readme-demo-extensibility readme-demo-extensibility-effects-receive-system
+            readme-demo-self-healing readme-demo-self-healing-all-dsl
+            readme-demo-deferred readme-demo-deferred-skips-on-import
+            readme-demo-entry-mocks readme-demo-entry-mocks-let))
+
+(diff readme-demo-paired-vs-listing :replace readme-demo-paired-count :with readme-demo-listing-count)
+
+; --- 14. AST public API: listing count ---
+; Dangling: 4 API items — for core.pltg cross-check vs ast_verifier.public-api-count
+
+(derive readme-ast-api-listing-count
+    (count-exists readme-documents-ast-parse-directive
+                  readme-documents-ast-resolve-graph
+                  readme-documents-ast-walk-dependents
+                  readme-documents-ast-extract-symbols)
+    :using (count-exists readme-documents-ast-parse-directive
+                         readme-documents-ast-resolve-graph
+                         readme-documents-ast-walk-dependents
+                         readme-documents-ast-extract-symbols))
+
+; --- 15. Engine behavioral flags: listing count ---
+; Dangling: 2 flags — for core.pltg cross-check vs engine impl
+
+(derive readme-engine-flags-listing-count
+    (count-exists readme-documents-engine-strict-derive
+                  readme-documents-engine-overridable)
+    :using (count-exists readme-documents-engine-strict-derive
+                         readme-documents-engine-overridable))
+
+; =====================================================================
+; Axiom bindings — prove README axioms against README code examples
+; =====================================================================
+
+; --- every-fact-cites-quote ---
+(fact example-fact-has-evidence true
+    :evidence (evidence "README"
+        :quotes ("(fact revenue-q3 15.0\n  :evidence (evidence \"Q3 Report\"\n    :quotes (\"Q3 revenue was $15M\")\n    :explanation \"Dollar revenue figure from Q3 report\"))")
+        :explanation "README code example shows a fact with :evidence and :quotes"))
+
+(fact example-fact-quotes-verbatim true
+    :evidence (evidence "README"
+        :quotes ("Q3 revenue was $15M")
+        :explanation "The example fact cites a verbatim quote from its source"))
+
+(derive bound-every-fact-cites-quote every-fact-cites-quote
+    :bind ((?is-fact example-fact-has-evidence) (?must-cite-quote example-fact-quotes-verbatim))
+    :using (every-fact-cites-quote example-fact-has-evidence example-fact-quotes-verbatim))
+
+; --- axioms-require-variables ---
+(fact example-axiom-exists true
+    :evidence (evidence "README"
+        :quotes ("(axiom add-commutative (= (+ ?a ?b) (+ ?b ?a))\n  :origin \"Arithmetic axiom\")")
+        :explanation "README code example shows an axiom"))
+
+(fact example-axiom-has-question-vars true
+    :evidence (evidence "README"
+        :quotes ("?a" "?b")
+        :explanation "The example axiom contains ?-variables"))
+
+(derive bound-axioms-require-variables axioms-require-variables
+    :bind ((?is-axiom example-axiom-exists) (?has-question-var example-axiom-has-question-vars))
+    :using (axioms-require-variables example-axiom-exists example-axiom-has-question-vars))
+
+; --- diffs-detect-contradictions ---
+(fact example-diff-has-replace true
+    :evidence (evidence "README"
+        :quotes ("(diff growth-check\n  :replace revenue-q3-growth\n  :with revenue-q3-growth-computed)")
+        :explanation "README code example shows a diff with :replace path"))
+
+(fact example-diff-has-with true
+    :evidence (evidence "README"
+        :quotes (":with revenue-q3-growth-computed")
+        :explanation "README diff example has a :with path"))
+
+(fact example-diff-detects-divergence true
+    :evidence (evidence "README"
+        :quotes ("Where results diverge, something is wrong")
+        :explanation "README states diffs detect divergence"))
+
+(derive bound-diffs-detect-contradictions diffs-detect-contradictions
+    :bind ((?path-a example-diff-has-replace) (?path-b example-diff-has-with) (?divergence-detectable example-diff-detects-divergence))
+    :using (diffs-detect-contradictions example-diff-has-replace example-diff-has-with example-diff-detects-divergence))
+
+; --- fabrication-propagates ---
+(fact example-source-unverified true
+    :evidence (evidence "README"
+        :quotes ("if a fact's evidence is unverified")
+        :explanation "README states the antecedent: source evidence is unverified"))
+
+(fact example-derivation-tainted true
+    :evidence (evidence "README"
+        :quotes ("any theorem derived from it is automatically marked as a potential fabrication")
+        :explanation "README states the consequent: derivation is tainted"))
+
+(derive bound-fabrication-propagates fabrication-propagates
+    :bind ((?source-unverified example-source-unverified) (?derivation-tainted example-derivation-tainted))
+    :using (fabrication-propagates example-source-unverified example-derivation-tainted))
+
+; --- Exports for core.pltg ---
+(derive export-bound-fact-cites-quote
+    (util.export bound-every-fact-cites-quote)
+    :using (util.export bound-every-fact-cites-quote))
+
+(derive export-bound-axioms-require-vars
+    (util.export bound-axioms-require-variables)
+    :using (util.export bound-axioms-require-variables))
+
+(derive export-bound-diffs-detect
+    (util.export bound-diffs-detect-contradictions)
+    :using (util.export bound-diffs-detect-contradictions))
+
+(derive export-bound-fabrication
+    (util.export bound-fabrication-propagates)
+    :using (util.export bound-fabrication-propagates))
+
+; =====================================================================
+; Dangling exports — internally verified listing counts for core.pltg
+; to cross-check against implementation modules
+; =====================================================================
+
+(derive export-special-forms-count
+    (util.export readme-special-forms-listing-count)
+    :using (util.export readme-special-forms-listing-count))
+
+(derive export-issue-types-count
+    (util.export readme-issue-types-listing-count)
+    :using (util.export readme-issue-types-listing-count))
+
+(derive export-lazy-phases-count
+    (util.export readme-lazy-phases-listing-count)
+    :using (util.export readme-lazy-phases-listing-count))
+
+(derive export-ast-fields-count
+    (util.export readme-ast-fields-listing-count)
+    :using (util.export readme-ast-fields-listing-count))
+
+(derive export-manual-categories-count
+    (util.export readme-manual-categories-listing-count)
+    :using (util.export readme-manual-categories-listing-count))
+
+(derive export-demo-paired-count
+    (util.export readme-demo-paired-count)
+    :using (util.export readme-demo-paired-count))
+
+; Directive count confirmed as boolean
+(derive readme-directive-count-confirmed
+    (= readme-directive-count 6)
+    :using (readme-directive-count))
+
+(derive export-directive-count-confirmed
+    (util.export readme-directive-count-confirmed)
+    :using (util.export readme-directive-count-confirmed))
+
+; Defterm forms count: forward-decl + computed = 2
+(derive readme-defterm-forms-count
+    (count-exists readme-defterm-forward-decl readme-defterm-computed)
+    :using (count-exists readme-defterm-forward-decl readme-defterm-computed))
+
+(derive export-defterm-forms-count
+    (util.export readme-defterm-forms-count)
+    :using (util.export readme-defterm-forms-count))

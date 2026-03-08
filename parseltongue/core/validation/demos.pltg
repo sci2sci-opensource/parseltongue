@@ -1266,3 +1266,25 @@ patterns for variadic operations: sum-all, count-gt, all-gt.")
 (diff import-patterns-coverage
     :replace import-patterns-doc-count
     :with import-patterns-impl-count)
+
+; =====================================================================
+; Exports
+; =====================================================================
+
+(derive self-healing-exists (= self-healing-topic "Self-Healing Probes via Effects") :using (self-healing-topic))
+(derive export-self-healing-topic
+    (util.export self-healing-exists)
+    :using (util.export self-healing-exists))
+
+(derive extensibility-exists (= extensibility-topic "System Extensibility") :using (extensibility-topic))
+(derive export-extensibility-topic
+    (util.export extensibility-exists)
+    :using (util.export extensibility-exists))
+
+(derive export-apples-splats-confirmed
+    (util.export apples-splats-uses-splat-patterns)
+    :using (util.export apples-splats-uses-splat-patterns))
+
+(derive export-self-healing-effect-count
+    (util.export self-healing-doc-count)
+    :using (util.export self-healing-doc-count))

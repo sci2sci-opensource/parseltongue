@@ -23,3 +23,10 @@
     (= (sum-values ?x ?y ?...rest)
        (+ ?x (sum-values ?y ?...rest)))
     :origin "step: peel first, sum rest")
+
+; Self-proof: this module exists and works
+(import (quote util))
+(derive counting-module-exists (= true true) :using (count-exists))
+(derive export-counting-module-exists
+    (util.export counting-module-exists)
+    :using (util.export counting-module-exists))

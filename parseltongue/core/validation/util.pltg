@@ -1,0 +1,33 @@
+; util.pltg — Shared validation utilities
+; Rewrite axioms for common patterns across validation modules.
+
+; export: marks a value for cross-module consumption.
+; (derive exported-name (util.export local-name) :using (util.export local-name))
+; The rewrite fires automatically: (util.export x) → x
+(defterm export :origin "export command via rewrites")
+
+(axiom export-base (= (export ?x) ?x)
+    :origin "rewrite: identity export — marks a value as intentionally dangling for cross-module use")
+
+
+; stub axiom
+(defterm stub :origin "stub")
+
+(axiom stub-base (= ?x stub)
+    :origin "Stubs allow to make things which don't match anything")
+
+
+
+
+; implies for domain
+
+(axiom set-implies-fast (implies ?set-indexed ?fast-lookup)
+    :origin "set-based indexing implies fast intersection and lookup")
+
+(axiom manual-control-implies-human (implies ?manual-available ?human-in-loop)
+    :origin "manual verification capability implies human-in-the-loop workflow")
+;
+;(axiom count-exists-step
+;    (= (count-exists ?x ?y ?...rest)
+;       (+ (if ?x 1 0) (count-exists ?y ?...rest)))
+;    :origin "step: peel first, count rest")

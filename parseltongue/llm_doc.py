@@ -1075,4 +1075,102 @@ consumed by the cross-check module:
 ```
 
 The spec module's job is to faithfully extract what the spec says.
-The cross-check module's job is to verify the code matches."""
+The cross-check module's job is to verify the code matches.
+
+### Pattern 8: Cross-Module Resolution (Stub → Export → Resolve)
+
+After building impl modules (leaf) and spec modules (README, etc.),
+the cross-check module (e.g. core.pltg) ties them together.
+
+#### Step 1: Identify top-level danglings
+
+A dangling is a fact, axiom, or theorem that no diff references.
+To find them:
+
+1. **Parse the AST** of each .pltg module — collect all `fact`,
+   `axiom`, `defterm`, and `derive` names
+2. **Collect all diff references** — both `:replace` and `:with`
+   symbols across all modules
+3. **Subtract** — names not referenced by any diff are danglings
+4. **Also check the consistency report** — it lists ungrounded
+   evidence and diverging diffs, which surface related issues
+
+Danglings fall into two categories:
+
+- **Spec danglings**: README/spec facts waiting to be cross-checked.
+  These are correct — they're exports for the cross-check module.
+- **Impl danglings**: Facts/theorems in impl modules with no
+  consumer. These need pairing with a spec claim or another impl fact.
+
+#### Step 2: Write stubs in the cross-check module
+
+For each spec claim needing an impl match, define a stub fact
+and a diff. Boolean stubs use `false`, numeric stubs use `-100`:
+
+```scheme
+; In core.pltg (cross-check module)
+(fact stub-engine-rewrite-depth false :origin "stub: rewrite depth 100")
+
+(diff ee-rewrite-depth
+    :replace readme.readme-documents-rewrite-depth
+    :with stub-engine-rewrite-depth)
+```
+
+All stubs go in the cross-check module, never in impl modules.
+
+#### Step 3: Check for overlaps
+
+Before resolving, check if new stubs overlap with existing
+danglings already in the cross-check module. Impl danglings
+and spec danglings often pair naturally.
+
+#### Step 4: Resolve stubs
+
+Search impl modules for facts that confirm the claim. Four strategies:
+
+1. **Boolean fact exists** — export via `util.export`
+2. **Non-boolean fact exists** — derive a boolean from it:
+   ```scheme
+   (derive depth-confirmed (= rewrite-depth-limit 100)
+       :using (rewrite-depth-limit))
+   ```
+3. **Axiom-bound theorem exists** — theorems evaluate to True,
+   use directly as the `:with` side
+4. **No fact exists** — add a fact with code quotes, then export
+
+#### Step 5: Export via util.export
+
+`(= (export ?x) ?x)` is a rewrite axiom that returns the value
+unchanged but creates a trackable export point:
+
+```scheme
+(derive export-rewrite-depth
+    (util.export rewrite-depth-confirmed)
+    :using (util.export rewrite-depth-confirmed))
+```
+
+#### Step 6: Replace stub
+
+Remove the stub fact, rewire the diff to the export or theorem:
+
+```scheme
+(diff ee-rewrite-depth
+    :replace readme.readme-documents-rewrite-depth
+    :with engine.export-rewrite-depth)
+```
+
+#### Double-kill
+
+One impl value can resolve both a spec cross-check stub AND an
+impl dangling stub. E.g. `quote_verifier.bound-score-clamped`
+(a theorem, evaluates to True) serves as `:with` for the README
+diff, making the qv dangling stub+diff redundant — remove both.
+
+#### Summary
+
+1. **AST + consistency** — find all danglings
+2. **Stubs** — write stubs + diffs in cross-check module
+3. **Overlaps** — check new stubs against existing danglings
+4. **Match** — find impl facts/theorems for spec claims
+5. **Export or use theorem** — add exports, or use True theorems directly
+6. **Replace** — remove stubs, rewire diffs"""

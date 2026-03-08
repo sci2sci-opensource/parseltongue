@@ -2,6 +2,7 @@
 
 (load-document "loader.py" "../loader/loader.py")
 (import (quote counting))
+(import (quote util))
 (defterm count-exists counting.count-exists :origin "import")
 
 ; =====================================================================
@@ -731,3 +732,49 @@
         :explanation "10 paired behavioral cross-checks"))
 
 (diff all-axioms-backed-coverage :replace all-axioms-backed-count :with all-axioms-backed-expected)
+
+; =====================================================================
+; Exports — for core.pltg cross-checks against README
+; =====================================================================
+
+(derive export-manual-verification
+    (util.export effect-verify-manual-impl)
+    :using (util.export effect-verify-manual-impl))
+
+(derive context-onion-confirmed (= loader-context-model "onion") :using (loader-context-model))
+(derive export-context-onion
+    (util.export context-onion-confirmed)
+    :using (util.export context-onion-confirmed))
+
+(derive export-dot-resolution
+    (util.export import-resolves-dots-to-sep)
+    :using (util.export import-resolves-dots-to-sep))
+
+(derive export-deduplicates
+    (util.export loader-deduplicates-imports)
+    :using (util.export loader-deduplicates-imports))
+
+(derive load-pltg-exists (= load-pltg-doc "Convenience function") :using (load-pltg-doc))
+(derive export-load-pltg
+    (util.export load-pltg-exists)
+    :using (util.export load-pltg-exists))
+
+(derive export-namespaces
+    (util.export loader-namespaces-definitions)
+    :using (util.export loader-namespaces-definitions))
+
+(derive export-patches-symbols
+    (util.export loader-patches-symbols)
+    :using (util.export loader-patches-symbols))
+
+(derive export-patches-context
+    (util.export loader-patches-context)
+    :using (util.export loader-patches-context))
+
+(derive export-import-checks-circular
+    (util.export effect-import-checks-circular)
+    :using (util.export effect-import-checks-circular))
+
+(derive export-import-deduplicates
+    (util.export effect-import-deduplicates)
+    :using (util.export effect-import-deduplicates))

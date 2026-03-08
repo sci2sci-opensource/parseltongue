@@ -90,8 +90,8 @@ def _normalize_lists(
     i = 0
 
     while i < len(text):
-        match = re.match(r"\d+\.\s+", text[i:])
-        if match and (i == 0 or text[i - 1].isspace()):
+        match = re.match(r"([12]?\d)\.\s+", text[i:])
+        if match and (i == 0 or text[i - 1] == "\n"):
             list_items_removed += 1
             i += len(match.group(0))
             normalized_text += " "

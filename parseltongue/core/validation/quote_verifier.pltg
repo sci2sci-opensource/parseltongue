@@ -1389,3 +1389,18 @@
 
 (diff axiom-paired-vs-doc :replace axiom-paired-count :with axiom-doc-count)
 (diff axiom-paired-vs-impl :replace axiom-paired-count :with axiom-impl-count-v2)
+
+; Count axioms that use hypothetical defterms for :bind
+(derive hypothetical-axiom-count
+    (count-exists bound-regular-fixed bound-empty-fixed
+                  bound-single-stopword bound-normalized-empty
+                  bound-score-clamped bound-flag-gates
+                  bound-dangerous-below-threshold)
+    :using (count-exists bound-regular-fixed bound-empty-fixed
+                         bound-single-stopword bound-normalized-empty
+                         bound-score-clamped bound-flag-gates
+                         bound-dangerous-below-threshold))
+
+(derive export-hypothetical-axiom-count
+    (util.export hypothetical-axiom-count)
+    :using (util.export hypothetical-axiom-count))

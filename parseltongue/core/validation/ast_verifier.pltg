@@ -1,4 +1,4 @@
-as; ast_verifier.pltg — Ground truth from ast.py
+; ast_verifier.pltg — Ground truth from ast.py
 ;
 ; ast.py provides the DirectiveNode dataclass, parse_directive for
 ; extracting dependency metadata from S-expressions, extract_symbols
@@ -466,3 +466,19 @@ as; ast_verifier.pltg — Ground truth from ast.py
             has-resolve-graph-fn graph-builds-index))
 
 (diff api-paired-vs-count :replace api-paired :with public-api-count)
+
+; =====================================================================
+; Exports — for core.pltg cross-checks against README
+; =====================================================================
+
+(derive export-dependency-graph
+    (util.export graph-builds-index)
+    :using (util.export graph-builds-index))
+
+(derive export-identity-hashing
+    (util.export bound-identity-hashing)
+    :using (util.export bound-identity-hashing))
+
+(derive export-resolve-graph
+    (util.export has-resolve-graph-fn)
+    :using (util.export has-resolve-graph-fn))

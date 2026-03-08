@@ -3,6 +3,7 @@
 (load-document "engine.py" "../engine.py")
 (import (quote counting))
 (import (quote lang))
+(import (quote util))
 (defterm count-exists counting.count-exists :origin "import")
 
 ; =====================================================================
@@ -544,4 +545,125 @@
            (?is-inconsistency-indicator diff-evaluated-structurally)
            (?needs-evidence diff-calls-resolve-origin))
     :using (lang.diff-no-evidence load-source-handles-diff diff-evaluated-structurally diff-calls-resolve-origin))
+
+; =====================================================================
+; Exports — for core.pltg cross-checks against README
+; =====================================================================
+
+(derive export-diffs-no-evidence
+    (util.export bound-diff-no-evidence)
+    :using (util.export bound-diff-no-evidence))
+
+(derive export-rewrite-vs-bind
+    (util.export derive-restricted-eval)
+    :using (util.export derive-restricted-eval))
+
+(derive export-computable-directives
+    (util.export load-source-handles-derive)
+    :using (util.export load-source-handles-derive))
+
+(derive export-effects-in-computable
+    (util.export load-source-fallback-evaluates)
+    :using (util.export load-source-fallback-evaluates))
+
+(derive export-rewrite-as-functions
+    (util.export eq-has-rewrite-fallback)
+    :using (util.export eq-has-rewrite-fallback))
+
+(derive export-items-x-layers
+    (util.export diff-is-lazy)
+    :using (util.export diff-is-lazy))
+
+(derive export-auto-grounding
+    (util.export resolve-origin-checks-both)
+    :using (util.export resolve-origin-checks-both))
+
+(derive export-explanation-field
+    (util.export resolve-origin-checks-evidence)
+    :using (util.export resolve-origin-checks-evidence))
+
+(derive export-origin-or-none
+    (util.export resolve-origin-checks-origin)
+    :using (util.export resolve-origin-checks-origin))
+
+(derive export-document-index
+    (util.export engine-has-verifier-index)
+    :using (util.export engine-has-verifier-index))
+
+(derive export-defaults
+    (util.export fact-extends-axiom)
+    :using (util.export fact-extends-axiom))
+
+(derive export-diffs-cross-validation
+    (util.export diff-evaluated-structurally)
+    :using (util.export diff-evaluated-structurally))
+
+(derive export-fabrication-propagation
+    (util.export derive-fabrication-propagation)
+    :using (util.export derive-fabrication-propagation))
+
+(derive export-defaults-doc-count
+    (util.export defaults-doc-count)
+    :using (util.export defaults-doc-count))
+
+(derive export-axiom-requires-free-vars
+    (util.export axiom-requires-free-vars)
+    :using (util.export axiom-requires-free-vars))
+
+(derive rewrite-depth-confirmed
+    (= rewrite-depth-limit 100)
+    :using (rewrite-depth-limit))
+
+(derive export-rewrite-depth
+    (util.export rewrite-depth-confirmed)
+    :using (util.export rewrite-depth-confirmed))
+
+(derive rewrite-left-to-right-confirmed
+    (= rewrite-direction "left-to-right")
+    :using (rewrite-direction))
+
+(derive export-left-to-right
+    (util.export rewrite-left-to-right-confirmed)
+    :using (util.export rewrite-left-to-right-confirmed))
+
+(fact env-is-dict true
+    :evidence (evidence "engine.py"
+        :quotes ("self.env: dict = dict(env)")
+        :explanation "Engine env is a dict"))
+
+(derive export-env-dict
+    (util.export env-is-dict)
+    :using (util.export env-is-dict))
+
+(fact consistency-checks-three-layers true
+    :evidence (evidence "engine.py"
+        :quotes ("# 1. Evidence grounding\n        unverified = []\n        manually_verified = []\n        no_evidence = []" "# 2. Fabrication propagation\n        fabrications = sorted(\n            name\n            for name, thm in self.theorems.items()\n            if isinstance(thm.origin, str) and \"potential fabrication\" in thm.origin\n        )" "# 3. Diff divergences — evaluated live\n        all_diffs = sorted((self.eval_diff(n) for n in self.diffs), key=lambda d: d.name)")
+        :explanation "consistency() has 3 implementation sections"))
+
+(derive export-three-layers
+    (util.export consistency-checks-three-layers)
+    :using (util.export consistency-checks-three-layers))
+
+(fact env-includes-callable-operators true
+    :evidence (evidence "engine.py"
+        :quotes ("# Include callable operators (arithmetic, comparison, logic)\n        for sym, val in self.env.items():\n            if callable(val):\n                env[sym] = val")
+        :explanation "Restricted env includes callable operators"))
+
+(derive export-operators-plain-callables
+    (util.export env-includes-callable-operators)
+    :using (util.export env-includes-callable-operators))
+
+(derive export-fallback-evaluates
+    (util.export load-source-fallback-evaluates)
+    :using (util.export load-source-fallback-evaluates))
+
+(derive retract-exists (= retract-doc "Remove a fact, axiom, term, theorem, or diff from the system.") :using (retract-doc))
+(derive export-retract
+    (util.export retract-exists)
+    :using (util.export retract-exists))
+
+(derive rederive-exists (= rederive-doc "Re-run a derivation to refresh its fabrication status.") :using (rederive-doc))
+(derive export-rederive
+    (util.export rederive-exists)
+    :using (util.export rederive-exists))
 

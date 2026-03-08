@@ -146,3 +146,11 @@
 
 (diff shipping-vs-breakage :replace shipping-ok-count :with breakage-axioms-count)
 
+; =====================================================================
+; Exports
+; =====================================================================
+
+(derive export-md-shipped
+    (util.export package-data-includes-md)
+    :using (util.export package-data-includes-md))
+

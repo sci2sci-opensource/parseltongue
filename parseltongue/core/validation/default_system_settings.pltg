@@ -422,3 +422,26 @@
 
 ; Paired count must match total-default-operators (15)
 (diff paired-vs-total :replace all-layers-paired-count :with total-default-operators)
+
+; =====================================================================
+; Exports
+; =====================================================================
+
+(derive paired-confirmed (= all-layers-paired-count 15) :using (all-layers-paired-count))
+(derive export-paired-count
+    (util.export paired-confirmed)
+    :using (util.export paired-confirmed))
+
+(derive arithmetic-is-numeric (= arithmetic-op-count 5) :using (arithmetic-op-count))
+(derive export-arithmetic-count
+    (util.export arithmetic-is-numeric)
+    :using (util.export arithmetic-is-numeric))
+
+; Operator category count (3 categories: arithmetic, comparison, logic)
+(derive operator-category-count
+    (count-exists arithmetic-op-count comparison-op-count logic-op-count)
+    :using (count-exists arithmetic-op-count comparison-op-count logic-op-count))
+
+(derive export-operator-category-count
+    (util.export operator-category-count)
+    :using (util.export operator-category-count))
