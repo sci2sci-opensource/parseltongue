@@ -530,6 +530,33 @@
 (diff ee-effects-code-example :replace readme.readme-documents-engine-effects-code-example :with readme.readme-documents-engine-effects-code-example) ;trivial
 (diff ee-execution-engine :replace readme.readme-documents-execution-engine :with readme.readme-documents-execution-engine) ;trivial
 
+(print "")
+(print "--- Execution Engine: _dependents (README vs engine) ---")
+(print "  README diff scan types:" readme.export-diff-scan-type-count)
+(print "  Engine dependents types:" engine.export-dependents-types)
+(print "  README computable directives:" readme.export-computable-directive-count)
+(diff ee-dependents-derivation-check :replace engine.export-dependents-derivation-check :with readme.export-diff-follows-derivation-chains)
+(diff ee-dependents-transitivity :replace engine.export-dependents-transitivity :with readme.export-diff-transitive)
+(diff ee-dependents-types :replace engine.export-dependents-types :with readme.export-diff-scan-type-count)
+
+(print "")
+(print "--- Execution Engine: eval_diff contamination (README vs engine) ---")
+(print "  README excludes self:" readme.export-diff-excludes-self)
+(print "  Engine excludes self:" engine.eval-diff-excludes-self)
+(diff ee-eval-diff-excludes-self :replace engine.eval-diff-excludes-self :with readme.export-diff-excludes-self)
+(diff ee-eval-diff-handles-diff-contamination :replace engine.eval-diff-handles-diff-contamination :with readme.export-diff-contaminates-diffs)
+(diff ee-eval-diff-handles-theorem-contamination :replace engine.eval-diff-handles-theorem-contamination :with readme.export-diff-contaminates-theorems)
+(diff ee-eval-diff-contamination :replace engine.export-eval-diff-contamination :with readme.export-diff-behavior-count)
+
+(print "")
+(print "--- Execution Engine: _expr_references ---")
+(derive stub-expr-references-checks-symbol stub :using (stub))
+(derive stub-expr-references-recurses-lists stub :using (stub))
+(derive stub-expr-references stub :using (stub))
+(diff ee-expr-references-checks-symbol :replace engine.expr-references-checks-symbol :with stub-expr-references-checks-symbol)
+(diff ee-expr-references-recurses-lists :replace engine.expr-references-recurses-lists :with stub-expr-references-recurses-lists)
+(diff ee-expr-references :replace engine.export-expr-references :with stub-expr-references)
+
 ; =====================================================================
 ; System section — README vs system.py / default_system_settings.py
 ; =====================================================================
@@ -759,7 +786,10 @@
 ; =====================================================================
 
 ; --- ast_verifier theorems ---
-(derive stub-ast-children-dependents stub :using (stub))
+(derive readme-ast-children-and-dependents
+    (and readme.readme-documents-ast-field-children readme.readme-documents-ast-field-dependents)
+    :using (readme.readme-documents-ast-field-children readme.readme-documents-ast-field-dependents))
+
 (derive stub-ast-effects-no-name stub :using (stub))
 (derive stub-ast-extract-behavior stub :using (stub))
 (derive stub-ast-graph-behavior stub :using (stub))
@@ -769,7 +799,7 @@
 
 (print "")
 (print "--- ast_verifier theorem cross-checks ---")
-(diff thm-ast-children-dependents :replace ast_verifier.bound-children-dependents :with stub-ast-children-dependents)
+(diff thm-ast-children-dependents :replace ast_verifier.bound-children-dependents :with readme-ast-children-and-dependents)
 (diff thm-ast-effects-no-name :replace ast_verifier.bound-effects-no-name :with stub-ast-effects-no-name)
 (diff thm-ast-extract-behavior :replace ast_verifier.extract-behavior-count :with stub-ast-extract-behavior)
 (diff thm-ast-graph-behavior :replace ast_verifier.graph-behavior-count :with stub-ast-graph-behavior)
@@ -778,19 +808,29 @@
 (diff thm-ast-walk-behavior :replace ast_verifier.walk-behavior-count :with stub-ast-walk-behavior)
 
 ; --- lazy_loader theorems ---
+(derive readme-lazy-result-count
+    (count-exists readme.readme-documents-lazy-result-ok
+                  readme.readme-documents-lazy-result-partial
+                  readme.readme-documents-lazy-result-errors
+                  readme.readme-documents-lazy-result-skipped
+                  readme.readme-documents-lazy-result-loaded)
+    :using (count-exists readme.readme-documents-lazy-result-ok
+                         readme.readme-documents-lazy-result-partial
+                         readme.readme-documents-lazy-result-errors
+                         readme.readme-documents-lazy-result-skipped
+                         readme.readme-documents-lazy-result-loaded))
+
 (derive stub-lazy-entry-points stub :using (stub))
 (derive stub-lazy-fault-tolerance stub :using (stub))
-(derive stub-lazy-name-collection stub :using (stub))
 (derive stub-lazy-patch-paired stub :using (stub))
-(derive stub-lazy-result-methods stub :using (stub))
 
 (print "")
 (print "--- lazy_loader theorem cross-checks ---")
 (diff thm-lazy-entry-points :replace lazy_loader.entry-point-count :with stub-lazy-entry-points)
 (diff thm-lazy-fault-tolerance :replace lazy_loader.fault-tolerance-count :with stub-lazy-fault-tolerance)
-(diff thm-lazy-name-collection :replace lazy_loader.name-collection-enables-patching :with stub-lazy-name-collection)
+(diff thm-lazy-name-collection :replace lazy_loader.name-collection-enables-patching :with readme.readme-documents-lazy-loader-phase-patch)
 (diff thm-lazy-patch-paired :replace lazy_loader.patch-paired :with stub-lazy-patch-paired)
-(diff thm-lazy-result-methods :replace lazy_loader.result-method-count :with stub-lazy-result-methods)
+(diff thm-lazy-result-methods :replace lazy_loader.result-method-count :with readme-lazy-result-count)
 
 ; --- other module theorems ---
 (print "")
@@ -859,4 +899,14 @@
 ; =====================================================================
 
 (print "")
+
+
+(defterm alt-node-name false)
+
+(diff ast_swap
+  :replace ast_verifier.node-has-name
+  :with alt-node-name)
+
+
+
 (consistency)

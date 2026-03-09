@@ -258,6 +258,8 @@ Diffs require no evidence because inconsistency between their sides is itself a 
   :with revenue-q3-growth-computed)
 ```
 
+The diff will transitively scan all five definition types — facts, terms, axioms, theorems, and diffs — to find everything that depends on the replaced symbol. It follows not just direct references but also theorem derivation chains, catching indirect dependencies where a theorem's expression doesn't mention the symbol but its `:using` list does. A diff excludes itself from its own dependency scan — without this, every diff would appear in its own contamination graph and flag itself as divergent. Dependent diffs and theorems that reference the replaced symbol are flagged as contaminated rather than re-evaluated, so the divergence report distinguishes direct value disagreements from transitive ripple effects.
+
 #### Special Technique: Items × Layers
 
 When a codebase has N items that each appear in multiple representations (documentation, configuration, implementation), the **Items × Layers** pattern catches discrepancies between layers. Create a fact per item per layer, derive per-layer aggregates with splat axioms (`count-exists`, `sum-values`, or custom reducers), then diff the aggregates against each other.
@@ -317,7 +319,7 @@ If someone adds a feature flag to the config but forgets to document it or accep
 
 Evidence is a first-class citizen and is directly used by the engine and grammar.
 
-**`evidence`** is a structured provenance attached to symbolic directives. Evidence links a claim to a verbatim quote from a registered source document.
+**`evidence`** is a structured provenance attached to symbolic directives. Evidence links a claim to a verbatim quote from a registered source document. Unlike the other five directive types, evidence does not participate in direct computation — it primarily exists for evaluation by the consistency checker, which verifies quotes and propagates fabrication flags.
 
 ```scheme
 ;; Structured evidence with verifiable quotes

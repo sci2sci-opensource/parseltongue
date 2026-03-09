@@ -1173,4 +1173,123 @@ diff, making the qv dangling stub+diff redundant — remove both.
 3. **Overlaps** — check new stubs against existing danglings
 4. **Match** — find impl facts/theorems for spec claims
 5. **Export or use theorem** — add exports, or use True theorems directly
-6. **Replace** — remove stubs, rewire diffs"""
+6. **Replace** — remove stubs, rewire diffs
+
+### Pattern 9: Inspecting Definitions via the Engine
+
+Use the engine directly in Python to inspect any definition — its
+type, value, evidence, quotes, derivation chain, and verification
+status. This is faster and more precise than reading .pltg files.
+
+#### Loading a module
+
+```python
+import os, sys, io
+
+# Suppress stdout during loading (consistency report prints there)
+old = sys.stdout
+sys.stdout = io.StringIO()
+
+from parseltongue.core.loader import Loader
+loader = Loader()
+system = loader.load_main("parseltongue/core/validation/engine.pltg")
+engine = system.engine
+
+sys.stdout = old
+```
+
+Load the specific module to avoid the full consistency report and
+keep names without module prefixes. Use `core.pltg` when you need
+the full cross-module namespace (names become `engine.foo`, `readme.bar`).
+
+#### Finding a definition
+
+```python
+name = "eval-diff-excludes-self"
+for store_name, store in [
+    ("fact", engine.facts),
+    ("axiom", engine.axioms),
+    ("term", engine.terms),
+    ("theorem", engine.theorems),
+]:
+    if name in store:
+        obj = store[name]
+        print(f"{name} is a {store_name}")
+```
+
+All stores are dicts. `engine.diffs` holds diff parameters.
+
+#### Object attributes
+
+| Type | Key attributes |
+|---|---|
+| Fact | `.name`, `.wff` (value), `.origin` (Evidence or origin string) |
+| Axiom | `.name`, `.wff` (pattern with ?-vars), `.origin` |
+| Term | `.name`, `.definition` (body expr or None for forward-decl) |
+| Theorem | `.name`, `.wff` (evaluated expr), `.derivation` (list of dep names), `.origin` |
+| Diff | `engine.diffs[name]` → `{"replace": sym, "with": sym}` |
+
+#### Inspecting evidence and quotes
+
+Facts/axioms with `:evidence` have an `.origin` that is an `Evidence`
+object:
+
+```python
+fact = engine.facts["eval-diff-excludes-self"]
+ev = fact.origin
+ev.document         # "engine.py"
+ev.quotes           # ["affected = self._dependents(replace, exclude_diff=name)"]
+ev.explanation      # "eval_diff excludes its own diff..."
+ev.is_grounded      # True (quotes verified against loaded document)
+ev.verified         # True
+ev.verification     # list of dicts with position, confidence, context
+# ev.verification[0]["confidence"]["score"]  → 0.978
+```
+
+Facts with `:origin` have a plain string origin instead.
+
+#### Tracing derivation chains
+
+```python
+thm = engine.theorems["export-dependents-types"]
+print(thm.derivation)  # ['util.export', 'dependents-paired-count']
+
+for dep in thm.derivation:
+    for sn, ss in [("fact", engine.facts), ("theorem", engine.theorems),
+                   ("term", engine.terms), ("axiom", engine.axioms)]:
+        if dep in ss:
+            d = ss[dep]
+            print(f"  {dep} ({sn})")
+            if sn == "theorem":
+                print(f"    wff: {d.wff}")
+                print(f"    derivation: {list(d.derivation)}")
+            elif sn == "fact":
+                print(f"    val: {d.wff}, grounded: {d.origin.is_grounded}")
+            break
+```
+
+#### Evaluating expressions
+
+```python
+engine.evaluate(engine.facts["revenue"].wff)       # value of a fact
+engine.evaluate(engine.theorems["check"].wff)       # True/False
+engine.evaluate(engine.terms["total"].definition)   # computed value
+```
+
+#### Listing diffs and their results
+
+```python
+for name, params in engine.diffs.items():
+    print(f"{name}: replace {params['replace']} with {params['with']}")
+```
+
+#### Common diagnostics
+
+- **Fabrication taint**: `obj.origin` contains "fabrication" — a
+  dependency has an unverified quote, fix the quote first
+- **Paired count = 0**: doc-side facts using `:origin` instead of
+  `:evidence` cause `(and doc impl)` pairs to fail
+- **Export wrappers**: `util.export` theorems are pass-throughs —
+  the real content is the second derivation dependency
+- **Unverified quote**: check `ev.verified` and `ev.verification`
+  to see why a quote failed to match"""

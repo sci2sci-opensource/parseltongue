@@ -210,6 +210,34 @@ class TestQuoteVerifier(unittest.TestCase):
         result = self.verifier.verify_quote(document, quote)
         self.assertTrue(result["verified"])
 
+    def test_list_normalization_does_not_eat_years(self):
+        """Years like 2026. followed by whitespace must not be treated as list markers."""
+        doc = "The deadline is 23rd April 2026. Further terms apply."
+        quote = "deadline is 23rd April 2026"
+        result = self.verifier.verify_quote(doc, quote)
+        self.assertTrue(result["verified"], "Year 2026 should not be stripped as a list marker")
+
+    def test_list_normalization_does_not_eat_section_refs(self):
+        """Section references like 'section 7.' must not be treated as list markers."""
+        doc = "repayment pursuant to section 7. The Borrower shall not"
+        quote = "repayment pursuant to section 7."
+        result = self.verifier.verify_quote(doc, quote)
+        self.assertTrue(result["verified"], "Section number should not be stripped as a list marker")
+
+    def test_list_normalization_still_works(self):
+        """Actual list markers at line start should still be stripped."""
+        doc = "items:\n1. First item\n2. Second item"
+        quote = "First item Second item"
+        result = self.verifier.verify_quote(doc, quote)
+        self.assertTrue(result["verified"], "Actual list markers should still be normalized")
+
+    def test_nbsp_normalized_as_punctuation(self):
+        r"""Non-breaking spaces (\u00a0) in document should match regular spaces in quote."""
+        doc = "the earlier of the (i)\u00a0Maturity Date or (ii)\u00a0notice"
+        quote = "the earlier of the (i) Maturity Date or (ii) notice"
+        result = self.verifier.verify_quote(doc, quote)
+        self.assertTrue(result["verified"], "Non-breaking spaces should be normalized")
+
 
 class TestQuoteVerifier2(unittest.TestCase):
     """Test cases for the QuoteVerifier class."""

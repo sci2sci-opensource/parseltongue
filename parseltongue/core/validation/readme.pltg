@@ -23,37 +23,37 @@
 ; Rationale section — the "why"
 ; =====================================================================
 
-(fact readme-rationale-llms-hallucinate true
+(fact readme-rationale-llms-hallucinate-plan true
     :evidence (evidence "README"
         :quotes ("LLMs hallucinate. They produce fluent, confident text that may have no basis in the source material.")
         :explanation "README states the problem Parseltongue solves"))
 
-(fact readme-rationale-encode-as-logic true
+(fact readme-rationale-encode-as-logic-plan true
     :evidence (evidence "README"
         :quotes ("we ask it to encode each of the documents as a **logic system**")
         :explanation "README describes the approach — encode docs as logic"))
 
-(fact readme-rationale-facts-cite-quotes true
+(fact readme-rationale-facts-cite-quotes-plan true
     :evidence (evidence "README"
         :quotes ("Every extracted fact must cite a verbatim quote. Every conclusion must derive from stated premises. And every derivation is checked.")
         :explanation "README states the three invariants of the system"))
 
-(fact readme-rationale-hallucination-detection true
+(fact readme-rationale-hallucination-detection-plan true
     :evidence (evidence "README"
         :quotes ("Hallucination detection." "Every claim traces back to a quote in a source document. If the LLM fabricates a fact, the quote verification fails")
         :explanation "README claims hallucination detection via quote verification"))
 
-(fact readme-rationale-fabrication-contaminates true
+(fact readme-rationale-fabrication-contaminates-plan true
     :evidence (evidence "README"
         :quotes ("that failure propagates automatically to every conclusion that depends on it. You don't just catch the lie; you see everything it contaminates.")
         :explanation "README claims fabrication contamination propagation"))
 
-(fact readme-rationale-cross-doc-consistency true
+(fact readme-rationale-cross-doc-consistency-plan true
     :evidence (evidence "README"
         :quotes ("Cross-document consistency checking." "we validate if the ground truth is trustable itself.")
         :explanation "README claims cross-document consistency checking"))
 
-(fact readme-rationale-independent-paths true
+(fact readme-rationale-independent-paths-plan true
     :evidence (evidence "README"
         :quotes ("compute the same value via independent paths" "When these paths disagree, the system flags a divergence")
         :explanation "README describes independent computation paths as the diff mechanism"))
@@ -62,37 +62,37 @@
 ; Mathematical Aside — formal foundations
 ; =====================================================================
 
-(fact readme-math-evidence-grounded true
+(fact readme-math-evidence-grounded-plan true
     :evidence (evidence "README"
         :quotes ("the axiomatic basis is not assumed, it is grounded in evidence")
         :explanation "README states core departure from classical formal systems"))
 
-(fact readme-math-ordinals-via-extension true
+(fact readme-math-ordinals-via-extension-plan true
     :evidence (evidence "README"
         :quotes ("The system grows by extension." "Each layer of extension builds on everything below it. This is the ordinal hierarchy")
         :explanation "README describes system growth as ordinal hierarchy"))
 
-(fact readme-math-each-ordinal-expands true
+(fact readme-math-each-ordinal-expands-plan true
     :evidence (evidence "README"
         :quotes ("Each new ordinal" "expands what can be proved" "Each extension unlocks derivations that were previously unreachable")
         :explanation "README claims each extension unlocks new derivations"))
 
-(fact readme-math-diffs-as-consistency true
+(fact readme-math-diffs-as-consistency-plan true
     :evidence (evidence "README"
         :quotes ("Diffs as axiom consistency checks." "register two independent computation paths for the same quantity, and the system replays all dependent evaluations under both assumptions")
         :explanation "README describes diffs as axiom consistency checks"))
 
-(fact readme-math-godel-limitation true
+(fact readme-math-godel-limitation-plan true
     :evidence (evidence "README"
         :quotes ("This is not a proof of consistency" "Godel tells us that's impossible for sufficiently strong systems" "but a practical detection mechanism")
         :explanation "README acknowledges Godel limitation and positions diffs as practical detection"))
 
-(fact readme-math-fabrication-propagation-mechanism true
+(fact readme-math-fabrication-propagation-mechanism-plan true
     :evidence (evidence "README"
         :quotes ("When evidence fails verification (a quote not found in its cited document), the taint propagates through the language." "Every theorem derived from a fabricated source inherits the flag")
         :explanation "README describes fabrication propagation mechanism in detail"))
 
-(fact readme-math-turing-reference true
+(fact readme-math-turing-reference-plan true
     :evidence (evidence "README"
         :quotes ("This is the core idea from Turing's" "Systems of Logic Based on Ordinals" "a sequence of logics, each extending the previous one by adding new axioms, can transcend the limitations of any single formal system")
         :explanation "README grounds ordinal approach in Turing 1939"))
@@ -130,14 +130,14 @@
         :explanation "Universal rule: diffs expose contradictions between independent paths"))
 
 ; Axiom 6: Evidence grounding inverts classical axiomatics
-(axiom evidence-inverts-classical
+(axiom evidence-inverts-classical-plan
     (implies ?has-evidence (not ?assumed-without-justification))
     :evidence (evidence "README"
         :quotes ("Parseltongue inverts this. Every axiom, every fact, every primitive term must cite its justification")
         :explanation "Core departure: axioms are justified, not assumed"))
 
 ; Axiom 7: System extension unlocks new derivations
-(axiom extension-unlocks-derivations
+(axiom extension-unlocks-derivations-plan
     (implies ?new-axiom-added ?new-derivations-reachable)
     :evidence (evidence "README"
         :quotes ("Each new ordinal" "expands what can be proved" "each derivation is a new opportunity for the engine to catch a contradiction")
@@ -242,6 +242,150 @@
     :evidence (evidence "README"
         :quotes ("a lazy consistency comparison between two symbols")
         :explanation "README describes diff as lazy"))
+
+; --- Diff behavior: dependency tracking and contamination ---
+
+(fact readme-diff-scans-five-types true
+    :evidence (evidence "README"
+        :quotes ("transitively scan all five definition types — facts, terms, axioms, theorems, and diffs")
+        :explanation "README claims diff scans 5 definition types"))
+
+(fact readme-diff-scans-facts true
+    :evidence (evidence "README"
+        :quotes ("facts, terms, axioms, theorems, and diffs")
+        :explanation "README lists facts as scanned type"))
+
+(fact readme-diff-scans-terms true
+    :evidence (evidence "README"
+        :quotes ("facts, terms, axioms, theorems, and diffs")
+        :explanation "README lists terms as scanned type"))
+
+(fact readme-diff-scans-axioms true
+    :evidence (evidence "README"
+        :quotes ("facts, terms, axioms, theorems, and diffs")
+        :explanation "README lists axioms as scanned type"))
+
+(fact readme-diff-scans-theorems true
+    :evidence (evidence "README"
+        :quotes ("facts, terms, axioms, theorems, and diffs")
+        :explanation "README lists theorems as scanned type"))
+
+(fact readme-diff-scans-diffs true
+    :evidence (evidence "README"
+        :quotes ("facts, terms, axioms, theorems, and diffs")
+        :explanation "README lists diffs as scanned type"))
+
+(fact readme-diff-transitive true
+    :evidence (evidence "README"
+        :quotes ("transitively scan all five definition types")
+        :explanation "README claims transitive scanning"))
+
+(fact readme-diff-follows-derivation-chains true
+    :evidence (evidence "README"
+        :quotes ("follows not just direct references but also theorem derivation chains, catching indirect dependencies where a theorem's expression doesn't mention the symbol but its `:using` list does")
+        :explanation "README claims derivation chain following"))
+
+(fact readme-diff-excludes-self true
+    :evidence (evidence "README"
+        :quotes ("A diff excludes itself from its own dependency scan")
+        :explanation "README claims self-exclusion"))
+
+(fact readme-diff-contaminates-diffs true
+    :evidence (evidence "README"
+        :quotes ("Dependent diffs and theorems that reference the replaced symbol are flagged as contaminated rather than re-evaluated")
+        :explanation "README claims diff contamination flagging"))
+
+(fact readme-diff-contaminates-theorems true
+    :evidence (evidence "README"
+        :quotes ("Dependent diffs and theorems that reference the replaced symbol are flagged as contaminated")
+        :explanation "README claims theorem contamination flagging"))
+
+; Evidence does not participate in direct computation
+(fact readme-evidence-not-direct-computation true
+    :evidence (evidence "README"
+        :quotes ("evidence does not participate in direct computation — it primarily exists for evaluation by the consistency checker")
+        :explanation "README states evidence is not a computable directive"))
+
+(fact readme-diff-not-scans-evidence true
+    :evidence (evidence "README"
+        :quotes ("transitively scan all five definition types — facts, terms, axioms, theorems, and diffs")
+        :explanation "README lists exactly 5 types scanned by diff — evidence is absent"))
+
+; Axiom: evidence implies no direct computation
+(axiom evidence-excludes-direct-computation
+    (implies ?is-evidence (not ?participates-in-direct-computation))
+    :evidence (evidence "README"
+        :quotes ("evidence does not participate in direct computation")
+        :explanation "Evidence directive is excluded from the computation graph"))
+
+; Prove evidence is excluded via axiom :bind
+; evidence-excludes-direct-computation: (implies ?is-evidence (not ?participates))
+; ?is-evidence = readme-has-evidence-directive (true)
+; ?participates = evidence-computes (false) → (not false) = true → (implies true true) = true ✓
+(defterm evidence-computes (not readme-evidence-not-direct-computation)
+    :origin "negation: evidence doesn't compute → false")
+
+(derive bound-evidence-excludes-computation evidence-excludes-direct-computation
+    :bind ((?is-evidence readme-has-evidence-directive)
+           (?participates-in-direct-computation evidence-computes))
+    :using (evidence-excludes-direct-computation readme-has-evidence-directive evidence-computes))
+
+; Computable directive count: all 6 directives, evidence counted as false → 5
+(derive readme-computable-directive-count
+    (count-exists readme-has-fact-directive readme-has-axiom-directive
+                  readme-has-defterm-directive readme-has-derive-directive
+                  readme-has-diff-directive evidence-computes)
+    :using (count-exists counting.count-exists-base counting.count-exists-step
+            readme-has-fact-directive readme-has-axiom-directive
+            readme-has-defterm-directive readme-has-derive-directive
+            readme-has-diff-directive evidence-computes))
+
+; Items × Layers: 6 directives × 2 layers (declared, scanned-by-diff)
+; 5 computable directives are scanned; evidence not scanned and not computable
+; Evidence row: (or (not not-scans) (not not-computes)) = (or false false) = false
+(derive readme-diff-scan-paired
+    (count-exists (and readme-has-fact-directive readme-diff-scans-facts)
+                  (and readme-has-axiom-directive readme-diff-scans-axioms)
+                  (and readme-has-defterm-directive readme-diff-scans-terms)
+                  (and readme-has-derive-directive readme-diff-scans-theorems)
+                  (and readme-has-diff-directive readme-diff-scans-diffs)
+                  (or (not readme-diff-not-scans-evidence) (not readme-evidence-not-direct-computation)))
+    :using (count-exists counting.count-exists-base counting.count-exists-step
+            readme-has-fact-directive readme-diff-scans-facts
+            readme-has-axiom-directive readme-diff-scans-axioms
+            readme-has-defterm-directive readme-diff-scans-terms
+            readme-has-derive-directive readme-diff-scans-theorems
+            readme-has-diff-directive readme-diff-scans-diffs
+            readme-diff-not-scans-evidence readme-evidence-not-direct-computation))
+
+(derive readme-diff-scan-type-count
+    (count-exists readme-diff-scans-facts readme-diff-scans-terms
+                  readme-diff-scans-axioms readme-diff-scans-theorems readme-diff-scans-diffs)
+    :using (count-exists counting.count-exists-base counting.count-exists-step
+            readme-diff-scans-facts readme-diff-scans-terms
+            readme-diff-scans-axioms readme-diff-scans-theorems readme-diff-scans-diffs))
+
+(diff readme-diff-scan-paired-vs-scan :replace readme-diff-scan-paired :with readme-diff-scan-type-count)
+(diff readme-diff-scan-paired-vs-computable :replace readme-diff-scan-paired :with readme-computable-directive-count)
+
+; Behavioral properties — README-internal count
+(derive readme-diff-behavior-count
+    (count-exists readme-diff-transitive readme-diff-follows-derivation-chains
+                  readme-diff-excludes-self readme-diff-contaminates-diffs readme-diff-contaminates-theorems)
+    :using (count-exists counting.count-exists-base counting.count-exists-step
+            readme-diff-transitive readme-diff-follows-derivation-chains
+            readme-diff-excludes-self readme-diff-contaminates-diffs readme-diff-contaminates-theorems))
+
+; Exports for core.pltg
+(derive export-diff-scan-paired readme-diff-scan-paired :using (readme-diff-scan-paired))
+(derive export-diff-scan-type-count readme-diff-scan-type-count :using (readme-diff-scan-type-count))
+(derive export-diff-behavior-count readme-diff-behavior-count :using (readme-diff-behavior-count))
+(derive export-computable-directive-count readme-computable-directive-count :using (readme-computable-directive-count))
+(derive export-diff-transitive readme-diff-transitive :using (readme-diff-transitive))
+(derive export-diff-follows-derivation-chains readme-diff-follows-derivation-chains :using (readme-diff-follows-derivation-chains))
+(derive export-diff-excludes-self readme-diff-excludes-self :using (readme-diff-excludes-self))
+(derive export-diff-contaminates-diffs readme-diff-contaminates-diffs :using (readme-diff-contaminates-diffs))
+(derive export-diff-contaminates-theorems readme-diff-contaminates-theorems :using (readme-diff-contaminates-theorems))
 
 ; =====================================================================
 ; Special Techniques — one per directive type section
@@ -976,7 +1120,7 @@
         :quotes (".pltg module files" "an s-expression format loaded via load_pltg() with imports, namespacing, and effects")
         :explanation "README hints at .pltg format in Quick Start with forward reference to Module System"))
 
-(fact readme-documents-self-introspection true
+(fact readme-documents-self-introspection-plan true
     :evidence (evidence "README"
         :quotes ("a language powerful enough to express some facts about its own implementation, which is wonderful for ensuring its own correctness")
         :explanation "README documents self-introspection capability"))
@@ -1005,7 +1149,7 @@
 ; Missing README sections — stubs
 ; =====================================================================
 
-(fact readme-documents-introspection-and-self-consistency false
+(fact readme-documents-introspection-and-self-consistency-plan false
     :origin "README does not yet have an Introspection and Self-Consistency section (provenance walking, state(), self-validation via .pltg modules, the ouroboros)")
 
 ; =====================================================================
@@ -1046,32 +1190,32 @@
 ; Self-test — README coverage stubs (dangerously-eval resolved above)
 ; =====================================================================
 
-(fact readme-documents-self-test false
+(fact readme-documents-self-test-plan false
     :origin "README does not yet document self_test.pltg (self-referential incompleteness proof)")
 
-(fact readme-documents-self-test-goedel false
+(fact readme-documents-self-test-goedel-plan false
     :origin "README does not yet document Gödel incompleteness derive (system cannot prove own consistency)")
 
-(fact readme-documents-self-test-turing false
+(fact readme-documents-self-test-turing-plan false
     :origin "README does not yet document Turing ordinal extension exemplified via axiom→theorem hierarchy")
 
-(fact readme-documents-self-test-pytest false
+(fact readme-documents-self-test-pytest-plan false
     :origin "README does not yet document system running its own test suite via dangerously-eval")
 
 ; =====================================================================
 ; Validation framework — README coverage stubs
 ; =====================================================================
 
-(fact readme-documents-validation-framework false
+(fact readme-documents-validation-framework-plan false
     :origin "README does not yet document the .pltg self-validation system")
 
-(fact readme-documents-core-pltg false
+(fact readme-documents-core-pltg-plan false
     :origin "README does not yet document core.pltg as top-level orchestrator importing all validation modules")
 
-(fact readme-documents-per-module-validators false
+(fact readme-documents-per-module-validators-plan false
     :origin "README does not yet document per-module .pltg verifiers (atoms, lang, engine, system, loader, etc.)")
 
-(fact readme-documents-consistency-test false
+(fact readme-documents-consistency-test-plan false
     :origin "README does not yet document test_parseltongue_core_consistency.py pytest integration for CI")
 
 ; (deleted: readme-documents-verify-manual-pltg — duplicate of readme-documents-manual-verification-3-categories)
@@ -1085,7 +1229,7 @@
         :quotes ("ourouborous_core.svg" "Ouroboros")
         :explanation "README header displays ouroboros icon — a system that validates itself"))
 
-(fact readme-needs-consistency-badge false
+(fact readme-needs-consistency-badge-plan false
     :origin "README should display a self-consistency CI badge from GitLab workflow showing core validation pass/fail status")
 
 ; (deleted: readme-documents-effects-eval-context — duplicate of readme-documents-effects-in-computable)
