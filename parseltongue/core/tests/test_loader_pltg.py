@@ -346,6 +346,126 @@ class TestModuleAliasPatch(_TmpDirMixin, unittest.TestCase):
         self.assertEqual(str(wff), "sources.lib.lib-val")
 
 
+class TestRelativeImport(_TmpDirMixin, unittest.TestCase):
+    """Tests for Python-style relative imports with leading dots."""
+
+    def test_single_dot_sibling_import(self):
+        """(import (quote .sibling)) resolves to same directory."""
+        self._write("pkg/sibling.pltg", '(fact sib-val 1 :origin "sib")')
+        path = self._write(
+            "pkg/main.pltg",
+            """
+            (import (quote .sibling))
+            (fact x 10 :origin "test")
+        """,
+        )
+        system = load_pltg(path)
+        self.assertIn("sibling.sib-val", system.facts)
+
+    def test_double_dot_parent_import(self):
+        """(import (quote ..std.lib)) resolves to parent dir / std / lib.pltg."""
+        self._write("std/lib.pltg", '(fact lib-val 42 :origin "lib")')
+        path = self._write(
+            "validation/main.pltg",
+            """
+            (import (quote ..std.lib))
+            (fact x 10 :origin "test")
+        """,
+        )
+        system = load_pltg(path)
+        self.assertIn("std.lib.lib-val", system.facts)
+
+    def test_relative_import_canonical_alias(self):
+        """When importing ..std.counting (canonical: std.counting),
+        references to counting.X should resolve to std.counting.X."""
+        self._write(
+            "std/counting.pltg",
+            """
+            (fact count-val 99 :origin "counting")
+            (axiom count-rule (= (+ ?a ?b) (+ ?b ?a)) :origin "counting")
+        """,
+        )
+        self._write(
+            "validation/consumer.pltg",
+            """
+            (import (quote ..std.counting))
+            (defterm my-count counting.count-val :origin "ref via short name")
+        """,
+        )
+        path = self._write(
+            "validation/main.pltg",
+            """
+            (import (quote .consumer))
+        """,
+        )
+        system = load_pltg(path)
+        # The fact is registered under canonical name
+        self.assertIn("std.counting.count-val", system.facts)
+        # The consumer's defterm should resolve counting.count-val → std.counting.count-val
+        self.assertIn("consumer.my-count", system.terms)
+        wff = system.terms["consumer.my-count"].definition
+        self.assertEqual(str(wff), "std.counting.count-val")
+
+    def test_relative_import_alias_in_using(self):
+        """Short-name references in :using resolve via alias."""
+        self._write(
+            "std/counting.pltg",
+            """
+            (fact base-val 10 :origin "counting")
+            (axiom base-rule (> ?x 0) :origin "counting")
+        """,
+        )
+        self._write(
+            "validation/consumer.pltg",
+            """
+            (import (quote ..std.counting))
+            (derive my-thm counting.base-rule
+                :bind ((?x counting.base-val))
+                :using (counting.base-rule counting.base-val))
+        """,
+        )
+        path = self._write(
+            "validation/main.pltg",
+            """
+            (import (quote .consumer))
+        """,
+        )
+        system = load_pltg(path)
+        self.assertIn("consumer.my-thm", system.theorems)
+
+    def test_relative_import_no_alias_collision(self):
+        """If a short name is already registered as an alias, don't overwrite."""
+        self._write("std/lib.pltg", '(fact lib-v1 1 :origin "v1")')
+        self._write("other/lib.pltg", '(fact lib-v2 2 :origin "v2")')
+        self._write(
+            "validation/a.pltg",
+            """
+            (import (quote ..std.lib))
+            (defterm ref-a lib.lib-v1 :origin "a")
+        """,
+        )
+        self._write(
+            "validation/b.pltg",
+            """
+            (import (quote ..other.lib))
+            (fact b-val 3 :origin "b")
+        """,
+        )
+        path = self._write(
+            "validation/main.pltg",
+            """
+            (import (quote .a))
+            (import (quote .b))
+        """,
+        )
+        system = load_pltg(path)
+        # First alias wins: lib → std.lib
+        self.assertIn("std.lib.lib-v1", system.facts)
+        self.assertIn("a.ref-a", system.terms)
+        wff = system.terms["a.ref-a"].definition
+        self.assertEqual(str(wff), "std.lib.lib-v1")
+
+
 class TestEffectOrderingLoader(_TmpDirMixin, unittest.TestCase):
     """Tests that effects (load-document, import) execute in source order
     so that documents are available when imported modules reference them."""

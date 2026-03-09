@@ -1,0 +1,112 @@
+; lists.pltg — List construction and manipulation via splats
+;
+; Provides four list operations built from rewrite axioms:
+;
+;   cons-prepend — binary: prepend one element to a quoted list
+;   cons         — variadic: build a quoted list from evaluated args
+;   concat       — variadic: concatenate lists via double splat
+;   filter       — filter name-value pairs by target, collect matching names
+;
+; All operations use the splat-peel pattern. Elements are evaluated
+; at peel time, so the resulting quoted lists contain resolved values.
+;
+; Examples:
+;   (cons a)                           => (quote (42))        when a=42
+;   (cons a b c)                       => (quote (42 99 7))   when a=42, b=99, c=7
+;   (concat (quote (1 2)) (quote (3))) => (quote (1 2 3))
+
+; --- cons-prepend: binary prepend to quoted list ---
+
+; cons-prepend — takes an evaluated value and a quoted list,
+; returns a new quoted list with the value prepended.
+; The (quote (?...rest)) in the LHS matches the result of a
+; prior cons/cons-base call. The splat captures the list contents,
+; and the RHS rebuilds with ?x at the front.
+; Example:
+;   (cons-prepend 42 (quote (99 7))) => (quote (42 99 7))
+(defterm cons-prepend :origin "binary prepend — splice element into quoted list head")
+
+(axiom cons-prepend-rule (= (cons-prepend ?x (quote (?...rest))) (quote (?x ?...rest)))
+    :origin "rewrite: prepend ?x to quoted list contents")
+
+; --- cons: variadic list constructor ---
+
+; cons — build a quoted list from any number of evaluated arguments.
+; Base case wraps a single evaluated element in a quote.
+; Step case peels the first element, recurses on the rest (innermost-first
+; rewriting reduces the tail first), then cons-prepend splices ?x in front.
+; Examples:
+;   (cons a)       => (quote (42))
+;   (cons a b)     => (cons-prepend 42 (cons b))
+;                  => (cons-prepend 42 (quote (99)))
+;                  => (quote (42 99))
+;   (cons a b c)   => (cons-prepend 42 (cons b c))
+;                  => (cons-prepend 42 (cons-prepend 99 (cons c)))
+;                  => (cons-prepend 42 (cons-prepend 99 (quote (7))))
+;                  => (cons-prepend 42 (quote (99 7)))
+;                  => (quote (42 99 7))
+(defterm cons :origin "variadic list constructor — evaluated args to quoted list")
+
+(axiom cons-base (= (cons ?x) (quote (?x)))
+    :origin "base: single element to singleton quoted list")
+
+(axiom cons-step (= (cons ?x ?y ?...rest) (cons-prepend ?x (cons ?y ?...rest)))
+    :origin "step: peel first, recurse tail, prepend via cons-prepend")
+
+; --- concat: list concatenation ---
+
+; concat — merge two or more lists into one.
+; Uses double splat: (?...xs) and (?...ys) each capture contents
+; of a bare list (post-quote-eval), and the RHS merges them.
+; Variadic via peel: merge first two, recurse on the rest.
+; Examples:
+;   (concat (quote (1 2)) (quote (3)))           => (quote (1 2 3))
+;   (concat (quote (a)) (quote (b)) (quote (c))) => (quote (a b c))
+;   (concat (quote ()) (quote (1 2)))             => (quote (1 2))
+(defterm concat :origin "variadic list concatenation via double splat")
+
+(axiom concat-base (= (concat (?...xs)) (quote (?...xs)))
+    :origin "base: single list passes through")
+
+(axiom concat-two (= (concat (?...xs) (?...ys)) (quote (?...xs ?...ys)))
+    :origin "two lists: merge via double splat")
+
+(axiom concat-step (= (concat (?...xs) (?...ys) ?z ?...rest)
+    (concat (quote (?...xs ?...ys)) ?z ?...rest))
+    :origin "step: merge first two, recurse — needs unquote axiom in :using for 3+ lists")
+
+; --- uq-concat: concat bundle with unquote ---
+
+; uq-concat — convenience bundle for :using.
+; Include uq-concat in :using to get all concat axioms + unquote
+; pulled in transitively via _expand_using.
+; Example:
+;   (derive merged (concat a b c) :using (uq-concat a b c))
+(import (quote unquote))
+(defterm uq-concat (quote (concat unquote concat-base concat-two concat-step))
+    :origin "concat + unquote bundle — include in :using for variadic list concatenation")
+
+; --- filter: conditional list builder with name-value pairs ---
+
+; filter — select items matching a target value, collecting their names.
+; Takes a target and variadic name-value pairs. Each pair is written as
+; ((quote name) value) — quote preserves the symbol name, the bare
+; symbol evaluates to the value for comparison.
+; Uses the + operator to concatenate result lists (operator.add on lists).
+; Examples:
+;   Given (fact s1 hallucinated), (fact s2 exemplifiable), (fact s3 hallucinated):
+;   (filter hallucinated ((quote s1) s1) ((quote s2) s2) ((quote s3) s3))
+;     => (s1 s3)
+;   (filter exemplifiable ((quote s1) s1) ((quote s2) s2) ((quote s3) s3))
+;     => (s2)
+(defterm filter :origin "filter name-value pairs by target match — collect matching names")
+
+(axiom filter-base
+    (= (filter ?target (?name ?val))
+       (+ (if (= ?val ?target) (cons ?name) (quote ())) (quote ())))
+    :origin "base: single pair — include name if value matches target")
+
+(axiom filter-step
+    (= (filter ?target (?name ?val) ?...rest)
+       (+ (if (= ?val ?target) (cons ?name) (quote ())) (filter ?target ?...rest)))
+    :origin "step: peel pair, include or skip, recurse on rest")

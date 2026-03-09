@@ -10,7 +10,14 @@
     :origin "rewrite: identity export — marks a value as intentionally dangling for cross-module use")
 
 
-; stub axiom
+; stub: universal placeholder that never equals any real value.
+; Two usage patterns:
+;   Named:     (derive stub-foo stub :using (stub)) then use stub-foo in diffs/expressions
+;   Anonymous:  use stub directly in any expression, including diffs:
+;               (diff name :replace real-value :with stub :using (stub))
+; The rewrite axiom (= ?x stub) ensures stub absorbs any comparison,
+; so expressions containing stub always diverge against real values.
+; Works anywhere: diffs, derives, defterms, axiom :bind — any WFF position.
 (defterm stub :origin "stub")
 
 (axiom stub-base (= ?x stub)

@@ -1,7 +1,7 @@
 ; default_system_settings.pltg — Ground truth from default_system_settings.py
 
 (load-document "default_system_settings.py" "../default_system_settings.py")
-(import (quote counting))
+(import (quote ..std.counting))
 (defterm count-exists counting.count-exists :origin "import")
 
 ; =====================================================================

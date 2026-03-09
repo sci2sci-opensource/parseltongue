@@ -1,8 +1,8 @@
 ; readme.pltg — Claims extracted from core/README.md
 
 (load-document "README" "../README.md")
-(import (quote counting))
-(import (quote util))
+(import (quote ..std.counting))
+(import (quote ..std.util))
 (defterm count-exists counting.count-exists :origin "import")
 
 ; =====================================================================
@@ -377,15 +377,15 @@
             readme-diff-excludes-self readme-diff-contaminates-diffs readme-diff-contaminates-theorems))
 
 ; Exports for core.pltg
-(derive export-diff-scan-paired readme-diff-scan-paired :using (readme-diff-scan-paired))
-(derive export-diff-scan-type-count readme-diff-scan-type-count :using (readme-diff-scan-type-count))
-(derive export-diff-behavior-count readme-diff-behavior-count :using (readme-diff-behavior-count))
-(derive export-computable-directive-count readme-computable-directive-count :using (readme-computable-directive-count))
-(derive export-diff-transitive readme-diff-transitive :using (readme-diff-transitive))
-(derive export-diff-follows-derivation-chains readme-diff-follows-derivation-chains :using (readme-diff-follows-derivation-chains))
-(derive export-diff-excludes-self readme-diff-excludes-self :using (readme-diff-excludes-self))
-(derive export-diff-contaminates-diffs readme-diff-contaminates-diffs :using (readme-diff-contaminates-diffs))
-(derive export-diff-contaminates-theorems readme-diff-contaminates-theorems :using (readme-diff-contaminates-theorems))
+(derive export-diff-scan-paired (util.export readme-diff-scan-paired) :using (util.export readme-diff-scan-paired))
+(derive export-diff-scan-type-count (util.export readme-diff-scan-type-count) :using (util.export readme-diff-scan-type-count))
+(derive export-diff-behavior-count (util.export readme-diff-behavior-count) :using (util.export readme-diff-behavior-count))
+(derive export-computable-directive-count (util.export readme-computable-directive-count) :using (util.export readme-computable-directive-count))
+(derive export-diff-transitive (util.export readme-diff-transitive) :using (util.export readme-diff-transitive))
+(derive export-diff-follows-derivation-chains (util.export readme-diff-follows-derivation-chains) :using (util.export readme-diff-follows-derivation-chains))
+(derive export-diff-excludes-self (util.export readme-diff-excludes-self) :using (util.export readme-diff-excludes-self))
+(derive export-diff-contaminates-diffs (util.export readme-diff-contaminates-diffs) :using (util.export readme-diff-contaminates-diffs))
+(derive export-diff-contaminates-theorems (util.export readme-diff-contaminates-theorems) :using (util.export readme-diff-contaminates-theorems))
 
 ; =====================================================================
 ; Special Techniques — one per directive type section
@@ -1712,6 +1712,25 @@
     :evidence (evidence "README"
         :quotes ("`rederive()` re-runs a derivation to refresh its fabrication status — useful after manually verifying evidence that was previously unverified.")
         :explanation "README documents rederive()"))
+
+(fact readme-documents-expr-references true
+    :evidence (evidence "README"
+        :quotes ("To trace dependencies, the engine internally uses `_expr_references(expr, name)` — a static method that recursively checks whether an s-expression references a given symbol, matching `Symbol` nodes by string equality and recursing into list subexpressions.")
+        :explanation "README documents _expr_references static method"))
+
+(fact readme-documents-expr-references-checks-symbol true
+    :evidence (evidence "README"
+        :quotes ("matching `Symbol` nodes by string equality")
+        :explanation "README documents Symbol matching in _expr_references"))
+
+(fact readme-documents-expr-references-recurses-lists true
+    :evidence (evidence "README"
+        :quotes ("recursing into list subexpressions")
+        :explanation "README documents list recursion in _expr_references"))
+
+(derive export-expr-references-checks-symbol (util.export readme-documents-expr-references-checks-symbol) :using (util.export readme-documents-expr-references-checks-symbol))
+(derive export-expr-references-recurses-lists (util.export readme-documents-expr-references-recurses-lists) :using (util.export readme-documents-expr-references-recurses-lists))
+(derive export-expr-references (util.export readme-documents-expr-references) :using (util.export readme-documents-expr-references))
 
 (fact readme-documents-load-source true
     :evidence (evidence "README"

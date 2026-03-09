@@ -1127,6 +1127,78 @@ class TestConsistency(unittest.TestCase):
         r2 = quiet(s.consistency)
         self.assertTrue(r2.consistent)
 
+    def test_diff_contamination_only_is_warning(self):
+        """Diffs whose only divergences are sibling-diff contamination become warnings, not issues."""
+        s = make_system()
+        quiet(s.set_fact, "a", 10, "derived")
+        quiet(s.set_fact, "b", 10, "derived")
+        # Two diffs sharing the same :replace symbol — each contaminates the other
+        quiet(s.register_diff, "d1", "a", "b")
+        quiet(s.register_diff, "d2", "a", "b")
+        report = quiet(s.consistency)
+        # Values agree (10 == 10), so no real divergence — contamination only
+        warning_types = [w.type for w in report.warnings]
+        self.assertIn("diff_contamination", warning_types)
+        issue_types = [i.type for i in report.issues]
+        self.assertNotIn("diff_divergence", issue_types)
+
+    def test_diff_contamination_with_theorem_stays_issue(self):
+        """Diffs contaminating theorems remain issues, not warnings."""
+        s = make_system()
+        quiet(s.set_fact, "a", 10, "derived")
+        quiet(s.set_fact, "b", 20, "derived")
+        quiet(s.derive, "t1", [Symbol("+"), Symbol("a"), 1], ["a"])
+        quiet(s.register_diff, "d1", "a", "b")
+        report = quiet(s.consistency)
+        issue_types = [i.type for i in report.issues]
+        self.assertIn("diff_divergence", issue_types)
+
+    def test_warning_verbose_with_details(self):
+        """ConsistencyWarning.verbose() shows per-item details."""
+        from parseltongue.core.engine import ConsistencyWarning
+
+        w = ConsistencyWarning(
+            "diff_contamination",
+            ["d1", "d2"],
+            {"d1": "d2: <contaminated: references a>", "d2": "d1: <contaminated: references a>"},
+        )
+        v = w.verbose()
+        self.assertIn("d1: d2:", v)
+        self.assertIn("d2: d1:", v)
+        self.assertIn("2 items", v)
+
+    def test_warning_verbose_no_details(self):
+        """ConsistencyWarning.verbose() falls back to __str__ when no details."""
+        from parseltongue.core.engine import ConsistencyWarning
+
+        w = ConsistencyWarning("manually_verified", ["m1", "m2"])
+        self.assertEqual(w.verbose(), str(w))
+
+    def test_manually_verified_verbose_shows_origin(self):
+        """Manually verified warning details include full evidence origin."""
+        s = make_system()
+        quiet(s.register_document, "Doc", SAMPLE_DOC)
+        ev = Evidence(document="Doc", quotes=["Nonexistent quote"], explanation="test reason")
+        quiet(s.set_fact, "x", 1, ev)
+        quiet(s.verify_manual, "x")
+        report = quiet(s.consistency)
+        manual_warnings = [w for w in report.warnings if w.type == "manually_verified"]
+        self.assertEqual(len(manual_warnings), 1)
+        self.assertIn("x", manual_warnings[0].details)
+        detail = manual_warnings[0].details["x"]
+        self.assertIn("document=Doc", detail)
+        self.assertIn("explanation=test reason", detail)
+
+    def test_report_verbose_includes_detailed_warnings(self):
+        """ConsistencyReport.verbose() includes detailed warning section."""
+        from parseltongue.core.engine import ConsistencyReport, ConsistencyWarning
+
+        w = ConsistencyWarning("diff_contamination", ["d1"], {"d1": "some detail"})
+        report = ConsistencyReport(consistent=True, warnings=[w])
+        v = report.verbose()
+        self.assertIn("Detailed warnings:", v)
+        self.assertIn("d1: some detail", v)
+
 
 # ==============================================================
 # Provenance

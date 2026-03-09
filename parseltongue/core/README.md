@@ -773,6 +773,8 @@ The parser pipeline has three stages:
 
 `retract()` removes a fact, axiom, term, theorem, or diff from the system by name. `rederive()` re-runs a derivation to refresh its fabrication status — useful after manually verifying evidence that was previously unverified.
 
+To trace dependencies, the engine internally uses `_expr_references(expr, name)` — a static method that recursively checks whether an s-expression references a given symbol, matching `Symbol` nodes by string equality and recursing into list subexpressions.
+
 `LANG_DOCS` (in `lang.py`) is a structured dictionary providing documentation for each operator and directive — category, description, example, expected result. This is the data fed to LLMs via `llm_doc()` so they can use the language correctly.
 
 ### Quote Verifier Configuration

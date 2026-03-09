@@ -3,7 +3,7 @@
 (load-document "verifier.py" "../quote_verifier/verifier.py")
 (load-document "normalizer.py" "../quote_verifier/normalizer.py")
 (load-document "config.py" "../quote_verifier/config.py")
-(import (quote counting))
+(import (quote ..std.counting))
 (defterm count-exists counting.count-exists :origin "import")
 (defterm sum-values counting.sum-values :origin "import")
 

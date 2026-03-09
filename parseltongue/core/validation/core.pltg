@@ -15,8 +15,8 @@
 (import (quote pyproject))
 (import (quote verify_manual))
 ; (import (quote self_test))
-(import (quote util))
-(import (quote counting))
+(import (quote ..std.util))
+(import (quote ..std.counting))
 
 (defterm count-exists counting.count-exists :origin "import")
 ; verify in-place — core loads after verify_manual, so circular dep if done there
@@ -535,9 +535,15 @@
 (print "  README diff scan types:" readme.export-diff-scan-type-count)
 (print "  Engine dependents types:" engine.export-dependents-types)
 (print "  README computable directives:" readme.export-computable-directive-count)
+(print "  README diff scan paired:" readme.export-diff-scan-paired)
+(print "  README evidence excluded:" readme.bound-evidence-excludes-computation)
 (diff ee-dependents-derivation-check :replace engine.export-dependents-derivation-check :with readme.export-diff-follows-derivation-chains)
 (diff ee-dependents-transitivity :replace engine.export-dependents-transitivity :with readme.export-diff-transitive)
 (diff ee-dependents-types :replace engine.export-dependents-types :with readme.export-diff-scan-type-count)
+(diff ee-dependents-scan-paired :replace readme.export-diff-scan-paired :with stub :using (stub))
+(diff ee-computable-directives :replace readme.export-computable-directive-count :with stub :using (stub))
+(diff ee-evidence-excluded :replace readme.bound-evidence-excludes-computation :with stub :using (stub))
+(diff ee-diff-scans-five :replace readme.readme-diff-scans-five-types :with stub :using (stub))
 
 (print "")
 (print "--- Execution Engine: eval_diff contamination (README vs engine) ---")
@@ -549,13 +555,12 @@
 (diff ee-eval-diff-contamination :replace engine.export-eval-diff-contamination :with readme.export-diff-behavior-count)
 
 (print "")
-(print "--- Execution Engine: _expr_references ---")
-(derive stub-expr-references-checks-symbol stub :using (stub))
-(derive stub-expr-references-recurses-lists stub :using (stub))
-(derive stub-expr-references stub :using (stub))
-(diff ee-expr-references-checks-symbol :replace engine.expr-references-checks-symbol :with stub-expr-references-checks-symbol)
-(diff ee-expr-references-recurses-lists :replace engine.expr-references-recurses-lists :with stub-expr-references-recurses-lists)
-(diff ee-expr-references :replace engine.export-expr-references :with stub-expr-references)
+(print "--- Execution Engine: _expr_references (README vs engine) ---")
+(print "  README documents expr_references:" readme.export-expr-references)
+(print "  Engine expr_references is static:" engine.export-expr-references)
+(diff ee-expr-references-checks-symbol :replace engine.expr-references-checks-symbol :with readme.export-expr-references-checks-symbol)
+(diff ee-expr-references-recurses-lists :replace engine.expr-references-recurses-lists :with readme.export-expr-references-recurses-lists)
+(diff ee-expr-references :replace engine.export-expr-references :with readme.export-expr-references)
 
 ; =====================================================================
 ; System section — README vs system.py / default_system_settings.py

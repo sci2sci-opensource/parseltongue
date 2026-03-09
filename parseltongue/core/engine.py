@@ -9,6 +9,7 @@ evidence verification, and DSL loading.
 
 import logging
 from dataclasses import dataclass, field, replace
+from enum import StrEnum
 from typing import Any
 
 from .atoms import Evidence, Symbol, free_vars, match, substitute
@@ -44,6 +45,28 @@ log = logging.getLogger("parseltongue")
 
 
 # ============================================================
+# Consistency classification
+# ============================================================
+
+
+class IssueType(StrEnum):
+    """Types of consistency issues (errors — break consistent=True)."""
+
+    UNVERIFIED_EVIDENCE = "unverified_evidence"
+    NO_EVIDENCE = "no_evidence"
+    POTENTIAL_FABRICATION = "potential_fabrication"
+    DIFF_DIVERGENCE = "diff_divergence"
+    DIFF_VALUE_DIVERGENCE = "diff_value_divergence"
+
+
+class WarningType(StrEnum):
+    """Types of consistency warnings (noted but don't break consistency)."""
+
+    MANUALLY_VERIFIED = "manually_verified"
+    DIFF_CONTAMINATION = "diff_contamination"
+
+
+# ============================================================
 # Result Types
 # ============================================================
 
@@ -71,6 +94,13 @@ class DiffResult:
     @property
     def values_diverge(self) -> bool:
         return self.value_a != self.value_b
+
+    @property
+    def diff_contamination_only(self) -> bool:
+        """True when all divergences are sibling-diff contamination (no theorem/fact/term/axiom hits)."""
+        if self.empty:
+            return False
+        return all(isinstance(v[0], str) and v[0].startswith("diff(") for v in self.divergences.values())
 
     def to_dict(self) -> dict:
         from .serialization import serialize_diff_result
@@ -103,7 +133,7 @@ class DiffResult:
 class ConsistencyIssue:
     """A single consistency issue."""
 
-    type: str
+    type: IssueType
     items: list
 
     def to_dict(self) -> dict:
@@ -119,19 +149,19 @@ class ConsistencyIssue:
 
     def __str__(self):
         labels = {
-            "unverified_evidence": "Unverified evidence",
-            "no_evidence": "No evidence provided",
-            "potential_fabrication": "Potential fabrication",
-            "diff_divergence": "Diff divergence",
-            "diff_value_divergence": "Diff value divergence",
+            IssueType.UNVERIFIED_EVIDENCE: "Unverified evidence",
+            IssueType.NO_EVIDENCE: "No evidence provided",
+            IssueType.POTENTIAL_FABRICATION: "Potential fabrication",
+            IssueType.DIFF_DIVERGENCE: "Diff divergence",
+            IssueType.DIFF_VALUE_DIVERGENCE: "Diff value divergence",
         }
         label = labels.get(self.type, self.type)
         parts = [f"{label}:"]
-        if self.type in ("diff_divergence", "diff_value_divergence"):
+        if self.type in (IssueType.DIFF_DIVERGENCE, IssueType.DIFF_VALUE_DIVERGENCE):
             for d in self.items:
                 for i, line in enumerate(str(d).splitlines()):
                     parts.append(f"    {line}" if i else f"  {line}")
-        elif self.type == "no_evidence":
+        elif self.type == IssueType.NO_EVIDENCE:
             for item in self.items:
                 if isinstance(item, tuple):
                     name, origin = item
@@ -148,8 +178,9 @@ class ConsistencyIssue:
 class ConsistencyWarning:
     """A single consistency warning."""
 
-    type: str
+    type: WarningType
     items: list[str]
+    details: dict[str, str] = field(default_factory=dict)
 
     def to_dict(self) -> dict:
         from .serialization import serialize_consistency_warning
@@ -163,9 +194,22 @@ class ConsistencyWarning:
         return deserialize_consistency_warning(data)
 
     def __str__(self):
-        if self.type == "manually_verified":
+        if self.type == WarningType.MANUALLY_VERIFIED:
             return f"Manually verified: {', '.join(self.items)}"
         return f"{self.type}: {', '.join(self.items)}"
+
+    def verbose(self) -> str:
+        """Detailed warning with per-item context."""
+        if not self.details:
+            return str(self)
+        lines = [f"{self.type} ({len(self.items)} items):"]
+        for item in self.items:
+            detail = self.details.get(item)
+            if detail:
+                lines.append(f"  {item}: {detail}")
+            else:
+                lines.append(f"  {item}")
+        return "\n".join(lines)
 
 
 @dataclass
@@ -201,6 +245,17 @@ class ConsistencyReport:
                     lines.append(f"  {line}")
         for w in self.warnings:
             lines.append(f"  [warning] {w}")
+        return "\n".join(lines)
+
+    def verbose(self) -> str:
+        """Full report with detailed warnings."""
+        lines = [str(self)]
+        if any(w.details for w in self.warnings):
+            lines.append("")
+            lines.append("  Detailed warnings:")
+            for w in self.warnings:
+                for line in w.verbose().splitlines():
+                    lines.append(f"    {line}")
         return "\n".join(lines)
 
 
@@ -743,7 +798,16 @@ class Engine:
         raise KeyError(f"Unknown symbol: {name}")
 
     def eval_diff(self, name: str) -> DiffResult:
-        """Evaluate a registered diff against current system state."""
+        """Evaluate a registered diff against current system state.
+
+        Transitively scans dependencies via _dependents, following not
+        just direct references but also theorem derivation chains.
+        Excludes itself from its own dependency scan to avoid circular
+        self-contamination.  Dependent diffs that reference the replaced
+        symbol are flagged as contaminated.  Theorems whose derivation
+        chain used the replaced symbol — even when their WFF is a literal
+        — are flagged as contaminated.
+        """
         if name not in self.diffs:
             raise KeyError(f"Unknown diff: {name}")
 
@@ -895,11 +959,32 @@ class Engine:
                         no_evidence.append((name, origin))
 
         if unverified:
-            issues.append(ConsistencyIssue("unverified_evidence", sorted(unverified)))
+            issues.append(ConsistencyIssue(IssueType.UNVERIFIED_EVIDENCE, sorted(unverified)))
         if no_evidence:
-            issues.append(ConsistencyIssue("no_evidence", sorted(no_evidence, key=lambda x: x[0])))
+            issues.append(ConsistencyIssue(IssueType.NO_EVIDENCE, sorted(no_evidence, key=lambda x: x[0])))
         if manually_verified:
-            warnings.append(ConsistencyWarning("manually_verified", sorted(manually_verified)))
+            manual_details = {}
+            for name in manually_verified:
+                stores: list[dict] = [self.facts, self.axioms, self.theorems, self.terms]
+                for store in stores:
+                    if name in store:
+                        origin = store[name].origin
+                        if isinstance(origin, Evidence):
+                            manual_details[name] = (
+                                f"document={origin.document}, "
+                                f"quotes={origin.quotes}, "
+                                f"explanation={origin.explanation}"
+                            )
+                        elif origin:
+                            manual_details[name] = str(origin)
+                        else:
+                            manual_details[name] = "no origin provided"
+                        break
+                else:
+                    manual_details[name] = "no origin provided"
+            warnings.append(
+                ConsistencyWarning(WarningType.MANUALLY_VERIFIED, sorted(manually_verified), manual_details)
+            )
 
         # 2. Fabrication propagation
         fabrications = sorted(
@@ -908,16 +993,24 @@ class Engine:
             if isinstance(thm.origin, str) and "potential fabrication" in thm.origin
         )
         if fabrications:
-            issues.append(ConsistencyIssue("potential_fabrication", fabrications))
+            issues.append(ConsistencyIssue(IssueType.POTENTIAL_FABRICATION, fabrications))
 
         # 3. Diff divergences — evaluated live
         all_diffs = sorted((self.eval_diff(n) for n in self.diffs), key=lambda d: d.name)
-        downstream_divergent = [d for d in all_diffs if not d.empty]
+        downstream_divergent = [d for d in all_diffs if not d.empty and not d.diff_contamination_only]
+        diff_contamination = [d for d in all_diffs if d.diff_contamination_only]
         value_divergent = [d for d in all_diffs if d.values_diverge and d.empty]
         if downstream_divergent:
-            issues.append(ConsistencyIssue("diff_divergence", downstream_divergent))
+            issues.append(ConsistencyIssue(IssueType.DIFF_DIVERGENCE, downstream_divergent))
         if value_divergent:
-            issues.append(ConsistencyIssue("diff_value_divergence", value_divergent))
+            issues.append(ConsistencyIssue(IssueType.DIFF_VALUE_DIVERGENCE, value_divergent))
+        if diff_contamination:
+            contam_details = {}
+            for d in diff_contamination:
+                contam_details[d.name] = "; ".join(f"{k}: {v[1]}" for k, v in sorted(d.divergences.items()))
+            warnings.append(
+                ConsistencyWarning(WarningType.DIFF_CONTAMINATION, [d.name for d in diff_contamination], contam_details)
+            )
 
         report = ConsistencyReport(
             consistent=len(issues) == 0,

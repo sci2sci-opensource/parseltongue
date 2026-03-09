@@ -5,7 +5,7 @@
 ; the installed package is broken: demos fail, validation fails, tests fail.
 
 (load-document "pyproject" "../../../pyproject.toml")
-(import (quote counting))
+(import (quote ..std.counting))
 (defterm count-exists counting.count-exists :origin "import")
 
 ; =====================================================================

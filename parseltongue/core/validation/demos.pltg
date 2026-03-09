@@ -16,7 +16,7 @@
 (load-document "revenue_reports" "../demos/revenue_reports/demo.py")
 (load-document "self_healing" "../demos/self_healing/demo.py")
 (load-document "spec_validation" "../demos/spec_validation/demo.py")
-(import (quote counting))
+(import (quote ..std.counting))
 (defterm count-exists counting.count-exists :origin "import")
 
 ; .pltg source files — module system patterns

@@ -1,0 +1,93 @@
+; epistemics.pltg — Epistemic classification of claims
+;
+; All statuses are from the SYSTEM's perspective — what the consistency
+; checker can determine by itself, not what is objectively true.
+;
+; Exemplifiable: the system found a witness — a verified quote, a
+; passing code path, a mathematical derivation. The claim is connected
+; to observable evidence that the system can check.
+;
+; Hallucinated: the system found evidence of failure — a quote that
+; doesn't exist in the document, a derivation from unverified sources,
+; values that disagree. The claim is demonstrably ungrounded.
+;
+; Unknown: the system cannot determine the status. It can neither
+; exemplify the claim nor prove it hallucinated. This happens when
+; a human validated something the system can't check (manual verify),
+; or when the observation is about another diff that will evaluate
+; itself. The system acknowledges the claim but cannot witness it.
+;
+; Usage:
+;   (derive my-status (witness exemplifiable) :using (witness ...))
+;   (derive count (count-hallucinated s1 s2 s3) :using (count-hallucinated ...))
+
+; --- Epistemic status labels ---
+
+; exemplifiable — the system has a witness for this claim.
+; Examples:
+;   - A quote was found in the registered document (verified evidence)
+;   - A code path was traced and confirmed (impl-layer fact)
+;   - A mathematical derivation evaluated to true (theorem)
+;   - count-exists returned a matching number (derived count)
+(defterm exemplifiable :origin "system found a witness — claim is observably grounded")
+
+; hallucinated — the system has evidence that the claim is wrong.
+; Examples:
+;   - A quote was NOT found in the document (unverified evidence)
+;   - No evidence was provided at all (origin is a bare string)
+;   - A theorem was derived from an unverified source (fabrication)
+;   - Two sides of a diff disagree (value divergence)
+;   - Substitution changed a theorem's result (proposition contamination)
+;   - A stub or unresolved import — system knows there is no witness
+(defterm hallucinated :origin "system found evidence of failure — claim is demonstrably ungrounded")
+
+; unknown — the system cannot make a determination.
+; Examples:
+;   - A human called verify_manual — the system trusts but can't check
+;   - A sibling diff is contaminated — it will evaluate itself independently
+; This is NOT "maybe true" — it is "the system has no witness either way."
+(defterm unknown :origin "system cannot determine — neither exemplifiable nor provably hallucinated")
+
+; --- Labeling rewrite: (witness x) → x ---
+
+; witness — labels a claim with its epistemic status.
+; The rewrite axiom makes (witness x) evaluate to x, so the label
+; is transparent in computation but explicit in derivation chains.
+; Examples:
+;   (derive grounded-status (witness exemplifiable) :using (witness ...))
+;   (derive unverified-status (witness hallucinated) :using (witness ...))
+;   (derive manual-status (witness unknown) :using (witness ...))
+(defterm witness :origin "epistemic status labeling — witness a claim's classification")
+
+(axiom witness-base (= (witness ?x) ?x)
+    :origin "rewrite: (witness status) returns the status — labels a claim as witnessed")
+
+; --- Russell's teapot ---
+
+; If a claim's status is not exemplifiable, it is hallucinated.
+; The burden of proof is on the claimant — absence of evidence for an
+; unfalsifiable claim means the claim carries no epistemic weight.
+; Note: this axiom applies to the binary case (exemplifiable vs not).
+; The unknown status is a system-level hedge — russell-teapot doesn't
+; apply to unknown because the system explicitly declines to judge.
+(axiom russell-teapot (implies (not (= ?status exemplifiable)) (= ?status hallucinated))
+    :origin "Russell's teapot: unwitnessable claims are hallucinated")
+
+; --- Counting: count-hallucinated ---
+
+; count-hallucinated — counts how many of its arguments are hallucinated.
+; Same recursive splat pattern as counting.count-exists, but checks
+; equality against the hallucinated label instead of truthiness.
+; Examples:
+;   (count-hallucinated hallucinated exemplifiable hallucinated) => 2
+;   (count-hallucinated exemplifiable unknown exemplifiable) => 0
+;   (count-hallucinated hallucinated) => 1
+(defterm count-hallucinated :origin "variadic count of hallucinated statuses")
+
+(axiom count-hallucinated-base (= (count-hallucinated ?x) (+ (if (= ?x hallucinated) 1 0) 0))
+    :origin "base: single status")
+
+(axiom count-hallucinated-step
+    (= (count-hallucinated ?x ?y ?...rest)
+       (+ (if (= ?x hallucinated) 1 0) (count-hallucinated ?y ?...rest)))
+    :origin "step: peel first, count rest")

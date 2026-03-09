@@ -1,0 +1,18 @@
+; unquote.pltg — Quote unwrapping for rewrite-land
+;
+; (quote (...)) protects data from evaluation in _eval, but in
+; rewrite-land everything is structural — quote wrappers are just
+; [quote, [...]] lists that block splat patterns from matching.
+;
+; unquote strips the wrapper so downstream rewrites see bare lists:
+;   (quote (1 2 3)) => (1 2 3)
+;
+; Scoped via :using — only fires in derives that explicitly include it.
+; This prevents global interference with quote semantics in _eval.
+;
+; Primary use case: variadic concat and other list combinators that
+; produce intermediate (quote (...)) results which need to be
+; consumed as bare lists by the next rewrite step.
+
+(axiom unquote (= (quote (?...xs)) (?...xs))
+    :origin "rewrite: strip quote wrapper — exposes bare list to splat patterns")

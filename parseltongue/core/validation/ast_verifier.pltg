@@ -6,7 +6,7 @@
 ; nodes into a DAG.
 
 (load-document "ast.py" "../ast.py")
-(import (quote counting))
+(import (quote ..std.counting))
 (defterm count-exists counting.count-exists :origin "import")
 
 ; =====================================================================

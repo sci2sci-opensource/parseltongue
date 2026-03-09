@@ -6,14 +6,6 @@
 ;
 ; All *-doc-count entries are now self-verifying derives via count-exists.
 
-; --- counting.pltg (axioms have :origin) ---
-(verify-manual (quote counting.count-exists))
-(verify-manual (quote counting.count-exists-base))
-(verify-manual (quote counting.count-exists-step))
-(verify-manual (quote counting.sum-values))
-(verify-manual (quote counting.sum-values-base))
-(verify-manual (quote counting.sum-values-step))
-
 ; --- count-exists aliases (defterm :origin "import") ---
 (verify-manual (quote atoms.count-exists))
 (verify-manual (quote engine.count-exists))

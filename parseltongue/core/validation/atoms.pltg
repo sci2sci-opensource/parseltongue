@@ -1,8 +1,8 @@
 ; atoms.pltg — Ground truth and internal validation for atoms.py
 
 (load-document "atoms.py" "../atoms.py")
-(import (quote counting))
-(import (quote util))
+(import (quote ..std.counting))
+(import (quote ..std.util))
 (defterm count-exists counting.count-exists :origin "import")
 
 ; =====================================================================

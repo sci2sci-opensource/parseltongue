@@ -1,0 +1,17 @@
+; std.pltg — Standard library entry point
+;
+; Imports all std modules and provides verify-manual for their definitions.
+
+(import (quote util))
+(import (quote counting))
+(import (quote epistemics))
+(import (quote unquote))
+(import (quote lists))
+
+; --- counting.pltg ---
+(verify-manual (quote counting.count-exists))
+(verify-manual (quote counting.count-exists-base))
+(verify-manual (quote counting.count-exists-step))
+(verify-manual (quote counting.sum-values))
+(verify-manual (quote counting.sum-values-base))
+(verify-manual (quote counting.sum-values-step))

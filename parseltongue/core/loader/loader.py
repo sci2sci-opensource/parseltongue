@@ -168,6 +168,9 @@ class Loader:
                 # Patch bare symbol references to their namespaced versions
                 if not self._current.is_main:
                     self._patch_symbols(expr, system.engine, skip_index=1)
+                elif self._module_aliases:
+                    # Main module: still resolve aliases (e.g. counting.X → std.counting.X)
+                    self._patch_symbols(expr, system.engine)
             _execute_directive(system.engine, expr)
 
     # ----------------------------------------------------------
@@ -178,9 +181,29 @@ class Loader:
         """Create loader-specific effects that close over this Loader."""
 
         def import_effect(system: System, module_sym) -> bool:
-            """Effect: (import (quote some.module))"""
-            module_name = str(module_sym)
-            rel_path = module_name.replace(".", os.sep) + ".pltg"
+            """Effect: (import (quote some.module))
+
+            Supports Python-style relative imports with leading dots:
+              (import (quote .sibling))       →  ./sibling.pltg
+              (import (quote ..std.counting)) →  ../std/counting.pltg
+              (import (quote ...pkg.mod))     →  ../../pkg/mod.pltg
+            Without leading dots, resolves relative to current directory.
+            """
+            raw_name = str(module_sym)
+            # Count leading dots for relative traversal (Python convention)
+            dots = 0
+            while dots < len(raw_name) and raw_name[dots] == ".":
+                dots += 1
+            if dots > 0:
+                # First dot = current dir, each additional dot = one parent
+                ups = ".." + os.sep
+                prefix = ups * (dots - 1)
+                # Canonical module name strips leading dots
+                module_name = raw_name[dots:]
+            else:
+                prefix = ""
+                module_name = raw_name
+            rel_path = prefix + module_name.replace(".", os.sep) + ".pltg"
             abs_path = os.path.normpath(os.path.join(self._current.current_dir, rel_path))
 
             if abs_path in self._imported:
@@ -204,6 +227,16 @@ class Loader:
                 raise FileNotFoundError(f"Module '{module_name}' not found at {abs_path}")
 
             child_ctx = self.create_md_ctx(abs_path, module_name)
+
+            # Register short-name alias when canonical name is dotted.
+            # e.g. importing "..std.counting" → canonical "std.counting"
+            #   → alias "counting" → "std.counting"
+            # This lets downstream files reference counting.X and have
+            # _patch_symbols resolve it to std.counting.X.
+            if "." in module_name:
+                short = module_name.rsplit(".", 1)[-1]
+                if short not in self._module_aliases:
+                    self._module_aliases[short] = module_name
 
             saved = self._current
             self._current = child_ctx

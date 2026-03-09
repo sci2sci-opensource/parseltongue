@@ -20,6 +20,7 @@ class TestParseltongueCoreConsistency(unittest.TestCase):
 
     def test_core_consistency(self):
         report = self.system.consistency()
+        print(report.verbose())
         self.assertTrue(report.consistent, f"System inconsistent: {report}")
 
     def test_all_theorems_evaluate_true(self):

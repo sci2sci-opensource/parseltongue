@@ -1,9 +1,10 @@
 ; engine.pltg — Ground truth and internal validation for engine.py
 
 (load-document "engine.py" "../engine.py")
-(import (quote counting))
+(import (quote ..std.counting))
+(import (quote ..std.epistemics))
 (import (quote lang))
-(import (quote util))
+(import (quote ..std.util))
 (defterm count-exists counting.count-exists :origin "import")
 
 ; =====================================================================
@@ -587,7 +588,7 @@
 
 (fact dependents-scans-theorems true
     :evidence (evidence "engine.py"
-        :quotes ("for n, t in self.theorems.items():\n                yield n, \"theorem\", t.wff")
+        :quotes ("for n, th in self.theorems.items():\n                yield n, \"theorem\", th.wff")
         :explanation "_dependents scans theorem WFFs"))
 
 (fact dependents-scans-diffs true
@@ -680,17 +681,43 @@
         :quotes ("affected = self._dependents(replace, exclude_diff=name)")
         :explanation "eval_diff excludes its own diff from the dependency scan"))
 
-; Layer 1: DOC — eval_diff docstring does NOT document contamination yet
-(fact eval-diff-doc-theorem-contamination false
-    :origin "eval_diff docstring does not document theorem contamination via .derivation")
+; Layer 1: DOC — eval_diff docstring documents contamination
+(fact eval-diff-doc-transitive true
+    :evidence (evidence "engine.py"
+        :quotes ("Transitively scans dependencies via _dependents, following not\n        just direct references but also theorem derivation chains.")
+        :explanation "eval_diff docstring documents transitive scanning"))
 
-(fact eval-diff-doc-diff-contamination false
-    :origin "eval_diff docstring does not document dependent diff contamination")
+(fact eval-diff-doc-follows-derivation-chains true
+    :evidence (evidence "engine.py"
+        :quotes ("following not\n        just direct references but also theorem derivation chains.")
+        :explanation "eval_diff docstring documents derivation chain following"))
 
-(fact eval-diff-doc-excludes-self false
-    :origin "eval_diff docstring does not document self-exclusion via exclude_diff")
+(fact eval-diff-doc-theorem-contamination true
+    :evidence (evidence "engine.py"
+        :quotes ("Theorems whose derivation\n        chain used the replaced symbol — even when their WFF is a literal\n        — are flagged as contaminated.")
+        :explanation "eval_diff docstring documents theorem contamination"))
 
-; Layer 2: IMPL — each contamination path in source
+(fact eval-diff-doc-diff-contamination true
+    :evidence (evidence "engine.py"
+        :quotes ("Dependent diffs that reference the replaced\n        symbol are flagged as contaminated.")
+        :explanation "eval_diff docstring documents diff contamination"))
+
+(fact eval-diff-doc-excludes-self true
+    :evidence (evidence "engine.py"
+        :quotes ("Excludes itself from its own dependency scan to avoid circular\n        self-contamination.")
+        :explanation "eval_diff docstring documents self-exclusion"))
+
+; Layer 2: IMPL — each behavior in source
+(fact eval-diff-impl-transitive true
+    :evidence (evidence "engine.py"
+        :quotes ("affected = self._dependents(replace, exclude_diff=name)")
+        :explanation "eval_diff delegates to _dependents which scans transitively"))
+
+(fact eval-diff-impl-follows-derivation-chains true
+    :evidence (evidence "engine.py"
+        :quotes ("affected = self._dependents(replace, exclude_diff=name)")
+        :explanation "eval_diff delegates to _dependents which checks theorem derivation lists"))
+
 (fact eval-diff-impl-theorem-contamination true
     :evidence (evidence "engine.py"
         :quotes ("# For theorems found via .derivation whose WFF is already\n            # evaluated to a literal: substitution into the WFF won't\n            # change anything, but the derivation *used* the replaced\n            # symbol so the result is contaminated.  Flag as divergent\n            # since re-derivation with different input could change\n            # the outcome.\n            if (\n                dep_kind == \"theorem\"\n                and not self._expr_references(defn, replace)\n                and replace in self.theorems[dep_name].derivation\n            ):\n                divergences[dep_name] = [defn, f\"<contaminated: uses {replace}>\"]")
@@ -708,28 +735,76 @@
 
 ; Per-layer counts
 (derive eval-diff-contamination-doc-count
-    (count-exists eval-diff-doc-theorem-contamination eval-diff-doc-diff-contamination eval-diff-doc-excludes-self)
+    (count-exists eval-diff-doc-transitive eval-diff-doc-follows-derivation-chains
+                  eval-diff-doc-theorem-contamination eval-diff-doc-diff-contamination eval-diff-doc-excludes-self)
     :using (count-exists counting.count-exists-base counting.count-exists-step
+            eval-diff-doc-transitive eval-diff-doc-follows-derivation-chains
             eval-diff-doc-theorem-contamination eval-diff-doc-diff-contamination eval-diff-doc-excludes-self))
 
 (derive eval-diff-contamination-impl-count
-    (count-exists eval-diff-impl-theorem-contamination eval-diff-impl-diff-contamination eval-diff-impl-excludes-self)
+    (count-exists eval-diff-impl-transitive eval-diff-impl-follows-derivation-chains
+                  eval-diff-impl-theorem-contamination eval-diff-impl-diff-contamination eval-diff-impl-excludes-self)
     :using (count-exists counting.count-exists-base counting.count-exists-step
+            eval-diff-impl-transitive eval-diff-impl-follows-derivation-chains
             eval-diff-impl-theorem-contamination eval-diff-impl-diff-contamination eval-diff-impl-excludes-self))
 
 ; Paired: doc × impl
 (derive eval-diff-contamination-paired
-    (count-exists (and eval-diff-doc-theorem-contamination eval-diff-impl-theorem-contamination)
+    (count-exists (and eval-diff-doc-transitive eval-diff-impl-transitive)
+                  (and eval-diff-doc-follows-derivation-chains eval-diff-impl-follows-derivation-chains)
+                  (and eval-diff-doc-theorem-contamination eval-diff-impl-theorem-contamination)
                   (and eval-diff-doc-diff-contamination eval-diff-impl-diff-contamination)
                   (and eval-diff-doc-excludes-self eval-diff-impl-excludes-self))
     :using (count-exists
+            eval-diff-doc-transitive eval-diff-impl-transitive
+            eval-diff-doc-follows-derivation-chains eval-diff-impl-follows-derivation-chains
             eval-diff-doc-theorem-contamination eval-diff-impl-theorem-contamination
             eval-diff-doc-diff-contamination eval-diff-impl-diff-contamination
             eval-diff-doc-excludes-self eval-diff-impl-excludes-self))
 
-; Cross-layer diffs — will diverge until docstring is updated
+; Cross-layer diffs
 (diff eval-diff-contamination-paired-vs-doc :replace eval-diff-contamination-paired :with eval-diff-contamination-doc-count)
 (diff eval-diff-contamination-paired-vs-impl :replace eval-diff-contamination-paired :with eval-diff-contamination-impl-count)
+
+; =====================================================================
+; Consistency classification — error vs warning
+; =====================================================================
+
+(defterm consistency-error
+    :evidence (evidence "engine.py"
+        :quotes ("report = ConsistencyReport(\n            consistent=len(issues) == 0,\n            issues=issues,\n            warnings=warnings,\n        )")
+        :explanation "issues list drives consistent=False; anything appended to issues is an error"))
+
+(defterm consistency-warning
+    :evidence (evidence "engine.py"
+        :quotes ("report = ConsistencyReport(\n            consistent=len(issues) == 0,\n            issues=issues,\n            warnings=warnings,\n        )")
+        :explanation "warnings list is stored but consistent depends only on issues; warnings don't break consistency"))
+
+; Evidence → epistemic status axioms
+(axiom ungrounded-is-hallucinated
+    (implies (and (not ?grounded) (not ?manually-validated)) (= ?status epistemics.hallucinated))
+    :evidence (evidence "engine.py"
+        :quotes ("if isinstance(origin, Evidence):\n                    if not origin.verified and origin.verify_manual:\n                        manually_verified.append(name)\n                    elif not origin.is_grounded:\n                        unverified.append(name)")
+        :explanation "ungrounded evidence without manual validation — system witnessed failure"))
+
+(axiom manually-validated-is-unknown
+    (implies (and (not ?grounded) ?manually-validated) (= ?status epistemics.unknown))
+    :evidence (evidence "engine.py"
+        :quotes ("if isinstance(origin, Evidence):\n                    if not origin.verified and origin.verify_manual:\n                        manually_verified.append(name)\n                    elif not origin.is_grounded:\n                        unverified.append(name)")
+        :explanation "ungrounded but manually validated — system can't check, status unknown"))
+
+; Epistemic status → consistency outcome axioms
+(axiom hallucinated-is-error
+    (implies (= ?status epistemics.hallucinated) consistency-error)
+    :evidence (evidence "engine.py"
+        :quotes ("if unverified:\n            issues.append(ConsistencyIssue(IssueType.UNVERIFIED_EVIDENCE, sorted(unverified)))")
+        :explanation "hallucinated claims become issues — break consistency"))
+
+(axiom unknown-is-warning
+    (implies (= ?status epistemics.unknown) consistency-warning)
+    :evidence (evidence "engine.py"
+        :quotes ("if manually_verified:\n            manual_details = {}")
+        :explanation "unknown claims become warnings — don't break consistency"))
 
 ; =====================================================================
 ; Exports — for core.pltg cross-checks against README
