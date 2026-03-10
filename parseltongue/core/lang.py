@@ -58,6 +58,7 @@ IF = Symbol("if")
 LET = Symbol("let")
 EQ = Symbol("=")
 QUOTE = Symbol("quote")
+STRICT = Symbol("strict")
 
 # DSL keywords — structural symbols of the language
 AXIOM = Symbol("axiom")
@@ -67,7 +68,7 @@ DERIVE = Symbol("derive")
 DIFF = Symbol("diff")
 EVIDENCE = Symbol("evidence")
 
-SPECIAL_FORMS = (IF, LET, QUOTE)
+SPECIAL_FORMS = (IF, LET, QUOTE, STRICT)
 DSL_KEYWORDS = (AXIOM, DEFTERM, FACT, DERIVE, DIFF, EVIDENCE)
 
 # Pattern variable prefixes — used in axiom ?-variables and splat patterns
@@ -134,6 +135,15 @@ LANG_DOCS = {
             "(quote some.module.name)",
             "(quote (fact x 10 :origin \"test\"))",
         ],
+    },
+    STRICT: {
+        "category": "special",
+        "description": "Force eager evaluation of an argument in a lazy context. "
+        "When the engine encounters a non-callable head and defers arg evaluation, "
+        "(strict x) forces x to be evaluated immediately so its structure "
+        "is visible to rewrite patterns.",
+        "example": "(joint-status (strict r))",
+        "expected": "r is evaluated before joint-status rewrites",
     },
     EQ: {
         "category": "special",

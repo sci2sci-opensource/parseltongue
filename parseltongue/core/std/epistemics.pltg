@@ -73,6 +73,103 @@
 (axiom russell-teapot (implies (not (= ?status exemplifiable)) (= ?status hallucinated))
     :origin "Russell's teapot: unwitnessable claims are hallucinated")
 
+; --- Joint status and epistemic ordering ---
+;
+; Epistemic statuses form a lattice with a total order:
+;
+;   hallucinated > unknown > exemplifiable
+;
+; hallucinated is the absorbing element — any presence of hallucination
+; in a group makes the entire group hallucinated. This follows from
+; Russell's teapot: an unwitnessed component poisons the whole.
+;
+; The only escape from hallucinated is full exemplification — a witness
+; for every component. If all inputs are exemplified, the group is
+; exemplifiable. If none are hallucinated but some lack witnesses,
+; the group is unknown.
+;
+; joint-status computes the group epistemic status of its arguments:
+;   - variadic: works with any number of args
+;   - contagious: hallucinated in any position → hallucinated
+;   - superpose-aware: (strict x) forces evaluation, then superpose
+;     is flattened into variadic args before checking
+;
+; Examples:
+;   (joint-status hallucinated exemplifiable) => hallucinated
+;   (joint-status exemplifiable hallucinated) => hallucinated
+;   (joint-status hallucinated hallucinated)  => hallucinated
+;   (joint-status exemplifiable exemplifiable) => exemplifiable
+;   (joint-status exemplifiable unknown)       => unknown
+;   (joint-status h e u h)                     => hallucinated
+;   (joint-status (superpose h u e))           => hallucinated
+;   (joint-status <unrecognized> <anything>)   => unknown
+(defterm joint-status :origin "epistemic status of a group — hallucination is contagious")
+
+(axiom joint-status-base (= (joint-status ?a) ?a)
+    :origin "base: single status passes through")
+
+; --- Superpose: "one of these values" ---
+
+; superpose — represents an indeterminate value that could be any of its args.
+; Used when the system knows the set of possible statuses but not which one.
+; Examples:
+;   (superpose hallucinated unknown exemplifiable) — could be any status
+(defterm superpose :origin "indeterminate value — one of the listed possibilities")
+
+; joint-status flattens superpose args into variadic check
+; These MUST come before joint-status-step so superpose is flattened first
+(axiom joint-status-superpose
+    (= (joint-status (superpose ?...xs)) (joint-status ?...xs))
+    :origin "rewrite: superpose → variadic — check all possible values")
+
+(axiom joint-status-superpose-two
+    (= (joint-status (superpose ?...xs) (superpose ?...ys)) (joint-status ?...xs ?...ys))
+    :origin "rewrite: two superposes → variadic — flatten both")
+
+(axiom joint-status-superpose-more
+    (= (joint-status (superpose ?...xs) ?y ?...rest) (joint-status ?...xs ?y ?...rest))
+    :origin "rewrite: superpose + rest → variadic — flatten and continue")
+
+(axiom joint-status-step
+    (= (joint-status ?a ?b ?...rest)
+       (joint-status (if (= ?a hallucinated) hallucinated
+                         (if (= ?b hallucinated) hallucinated
+                             (if (and (= ?a exemplifiable) (= ?b exemplifiable)) exemplifiable unknown)))
+                     ?...rest))
+    :origin "step: merge first two, recurse — hallucinated > unknown > exemplifiable")
+
+; --- Observations and collapse ---
+;
+; A superposed status is indeterminate until observed. An observation
+; is what the system can actually see about the thing in superposition.
+; There are exactly three observations, one per collapse target:
+;
+;   witnessed    — system found a witness        → collapses to exemplifiable
+;   refuted      — system found counter-evidence → collapses to hallucinated
+;   hypothesised — proposed, no way to check     → collapses to unknown
+;
+; collapse takes a superposed value and an observation, and returns
+; the definite epistemic status.
+;
+; Examples:
+;   (collapse (superpose h u e) witnessed)    => exemplifiable
+;   (collapse (superpose h u e) refuted)      => hallucinated
+;   (collapse (superpose h u e) hypothesised) => unknown
+(defterm witnessed :origin "observation: system found a witness for the claim")
+(defterm refuted :origin "observation: system found counter-evidence against the claim")
+(defterm hypothesised :origin "observation: claim proposed but system cannot check either way")
+
+(defterm collapse :origin "collapse a superposed status via observation into a definite status")
+
+(axiom collapse-witnessed (= (collapse (superpose ?...xs) witnessed) exemplifiable)
+    :origin "witnessed observation collapses superpose to exemplifiable")
+
+(axiom collapse-refuted (= (collapse (superpose ?...xs) refuted) hallucinated)
+    :origin "refuted observation collapses superpose to hallucinated")
+
+(axiom collapse-hypothesised (= (collapse (superpose ?...xs) hypothesised) unknown)
+    :origin "hypothesised observation collapses superpose to unknown")
+
 ; --- Counting: count-hallucinated ---
 
 ; count-hallucinated — counts how many of its arguments are hallucinated.

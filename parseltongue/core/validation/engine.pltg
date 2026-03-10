@@ -3,6 +3,7 @@
 (load-document "engine.py" "../engine.py")
 (import (quote ..std.counting))
 (import (quote ..std.epistemics))
+(import (quote ..std.lists))
 (import (quote lang))
 (import (quote ..std.util))
 (defterm count-exists counting.count-exists :origin "import")
@@ -183,27 +184,27 @@
 ; Issue type strings — exactly what the code creates
 (fact issue-type-unverified "unverified_evidence"
     :evidence (evidence "engine.py"
-        :quotes ("ConsistencyIssue(\"unverified_evidence\"")
+        :quotes ("UNVERIFIED_EVIDENCE = \"unverified_evidence\"" "ConsistencyIssue(IssueType.UNVERIFIED_EVIDENCE")
         :explanation "Issue type for unverified evidence"))
 
 (fact issue-type-no-evidence "no_evidence"
     :evidence (evidence "engine.py"
-        :quotes ("ConsistencyIssue(\"no_evidence\"")
+        :quotes ("NO_EVIDENCE = \"no_evidence\"" "ConsistencyIssue(IssueType.NO_EVIDENCE")
         :explanation "Issue type for missing evidence"))
 
 (fact issue-type-fabrication "potential_fabrication"
     :evidence (evidence "engine.py"
-        :quotes ("ConsistencyIssue(\"potential_fabrication\"")
+        :quotes ("POTENTIAL_FABRICATION = \"potential_fabrication\"" "ConsistencyIssue(IssueType.POTENTIAL_FABRICATION")
         :explanation "Issue type for fabrication"))
 
 (fact issue-type-diff-divergence "diff_divergence"
     :evidence (evidence "engine.py"
-        :quotes ("ConsistencyIssue(\"diff_divergence\"")
+        :quotes ("DIFF_DIVERGENCE = \"diff_divergence\"" "ConsistencyIssue(IssueType.DIFF_DIVERGENCE")
         :explanation "Issue type for diff divergence"))
 
 (fact issue-type-diff-value "diff_value_divergence"
     :evidence (evidence "engine.py"
-        :quotes ("ConsistencyIssue(\"diff_value_divergence\"")
+        :quotes ("DIFF_VALUE_DIVERGENCE = \"diff_value_divergence\"" "ConsistencyIssue(IssueType.DIFF_VALUE_DIVERGENCE")
         :explanation "Issue type for diff value divergence"))
 
 ; =====================================================================
@@ -348,7 +349,7 @@
 
 (defterm issue-types-impl-count 5
     :evidence (evidence "engine.py"
-        :quotes ("ConsistencyIssue(\"unverified_evidence\"" "ConsistencyIssue(\"no_evidence\"" "ConsistencyIssue(\"potential_fabrication\"" "ConsistencyIssue(\"diff_divergence\"" "ConsistencyIssue(\"diff_value_divergence\"")
+        :quotes ("UNVERIFIED_EVIDENCE = \"unverified_evidence\"" "NO_EVIDENCE = \"no_evidence\"" "POTENTIAL_FABRICATION = \"potential_fabrication\"" "DIFF_DIVERGENCE = \"diff_divergence\"" "DIFF_VALUE_DIVERGENCE = \"diff_value_divergence\"")
         :explanation "5 issue types in source"))
 
 (diff issue-types-coverage
@@ -533,7 +534,7 @@
 
 (fact diff-evaluated-structurally true
     :evidence (evidence "engine.py"
-        :quotes ("all_diffs = sorted((self.eval_diff(n) for n in self.diffs), key=lambda d: d.name)\n        downstream_divergent = [d for d in all_diffs if not d.empty]\n        value_divergent = [d for d in all_diffs if d.values_diverge and d.empty]")
+        :quotes ("all_diffs = sorted((self.eval_diff(n) for n in self.diffs), key=lambda d: d.name)" "downstream_divergent = [d for d in all_diffs if not d.empty and not d.diff_contamination_only]" "value_divergent = [d for d in all_diffs if d.values_diverge and d.empty]")
         :explanation "Consistency evaluates diffs structurally — divergence is a system issue"))
 
 (defterm diff-calls-resolve-origin false
@@ -780,31 +781,426 @@
         :quotes ("report = ConsistencyReport(\n            consistent=len(issues) == 0,\n            issues=issues,\n            warnings=warnings,\n        )")
         :explanation "warnings list is stored but consistent depends only on issues; warnings don't break consistency"))
 
+; Evidence → epistemic status → consistency outcome
+; Goal: derive that hallucinated claims are errors and unknown claims are warnings.
+(defterm hallucinated-is-error util.stub :origin "TODO: derive hallucinated → consistency-error via evidence chain")
+(defterm unknown-is-warning util.stub :origin "TODO: derive unknown → consistency-warning via evidence chain")
+
 ; Evidence → epistemic status axioms
+(load-document "epistemics.pltg" "../std/epistemics.pltg")
+
 (axiom ungrounded-is-hallucinated
-    (implies (and (not ?grounded) (not ?manually-validated)) (= ?status epistemics.hallucinated))
+    (if (and (not ?grounded) (not ?manually-validated)) epistemics.hallucinated epistemics.unknown)
+    :evidence (evidence "epistemics.pltg"
+        :quotes ("hallucinated — the system has evidence that the claim is wrong.\n; Examples:\n;   - A quote was NOT found in the document (unverified evidence)")
+        :explanation "ungrounded evidence without manual validation — matches epistemics definition of hallucinated"))
+
+(fact unverified-is-grounded false
     :evidence (evidence "engine.py"
-        :quotes ("if isinstance(origin, Evidence):\n                    if not origin.verified and origin.verify_manual:\n                        manually_verified.append(name)\n                    elif not origin.is_grounded:\n                        unverified.append(name)")
-        :explanation "ungrounded evidence without manual validation — system witnessed failure"))
+        :quotes ("elif not origin.is_grounded:\n                        unverified.append(name)")
+        :explanation "unverified evidence: grounded = false"))
+
+(fact unverified-is-manually-validated false
+    :evidence (evidence "engine.py"
+        :quotes ("if not origin.verified and origin.verify_manual:\n                        manually_verified.append(name)\n                    elif not origin.is_grounded:\n                        unverified.append(name)")
+        :explanation "unverified path is elif after manual check — manually validated = false"))
+
+(derive witness-evidence-hallucinated ungrounded-is-hallucinated
+    :bind ((?grounded unverified-is-grounded) (?manually-validated unverified-is-manually-validated))
+    :using (ungrounded-is-hallucinated unverified-is-grounded unverified-is-manually-validated))
 
 (axiom manually-validated-is-unknown
-    (implies (and (not ?grounded) ?manually-validated) (= ?status epistemics.unknown))
-    :evidence (evidence "engine.py"
-        :quotes ("if isinstance(origin, Evidence):\n                    if not origin.verified and origin.verify_manual:\n                        manually_verified.append(name)\n                    elif not origin.is_grounded:\n                        unverified.append(name)")
-        :explanation "ungrounded but manually validated — system can't check, status unknown"))
+    (if (and (not ?grounded) ?manually-validated) epistemics.unknown epistemics.exemplifiable)
+    :evidence (evidence "epistemics.pltg"
+        :quotes ("unknown — the system cannot make a determination.\n; Examples:\n;   - A human called verify_manual — the system trusts but can't check")
+        :explanation "ungrounded but manually validated — matches epistemics definition of unknown"))
 
-; Epistemic status → consistency outcome axioms
-(axiom hallucinated-is-error
-    (implies (= ?status epistemics.hallucinated) consistency-error)
+(fact manual-is-grounded false
+    :evidence (evidence "engine.py"
+        :quotes ("if not origin.verified and origin.verify_manual:\n                        manually_verified.append(name)")
+        :explanation "manually validated evidence: grounded = false (not verified)"))
+
+(fact manual-is-manually-validated true
+    :evidence (evidence "engine.py"
+        :quotes ("if not origin.verified and origin.verify_manual:\n                        manually_verified.append(name)")
+        :explanation "manually validated evidence: manually validated = true"))
+
+(derive witness-evidence-unknown manually-validated-is-unknown
+    :bind ((?grounded manual-is-grounded) (?manually-validated manual-is-manually-validated))
+    :using (manually-validated-is-unknown manual-is-grounded manual-is-manually-validated))
+
+; --- NO_EVIDENCE → hallucinated ---
+(axiom no-evidence-is-hallucinated
+    (if (and (not ?has-evidence) (not ?manually-validated)) epistemics.hallucinated epistemics.unknown)
+    :evidence (evidence "epistemics.pltg"
+        :quotes ("- No evidence was provided at all (origin is a bare string)")
+        :explanation "bare string origin, not manually validated — matches epistemics definition of hallucinated"))
+
+(fact no-evidence-has-no-evidence false
+    :evidence (evidence "engine.py"
+        :quotes ("elif isinstance(origin, str):\n                    if (\n                        origin not in (\"unknown\", \"derived\")\n                        and not origin.startswith(\"diff \")\n                        and \"potential fabrication\" not in origin\n                    ):\n                        no_evidence.append((name, origin))")
+        :explanation "string origin that isn't a known sentinel — no evidence attached"))
+
+(fact no-evidence-not-manually-validated false
+    :evidence (evidence "engine.py"
+        :quotes ("new_origin = Evidence(\n                document=\"manual\",\n                quotes=[],\n                explanation=origin if isinstance(origin, str) else str(origin),\n                verify_manual=True,\n            )")
+        :explanation "verify_manual converts string origins to Evidence — they leave the isinstance(origin, str) path"))
+
+(derive witness-no-evidence-hallucinated no-evidence-is-hallucinated
+    :bind ((?has-evidence no-evidence-has-no-evidence) (?manually-validated no-evidence-not-manually-validated))
+    :using (no-evidence-is-hallucinated no-evidence-has-no-evidence no-evidence-not-manually-validated))
+
+; --- POTENTIAL_FABRICATION → hallucinated (two branches) ---
+
+; Branch 1: derive does not hold (WFF evaluated to False)
+(axiom fabrication-does-not-hold
+    (if (not ?holds) epistemics.hallucinated epistemics.exemplifiable)
+    :evidence (evidence "epistemics.pltg"
+        :quotes ("- A theorem was derived from an unverified source (fabrication)")
+        :explanation "derivation evaluated to False — result is hallucinated"))
+
+(fact derive-does-not-hold false
+    :evidence (evidence "engine.py"
+        :quotes ("if does_not_hold:\n            issues.append(\"does not hold (evaluated to False)\")")
+        :explanation "derive checks if WFF holds — false means does not hold"))
+
+(derive witness-fabrication-does-not-hold fabrication-does-not-hold
+    :bind ((?holds derive-does-not-hold))
+    :using (fabrication-does-not-hold derive-does-not-hold))
+
+; Branch 2: derived from ungrounded sources
+(axiom fabrication-ungrounded-source
+    (if (and (= ?source-status epistemics.hallucinated) ?source-in-using) epistemics.hallucinated epistemics.unknown)
+    :evidence (evidence "epistemics.pltg"
+        :quotes ("- A theorem was derived from an unverified source (fabrication)")
+        :explanation "hallucinated source in :using — derivation inherits hallucinated status"))
+
+(defterm ungrounded-source-status epistemics.hallucinated
+    :evidence (evidence "engine.py"
+        :quotes ("if ungrounded:\n            issues.append(f\"derived from unverified: {', '.join(ungrounded)}\")")
+        :explanation "ungrounded sources have hallucinated epistemic status"))
+
+(fact ungrounded-source-in-using true
+    :evidence (evidence "engine.py"
+        :quotes ("ungrounded = self._check_sources_grounded(using)")
+        :explanation "grounding check runs on :using sources"))
+
+(derive witness-fabrication-ungrounded-source fabrication-ungrounded-source
+    :bind ((?source-status ungrounded-source-status) (?source-in-using ungrounded-source-in-using))
+    :using (fabrication-ungrounded-source ungrounded-source-status ungrounded-source-in-using))
+
+; --- DIFF_DIVERGENCE → hallucinated ---
+; Each side of a diff is in superposition until the diff observes it.
+; Divergence means the diff found disagreement — observation is refuted.
+; Both sides collapse to hallucinated, joint-status confirms hallucinated.
+
+(fact diff-divergence-detected true
+    :evidence (evidence "engine.py"
+        :quotes ("downstream_divergent = [d for d in all_diffs if not d.empty and not d.diff_contamination_only]")
+        :explanation "downstream divergent diffs detected"))
+
+(defterm divergence-replace (epistemics.superpose epistemics.hallucinated epistemics.unknown epistemics.exemplifiable)
+    :evidence (evidence "engine.py"
+        :quotes ("original = self._resolve_value(replace)")
+        :explanation "replace side — superposed until diff observes"))
+
+(defterm divergence-with (epistemics.superpose epistemics.hallucinated epistemics.unknown epistemics.exemplifiable)
+    :evidence (evidence "engine.py"
+        :quotes ("substitute_val = self._resolve_value(with_)")
+        :explanation "with side — superposed until diff observes"))
+
+(defterm witness-diff-divergence-hallucinated
+    (epistemics.joint-status
+        (strict (epistemics.collapse (strict divergence-replace) epistemics.refuted))
+        (strict (epistemics.collapse (strict divergence-with) epistemics.refuted)))
+    :using (epistemics.collapse epistemics.joint-status epistemics.refuted
+            divergence-replace divergence-with))
+
+; --- DIFF_VALUE_DIVERGENCE → hallucinated ---
+; Same pattern: value divergence is also a refuting observation.
+
+(fact diff-value-divergence-detected true
+    :evidence (evidence "engine.py"
+        :quotes ("value_divergent = [d for d in all_diffs if d.values_diverge and d.empty]")
+        :explanation "value-divergent diffs detected"))
+
+(defterm value-divergence-replace (epistemics.superpose epistemics.hallucinated epistemics.unknown epistemics.exemplifiable)
+    :evidence (evidence "engine.py"
+        :quotes ("original = self._resolve_value(replace)")
+        :explanation "replace side — superposed until diff observes"))
+
+(defterm value-divergence-with (epistemics.superpose epistemics.hallucinated epistemics.unknown epistemics.exemplifiable)
+    :evidence (evidence "engine.py"
+        :quotes ("substitute_val = self._resolve_value(with_)")
+        :explanation "with side — superposed until diff observes"))
+
+(defterm witness-diff-value-hallucinated
+    (epistemics.joint-status
+        (strict (epistemics.collapse (strict value-divergence-replace) epistemics.refuted))
+        (strict (epistemics.collapse (strict value-divergence-with) epistemics.refuted)))
+    :using (epistemics.collapse epistemics.joint-status epistemics.refuted
+            value-divergence-replace value-divergence-with))
+
+; --- DIFF_CONTAMINATION → unknown ---
+; Contamination means the system can't check — observation is hypothesised.
+; Only one side (the contaminated diff itself), so no joint-status needed.
+
+(fact diff-contamination-detected true
+    :evidence (evidence "engine.py"
+        :quotes ("diff_contamination = [d for d in all_diffs if d.diff_contamination_only]")
+        :explanation "contamination-only diffs detected"))
+
+(defterm contamination-status (epistemics.superpose epistemics.hallucinated epistemics.unknown epistemics.exemplifiable)
+    :evidence (evidence "engine.py"
+        :quotes ("diff_contamination = [d for d in all_diffs if d.diff_contamination_only]")
+        :explanation "contaminated diff — superposed until observed"))
+
+(defterm witness-diff-contamination-unknown
+    (epistemics.collapse (strict contamination-status) epistemics.hypothesised)
+    :using (epistemics.collapse epistemics.hypothesised contamination-status))
+
+; --- Consistency outcome: condition → error or warning ---
+; Each axiom models one if-branch in consistency(). Facts describe code behavior.
+
+; UNVERIFIED_EVIDENCE → error
+(axiom error-on-unverified
+    (implies (and ?has-evidence ?is-unverified) consistency-error)
     :evidence (evidence "engine.py"
         :quotes ("if unverified:\n            issues.append(ConsistencyIssue(IssueType.UNVERIFIED_EVIDENCE, sorted(unverified)))")
-        :explanation "hallucinated claims become issues — break consistency"))
+        :explanation "evidence present but unverified → appended to issues"))
 
-(axiom unknown-is-warning
-    (implies (= ?status epistemics.unknown) consistency-warning)
+(fact unverified-has-evidence true
+    :evidence (evidence "engine.py"
+        :quotes ("if isinstance(origin, Evidence):")
+        :explanation "unverified path requires origin to be Evidence"))
+
+(fact unverified-is-unverified true
+    :evidence (evidence "engine.py"
+        :quotes ("elif not origin.is_grounded:\n                        unverified.append(name)")
+        :explanation "evidence is not grounded → appended to unverified list"))
+
+(derive unverified-causes-error error-on-unverified
+    :bind ((?has-evidence unverified-has-evidence) (?is-unverified unverified-is-unverified))
+    :using (error-on-unverified unverified-has-evidence unverified-is-unverified))
+
+; NO_EVIDENCE → error
+(axiom error-on-no-evidence
+    (implies (and ?is-string-origin (not ?is-sentinel)) consistency-error)
+    :evidence (evidence "engine.py"
+        :quotes ("if no_evidence:\n            issues.append(ConsistencyIssue(IssueType.NO_EVIDENCE, sorted(no_evidence, key=lambda x: x[0])))")
+        :explanation "string origin that isn't a sentinel → appended to issues"))
+
+(fact no-evidence-is-string-origin true
+    :evidence (evidence "engine.py"
+        :quotes ("elif isinstance(origin, str):")
+        :explanation "no-evidence path requires origin to be a string"))
+
+(fact no-evidence-is-not-sentinel false
+    :evidence (evidence "engine.py"
+        :quotes ("origin not in (\"unknown\", \"derived\")\n                        and not origin.startswith(\"diff \")\n                        and \"potential fabrication\" not in origin")
+        :explanation "filtered out known sentinels — remaining strings have no evidence"))
+
+(derive no-evidence-causes-error error-on-no-evidence
+    :bind ((?is-string-origin no-evidence-is-string-origin) (?is-sentinel no-evidence-is-not-sentinel))
+    :using (error-on-no-evidence no-evidence-is-string-origin no-evidence-is-not-sentinel))
+
+; POTENTIAL_FABRICATION → error (does not hold)
+(axiom error-on-fabrication-does-not-hold
+    (implies (not ?wff-holds) consistency-error)
+    :evidence (evidence "engine.py"
+        :quotes ("if does_not_hold:\n            issues.append(\"does not hold (evaluated to False)\")")
+        :explanation "WFF evaluated to False → marked as potential fabrication"))
+
+(fact fabrication-wff-does-not-hold false
+    :evidence (evidence "engine.py"
+        :quotes ("does_not_hold = result is False or result is None")
+        :explanation "derive checks if WFF result is False or None"))
+
+(derive fabrication-does-not-hold-causes-error error-on-fabrication-does-not-hold
+    :bind ((?wff-holds fabrication-wff-does-not-hold))
+    :using (error-on-fabrication-does-not-hold fabrication-wff-does-not-hold))
+
+; POTENTIAL_FABRICATION → error (ungrounded source)
+(axiom error-on-fabrication-ungrounded
+    (implies (and ?has-ungrounded-source ?source-in-using) consistency-error)
+    :evidence (evidence "engine.py"
+        :quotes ("if ungrounded:\n            issues.append(f\"derived from unverified: {', '.join(ungrounded)}\")")
+        :explanation "ungrounded source in :using → marked as potential fabrication"))
+
+(fact fabrication-has-ungrounded-source true
+    :evidence (evidence "engine.py"
+        :quotes ("ungrounded = self._check_sources_grounded(using)")
+        :explanation "derive checks grounding of all :using sources"))
+
+(fact fabrication-source-in-using true
+    :evidence (evidence "engine.py"
+        :quotes ("origin = f\"potential fabrication — {'; '.join(issues)}\"")
+        :explanation "issues non-empty → origin set to potential fabrication"))
+
+(derive fabrication-ungrounded-causes-error error-on-fabrication-ungrounded
+    :bind ((?has-ungrounded-source fabrication-has-ungrounded-source) (?source-in-using fabrication-source-in-using))
+    :using (error-on-fabrication-ungrounded fabrication-has-ungrounded-source fabrication-source-in-using))
+
+; DIFF_DIVERGENCE → error
+(axiom error-on-diff-divergence
+    (implies (and (!= ?result-a ?result-b) (not ?contamination-only)) consistency-error)
+    :evidence (evidence "engine.py"
+        :quotes ("if downstream_divergent:\n            issues.append(ConsistencyIssue(IssueType.DIFF_DIVERGENCE, downstream_divergent))")
+        :explanation "original and substitute evaluate differently, not contamination-only → error"))
+
+(fact divergence-evaluates-both true
+    :evidence (evidence "engine.py"
+        :quotes ("result_a = self.evaluate(defn)\n                result_b = self.evaluate(defn, {Symbol(replace): substitute_val})")
+        :explanation "eval_diff evaluates definition with original and substitute values"))
+
+(fact divergence-compares-results true
+    :evidence (evidence "engine.py"
+        :quotes ("if result_a != result_b:\n                divergences[dep_name] = [result_a, result_b]")
+        :explanation "divergence detected when results differ"))
+
+(fact divergence-filters-contamination true
+    :evidence (evidence "engine.py"
+        :quotes ("downstream_divergent = [d for d in all_diffs if not d.empty and not d.diff_contamination_only]")
+        :explanation "downstream divergent excludes contamination-only diffs"))
+
+(derive divergence-causes-error error-on-diff-divergence
+    :bind ((?result-a divergence-evaluates-both) (?result-b divergence-compares-results) (?contamination-only divergence-filters-contamination))
+    :using (error-on-diff-divergence divergence-evaluates-both divergence-compares-results divergence-filters-contamination))
+
+; DIFF_VALUE_DIVERGENCE → error
+(axiom error-on-value-divergence
+    (implies (and (!= ?value-a ?value-b) ?no-downstream) consistency-error)
+    :evidence (evidence "engine.py"
+        :quotes ("if value_divergent:\n            issues.append(ConsistencyIssue(IssueType.DIFF_VALUE_DIVERGENCE, value_divergent))")
+        :explanation "replace and with resolve to different values, no downstream divergences → error"))
+
+(fact value-divergence-values-differ true
+    :evidence (evidence "engine.py"
+        :quotes ("def values_diverge(self) -> bool:\n        return self.value_a != self.value_b")
+        :explanation "values_diverge checks if replace and with resolve differently"))
+
+(fact value-divergence-no-downstream true
+    :evidence (evidence "engine.py"
+        :quotes ("value_divergent = [d for d in all_diffs if d.values_diverge and d.empty]")
+        :explanation "value divergence requires d.empty — no downstream dependents affected"))
+
+(derive value-divergence-causes-error error-on-value-divergence
+    :bind ((?value-a value-divergence-values-differ) (?value-b value-divergence-no-downstream) (?no-downstream value-divergence-no-downstream))
+    :using (error-on-value-divergence value-divergence-values-differ value-divergence-no-downstream))
+
+; MANUALLY_VERIFIED → warning
+(axiom warning-on-manual
+    (implies (and ?has-evidence (not ?is-verified) ?is-verify-manual) consistency-warning)
     :evidence (evidence "engine.py"
         :quotes ("if manually_verified:\n            manual_details = {}")
-        :explanation "unknown claims become warnings — don't break consistency"))
+        :explanation "evidence present, not verified, but verify_manual set → warning"))
+
+(fact manual-has-evidence true
+    :evidence (evidence "engine.py"
+        :quotes ("if isinstance(origin, Evidence):")
+        :explanation "manually verified path requires origin to be Evidence"))
+
+(fact manual-is-verified false
+    :evidence (evidence "engine.py"
+        :quotes ("if not origin.verified and origin.verify_manual:")
+        :explanation "evidence is not verified — verified = false"))
+
+(fact manual-has-verify-manual-flag true
+    :evidence (evidence "engine.py"
+        :quotes ("if not origin.verified and origin.verify_manual:\n                        manually_verified.append(name)")
+        :explanation "verify_manual flag is set — human marked it"))
+
+(derive manual-causes-warning warning-on-manual
+    :bind ((?has-evidence manual-has-evidence) (?is-verified manual-is-verified) (?is-verify-manual manual-has-verify-manual-flag))
+    :using (warning-on-manual manual-has-evidence manual-is-verified manual-has-verify-manual-flag))
+
+; DIFF_CONTAMINATION → warning
+; Code: diff_contamination_only checks (1) not empty, (2) all divergences are diff() refs
+; When both hold, it's a warning not an error — sibling diffs contaminate but don't break consistency
+(axiom warning-on-contamination
+    (implies (and (not ?is-empty) ?all-are-diff-refs) consistency-warning)
+    :evidence (evidence "engine.py"
+        :quotes ("warnings.append(\n                ConsistencyWarning(WarningType.DIFF_CONTAMINATION, [d.name for d in diff_contamination], contam_details)\n            )")
+        :explanation "contaminated diffs (not empty + all divergences are diff refs) appended to warnings"))
+
+(fact contamination-is-empty false
+    :evidence (evidence "engine.py"
+        :quotes ("if self.empty:\n            return False")
+        :explanation "diff_contamination_only returns False if empty — contamination requires divergences"))
+
+(fact contamination-all-are-diff-refs true
+    :evidence (evidence "engine.py"
+        :quotes ("return all(isinstance(v[0], str) and v[0].startswith(\"diff(\") for v in self.divergences.values())")
+        :explanation "all divergence sources must be sibling-diff references (start with 'diff(')"))
+
+(derive contamination-causes-warning warning-on-contamination
+    :bind ((?is-empty contamination-is-empty) (?all-are-diff-refs contamination-all-are-diff-refs))
+    :using (warning-on-contamination contamination-is-empty contamination-all-are-diff-refs))
+
+; =====================================================================
+; Classification enum — every IssueType and WarningType member as a fact
+; =====================================================================
+
+; IssueType members (errors — break consistent=True)
+(fact issue-unverified-evidence true
+    :evidence (evidence "engine.py"
+        :quotes ("UNVERIFIED_EVIDENCE = \"unverified_evidence\"")
+        :explanation "IssueType enum member"))
+
+(fact issue-no-evidence true
+    :evidence (evidence "engine.py"
+        :quotes ("NO_EVIDENCE = \"no_evidence\"")
+        :explanation "IssueType enum member"))
+
+(fact issue-potential-fabrication true
+    :evidence (evidence "engine.py"
+        :quotes ("POTENTIAL_FABRICATION = \"potential_fabrication\"")
+        :explanation "IssueType enum member"))
+
+(fact issue-diff-divergence true
+    :evidence (evidence "engine.py"
+        :quotes ("DIFF_DIVERGENCE = \"diff_divergence\"")
+        :explanation "IssueType enum member"))
+
+(fact issue-diff-value-divergence true
+    :evidence (evidence "engine.py"
+        :quotes ("DIFF_VALUE_DIVERGENCE = \"diff_value_divergence\"")
+        :explanation "IssueType enum member"))
+
+; WarningType members (noted but don't break consistency)
+(fact warning-manually-verified true
+    :evidence (evidence "engine.py"
+        :quotes ("MANUALLY_VERIFIED = \"manually_verified\"")
+        :explanation "WarningType enum member"))
+
+(fact warning-diff-contamination true
+    :evidence (evidence "engine.py"
+        :quotes ("DIFF_CONTAMINATION = \"diff_contamination\"")
+        :explanation "WarningType enum member"))
+
+; --- Epistemic status counts across all 8 witnesses ---
+
+(derive hallucinated-count
+    (count-exists witness-evidence-hallucinated
+                  witness-no-evidence-hallucinated
+                  witness-fabrication-does-not-hold
+                  witness-fabrication-ungrounded-source
+                  witness-diff-divergence-hallucinated
+                  witness-diff-value-hallucinated)
+    :using (count-exists
+            witness-evidence-hallucinated
+            witness-no-evidence-hallucinated
+            witness-fabrication-does-not-hold
+            witness-fabrication-ungrounded-source
+            witness-diff-divergence-hallucinated
+            witness-diff-value-hallucinated))
+
+(derive unknown-count
+    (count-exists witness-evidence-unknown
+                  witness-diff-contamination-unknown)
+    :using (count-exists
+            witness-evidence-unknown
+            witness-diff-contamination-unknown))
 
 ; =====================================================================
 ; Exports — for core.pltg cross-checks against README

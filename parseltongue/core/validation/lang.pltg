@@ -23,15 +23,20 @@
         :quotes ("QUOTE = Symbol(\"quote\")")
         :explanation "quote special form"))
 
+(fact strict-symbol "strict"
+    :evidence (evidence "lang.py"
+        :quotes ("STRICT = Symbol(\"strict\")")
+        :explanation "strict special form — forces eager evaluation"))
+
 (fact eq-symbol "="
     :evidence (evidence "lang.py"
         :quotes ("EQ = Symbol(\"=\")")
         :explanation "= symbol"))
 
-(fact special-forms-tuple-size 3
+(fact special-forms-tuple-size 4
     :evidence (evidence "lang.py"
-        :quotes ("SPECIAL_FORMS = (IF, LET, QUOTE)")
-        :explanation "SPECIAL_FORMS has 3 members"))
+        :quotes ("SPECIAL_FORMS = (IF, LET, QUOTE, STRICT)")
+        :explanation "SPECIAL_FORMS has 4 members"))
 
 ; EQ is NOT in SPECIAL_FORMS — it's separate
 ; But EQ has special-form behavior in engine (rewrite rules, comparison fallback)
@@ -314,14 +319,14 @@ SPLAT_PREFIX = \"?...\"")
 ; --- 2. Special forms ---
 
 (derive special-forms-doc-count
-    (count-exists if-symbol let-symbol quote-symbol eq-symbol)
+    (count-exists if-symbol let-symbol quote-symbol strict-symbol eq-symbol)
     :using (count-exists counting.count-exists-base counting.count-exists-step
-            if-symbol let-symbol quote-symbol eq-symbol))
+            if-symbol let-symbol quote-symbol strict-symbol eq-symbol))
 
-(defterm special-forms-impl-count 4
+(defterm special-forms-impl-count 5
     :evidence (evidence "lang.py"
-        :quotes ("IF = Symbol(\"if\")" "LET = Symbol(\"let\")" "QUOTE = Symbol(\"quote\")" "EQ = Symbol(\"=\")")
-        :explanation "4 special form symbols in source"))
+        :quotes ("IF = Symbol(\"if\")" "LET = Symbol(\"let\")" "QUOTE = Symbol(\"quote\")" "STRICT = Symbol(\"strict\")" "EQ = Symbol(\"=\")")
+        :explanation "5 special form symbols in source"))
 
 (diff special-forms-coverage
     :replace special-forms-doc-count

@@ -110,3 +110,17 @@
     (= (filter ?target (?name ?val) ?...rest)
        (+ (if (= ?val ?target) (cons ?name) (quote ())) (filter ?target ?...rest)))
     :origin "step: peel pair, include or skip, recurse on rest")
+
+; --- classify: group items by epistemic status ---
+; classify — given facts with epistemic statuses, produce named lists
+; per status using filter. Blocked on lazy eval: eager evaluation
+; destroys symbol names before filter can see them.
+(import (quote util))
+(defterm classify util.stub :origin "TODO: group items by status using filter — needs lazy eval")
+
+; --- bare-filter: filter without explicit quote pairs ---
+; bare-filter — (bare-filter target s1 s2 s3) where each symbol
+; auto-expands to ((quote name) value). Currently requires explicit
+; ((quote s1) s1) pairs. Needs lazy eval or a self-pair axiom
+; (= ?x ((quote ?x) ?x)) that works pre-eval.
+(defterm bare-filter util.stub :origin "TODO: filter on bare arglist without explicit quote pairs — needs lazy eval")

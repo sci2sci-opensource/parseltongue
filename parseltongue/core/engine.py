@@ -30,6 +30,7 @@ from .lang import (
     LET,
     QUOTE,
     SPECIAL_FORMS,
+    STRICT,
     Axiom,
     Term,
     Theorem,
@@ -161,16 +162,25 @@ class ConsistencyIssue:
             for d in self.items:
                 for i, line in enumerate(str(d).splitlines()):
                     parts.append(f"    {line}" if i else f"  {line}")
+        elif self.type == IssueType.UNVERIFIED_EVIDENCE:
+            for item in self.items:
+                if isinstance(item, tuple):
+                    name, quotes = item
+                    parts.append(f"    {name}")
+                    for q in quotes or []:
+                        parts.append(f"      quote: {q!r}")
+                else:
+                    parts.append(f"    {item}")
         elif self.type == IssueType.NO_EVIDENCE:
             for item in self.items:
                 if isinstance(item, tuple):
                     name, origin = item
-                    parts.append(f"  {name} (origin: {origin})")
+                    parts.append(f"    {name} (origin: {origin})")
                 else:
-                    parts.append(f"  {item}")
+                    parts.append(f"    {item}")
         else:
             for item in self.items:
-                parts.append(f"  {item}")
+                parts.append(f"    {item}")
         return "\n".join(parts)
 
 
@@ -459,36 +469,47 @@ class Engine:
         if head == QUOTE:
             return expr[1]
 
+        if head == STRICT:
+            return self._eval(expr[1], env, axiom_scope, restricted)
+
         head_val = self._eval(head, env, axiom_scope, restricted)
+
+        # Lazy: if head is not callable, try rewrite before evaluating args
+        if not callable(head_val):
+            # Bang: force-eval any (strict ...) args before rewrite
+            lazy_args = []
+            for arg in expr[1:]:
+                if isinstance(arg, list) and arg and arg[0] == STRICT:
+                    lazy_args.append(self._eval(arg[1], env, axiom_scope, restricted))
+                else:
+                    lazy_args.append(arg)
+            formal_expr = [head_val] + lazy_args
+            rewritten = self._rewrite(formal_expr, axiom_scope=axiom_scope)
+            if rewritten != formal_expr:
+                # Only re-eval if the head changed (avoids infinite recursion)
+                new_head = rewritten[0] if isinstance(rewritten, list) and rewritten else rewritten
+                if new_head != head_val:
+                    log.debug("_eval lazy rewrite %r -> %r", formal_expr, rewritten)
+                    return self._eval(rewritten, env, axiom_scope, restricted)
+            # No rewrite or same head — evaluate args and return as formal result
+            args = [self._eval(arg, env, axiom_scope, restricted) for arg in expr[1:]]
+            log.debug("_eval formal result=%r", [head_val] + args)
+            return [head_val] + args
+
         args = [self._eval(arg, env, axiom_scope, restricted) for arg in expr[1:]]
         log.debug("_eval head_val=%r callable=%s args=%r", head_val, callable(head_val), args)
 
-        if callable(head_val):
-            result = head_val(*args)
-            log.debug("_eval callable result=%r", result)
-            # For equality: if direct comparison fails on formal (list) args,
-            # try axiom rewriting — e.g. commutativity can't be checked structurally
-            if result is False and head == EQ and any(isinstance(a, list) for a in args):
-                left_rw = self._rewrite(args[0], axiom_scope=axiom_scope)
-                right_rw = self._rewrite(args[1], axiom_scope=axiom_scope)
-                log.debug("_eval EQ rewrite fallback: left_rw=%r right_rw=%r args=%r", left_rw, right_rw, args)
-                if left_rw == right_rw or left_rw == args[1] or right_rw == args[0]:
-                    return True
-            return result
-
-        # Formal: rewrite then re-evaluate if the head becomes callable
-        formal_expr = [head_val] + args
-        rewritten = self._rewrite(formal_expr, axiom_scope=axiom_scope)
-        if rewritten != formal_expr and isinstance(rewritten, list) and rewritten:
-            new_head = rewritten[0]
-            # Resolve head symbol if needed
-            if isinstance(new_head, Symbol) and new_head in env:
-                new_head = env[new_head]
-            if callable(new_head):
-                log.debug("_eval formal rewrite %r -> %r, re-evaluating", formal_expr, rewritten)
-                return self._eval(rewritten, env, axiom_scope, restricted)
-        log.debug("_eval formal result=%r", rewritten)
-        return rewritten
+        result = head_val(*args)
+        log.debug("_eval callable result=%r", result)
+        # For equality: if direct comparison fails on formal (list) args,
+        # try axiom rewriting — e.g. commutativity can't be checked structurally
+        if result is False and head == EQ and any(isinstance(a, list) for a in args):
+            left_rw = self._rewrite(args[0], axiom_scope=axiom_scope)
+            right_rw = self._rewrite(args[1], axiom_scope=axiom_scope)
+            log.debug("_eval EQ rewrite fallback: left_rw=%r right_rw=%r args=%r", left_rw, right_rw, args)
+            if left_rw == right_rw or left_rw == args[1] or right_rw == args[0]:
+                return True
+        return result
 
     # ----------------------------------------------------------
     # Validation
@@ -949,7 +970,7 @@ class Engine:
                     if not origin.verified and origin.verify_manual:
                         manually_verified.append(name)
                     elif not origin.is_grounded:
-                        unverified.append(name)
+                        unverified.append((name, origin.quotes))
                 elif isinstance(origin, str):
                     if (
                         origin not in ("unknown", "derived")
@@ -959,7 +980,7 @@ class Engine:
                         no_evidence.append((name, origin))
 
         if unverified:
-            issues.append(ConsistencyIssue(IssueType.UNVERIFIED_EVIDENCE, sorted(unverified)))
+            issues.append(ConsistencyIssue(IssueType.UNVERIFIED_EVIDENCE, sorted(unverified, key=lambda x: x[0])))
         if no_evidence:
             issues.append(ConsistencyIssue(IssueType.NO_EVIDENCE, sorted(no_evidence, key=lambda x: x[0])))
         if manually_verified:

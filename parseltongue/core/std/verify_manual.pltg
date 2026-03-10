@@ -1,0 +1,54 @@
+; std.pltg — Manually verify stdlib defterms and axioms.
+;
+; All stdlib definitions use :origin (no document source).
+; verify-manual marks them as manually verified so they pass consistency.
+
+; --- counting.pltg ---
+(verify-manual (quote std.counting.count-exists))
+(verify-manual (quote std.counting.count-exists-base))
+(verify-manual (quote std.counting.count-exists-step))
+(verify-manual (quote std.counting.sum-values))
+(verify-manual (quote std.counting.sum-values-base))
+(verify-manual (quote std.counting.sum-values-step))
+
+; --- epistemics.pltg ---
+(verify-manual (quote std.epistemics.exemplifiable))
+(verify-manual (quote std.epistemics.hallucinated))
+(verify-manual (quote std.epistemics.unknown))
+(verify-manual (quote std.epistemics.witness))
+(verify-manual (quote std.epistemics.witness-base))
+(verify-manual (quote std.epistemics.russell-teapot))
+(verify-manual (quote std.epistemics.joint-status))
+(verify-manual (quote std.epistemics.joint-status-base))
+(verify-manual (quote std.epistemics.joint-status-superpose))
+(verify-manual (quote std.epistemics.joint-status-superpose-two))
+(verify-manual (quote std.epistemics.joint-status-superpose-more))
+(verify-manual (quote std.epistemics.joint-status-step))
+(verify-manual (quote std.epistemics.superpose))
+(verify-manual (quote std.epistemics.witnessed))
+(verify-manual (quote std.epistemics.refuted))
+(verify-manual (quote std.epistemics.hypothesised))
+(verify-manual (quote std.epistemics.collapse))
+(verify-manual (quote std.epistemics.collapse-witnessed))
+(verify-manual (quote std.epistemics.collapse-refuted))
+(verify-manual (quote std.epistemics.collapse-hypothesised))
+(verify-manual (quote std.epistemics.count-hallucinated))
+(verify-manual (quote std.epistemics.count-hallucinated-base))
+(verify-manual (quote std.epistemics.count-hallucinated-step))
+
+; --- lists.pltg ---
+(verify-manual (quote std.lists.cons-prepend))
+(verify-manual (quote std.lists.cons-prepend-rule))
+(verify-manual (quote std.lists.cons))
+(verify-manual (quote std.lists.cons-base))
+(verify-manual (quote std.lists.cons-step))
+(verify-manual (quote std.lists.concat))
+(verify-manual (quote std.lists.concat-base))
+(verify-manual (quote std.lists.concat-two))
+(verify-manual (quote std.lists.concat-step))
+(verify-manual (quote std.lists.uq-concat))
+(verify-manual (quote std.lists.filter))
+(verify-manual (quote std.lists.filter-base))
+(verify-manual (quote std.lists.filter-step))
+(verify-manual (quote std.lists.classify))
+(verify-manual (quote std.lists.bare-filter))

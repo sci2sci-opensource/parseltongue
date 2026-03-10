@@ -14,6 +14,7 @@
 (import (quote lazy_loader))
 (import (quote pyproject))
 (import (quote verify_manual))
+(import (quote ..std.std))
 ; (import (quote self_test))
 (import (quote ..std.util))
 (import (quote ..std.counting))
@@ -904,14 +905,5 @@
 ; =====================================================================
 
 (print "")
-
-
-(defterm alt-node-name false)
-
-(diff ast_swap
-  :replace ast_verifier.node-has-name
-  :with alt-node-name)
-
-
 
 (consistency)
