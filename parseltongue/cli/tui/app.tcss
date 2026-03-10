@@ -2,6 +2,14 @@
 
 Screen {
     background: $surface;
+    overflow: hidden hidden;
+}
+
+/* Prevent child widgets from intercepting scroll events inside scroll containers */
+VerticalScroll *,
+FocusedScroll *,
+FocusedTree * {
+    overflow: hidden hidden;
 }
 
 /* Global button style */
@@ -61,7 +69,10 @@ AnswerScreen {
 AnswerScreen #markdown-panel {
     border: round $primary;
     padding: 1 2;
-    overflow-y: auto;
+}
+
+AnswerScreen #answer-scroll {
+    height: 1fr;
 }
 
 AnswerScreen #report-header {
@@ -82,7 +93,6 @@ AnswerScreen #copy-btn {
 AnswerScreen #provenance-panel {
     border: round #1a5c2a;
     padding: 1 2;
-    overflow-y: auto;
 }
 
 AnswerScreen #provenance-title {
@@ -144,24 +154,22 @@ PassesScreen #passes-state-tree {
 }
 
 /* Consistency screen */
-ConsistencyScreen {
-    padding: 1 2;
-}
-
 ConsistencyScreen #consistency-tree {
     height: 1fr;
+    margin: 1 2 0 2;
 }
 
 /* System state screen */
-SystemStateScreen {
-    padding: 1 2;
-}
-
-SystemStateScreen Tree {
+SystemStateScreen #system-tree {
     height: 1fr;
+    margin: 1 2 0 2;
 }
 
 /* Answer markdown styling — match PassViewer color scheme */
+ReferenceText {
+    height: auto;
+}
+
 ReferenceText Markdown {
     margin: 0;
     padding: 0;
@@ -172,6 +180,14 @@ ReferenceText Markdown MarkdownBlock {
         color: cyan;
         text-style: bold;
     }
+}
+
+ReferenceText Markdown MarkdownHorizontalRule {
+    border-bottom: solid green;
+}
+
+Markdown MarkdownHorizontalRule {
+    border-bottom: solid green;
 }
 
 ReferenceText Markdown MarkdownH1 {
@@ -214,6 +230,7 @@ ReferenceText Markdown MarkdownFence {
     color: white;
     margin: 1 0;
     padding: 1 2;
+    overflow: hidden hidden;
 }
 
 ReferenceText Markdown MarkdownTable {
@@ -239,7 +256,6 @@ FootnoteLabel {
 /* Provenance tree */
 ProvenanceTree {
     height: 1fr;
-    overflow-y: auto;
 }
 
 
@@ -305,12 +321,9 @@ DocumentPicker #continue-btn {
 }
 
 /* Query input screen */
-QueryInput {
-    padding: 1 2;
-}
-
 QueryInput #query-layout {
     height: 1fr;
+    margin: 1 2 0 2;
 }
 
 QueryInput #query-panel {
@@ -380,17 +393,14 @@ DocPreviewModal #doc-preview-close {
 }
 
 /* History browser screen */
-HistoryBrowser {
-    padding: 1 2;
-}
-
 HistoryBrowser #history-title {
     text-style: bold;
-    margin-bottom: 1;
+    margin: 1 2 1 2;
 }
 
 HistoryBrowser #history-table {
     height: 1fr;
+    margin: 0 2;
 }
 
 HistoryBrowser .datatable--header {
@@ -398,6 +408,25 @@ HistoryBrowser .datatable--header {
 }
 
 HistoryBrowser .datatable--cursor {
+    background: green 30%;
+}
+
+/* Recent projects screen */
+RecentProjects #recent-projects-title {
+    text-style: bold;
+    margin: 1 2 1 2;
+}
+
+RecentProjects #recent-projects-table {
+    height: 1fr;
+    margin: 0 2;
+}
+
+RecentProjects .datatable--header {
+    text-style: bold;
+}
+
+RecentProjects .datatable--cursor {
     background: green 30%;
 }
 
@@ -475,4 +504,259 @@ LivePassScreen #live-buttons Button {
 LivePassScreen #live-hints {
     color: $text-muted;
     height: 1;
+}
+
+/* Editor screen (project mode) */
+EditorScreen #editor-layout {
+    layout: grid;
+    grid-size: 2 1;
+    grid-columns: 2fr 1fr;
+    grid-gutter: 1;
+    height: 1fr;
+}
+
+EditorScreen #editor-panel {
+    border: round $primary;
+    padding: 1;
+    height: 1fr;
+}
+
+EditorScreen #editor-header {
+    height: auto;
+    margin-bottom: 1;
+}
+
+EditorScreen #entry-label {
+    text-style: bold;
+    width: 1fr;
+}
+
+EditorScreen #editor-save-btn {
+    width: auto;
+    color: $text-muted;
+}
+
+EditorScreen #editor-tabs {
+    height: 1fr;
+}
+
+EditorScreen #editor-tabs ContentSwitcher {
+    height: 1fr;
+}
+
+EditorScreen #editor-tabs TabPane {
+    height: 1fr;
+}
+
+EditorScreen #editor-tabs TextArea {
+    height: 1fr;
+}
+
+EditorScreen #editor-state-panel {
+    border: round #1a5c2a;
+    padding: 1;
+    height: 1fr;
+}
+
+EditorScreen #editor-state-title {
+    text-style: bold;
+    margin-bottom: 1;
+}
+
+EditorScreen #editor-state-tree {
+    height: 1fr;
+}
+
+/* Modules screen (project mode) */
+ModulesScreen #modules-layout {
+    layout: grid;
+    grid-size: 2 1;
+    grid-columns: 2fr 1fr;
+    grid-gutter: 1;
+    height: 1fr;
+}
+
+ModulesScreen #modules-dsl-panel {
+    border: round $primary;
+    padding: 1;
+    height: 1fr;
+}
+
+ModulesScreen #modules-header {
+    height: auto;
+    margin-bottom: 1;
+}
+
+ModulesScreen #modules-title {
+    text-style: bold;
+    width: 1fr;
+}
+
+ModulesScreen #modules-copy-btn {
+    width: auto;
+    color: $text-muted;
+}
+
+ModulesScreen #modules-tabs {
+    height: 1fr;
+}
+
+ModulesScreen #modules-state-panel {
+    border: round #1a5c2a;
+    padding: 1;
+    height: 1fr;
+}
+
+ModulesScreen #modules-state-title {
+    text-style: bold;
+    margin-bottom: 1;
+}
+
+ModulesScreen #modules-state-tree {
+    height: 1fr;
+}
+
+/* Project files screen */
+ProjectFilesScreen #project-files-panel {
+    height: 1fr;
+    margin: 1 2 0 2;
+}
+
+ProjectFilesScreen #project-files-header {
+    height: 1;
+    margin-bottom: 1;
+}
+
+ProjectFilesScreen #project-path {
+    width: 1fr;
+    height: 1;
+    link-color: cyan;
+    link-style: bold;
+}
+
+ProjectFilesScreen #project-files-hint {
+    width: auto;
+    height: 1;
+    text-style: dim;
+}
+
+ProjectFilesScreen #project-tree {
+    height: 1fr;
+}
+
+ProjectFilesScreen #project-selected-label {
+    height: 1;
+    margin-top: 1;
+}
+
+ProjectFilesScreen #project-open-btn {
+    height: auto;
+}
+
+/* Viewer screen (pgmd notebook) */
+ViewerScreen #viewer-layout {
+    layout: grid;
+    grid-size: 2 1;
+    grid-columns: 2fr 1fr;
+    grid-gutter: 1;
+    height: 1fr;
+}
+
+ViewerScreen #viewer-notebook-panel {
+    border: round $primary;
+    padding: 1;
+    height: 1fr;
+}
+
+ViewerScreen #viewer-header {
+    height: auto;
+    margin-bottom: 1;
+}
+
+ViewerScreen #viewer-title {
+    text-style: bold;
+    width: 1fr;
+}
+
+ViewerScreen #viewer-run-btn {
+    width: auto;
+    color: $text-muted;
+}
+
+ViewerScreen #viewer-tabs {
+    height: 1fr;
+}
+
+/* --- pltg block container --- */
+ViewerScreen .viewer-block {
+    height: auto;
+    margin: 1 0;
+    border-left: thick #1a5c2a;
+    overflow: hidden hidden;
+    background: #0a1a0e;
+    padding: 0 1;
+}
+
+ViewerScreen .viewer-block-header {
+    height: auto;
+    padding: 0 1;
+    width: 1fr;
+}
+
+ViewerScreen .viewer-block-header Static {
+    height: auto;
+}
+
+ViewerScreen .viewer-block-header Static:first-child {
+    width: 1fr;
+}
+
+ViewerScreen .viewer-block-status {
+    width: auto;
+    text-align: right;
+}
+
+ViewerScreen .viewer-block-code {
+    padding: 0 2;
+    margin: 0;
+    height: auto;
+}
+
+/* Collapsed: hide code */
+ViewerScreen .viewer-block.collapsed .viewer-block-code {
+    display: none;
+}
+
+ViewerScreen .viewer-block-output {
+    padding: 0 2;
+    margin: 0;
+    background: $surface-darken-1;
+    color: $text-muted;
+    height: auto;
+}
+
+/* --- display-only code blocks (non-executable) --- */
+ViewerScreen .viewer-code {
+    background: $surface;
+    padding: 0 2 0 2;
+    margin: 0;
+}
+
+ViewerScreen .viewer-display {
+    color: $text-muted;
+}
+
+ViewerScreen #viewer-provenance-panel {
+    border: round #1a5c2a;
+    padding: 1;
+    height: 1fr;
+}
+
+ViewerScreen #viewer-provenance-title {
+    text-style: bold;
+    margin-bottom: 1;
+}
+
+ViewerScreen #viewer-provenance-tree {
+    height: 1fr;
 }

@@ -5,10 +5,10 @@ from __future__ import annotations
 from typing import Any
 
 from rich.markup import escape as rich_escape
-from textual.widgets import Tree
 
 from parseltongue.core.engine import DiffResult
 
+from . import FocusedTree
 from .tree_builders import (
     _add_diff_result_leaves,
     _fmt_value,
@@ -21,7 +21,7 @@ from .tree_builders import (
 )
 
 
-class ProvenanceTree(Tree):
+class ProvenanceTree(FocusedTree):
     """Tree widget that displays the provenance chain for a reference."""
 
     def __init__(self, **kwargs) -> None:

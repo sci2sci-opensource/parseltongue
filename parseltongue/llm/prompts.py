@@ -31,6 +31,9 @@ Every directive must include :evidence with verbatim quotes from the source docu
     :quotes ("exact quote from document" "another exact quote if needed")
     :explanation "why these quotes support this claim")
 
+VERBATIM MEANS VERBATIM:
+Quotes MUST be copied character-for-character from the source document — including all formatting, special symbols, punctuation, bullet markers, numbering, currency signs, percentage signs, parentheses, dashes, and whitespace. Do NOT clean up, reformat, simplify, or normalize quotes. A quote that drops a "$", changes "—" to "-", removes a bullet "•", strips parentheses, or omits any character is NOT verbatim and will fail verification.
+
 EXTRACTION EXAMPLES:
 
 ;; Numeric fact with single quote
@@ -81,7 +84,8 @@ RULES:
 5. Extract ALL facts relevant to answering the user's query.
 6. Every symbol in a WFF MUST already be defined (as a fact, term, or operator) UNLESS it is a ?-variable (e.g., ?a, ?n). You cannot reference names that don't exist yet. Define facts and terms BEFORE axioms that use them.
 7. Axioms MUST contain at least one ?-variable — they are parametric rewrite rules. Ground statements like (> revenue 0) are NOT axioms; use (derive ...) for provable claims. Do NOT create axioms without ?-variables.
-8. Do NOT invent new symbol names inside axiom WFFs — only reference what you have already defined above, plus ?-variables for parameterisation."""
+8. Do NOT invent new symbol names inside axiom WFFs — only reference what you have already defined above, plus ?-variables for parameterisation.
+9. When later passes derive from your axioms, they MUST use :bind to supply concrete values for every ?-variable. Design axioms so each ?-variable has a clear purpose and maps to a specific fact or term that will be bound at derivation time."""
 
     user_prompt = f"""Source documents:
 
@@ -247,6 +251,9 @@ PATTERN — each angle follows this structure:
 EVIDENCE:
 Every new fact, axiom, and defterm MUST include :evidence with verbatim quotes from the source documents. Directives without :evidence are automatically flagged as ungrounded by the consistency checker — this is not a minor warning, it's a real issue that pollutes the report. Use :origin ONLY as a last resort when no document quote exists.
 
+VERBATIM MEANS VERBATIM:
+Quotes MUST be copied character-for-character from the source document — including all formatting, special symbols, punctuation, bullet markers, numbering, currency signs, percentage signs, parentheses, dashes, and whitespace. Do NOT clean up, reformat, simplify, or normalize quotes. A quote that drops a "$", changes "—" to "-", removes a bullet "•", strips parentheses, or omits any character is NOT verbatim and will fail verification.
+
 SCOPE:
 For simple documents, 2-4 high-value verification angles suffice. For complex documents with multiple data sources, cohorts, or competing claims, scale up — cover every important cross-check. Focus on checks that could genuinely reveal a discrepancy: recomputing reported values from independent data, cross-checking facts across documents, and diffing parallel sources against shared criteria. Do NOT generate trivial sanity checks or tautologies. Quality always, but thoroughness when the material demands it.
 
@@ -257,6 +264,20 @@ STRATEGY:
 4. When documents contain parallel data sources (different test datasets, patient cohorts, experimental runs, competing studies), derive the success criteria or acceptance thresholds as axioms with :evidence, then derive concrete outcomes from each source via :bind, and diff corresponding results against each other. This is often the most powerful check — it reveals whether independent sources agree on the conclusion, not just on individual numbers.
 5. Complex documents may require many verification angles. If the system state is large with data from multiple sources or domains, do not limit yourself artificially — cover the important cross-checks even if that means more than 4 diffs. The goal is thoroughness where it matters.
 
+DERIVE FROM AXIOMS — :bind IS MANDATORY:
+When deriving from an axiom that has ?-variables, you MUST use :bind to provide concrete values for EVERY ?-variable. This is not optional.
+
+  ;; Axiom defined earlier (in pass 1 or above):
+  (axiom threshold-check (implies (>= ?val ?threshold) (= ?result "pass")) ...)
+
+  ;; Deriving from it — :bind provides values for ?val, ?threshold, ?result:
+  (derive source-a-passes threshold-check
+    :bind ((?val source-a-score) (?threshold min-threshold) (?result source-a-outcome))
+    :using (threshold-check source-a-score min-threshold source-a-outcome))
+
+  WRONG: (derive foo my-axiom :using (my-axiom ...))  — missing :bind!
+  WRONG: (derive foo my-axiom :bind (()) :using (...))  — empty :bind!
+
 RULES:
 1. Output valid Parseltongue s-expressions via the factcheck tool.
 2. Every symbol you reference MUST exist in the current system state OR be defined above it in your output.
@@ -264,7 +285,8 @@ RULES:
 4. EVERY verification angle MUST end with a (diff ...). No angle is complete without a diff.
 5. Scale to the material — 2-4 diffs for simple cases, more for complex multi-source documents. Every diff should be meaningful.
 6. Axioms MUST have ?-variables (parametric rewrite rules). For ground checks use (derive ...) instead.
-7. Derive :using is restricted — list all symbols the WFF references. Dependencies of axioms/terms in :using are included automatically."""
+7. Derive :using is restricted — list all symbols the WFF references. Dependencies of axioms/terms in :using are included automatically.
+8. When deriving from an axiom with ?-variables, :bind is MANDATORY — provide one ((?var value)) for EACH ?-variable in the axiom. Never omit :bind or leave it empty."""
 
     user_prompt = f"""Fully evaluated system state:
 

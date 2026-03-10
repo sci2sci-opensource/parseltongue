@@ -13,12 +13,15 @@ from dataclasses import dataclass, field
 from pygments import lex
 from pygments.lexers import get_lexer_by_name
 from pygments.token import Token
+from textual import events
 from textual.app import ComposeResult
 from textual.containers import VerticalScroll
 from textual.markup import escape as textual_escape
 from textual.message import Message
 from textual.widget import Widget
 from textual.widgets import Static
+
+from .colors import token_color
 
 _REF_RE = re.compile(r"\[\[(\w+):([^\]]+)\]\]")
 
@@ -32,33 +35,6 @@ def pv_escape(text: str) -> str:
     """
     escaped = textual_escape(text)
     return escaped
-
-
-# Map Pygments token types to Textual color names
-_TOKEN_COLORS: dict[object, str] = {
-    Token.Keyword: "magenta",
-    Token.Keyword.Declaration: "magenta",
-    Token.Name.Builtin: "cyan",
-    Token.Name.Function: "green",
-    Token.Name.Variable: "white",
-    Token.Name: "white",
-    Token.String: "yellow",
-    Token.Literal.String: "yellow",
-    Token.Literal.String.Symbol: "yellow",
-    Token.Literal.Number: "cyan",
-    Token.Literal.Number.Integer: "cyan",
-    Token.Literal.Number.Float: "cyan",
-    Token.Comment: "dim green",
-    Token.Comment.Single: "dim green",
-    Token.Comment.Multiline: "dim green",
-    Token.Operator: "red",
-    Token.Punctuation: "white",
-    Token.Generic.Heading: "bold green",
-    Token.Generic.Subheading: "bold green",
-    Token.Generic.Emph: "italic",
-    Token.Generic.Strong: "bold",
-    Token.Generic.EmphStrong: "bold italic",
-}
 
 
 _UNSAFE_RE = re.compile(r'(?<!\\)[\[\]]')
@@ -75,14 +51,7 @@ def _wrap_safe(escaped: str, color: str) -> str:
     return f"[{color}]{safe}[/{color}]"
 
 
-def _token_color(token_type: object) -> str | None:
-    """Find the best color for a Pygments token type, walking the hierarchy."""
-    t = token_type
-    while t is not Token:
-        if t in _TOKEN_COLORS:
-            return _TOKEN_COLORS[t]
-        t = t.parent  # type: ignore[attr-defined]
-    return None
+_token_color = token_color
 
 
 # ---------------------------------------------------------------------------
@@ -230,7 +199,12 @@ _LANGUAGE_SPECS: dict[str, LanguageSpec] = {
 }
 
 
-def _highlight(source: str, language: str) -> str:
+def _highlight(
+    source: str,
+    language: str,
+    error_names: set[str] | None = None,
+    unreachable_names: set[str] | None = None,
+) -> str:
     """Tokenize source with Pygments, return Textual markup with @click refs."""
     try:
         lexer = get_lexer_by_name(language)
@@ -258,9 +232,22 @@ def _highlight(source: str, language: str) -> str:
         if matched:
             continue
 
-        # 2. Single token — colorize
+        # 2. Check for error/unreachable names
+        stripped = tok_val.strip()
+        if error_names and stripped in error_names:
+            escaped = pv_escape(tok_val)
+            parts.append(_wrap_safe(escaped, "bold red"))
+            i += 1
+            continue
+        if unreachable_names and stripped in unreachable_names:
+            escaped = pv_escape(tok_val)
+            parts.append(_wrap_safe(escaped, "dim yellow"))
+            i += 1
+            continue
+
+        # 3. Single token — colorize
         escaped = pv_escape(tok_val)
-        color = _token_color(tok_type)
+        color = _token_color(tok_type, tok_val)
         if color:
             parts.append(_wrap_safe(escaped, color))
         else:
@@ -287,10 +274,15 @@ def _try_ref(tokens: list[tuple[object, str]], start: int) -> int | None:
     return None
 
 
-def _safe_highlight(source: str, language: str) -> str:
+def _safe_highlight(
+    source: str,
+    language: str,
+    error_names: set[str] | None = None,
+    unreachable_names: set[str] | None = None,
+) -> str:
     """Highlight with graceful fallback — never crash on bad markup."""
     try:
-        markup = _highlight(source, language)
+        markup = _highlight(source, language, error_names, unreachable_names)
         # Validate by letting Textual parse it; raises on bad tags
         from textual.markup import to_content
 
@@ -312,6 +304,12 @@ def _safe_highlight(source: str, language: str) -> str:
 class PassViewer(Widget):
     """Syntax-highlighted source viewer with inline clickable refs."""
 
+    def _on_mouse_scroll_down(self, event: events.MouseScrollDown) -> None:
+        pass  # let it bubble to VerticalScroll
+
+    def _on_mouse_scroll_up(self, event: events.MouseScrollUp) -> None:
+        pass  # let it bubble to VerticalScroll
+
     class RefClicked(Message):
         """Posted when a [[type:name]] reference link is clicked."""
 
@@ -323,6 +321,7 @@ class PassViewer(Widget):
     DEFAULT_CSS = """
     PassViewer {
         height: 1fr;
+        overflow: hidden hidden;
     }
     PassViewer VerticalScroll {
         height: 1fr;
@@ -337,15 +336,24 @@ class PassViewer(Widget):
         self,
         source: str = "",
         language: str = "scheme",
+        error_names: set[str] | None = None,
+        unreachable_names: set[str] | None = None,
         **kwargs,
     ) -> None:
         super().__init__(**kwargs)
         self._source = source
         self._language = language
+        self._error_names = error_names
+        self._unreachable_names = unreachable_names
         self._markup = ""
 
     def compose(self) -> ComposeResult:
-        self._markup = _safe_highlight(self._source, self._language)
+        self._markup = _safe_highlight(
+            self._source,
+            self._language,
+            self._error_names,
+            self._unreachable_names,
+        )
         with VerticalScroll():
             yield Static(self._markup, id="pv-source")
 
@@ -353,12 +361,25 @@ class PassViewer(Widget):
     def plain_text(self) -> str:
         return self._source
 
-    def set_source(self, source: str, language: str | None = None) -> None:
+    def set_source(
+        self,
+        source: str,
+        language: str | None = None,
+        error_names: set[str] | None = None,
+        unreachable_names: set[str] | None = None,
+    ) -> None:
         """Replace content with new highlighted source."""
         if language is not None:
             self._language = language
         self._source = source
-        self._markup = _safe_highlight(source, self._language)
+        self._error_names = error_names
+        self._unreachable_names = unreachable_names
+        self._markup = _safe_highlight(
+            source,
+            self._language,
+            self._error_names,
+            self._unreachable_names,
+        )
         try:
             self.query_one("#pv-source", Static).update(self._markup)
         except Exception:

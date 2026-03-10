@@ -277,29 +277,42 @@ def add_diff_node(parent, name: str, diff: dict, system: Any = None) -> None:
 # ------------------------------------------------------------------
 
 
-def populate_system_tree(tree_root, system: Any) -> None:
-    """Populate a Tree root node with the full system state."""
-    if system.facts:
+def populate_system_tree(tree_root, system: Any, names: set[str] | None = None) -> None:
+    """Populate a Tree root node with system state.
+
+    If *names* is given, only definitions whose name is in the set are shown.
+    """
+
+    def _filter(d: dict) -> dict:
+        return {n: v for n, v in d.items() if names is None or n in names} if d else {}
+
+    facts = _filter(system.facts)
+    terms = _filter(system.terms)
+    axioms = _filter(system.axioms)
+    theorems = _filter(system.theorems)
+    diffs = _filter(system.diffs)
+
+    if facts:
         section = tree_root.add("[bold]Facts[/bold]", expand=True)
-        for name, data in system.facts.items():
+        for name, data in facts.items():
             add_fact_node(section, name, data)
 
-    if system.terms:
+    if terms:
         section = tree_root.add("[bold]Terms[/bold]", expand=True)
-        for name, term in system.terms.items():
+        for name, term in terms.items():
             add_term_node(section, name, term, system=system)
 
-    if system.axioms:
+    if axioms:
         section = tree_root.add("[bold]Axioms[/bold]", expand=True)
-        for name, axiom in system.axioms.items():
+        for name, axiom in axioms.items():
             add_axiom_node(section, name, axiom)
 
-    if system.theorems:
+    if theorems:
         section = tree_root.add("[bold]Theorems[/bold]", expand=True)
-        for name, thm in system.theorems.items():
+        for name, thm in theorems.items():
             add_theorem_node(section, name, thm, system=system)
 
-    if system.diffs:
+    if diffs:
         section = tree_root.add("[bold]Diffs[/bold]", expand=True)
-        for name, diff in system.diffs.items():
+        for name, diff in diffs.items():
             add_diff_node(section, name, diff, system=system)

@@ -21,6 +21,18 @@ class HistoryRequested(Message):
     pass
 
 
+class ProjectRequested(Message):
+    """User wants to load a .pltg project."""
+
+    pass
+
+
+class RecentProjectsRequested(Message):
+    """User wants to see recent projects."""
+
+    pass
+
+
 class ConfigureRequested(Message):
     """User wants to reconfigure settings."""
 
@@ -29,7 +41,9 @@ class ConfigureRequested(Message):
 
 _OPTIONS = [
     Option("New run", id="new-run"),
-    Option("History", id="history"),
+    Option("Load project", id="load-project"),
+    Option("Recent projects", id="recent-projects"),
+    Option("Runs history", id="history"),
     Option("Configure", id="configure"),
     Option("Quit", id="quit"),
 ]
@@ -52,6 +66,10 @@ class MainMenu(Screen):
         match event.option.id:
             case "new-run":
                 self.post_message(NewRunRequested())
+            case "load-project":
+                self.post_message(ProjectRequested())
+            case "recent-projects":
+                self.post_message(RecentProjectsRequested())
             case "history":
                 self.post_message(HistoryRequested())
             case "configure":
