@@ -89,10 +89,9 @@
 ; the group is unknown.
 ;
 ; joint-status computes the group epistemic status of its arguments:
-;   - variadic: works with any number of args
+;   - variadic: works with any number of definite args
 ;   - contagious: hallucinated in any position → hallucinated
-;   - superpose-aware: (strict x) forces evaluation, then superpose
-;     is flattened into variadic args before checking
+;   - requires definite statuses: collapse superpose first
 ;
 ; Examples:
 ;   (joint-status hallucinated exemplifiable) => hallucinated
@@ -101,7 +100,6 @@
 ;   (joint-status exemplifiable exemplifiable) => exemplifiable
 ;   (joint-status exemplifiable unknown)       => unknown
 ;   (joint-status h e u h)                     => hallucinated
-;   (joint-status (superpose h u e))           => hallucinated
 ;   (joint-status <unrecognized> <anything>)   => unknown
 (defterm joint-status :origin "epistemic status of a group — hallucination is contagious")
 
@@ -112,23 +110,12 @@
 
 ; superpose — represents an indeterminate value that could be any of its args.
 ; Used when the system knows the set of possible statuses but not which one.
+; Superpose is indeterminate — it must be collapsed via an observation
+; before it can participate in joint-status or other computations.
 ; Examples:
 ;   (superpose hallucinated unknown exemplifiable) — could be any status
+;   (collapse (superpose h u e) refuted) → hallucinated
 (defterm superpose :origin "indeterminate value — one of the listed possibilities")
-
-; joint-status flattens superpose args into variadic check
-; These MUST come before joint-status-step so superpose is flattened first
-(axiom joint-status-superpose
-    (= (joint-status (superpose ?...xs)) (joint-status ?...xs))
-    :origin "rewrite: superpose → variadic — check all possible values")
-
-(axiom joint-status-superpose-two
-    (= (joint-status (superpose ?...xs) (superpose ?...ys)) (joint-status ?...xs ?...ys))
-    :origin "rewrite: two superposes → variadic — flatten both")
-
-(axiom joint-status-superpose-more
-    (= (joint-status (superpose ?...xs) ?y ?...rest) (joint-status ?...xs ?y ?...rest))
-    :origin "rewrite: superpose + rest → variadic — flatten and continue")
 
 (axiom joint-status-step
     (= (joint-status ?a ?b ?...rest)
