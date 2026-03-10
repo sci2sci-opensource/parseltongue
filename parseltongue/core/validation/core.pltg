@@ -895,6 +895,10 @@
 (diff thm-readme-operator-categories :replace readme.readme-operator-category-count :with default_system_settings.export-operator-category-count)
 (diff thm-readme-parser-stages :replace readme.readme-parser-stages-listing-count :with atoms.export-parser-stages-count)
 (diff thm-readme-issue-types :replace readme.export-issue-types-count :with engine.issue-types-impl-count)
+(diff thm-readme-warning-types :replace readme.export-warning-types-count :with engine.warning-type-count)
+(diff thm-engine-error-cross-check :replace engine.export-error-cross-check :with readme.export-issue-types-count)
+(diff thm-engine-warning-cross-check :replace engine.export-warning-cross-check :with readme.export-warning-types-count)
+(diff thm-consistency-states-total :replace engine.export-consistency-states-total :with readme.export-consistency-states-total)
 (diff thm-readme-manual-categories :replace readme.export-manual-categories-count :with manual-categories-count)
 
 (print "")

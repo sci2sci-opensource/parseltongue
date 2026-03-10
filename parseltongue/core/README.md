@@ -456,6 +456,11 @@ The quote verifier is extensible: custom normalizers, fuzzy matchers, and custom
 | `diff_divergence` | Downstream terms diverge when swapping one value for another |
 | `diff_value_divergence` | The two values in a diff disagree directly |
 
+| Warning Type | Meaning |
+|---|---|
+| `manually_verified` | Evidence was manually verified by a human, not by the system |
+| `diff_contamination` | Diff divergence caused by a sibling diff, not a real disagreement |
+
 Diffs are the primary mechanism for cross-validation. Register a diff, and the system automatically checks whether swapping one value for another causes dependent terms to change.
 
 ```python

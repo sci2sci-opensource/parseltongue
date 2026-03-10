@@ -1178,16 +1178,98 @@
         :quotes ("DIFF_CONTAMINATION = \"diff_contamination\"")
         :explanation "WarningType enum member"))
 
-; --- Epistemic status counts across all 8 witnesses ---
+; --- Items × Layers: epistemic status of all 8 witnesses ---
+;
+; Each witness evaluates to an epistemic status (hallucinated/unknown/exemplifiable).
+; We count how many are hallucinated and how many are unknown, then cross-check
+; against the classification enum counts (5 IssueTypes + 2 WarningTypes).
+;
+; Witnesses → status:
+;   witness-evidence-hallucinated         → hallucinated  (UNVERIFIED_EVIDENCE)
+;   witness-no-evidence-hallucinated      → hallucinated  (NO_EVIDENCE)
+;   witness-fabrication-does-not-hold     → hallucinated  (POTENTIAL_FABRICATION branch 1)
+;   witness-fabrication-ungrounded-source → hallucinated  (POTENTIAL_FABRICATION branch 2)
+;   witness-diff-divergence-hallucinated  → hallucinated  (DIFF_DIVERGENCE)
+;   witness-diff-value-hallucinated       → hallucinated  (DIFF_VALUE_DIVERGENCE)
+;   witness-evidence-unknown              → unknown       (MANUALLY_VERIFIED)
+;   witness-diff-contamination-unknown    → unknown       (DIFF_CONTAMINATION)
+;
+; Hallucinated count = 6 (not 5) because POTENTIAL_FABRICATION has 2 branches.
+; Unknown count = 2, matching 2 WarningType members.
 
 (derive hallucinated-count
-    (count-exists witness-evidence-hallucinated
-                  witness-no-evidence-hallucinated
-                  witness-fabrication-does-not-hold
-                  witness-fabrication-ungrounded-source
-                  witness-diff-divergence-hallucinated
-                  witness-diff-value-hallucinated)
+    (epistemics.count-hallucinated
+        (strict witness-evidence-hallucinated)
+        (strict witness-no-evidence-hallucinated)
+        (strict witness-fabrication-does-not-hold)
+        (strict witness-fabrication-ungrounded-source)
+        (strict witness-diff-divergence-hallucinated)
+        (strict witness-diff-value-hallucinated)
+        (strict witness-evidence-unknown)
+        (strict witness-diff-contamination-unknown))
+    :using (epistemics.count-hallucinated
+            witness-evidence-hallucinated
+            witness-no-evidence-hallucinated
+            witness-fabrication-does-not-hold
+            witness-fabrication-ungrounded-source
+            witness-diff-divergence-hallucinated
+            witness-diff-value-hallucinated
+            witness-evidence-unknown
+            witness-diff-contamination-unknown))
+
+; Issue types that map to hallucinated witnesses (5 types, 6 witnesses)
+(derive issue-type-count
+    (count-exists issue-unverified-evidence
+                  issue-no-evidence
+                  issue-potential-fabrication
+                  issue-diff-divergence
+                  issue-diff-value-divergence)
     :using (count-exists
+            issue-unverified-evidence
+            issue-no-evidence
+            issue-potential-fabrication
+            issue-diff-divergence
+            issue-diff-value-divergence))
+
+; Cross-check: hallucinated-count (6) vs issue-type-count (5)
+; They differ because POTENTIAL_FABRICATION covers 2 independent paths to hallucination
+(defterm fabrication-branch-count 2
+    :evidence (evidence "engine.py"
+        :quotes ("if does_not_hold:" "if ungrounded:")
+        :explanation "fabrication has 2 branches: does-not-hold and ungrounded-source"))
+
+(derive adjusted-issue-count
+    (+ issue-type-count (+ fabrication-branch-count (- 0 1)))
+    :using (issue-type-count fabrication-branch-count))
+
+(diff hallucinated-vs-issues
+    :replace hallucinated-count
+    :with adjusted-issue-count)
+
+; Warning types that map to unknown witnesses (2 types, 2 witnesses)
+(derive warning-type-count
+    (count-exists warning-manually-verified
+                  warning-diff-contamination)
+    :using (count-exists
+            warning-manually-verified
+            warning-diff-contamination))
+
+; Count unknowns from all 8 witnesses using joint-status trick:
+; unknown if status = unknown, else not-unknown
+; We use count-exists on (= witness unknown) checks
+(derive unknown-count-from-witnesses
+    (count-exists
+        (= (strict witness-evidence-unknown) epistemics.unknown)
+        (= (strict witness-diff-contamination-unknown) epistemics.unknown)
+        (= (strict witness-evidence-hallucinated) epistemics.unknown)
+        (= (strict witness-no-evidence-hallucinated) epistemics.unknown)
+        (= (strict witness-fabrication-does-not-hold) epistemics.unknown)
+        (= (strict witness-fabrication-ungrounded-source) epistemics.unknown)
+        (= (strict witness-diff-divergence-hallucinated) epistemics.unknown)
+        (= (strict witness-diff-value-hallucinated) epistemics.unknown))
+    :using (count-exists
+            witness-evidence-unknown
+            witness-diff-contamination-unknown
             witness-evidence-hallucinated
             witness-no-evidence-hallucinated
             witness-fabrication-does-not-hold
@@ -1195,12 +1277,148 @@
             witness-diff-divergence-hallucinated
             witness-diff-value-hallucinated))
 
-(derive unknown-count
-    (count-exists witness-evidence-unknown
-                  witness-diff-contamination-unknown)
+; Cross-check: unknown-count (2) vs warning-type-count (2)
+(diff unknown-vs-warnings
+    :replace unknown-count-from-witnesses
+    :with warning-type-count)
+
+; --- Items × Layers: epistemic status × consequence × classification ---
+;
+; Three layers per witness, all must hold together:
+;   1. Epistemic status: (= (strict witness) epistemics.hallucinated/unknown)
+;   2. Consequence: the derive proving this causes error/warning
+;   3. Classification: the enum entry exists as a fact
+;
+; All 8 witnesses appear in both cross-checks.
+; Booleans do the filtering: hallucinated witnesses score true in error check,
+; unknown witnesses score true in warning check.
+
+; Error cross-check: hallucinated × causes-error × issue-type-exists
+(derive error-cross-check
+    (count-exists
+        (and (= (strict witness-evidence-hallucinated) epistemics.hallucinated)
+             unverified-causes-error issue-unverified-evidence)
+        (and (= (strict witness-no-evidence-hallucinated) epistemics.hallucinated)
+             no-evidence-causes-error issue-no-evidence)
+        (and (= (strict witness-fabrication-does-not-hold) epistemics.hallucinated)
+             fabrication-does-not-hold-causes-error issue-potential-fabrication)
+        (and (= (strict witness-fabrication-ungrounded-source) epistemics.hallucinated)
+             fabrication-ungrounded-causes-error issue-potential-fabrication)
+        (and (= (strict witness-diff-divergence-hallucinated) epistemics.hallucinated)
+             divergence-causes-error issue-diff-divergence)
+        (and (= (strict witness-diff-value-hallucinated) epistemics.hallucinated)
+             value-divergence-causes-error issue-diff-value-divergence)
+        (and (= (strict witness-evidence-unknown) epistemics.hallucinated)
+             manual-causes-warning warning-manually-verified)
+        (and (= (strict witness-diff-contamination-unknown) epistemics.hallucinated)
+             contamination-causes-warning warning-diff-contamination))
     :using (count-exists
-            witness-evidence-unknown
-            witness-diff-contamination-unknown))
+            witness-evidence-hallucinated unverified-causes-error issue-unverified-evidence
+            witness-no-evidence-hallucinated no-evidence-causes-error issue-no-evidence
+            witness-fabrication-does-not-hold fabrication-does-not-hold-causes-error issue-potential-fabrication
+            witness-fabrication-ungrounded-source fabrication-ungrounded-causes-error
+            witness-diff-divergence-hallucinated divergence-causes-error issue-diff-divergence
+            witness-diff-value-hallucinated value-divergence-causes-error issue-diff-value-divergence
+            witness-evidence-unknown manual-causes-warning warning-manually-verified
+            witness-diff-contamination-unknown contamination-causes-warning warning-diff-contamination))
+
+; Warning cross-check: unknown × causes-warning × warning-type-exists
+(derive warning-cross-check
+    (count-exists
+        (and (= (strict witness-evidence-hallucinated) epistemics.unknown)
+             unverified-causes-error issue-unverified-evidence)
+        (and (= (strict witness-no-evidence-hallucinated) epistemics.unknown)
+             no-evidence-causes-error issue-no-evidence)
+        (and (= (strict witness-fabrication-does-not-hold) epistemics.unknown)
+             fabrication-does-not-hold-causes-error issue-potential-fabrication)
+        (and (= (strict witness-fabrication-ungrounded-source) epistemics.unknown)
+             fabrication-ungrounded-causes-error issue-potential-fabrication)
+        (and (= (strict witness-diff-divergence-hallucinated) epistemics.unknown)
+             divergence-causes-error issue-diff-divergence)
+        (and (= (strict witness-diff-value-hallucinated) epistemics.unknown)
+             value-divergence-causes-error issue-diff-value-divergence)
+        (and (= (strict witness-evidence-unknown) epistemics.unknown)
+             manual-causes-warning warning-manually-verified)
+        (and (= (strict witness-diff-contamination-unknown) epistemics.unknown)
+             contamination-causes-warning warning-diff-contamination))
+    :using (count-exists
+            witness-evidence-hallucinated unverified-causes-error issue-unverified-evidence
+            witness-no-evidence-hallucinated no-evidence-causes-error issue-no-evidence
+            witness-fabrication-does-not-hold fabrication-does-not-hold-causes-error issue-potential-fabrication
+            witness-fabrication-ungrounded-source fabrication-ungrounded-causes-error
+            witness-diff-divergence-hallucinated divergence-causes-error issue-diff-divergence
+            witness-diff-value-hallucinated value-divergence-causes-error issue-diff-value-divergence
+            witness-evidence-unknown manual-causes-warning warning-manually-verified
+            witness-diff-contamination-unknown contamination-causes-warning warning-diff-contamination))
+
+; Cross-check diffs
+(diff error-layers-consistent
+    :replace error-cross-check
+    :with adjusted-issue-count)
+
+(diff warning-layers-consistent
+    :replace warning-cross-check
+    :with warning-type-count)
+
+; Collapsed error cross-check: fabrication's 2 branches collapse via joint-status.
+; Both witness-fabrication-does-not-hold and witness-fabrication-ungrounded-source
+; are hallucinated → joint-status(hallucinated, hallucinated) = hallucinated → 1 row.
+; So 6 uncollapsed rows become 5 after joining the fabrication pair.
+(derive collapsed-error-cross-check
+    (count-exists
+        (and (= (strict witness-evidence-hallucinated) epistemics.hallucinated)
+             unverified-causes-error issue-unverified-evidence)
+        (and (= (strict witness-no-evidence-hallucinated) epistemics.hallucinated)
+             no-evidence-causes-error issue-no-evidence)
+        (and (= (strict (epistemics.joint-status
+                    (strict witness-fabrication-does-not-hold)
+                    (strict witness-fabrication-ungrounded-source))) epistemics.hallucinated)
+             fabrication-does-not-hold-causes-error fabrication-ungrounded-causes-error issue-potential-fabrication)
+        (and (= (strict witness-diff-divergence-hallucinated) epistemics.hallucinated)
+             divergence-causes-error issue-diff-divergence)
+        (and (= (strict witness-diff-value-hallucinated) epistemics.hallucinated)
+             value-divergence-causes-error issue-diff-value-divergence)
+        (and (= (strict witness-evidence-unknown) epistemics.hallucinated)
+             manual-causes-warning warning-manually-verified)
+        (and (= (strict witness-diff-contamination-unknown) epistemics.hallucinated)
+             contamination-causes-warning warning-diff-contamination))
+    :using (count-exists epistemics.joint-status
+            witness-evidence-hallucinated unverified-causes-error issue-unverified-evidence
+            witness-no-evidence-hallucinated no-evidence-causes-error issue-no-evidence
+            witness-fabrication-does-not-hold fabrication-does-not-hold-causes-error
+            witness-fabrication-ungrounded-source fabrication-ungrounded-causes-error issue-potential-fabrication
+            witness-diff-divergence-hallucinated divergence-causes-error issue-diff-divergence
+            witness-diff-value-hallucinated value-divergence-causes-error issue-diff-value-divergence
+            witness-evidence-unknown manual-causes-warning warning-manually-verified
+            witness-diff-contamination-unknown contamination-causes-warning warning-diff-contamination))
+
+; collapsed-error-cross-check (5) = issue-type-count (5) — fully connected
+(diff error-layers-consistent
+    :replace collapsed-error-cross-check
+    :with issue-type-count)
+
+; warning-cross-check (2) = warning-type-count (2) — fully connected
+(diff warning-layers-consistent
+    :replace warning-cross-check
+    :with warning-type-count)
+
+; Total consistency states: fully-bound errors + warnings
+(derive consistency-states-total
+    (+ collapsed-error-cross-check warning-cross-check)
+    :using (collapsed-error-cross-check warning-cross-check))
+
+; Export cross-check counts for core.pltg
+(derive export-error-cross-check
+    (util.export collapsed-error-cross-check)
+    :using (util.export collapsed-error-cross-check))
+
+(derive export-warning-cross-check
+    (util.export warning-cross-check)
+    :using (util.export warning-cross-check))
+
+(derive export-consistency-states-total
+    (util.export consistency-states-total)
+    :using (util.export consistency-states-total))
 
 ; =====================================================================
 ; Exports — for core.pltg cross-checks against README

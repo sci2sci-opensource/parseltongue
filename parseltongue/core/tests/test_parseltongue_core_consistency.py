@@ -880,13 +880,29 @@ class TestParseltongueCoreConsistency(unittest.TestCase):
 
         # Walk all diffs and top-level theorems into the graph
         top_level = []
+        from collections import deque as _deque
+
+        def _count_subtree(node_name, g):
+            """Count nodes reachable backwards from node_name."""
+            visited = set()
+            q = _deque([node_name])
+            while q:
+                cur = q.popleft()
+                if cur in visited or cur not in g:
+                    continue
+                visited.add(cur)
+                q.extend(g[cur]["inputs"])
+            return len(visited)
+
         for diff_name, params in engine.diffs.items():
             walk(params["replace"])
             walk(params["with"])
-            # Add diff as a node
+            # Add diff as a node — value shows subtree sizes
+            r_count = _count_subtree(params["replace"], graph)
+            w_count = _count_subtree(params["with"], graph)
             graph[diff_name] = {
                 "kind": "diff",
-                "value": "",
+                "value": f"diff with tree of {r_count + w_count} nodes",
                 "inputs": [params["replace"], params["with"]],
             }
             top_level.append(diff_name)
@@ -1245,8 +1261,7 @@ class TestParseltongueCoreConsistency(unittest.TestCase):
         output_bytes = os.path.getsize(out_path)
         skeleton_ratio = output_bytes / input_bytes if input_bytes else 0
         expand_factor = avg_node / avg_name if avg_name else 1
-        enriched_bytes = output_bytes * expand_factor
-        enriched_ratio = enriched_bytes / input_bytes if input_bytes else 0
+        # enriched_bytes computed after cons_mass is available (see below)
 
         # --- Compute all stats before ANY printing ---
 
@@ -1282,6 +1297,26 @@ class TestParseltongueCoreConsistency(unittest.TestCase):
 
         total_cons_mass = sum(cons_mass[n] for n in graph if n != "__output__")
 
+        # Imaginary bytes: each diff carries both subtrees in consequence space.
+        # For each diff, sum cons_mass of all nodes in both subtrees × avg_node.
+        base_enriched = output_bytes * expand_factor
+        diff_imaginary_bytes = 0
+        for d_name, params in engine.diffs.items():
+            if d_name not in graph:
+                continue
+            for side in (params["replace"], params["with"]):
+                visited = set()
+                q = deque([side])
+                while q:
+                    cur = q.popleft()
+                    if cur in visited or cur not in graph:
+                        continue
+                    visited.add(cur)
+                    q.extend(graph[cur]["inputs"])
+                diff_imaginary_bytes += sum(cons_mass.get(n, 0) for n in visited) * avg_node
+        enriched_bytes = base_enriched + diff_imaginary_bytes
+        enriched_ratio = enriched_bytes / input_bytes if input_bytes else 0
+
         # Per-node directive size + compression ratio
         _node_dir_size = {}
         for f in engine.facts.values():
@@ -1292,8 +1327,24 @@ class TestParseltongueCoreConsistency(unittest.TestCase):
             _node_dir_size[t.name] = len(t.name) + _sexp_len(t.wff) + _evidence_len(t.origin)
         for t in engine.terms.values():
             _node_dir_size[t.name] = len(t.name) + _sexp_len(t.definition) + _evidence_len(t.origin)
+
+        # Diff content = full transitive input tree on both sides
+        def _subtree_size(node_name):
+            """Sum of _node_dir_size for all nodes reachable backwards from node_name."""
+            visited = set()
+            q = deque([node_name])
+            total = 0
+            while q:
+                cur = q.popleft()
+                if cur in visited or cur not in graph:
+                    continue
+                visited.add(cur)
+                total += _node_dir_size.get(cur, 0)
+                q.extend(graph[cur]["inputs"])
+            return total
+
         for d_name, params in engine.diffs.items():
-            _node_dir_size[d_name] = len(d_name) + len(params["replace"]) + len(params["with"])
+            _node_dir_size[d_name] = len(d_name) + _subtree_size(params["replace"]) + _subtree_size(params["with"])
 
         def _node_ratio(n):
             """Compression ratio for a single node."""
@@ -1433,6 +1484,10 @@ class TestParseltongueCoreConsistency(unittest.TestCase):
             f"(×{expand_factor:.1f}: {_hsize(avg_name)} name → {_hsize(avg_node)} full)"
         )
         print(f"\n  Skeleton ratio:           {skeleton_ratio:>10.1f}x  (diagram / input)")
+        print(
+            f"  Base enriched:            {_hsize(base_enriched):>10s}  ({base_enriched / input_bytes if input_bytes else 0:.1f}x)"
+        )
+        print(f"  Diff imaginary:           {_hsize(diff_imaginary_bytes):>10s}  ({len(engine.diffs)} diffs)")
         print(f"  Enriched ratio:           {enriched_ratio:>10.1f}x  (enriched / input)")
 
         # --- Flavor compression ratio ---

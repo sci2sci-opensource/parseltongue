@@ -582,6 +582,18 @@
         :quotes ("diff_value_divergence" "The two values in a diff disagree directly")
         :explanation "Issue type with description"))
 
+; --- Warning types (2) ---
+
+(fact readme-warning-type-1 "manually_verified"
+    :evidence (evidence "README"
+        :quotes ("manually_verified" "Evidence was manually verified by a human, not by the system")
+        :explanation "Warning type with description"))
+
+(fact readme-warning-type-2 "diff_contamination"
+    :evidence (evidence "README"
+        :quotes ("diff_contamination" "Diff divergence caused by a sibling diff, not a real disagreement")
+        :explanation "Warning type with description"))
+
 ; =====================================================================
 ; Custom environments section
 ; =====================================================================
@@ -1536,6 +1548,11 @@
         :quotes ("unverified_evidence" "no_evidence" "potential_fabrication" "diff_divergence" "diff_value_divergence")
         :explanation "README lists 5 issue types in the consistency table"))
 
+(fact readme-documents-engine-warning-count 2
+    :evidence (evidence "README"
+        :quotes ("manually_verified" "diff_contamination")
+        :explanation "README lists 2 warning types in the consistency table"))
+
 (fact readme-documents-engine-diffs-cross-validation true
     :evidence (evidence "README"
         :quotes ("Diffs are the primary mechanism for cross-validation. Register a diff, and the system automatically checks whether swapping one value for another causes dependent terms to change")
@@ -1911,6 +1928,20 @@
 
 (diff readme-issue-types-vs-stated :replace readme-issue-types-listing-count :with readme-documents-engine-issue-count)
 
+; --- 6b. Consistency warning types: stated count vs listing ---
+
+(derive readme-warning-types-listing-count
+    (count-exists readme-warning-type-1 readme-warning-type-2)
+    :using (count-exists readme-warning-type-1 readme-warning-type-2))
+
+(diff readme-warning-types-vs-stated :replace readme-warning-types-listing-count :with readme-documents-engine-warning-count)
+
+; --- 6c. Total consistency states: issues + warnings ---
+
+(derive readme-consistency-states-total
+    (+ readme-issue-types-listing-count readme-warning-types-listing-count)
+    :using (readme-issue-types-listing-count readme-warning-types-listing-count))
+
 ; --- 7. Lazy loader phases: stated count vs listing ---
 
 (derive readme-lazy-phases-listing-count
@@ -2140,6 +2171,14 @@
 (derive export-issue-types-count
     (util.export readme-issue-types-listing-count)
     :using (util.export readme-issue-types-listing-count))
+
+(derive export-warning-types-count
+    (util.export readme-warning-types-listing-count)
+    :using (util.export readme-warning-types-listing-count))
+
+(derive export-consistency-states-total
+    (util.export readme-consistency-states-total)
+    :using (util.export readme-consistency-states-total))
 
 (derive export-lazy-phases-count
     (util.export readme-lazy-phases-listing-count)
