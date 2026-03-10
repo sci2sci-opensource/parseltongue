@@ -10,35 +10,3 @@
 (print "")
 
 (consistency :raise)
-
-axiom:Count-|
-            | —- :using count-exists in concrete-apples-from-orchad —|
-            |      :fact-apple-1   ————————————————————————————————— |
-            |      :fact-apple-2. ———————————————————————————————————|
-            |                                                         —- two-apple-theorem —-|
-            | —- :using count-exists in orchid-inventory-doc ————-|                          |
-                 :record-apple-1   ———————————————————-———————————|                          |
-                 :record-apple-2. ————————————————————————————————|                          |
-                                                                   —- record-apple-theorem —-|
-                                                                                             |—- :using two-apple-theorem in theorem-checker——————————————|
-                                                                                             |—- :using record-apple-theorem  in theorem-checker——————————|
-                                                                                                 :fact-instruction-mention-recodring in theorem-checker—--|
-                                                                                                                                                          —- follows-instructions-theorem —|
-
-⏺ axiom:count-exists ─|
-                      |── :using count-exists in two-apple-theorem ──|
-                      |   :fact-apple-1 ─────────────────────────────|
-                      |   :fact-apple-2 ─────────────────────────────|
-                      |                                              |── two-apple-theorem (=2) ──|
-                      |── :using count-exists in record-count ───────|                            |
-                      |   :fact-record-1 ────────────────────────────|                            |
-                      |   :fact-record-2 ────────────────────────────|                            |
-                      |                                              |── record-count (=2) ───────|
-                      |                                              |                            |
-                      |──────────────────────────────────────────────|── :using count-exists ─────|
-                                                                     |── :using fact-record-1 ────|
-                                                                     |── :using fact-record-2 ────|
-                                                                     |── :using fact-apple-1 ─────|
-                                                                     |── :using fact-apple-1 ─────|
-                                                                     |── in cross-checker ────────|
-                                                                                                  |── cross-checker (=2)
