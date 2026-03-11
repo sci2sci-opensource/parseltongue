@@ -3,8 +3,8 @@ name: Code Stats
 on:
   push:
     branches: [main, master]
-  pull_request:
-    branches: [main, master]
+    tags: ["v*"]
+  workflow_dispatch:
 
 jobs:
   stats:
