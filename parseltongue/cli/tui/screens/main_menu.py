@@ -39,6 +39,12 @@ class ConfigureRequested(Message):
     pass
 
 
+class QuitRequested(Message):
+    """User wants to quit the app."""
+
+    pass
+
+
 _OPTIONS = [
     Option("New run", id="new-run"),
     Option("Load project", id="load-project"),
@@ -51,6 +57,10 @@ _OPTIONS = [
 
 class MainMenu(Screen):
     """Landing screen with arrow-navigable option list."""
+
+    BINDINGS = [
+        ("escape", "app.request_quit", "Quit"),
+    ]
 
     def compose(self) -> ComposeResult:
         yield Static(
@@ -75,4 +85,4 @@ class MainMenu(Screen):
             case "configure":
                 self.post_message(ConfigureRequested())
             case "quit":
-                self.app.exit()
+                self.post_message(QuitRequested())

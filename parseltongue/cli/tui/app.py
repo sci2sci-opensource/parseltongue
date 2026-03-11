@@ -29,6 +29,7 @@ class ParseltongueApp(App):
     CSS_PATH = CSS_PATH
     BINDINGS = [
         Binding("f7", "main_menu", "Menu", show=False),
+        Binding("ctrl+q", "request_quit", "Quit", show=False),
     ]
 
     def __init__(
@@ -341,12 +342,10 @@ class ParseltongueApp(App):
             self._save_project_state()
 
     def on_configure_requested(self, event) -> None:
-        """Main menu → Configure → suspend TUI, run terminal wizard."""
-        from ..config import run_wizard
+        """Main menu → Configure → open settings screen."""
+        from .screens.configure import ConfigureScreen
 
-        with self.suspend():
-            config = run_wizard()
-        self._standalone_config = config
+        self.push_screen(ConfigureScreen())
 
     # ------------------------------------------------------------------
     # Standalone mode: doc picker → query input → pipeline
@@ -530,6 +529,16 @@ class ParseltongueApp(App):
         from .screens.history_browser import HistoryBrowser
 
         self.push_screen(HistoryBrowser())
+
+    def action_request_quit(self) -> None:
+        """Show quit confirmation modal."""
+        from .screens.quit_modal import QuitModal
+
+        def on_quit(confirmed: bool | None) -> None:
+            if confirmed:
+                self.exit()
+
+        self.push_screen(QuitModal(), callback=on_quit)
 
     def action_main_menu(self) -> None:
         if self._mode != "standalone":
