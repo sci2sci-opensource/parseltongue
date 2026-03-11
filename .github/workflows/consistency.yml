@@ -22,3 +22,16 @@ jobs:
 
       - name: Run self-validation
         run: python -m parseltongue load_main parseltongue.pltg
+
+      - name: Run consistency tests
+        id: consistency
+        run: python -m pytest parseltongue/core/tests/test_parseltongue_core_consistency.py -v 2>&1 | tee consistency.log
+        continue-on-error: true
+
+      - name: Warn on consistency failures
+        if: steps.consistency.outcome == 'failure'
+        run: |
+          echo "::warning::Consistency tests have failures (xfail or otherwise) — see log for details"
+          grep -E "FAILED|XFAIL|xfail" consistency.log | while read line; do
+            echo "::warning::$line"
+          done
