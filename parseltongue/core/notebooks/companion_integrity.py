@@ -105,6 +105,7 @@ class IntegrityResult:
     blocks: dict[int, BlockIntegrity] = field(default_factory=dict)
     misordered: bool = False
     duplicates: list[int] = field(default_factory=list)
+    corrupted: bool = False
 
     @property
     def is_clean(self) -> bool:
@@ -197,6 +198,45 @@ def resolve_duplicates(companion_text: str, block_num: int, canonical_hash: str)
     return text.strip() + "\n" if text.strip() else ""
 
 
+def check_corruption(companion_text: str) -> bool:
+    """Detect companion files with content but broken block structure.
+
+    Corruption cases:
+    1. Non-empty content but zero block markers — manually edited or old format.
+    2. Significant content outside block markers — stray code between/around blocks.
+
+    Parameters
+    ----------
+    companion_text : str
+        Raw companion file content.
+
+    Returns
+    -------
+    bool
+        True if the file appears corrupted.
+    """
+    stripped = companion_text.strip()
+    if not stripped:
+        return False
+
+    markers = list(BLOCK_RE.finditer(companion_text))
+
+    # Case 1: content but no markers at all
+    if not markers:
+        return True
+
+    # Case 2: significant content outside markers
+    outside = companion_text
+    for m in reversed(markers):
+        outside = outside[: m.start()] + outside[m.end() :]
+    for line in outside.splitlines():
+        s = line.strip()
+        if s and not s.startswith(";;"):
+            return True
+
+    return False
+
+
 def check_ordering(companion_text: str) -> bool:
     """Detect misordered blocks in companion text.
 
@@ -275,6 +315,7 @@ def check_integrity(pgmd_source: str, companion_text: str) -> IntegrityResult:
     # Structural checks
     result.duplicates = check_duplicates(companion_text)
     result.misordered = check_ordering(companion_text)
+    result.corrupted = check_corruption(companion_text)
 
     # Parse companion entries: block_num → (stored_hash, content)
     companion_data: dict[int, tuple[str, str]] = {}
@@ -292,7 +333,9 @@ def check_integrity(pgmd_source: str, companion_text: str) -> IntegrityResult:
             )
             continue
 
-        if block_num < len(expected) and stored_hash == expected[block_num]:
+        # Recompute hash from actual companion content to detect edits
+        actual_hash = chain_hash(comp_content, expected[block_num - 1] if block_num > 0 else "")
+        if block_num < len(expected) and actual_hash == expected[block_num]:
             result.valid.add(block_num)
             result.blocks[block_num] = BlockIntegrity(BlockStatus.VALID, stored_hash=stored_hash)
         else:

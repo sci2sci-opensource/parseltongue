@@ -34,10 +34,13 @@ from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.screen import ModalScreen
 from textual.widgets import Button, Label, Static
 
-from parseltongue.core.companion_integrity import (
+from parseltongue.core.notebooks.companion_integrity import (
     BLOCK_RE,
+    build_chain,
+    check_corruption,
     check_duplicates,
     check_ordering,
+    format_block,
     repair_ordering,
     resolve_duplicates,
 )
@@ -277,6 +280,11 @@ class CompanionRepairModal(ModalScreen[str | None]):
         height: auto;
     }
 
+    CompanionRepairModal #corruption-preview {
+        height: auto;
+        border: solid $primary-darken-2;
+    }
+
     CompanionRepairModal .dup-btn-row {
         height: auto;
         margin-top: 0;
@@ -313,6 +321,7 @@ class CompanionRepairModal(ModalScreen[str | None]):
         filename: str,
         companion_text: str,
         source_blocks: dict[int, str],
+        pgmd_source: str = "",
         **kwargs,
     ) -> None:
         super().__init__(**kwargs)
@@ -320,6 +329,7 @@ class CompanionRepairModal(ModalScreen[str | None]):
         self._original_text = companion_text
         self._working_text = companion_text
         self._source_blocks = source_blocks
+        self._pgmd_source = pgmd_source
 
     def compose(self) -> ComposeResult:
         with Vertical(id="repair-box"):
@@ -330,7 +340,7 @@ class CompanionRepairModal(ModalScreen[str | None]):
             with VerticalScroll(id="repair-scroll"):
                 yield Vertical(id="repair-issues")
             with Horizontal(id="repair-buttons"):
-                yield Button("Apply", id="btn-apply", variant="primary")
+                yield Button("Apply", id="btn-apply", variant="primary", disabled=True)
                 yield Button("Cancel", id="btn-cancel")
 
     def on_mount(self) -> None:
@@ -341,19 +351,39 @@ class CompanionRepairModal(ModalScreen[str | None]):
         container = self.query_one("#repair-issues", Vertical)
         container.remove_children()
 
+        # Enable Apply only when working copy differs from original
+        try:
+            apply_btn = self.query_one("#btn-apply", Button)
+            apply_btn.disabled = self._working_text == self._original_text
+        except Exception:
+            pass
+
+        corrupted = check_corruption(self._working_text)
         misordered = check_ordering(self._working_text)
         duplicates = check_duplicates(self._working_text)
         groups = collect_duplicates(self._working_text, self._source_blocks)
 
         widgets: list = []
 
-        if not misordered and not duplicates:
+        if not corrupted and not misordered and not duplicates:
             if self._working_text != self._original_text:
                 widgets.append(Static("[bold green]All issues resolved.[/bold green] " "Press Apply to save."))
             else:
                 widgets.append(Static("[dim]No structural issues found.[/dim]"))
             container.mount_all(widgets)
             return
+
+        # Corruption
+        if corrupted:
+            markers = list(BLOCK_RE.finditer(self._working_text))
+            if not markers:
+                desc = "No block markers found — file contains raw code without structure."
+            else:
+                desc = "Content found outside block markers."
+            preview = self._working_text
+            widgets.append(Static(f"[bold red]⚠ Corrupted companion file[/bold red]\n" f"  {desc}"))
+            widgets.append(Static(f"[dim]{pv_escape(preview)}[/dim]", id="corruption-preview"))
+            widgets.append(Button("Overwrite with source blocks", id="btn-overwrite", variant="warning"))
 
         # Misordering
         if misordered:
@@ -425,6 +455,10 @@ class CompanionRepairModal(ModalScreen[str | None]):
         if not btn_id:
             return
 
+        if btn_id == "btn-overwrite":
+            self._do_overwrite()
+            return
+
         if btn_id == "btn-reorder":
             self._do_reorder()
             return
@@ -460,6 +494,32 @@ class CompanionRepairModal(ModalScreen[str | None]):
         self.app.push_screen(
             RepairConfirmModal(
                 action_label="Repair block ordering",
+                before=self._working_text,
+                after=new_text,
+            ),
+            callback=_on_confirm,
+        )
+
+    def _do_overwrite(self) -> None:
+        """Rebuild companion from source blocks and show confirm with diff."""
+        if not self._pgmd_source:
+            return
+        chain = build_chain(self._pgmd_source)
+        parts = []
+        for bn in sorted(self._source_blocks):
+            h = chain[bn] if bn < len(chain) else ""
+            if h:
+                parts.append(format_block(bn, self._source_blocks[bn], h))
+        new_text = "\n".join(parts) + "\n" if parts else ""
+
+        def _on_confirm(confirmed: bool | None) -> None:
+            if confirmed:
+                self._working_text = new_text
+                self._refresh_issues()
+
+        self.app.push_screen(
+            RepairConfirmModal(
+                action_label="Overwrite companion with source blocks",
                 before=self._working_text,
                 after=new_text,
             ),

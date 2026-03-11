@@ -838,6 +838,17 @@
 (diff thm-lazy-patch-paired :replace lazy_loader.patch-paired :with stub-lazy-patch-paired)
 (diff thm-lazy-result-methods :replace lazy_loader.result-method-count :with readme-lazy-result-count)
 
+; =====================================================================
+; Notebooks module — pgmd, companion, companion_integrity
+; TODO: create notebooks.pltg with ground-truth facts
+; =====================================================================
+
+(derive stub-notebooks-pgmd-parser stub :using (stub))
+(derive stub-notebooks-companion-tracker stub :using (stub))
+(derive stub-notebooks-integrity-chain stub :using (stub))
+(derive stub-notebooks-integrity-corruption stub :using (stub))
+(derive stub-notebooks-block-markers stub :using (stub))
+
 ; --- other module theorems ---
 (print "")
 (print "--- other theorem cross-checks ---")

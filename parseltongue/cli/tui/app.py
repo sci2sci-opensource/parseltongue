@@ -252,17 +252,27 @@ class ParseltongueApp(App):
         import asyncio
 
         from parseltongue.core.loader import LazyLoader
-        from parseltongue.core.pgmd import extract_pltg
 
         entry_path = str(entry_point)
 
         def do_run():
+            from parseltongue.core.notebooks.companion import CompanionTracker, companion_path_for
+            from parseltongue.core.notebooks.companion_integrity import check_corruption
+            from parseltongue.core.notebooks.pgmd import parse_pgmd
+
             loader = LazyLoader()
             if entry_path.endswith(".pgmd"):
                 source = entry_point.read_text()
-                pltg_source = extract_pltg(source)
-                companion = entry_point.parent / f".{entry_point.stem}.pltg"
-                companion.write_text(pltg_source)
+                companion = companion_path_for(entry_point)
+                companion_text = companion.read_text() if companion.exists() else ""
+
+                # If no companion or corrupted, write all blocks with proper markers
+                if not companion_text.strip() or check_corruption(companion_text):
+                    tracker = CompanionTracker(entry_point, companion)
+                    pltg_blocks = [b for b in parse_pgmd(source) if b.kind == "pltg"]
+                    for bn, block in enumerate(pltg_blocks):
+                        tracker.execute(bn, block.content)
+
                 load_path = str(companion)
             else:
                 load_path = entry_path
@@ -291,7 +301,9 @@ class ParseltongueApp(App):
             self._modules_screen.update(system, loader)
 
         if getattr(self, "_viewer_screen", None) is not None:
-            pgmd_files: dict[str, tuple[Path, str]] = {}
+            from parseltongue.core.notebooks.companion import companion_path_for
+
+            pgmd_files: dict[str, tuple[Path, Path, str]] = {}
             project_dir = getattr(self, "_project_dir", None)
             entry_stem = (
                 self._editor_screen._entry_point.stem
@@ -305,7 +317,7 @@ class ParseltongueApp(App):
                     paths.sort(key=lambda p: p.stem != entry_stem)
                 for p in paths:
                     try:
-                        pgmd_files[p.stem] = (p, p.read_text())
+                        pgmd_files[p.stem] = (p, companion_path_for(p), p.read_text())
                     except Exception:
                         pass
             self._viewer_screen.update(pgmd_files)  # type: ignore[union-attr]
@@ -671,8 +683,10 @@ class ParseltongueApp(App):
         """Compare current files against snapshot, prompt to reload on changes."""
         # Check companion integrity separately (dot-files excluded from general snapshot)
         viewer = getattr(self, "_viewer_screen", None)
-        if viewer and viewer.is_mounted:
+        if viewer and viewer._tabs:
             viewer.check_companion_integrity()
+        elif viewer:
+            log.debug("Watcher: viewer exists but _tabs empty (%d tabs)", len(viewer._tabs))
 
         current = self._snapshot_project()
         old = getattr(self, "_file_snapshot", {})
