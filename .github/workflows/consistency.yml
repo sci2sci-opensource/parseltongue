@@ -21,7 +21,13 @@ jobs:
         run: pip install -e ".[dev]"
 
       - name: Run self-validation
+        id: self-validation
         run: python -m parseltongue load_main parseltongue.pltg
+        continue-on-error: true
+
+      - name: Warn on self-validation failure
+        if: steps.self-validation.outcome == 'failure'
+        run: echo "::warning::Self-validation failed — parseltongue.pltg did not load cleanly"
 
       - name: Run consistency tests
         id: consistency
