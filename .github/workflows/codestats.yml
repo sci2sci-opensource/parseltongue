@@ -1,0 +1,118 @@
+name: Code Stats
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  stats:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # full history for git stats
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -e ".[dev,llm]"
+
+      # ── Code coverage ──
+      - name: Run tests with coverage
+        run: |
+          pip install coverage
+          coverage run -m pytest
+          coverage report --show-missing | tee coverage-report.txt
+          coverage json -o coverage.json
+          coverage html -d coverage-html
+
+      # ── LOC & complexity ──
+      - name: Install scc
+        run: |
+          wget -qO- https://github.com/boyter/scc/releases/download/v3.4.0/scc_Linux_x86_64.tar.gz | tar xz
+          sudo mv scc /usr/local/bin/
+
+      - name: Lines of code
+        run: |
+          scc parseltongue/ --format json -o loc.json
+          scc parseltongue/ | tee loc-report.txt
+
+      - name: Cyclomatic complexity
+        run: |
+          pip install radon
+          radon cc parseltongue/ -a -s -j > complexity.json
+          radon cc parseltongue/ -a -s | tee complexity-report.txt
+          radon mi parseltongue/ -s | tee maintainability-report.txt
+
+      # ── Git stats ──
+      - name: Git activity stats
+        run: |
+          echo "=== Commit frequency (last 30 days) ===" > git-stats.txt
+          git log --since="30 days ago" --oneline | wc -l | xargs -I{} echo "Commits (30d): {}" >> git-stats.txt
+          echo "" >> git-stats.txt
+
+          echo "=== Commits per author (last 90 days) ===" >> git-stats.txt
+          git shortlog -sn --since="90 days ago" >> git-stats.txt
+          echo "" >> git-stats.txt
+
+          echo "=== Files changed per commit (last 20) ===" >> git-stats.txt
+          git log --oneline --stat -20 | tail -60 >> git-stats.txt
+          echo "" >> git-stats.txt
+
+          echo "=== Lines added/removed (last 30 days) ===" >> git-stats.txt
+          git log --since="30 days ago" --numstat --pretty="%H" | awk 'NF==3 {add+=$1; del+=$2} END {printf "Added: %d\nRemoved: %d\nNet: %d\n", add, del, add-del}' >> git-stats.txt
+          echo "" >> git-stats.txt
+
+          echo "=== Churn — most changed files (last 90 days) ===" >> git-stats.txt
+          git log --since="90 days ago" --name-only --pretty=format: | sort | uniq -c | sort -rn | head -20 >> git-stats.txt
+
+          cat git-stats.txt
+
+      # ── Summary ──
+      - name: Build summary
+        run: |
+          echo "## Code Stats" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          echo "### Coverage" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          tail -5 coverage-report.txt >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          echo "### Lines of Code" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          head -30 loc-report.txt >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          echo "### Complexity (average)" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          tail -3 complexity-report.txt >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          echo "### Git Activity" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          cat git-stats.txt >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: codestats
+          path: |
+            coverage.json
+            coverage-report.txt
+            coverage-html/
+            loc.json
+            loc-report.txt
+            complexity.json
+            complexity-report.txt
+            maintainability-report.txt
+            git-stats.txt
