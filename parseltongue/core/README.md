@@ -380,13 +380,14 @@ The hypothetical values are manually verified because they represent scenarios i
 
 ## Execution Engine
 
-The engine evaluates s-expressions left-to-right, applying rewrite axioms up to a depth limit of 100, with an `=`-rewrite fallback for structural equality. Three special forms are handled directly by the engine:
+The engine evaluates s-expressions left-to-right, applying rewrite axioms up to a depth limit of 100, with an `=`-rewrite fallback for structural equality. Four special forms are handled directly by the engine:
 
 | Form | Behavior |
 |---|---|
 | `if` | `(if cond then else)` — evaluates condition, returns `then` or `else` branch |
 | `let` | `(let ((x 1) (y 2)) body)` — binds local variables, evaluates body in extended env |
 | `quote` | `(quote expr)` — returns expression unevaluated |
+| `strict` | `(strict expr)` — forces eager evaluation, overriding default lazy strategy |
 
 The `Engine` constructor accepts two behavioral flags:
 

@@ -333,7 +333,7 @@
 
 (defterm consistency-has-impl 1
     :evidence (evidence "engine.py"
-        :quotes ("def consistency(self) -> ConsistencyReport:")
+        :quotes ("def consistency(self, suppress_log: bool = True) -> ConsistencyReport:")
         :explanation "consistency method exists in source"))
 
 (diff consistency-method-documented
@@ -782,9 +782,10 @@
         :explanation "warnings list is stored but consistent depends only on issues; warnings don't break consistency"))
 
 ; Evidence → epistemic status → consistency outcome
-; Goal: derive that hallucinated claims are errors and unknown claims are warnings.
-(defterm hallucinated-is-error util.stub :origin "TODO: derive hallucinated → consistency-error via evidence chain")
-(defterm unknown-is-warning util.stub :origin "TODO: derive unknown → consistency-warning via evidence chain")
+; Isomorphism: three independent counts align for errors and warnings.
+;   errors:   collapsed-error-cross-check = issue-type-count = adjusted-issue-count  (all 5)
+;   warnings: warning-cross-check = warning-type-count = unknown-count-from-witnesses (all 2)
+; These are derived at the end of this section after all three layers are built.
 
 ; Evidence → epistemic status axioms
 (load-document "epistemics.pltg" "../std/epistemics.pltg")
@@ -1402,6 +1403,64 @@
     :replace warning-cross-check
     :with warning-type-count)
 
+; --- Isomorphism: hallucinated ≅ errors, unknown ≅ warnings ---
+; Four independent counts must all be 5:
+;   1. collapsed-error-cross-check: mega (hallucinated × causes-error × enum)
+;   2. issue-type-count: IssueType enum members
+;   3. collapsed-hallucinated-count: count-hallucinated with fab pair joint-status'd
+;   4. causes-error-count: count-exists of all causes-error derives (fab collapsed)
+
+(derive collapsed-hallucinated-count
+    (epistemics.count-hallucinated
+        (strict witness-evidence-hallucinated)
+        (strict witness-no-evidence-hallucinated)
+        (strict (epistemics.joint-status
+            (strict witness-fabrication-does-not-hold)
+            (strict witness-fabrication-ungrounded-source)))
+        (strict witness-diff-divergence-hallucinated)
+        (strict witness-diff-value-hallucinated)
+        (strict witness-evidence-unknown)
+        (strict witness-diff-contamination-unknown))
+    :using (epistemics.count-hallucinated epistemics.joint-status
+            witness-evidence-hallucinated witness-no-evidence-hallucinated
+            witness-fabrication-does-not-hold witness-fabrication-ungrounded-source
+            witness-diff-divergence-hallucinated witness-diff-value-hallucinated
+            witness-evidence-unknown witness-diff-contamination-unknown))
+
+(derive causes-error-count
+    (count-exists
+        (and unverified-causes-error issue-unverified-evidence)
+        (and no-evidence-causes-error issue-no-evidence)
+        (and fabrication-does-not-hold-causes-error fabrication-ungrounded-causes-error issue-potential-fabrication)
+        (and divergence-causes-error issue-diff-divergence)
+        (and value-divergence-causes-error issue-diff-value-divergence))
+    :using (count-exists
+            unverified-causes-error issue-unverified-evidence
+            no-evidence-causes-error issue-no-evidence
+            fabrication-does-not-hold-causes-error fabrication-ungrounded-causes-error issue-potential-fabrication
+            divergence-causes-error issue-diff-divergence
+            value-divergence-causes-error issue-diff-value-divergence))
+
+(derive hallucinated-is-error
+    (= collapsed-error-cross-check issue-type-count collapsed-hallucinated-count causes-error-count)
+    :using (collapsed-error-cross-check issue-type-count collapsed-hallucinated-count causes-error-count))
+
+(derive causes-warning-count
+    (count-exists
+        (and manual-causes-warning warning-manually-verified)
+        (and contamination-causes-warning warning-diff-contamination))
+    :using (count-exists
+            manual-causes-warning warning-manually-verified
+            contamination-causes-warning warning-diff-contamination))
+
+(derive unknown-is-warning
+    (= warning-cross-check warning-type-count unknown-count-from-witnesses causes-warning-count)
+    :using (warning-cross-check warning-type-count unknown-count-from-witnesses causes-warning-count))
+
+(derive isomorphism-hallucinations-errors-unknowns-warnings
+    (and hallucinated-is-error unknown-is-warning)
+    :using (hallucinated-is-error unknown-is-warning))
+
 ; Total consistency states: fully-bound errors + warnings
 (derive consistency-states-total
     (+ collapsed-error-cross-check warning-cross-check)
@@ -1563,4 +1622,7 @@
 (derive export-expr-references
     (util.export expr-references-is-static)
     :using (util.export expr-references-is-static))
+
+; --- TODO: new functionality ---
+(defterm stub-suppress-log :origin "TODO: consistency() gained suppress_log: bool = True param — silences log.warning output by default")
 

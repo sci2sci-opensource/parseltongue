@@ -6,7 +6,7 @@ No domain knowledge, no state.
 """
 
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Literal, overload
 
 # ============================================================
 # S-Expression Reader
@@ -20,22 +20,35 @@ class Symbol(str):
         return f"'{self}"
 
 
-def tokenize(source: str) -> list[str]:
-    """Tokenize s-expression source into atoms and parens."""
+@overload
+def tokenize(source: str, *, track_lines: Literal[False] = ...) -> list[str]: ...
+@overload
+def tokenize(source: str, *, track_lines: Literal[True]) -> tuple[list[str], list[int]]: ...
+def tokenize(source: str, *, track_lines: bool = False) -> list[str] | tuple[list[str], list[int]]:
+    """Tokenize s-expression source into atoms and parens.
+
+    If *track_lines* is True, returns ``(tokens, token_lines)`` where
+    ``token_lines[i]`` is the 1-based line number of ``tokens[i]``.
+    """
     tokens = []
+    token_lines: list[int] = []
+    line_no = 1
     in_string = False
     in_comment = False
     escaped = False
     current: list[str] = []
+    current_start_line = 1
     for char in source:
         if char == "\n":
             in_comment = False
             escaped = False
             if not in_string and current:
                 tokens.append("".join(current))
+                token_lines.append(current_start_line)
                 current = []
             elif in_string:
                 current.append(char)
+            line_no += 1
             continue
         if in_comment:
             continue
@@ -50,6 +63,7 @@ def tokenize(source: str) -> list[str]:
                 in_string = False
                 current.append(char)
                 tokens.append("".join(current))
+                token_lines.append(current_start_line)
                 current = []
             else:
                 current.append(char)
@@ -58,24 +72,35 @@ def tokenize(source: str) -> list[str]:
             in_comment = True
             if current:
                 tokens.append("".join(current))
+                token_lines.append(current_start_line)
                 current = []
             continue
         if char == '"':
+            if not current:
+                current_start_line = line_no
             in_string = True
             current.append(char)
         elif char in "()":
             if current:
                 tokens.append("".join(current))
+                token_lines.append(current_start_line)
                 current = []
             tokens.append(char)
+            token_lines.append(line_no)
         elif char in " \t\n\r":
             if current:
                 tokens.append("".join(current))
+                token_lines.append(current_start_line)
                 current = []
         else:
+            if not current:
+                current_start_line = line_no
             current.append(char)
     if current:
         tokens.append("".join(current))
+        token_lines.append(current_start_line)
+    if track_lines:
+        return tokens, token_lines
     return tokens
 
 

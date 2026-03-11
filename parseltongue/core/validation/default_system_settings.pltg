@@ -245,8 +245,8 @@
 
 (fact eq-impl true
     :evidence (evidence "default_system_settings.py"
-        :quotes ("EQ: operator.eq,")
-        :explanation "EQ maps to operator.eq (special case from lang)"))
+        :quotes ("EQ: lambda *args: all(a == args[0] for a in args[1:]),")
+        :explanation "EQ is variadic: all args must be equal"))
 
 (fact ne-impl true
     :evidence (evidence "default_system_settings.py"

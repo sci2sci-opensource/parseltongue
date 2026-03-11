@@ -150,8 +150,8 @@ ENGINE_DOCS = {
 # ============================================================
 
 DEFAULT_OPERATORS: dict[Symbol, Any] = {
-    # Special case, eq from lang can act as operator
-    EQ: operator.eq,
+    # Special case, eq from lang can act as operator (variadic: all args equal)
+    EQ: lambda *args: all(a == args[0] for a in args[1:]),
     # Arithmetic
     ADD: operator.add,
     SUB: operator.sub,

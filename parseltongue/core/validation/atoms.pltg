@@ -828,3 +828,19 @@ No domain knowledge, no state.")
 (derive export-parser-stages-count
     (util.export parser-stages-count)
     :using (util.export parser-stages-count))
+
+; --- TODO: new functionality ---
+
+(defterm stub-track-lines
+    :origin "TODO: tokenize() gained track_lines=True param — returns (tokens, token_lines) tuple for source line tracking")
+
+; --- TODO: Evidence class poorly documented ---
+
+(defterm stub-evidence-verification-field
+    :origin "TODO: Evidence.verification: list — filled by verifier, list of result dicts with keys: verified, quote, reason, confidence")
+
+(defterm stub-evidence-verification-result-schema
+    :origin "TODO: Each verification result is a dict with 'verified' (bool), 'quote' (str), 'reason' (str), 'confidence' (dict with 'score', 'level')")
+
+(defterm stub-evidence-document-field
+    :origin "TODO: Evidence.document: str — name of registered source document to verify quotes against")

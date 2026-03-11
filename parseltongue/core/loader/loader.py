@@ -32,6 +32,33 @@ from ..system import System
 log = logging.getLogger("parseltongue")
 
 
+class PltgError(Exception):
+    """Error with .pltg source location and import stack."""
+
+    def __init__(
+        self,
+        message: str,
+        file: str = "",
+        line: int = 0,
+        stack: list[str] | None = None,
+        cause: Exception | None = None,
+    ):
+        self.file = file
+        self.line = line
+        self.stack = stack or []
+        self.cause = cause
+        super().__init__(message)
+
+    def __str__(self):
+        loc = self.file or "?"
+        if self.line:
+            loc += f":{self.line}"
+        parts = [f"{loc}: {super().__str__()}"]
+        for frame in self.stack:
+            parts.append(f"  imported from {frame}")
+        return "\n".join(parts)
+
+
 class Context(ABC):
     """Base class for loader contexts."""
 
@@ -153,9 +180,13 @@ class Loader:
 
     def _load_source(self, system, source):
         """Parse and execute directives, namespacing definitions and context keys."""
-        tokens = tokenize(source)
+        tokens, token_lines = tokenize(source, track_lines=True)
         while tokens:
+            expr_line: int = token_lines[0] if token_lines else 0
+            pre_len = len(tokens)
             expr = read_tokens(tokens)
+            consumed = pre_len - len(tokens)
+            del token_lines[:consumed]
             if isinstance(expr, list) and len(expr) >= 2:
                 head = expr[0]
                 # Namespace definition names for non-main modules
@@ -171,7 +202,18 @@ class Loader:
                 elif self._module_aliases:
                     # Main module: still resolve aliases (e.g. counting.X → std.counting.X)
                     self._patch_symbols(expr, system.engine)
-            _execute_directive(system.engine, expr)
+            try:
+                _execute_directive(system.engine, expr)
+            except PltgError:
+                raise
+            except Exception as e:
+                raise PltgError(
+                    str(e),
+                    file=self._current.current_file,
+                    line=expr_line,
+                    stack=list(self._file_stack),
+                    cause=e,
+                ) from e
 
     # ----------------------------------------------------------
     # Effects

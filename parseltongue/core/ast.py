@@ -40,6 +40,7 @@ class DirectiveNode:
     kind: str  # "fact", "axiom", "defterm", "derive", "diff", "effect"
     source_file: str = ""
     source_order: int = 0
+    source_line: int = 0
     children: list[DirectiveNode] = field(default_factory=list, repr=False)
     dependents: list[DirectiveNode] = field(default_factory=list, repr=False)
 

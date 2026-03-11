@@ -5,7 +5,7 @@ import shutil
 import tempfile
 import unittest
 
-from ..loader import load_pltg
+from ..loader import PltgError, load_pltg
 
 
 class _TmpDirMixin:
@@ -112,14 +112,16 @@ class TestImport(_TmpDirMixin, unittest.TestCase):
         self._write("a.pltg", '(import (quote b))')
         self._write("b.pltg", '(import (quote a))')
         path = os.path.join(self.tmpdir, "a.pltg")
-        with self.assertRaises(ImportError) as cm:
+        with self.assertRaises(PltgError) as cm:
             load_pltg(path)
         self.assertIn("Circular import", str(cm.exception))
+        self.assertIsInstance(cm.exception.__cause__, ImportError)
 
     def test_import_not_found(self):
         path = self._write("main.pltg", '(import (quote nonexistent))')
-        with self.assertRaises(FileNotFoundError):
+        with self.assertRaises(PltgError) as cm:
             load_pltg(path)
+        self.assertIsInstance(cm.exception.__cause__, FileNotFoundError)
 
     def test_transitive_import(self):
         self._write("base.pltg", '(fact base-val 1 :origin "base")')

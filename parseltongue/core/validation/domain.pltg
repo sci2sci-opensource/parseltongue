@@ -1,0 +1,11 @@
+; implies for domain
+
+
+; Indexed in set is fast
+(axiom set-implies-fast (implies ?set-indexed ?fast-lookup)
+    :origin "set-based indexing implies fast intersection and lookup")
+
+
+; Something is controlled means human.
+(axiom manual-control-implies-human (implies ?manual-available ?human-in-loop)
+    :origin "manual verification capability implies human-in-the-loop workflow")

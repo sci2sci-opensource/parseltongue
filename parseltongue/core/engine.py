@@ -277,15 +277,18 @@ class ConsistencyReport:
 class Engine:
     """Evaluation engine with document management. No serialization."""
 
-    def __init__(self, env: dict, overridable: bool = False, strict_derive: bool = True):
+    def __init__(
+        self, env: dict, overridable: bool = False, strict_derive: bool = True, verifier: QuoteVerifier | None = None
+    ):
         self.axioms: dict[str, Axiom] = {}
         self.theorems: dict[str, Theorem] = {}
         self.terms: dict[str, Term] = {}
         self.facts: dict[str, Fact] = {}
         self.env: dict = dict(env)
         self.diffs: dict[str, dict] = {}
+        self.diff_refs: dict[str, set[str]] = {}  # name → diff names that reference it
         self.documents: dict[str, str] = {}
-        self._verifier = QuoteVerifier()
+        self._verifier = verifier or QuoteVerifier()
         self.overridable = overridable
         self.strict_derive = strict_derive
 
@@ -307,12 +310,12 @@ class Engine:
     # Evidence Verification
     # ----------------------------------------------------------
 
-    def _verify_evidence(self, evidence: Evidence) -> Evidence:
+    def _verify_evidence(self, evidence: Evidence, caller: str | None = None) -> Evidence:
         if evidence.document not in self.documents:
             log.warning("Document '%s' not registered — skipping verification", evidence.document)
             return evidence
 
-        results = self._verifier.verify_indexed_quotes(evidence.document, evidence.quotes)
+        results = self._verifier.verify_indexed_quotes(evidence.document, evidence.quotes, caller=caller)
 
         all_verified = True
         for r in results:
@@ -793,6 +796,8 @@ class Engine:
         every call to eval_diff() or consistency().
         """
         self.diffs[name] = {"replace": replace, "with": with_}
+        self.diff_refs.setdefault(replace, set()).add(name)
+        self.diff_refs.setdefault(with_, set()).add(name)
         log.debug("Diff registered '%s': %s vs %s", name, replace, with_)
 
     def _resolve_value(self, name: str):
@@ -916,6 +921,12 @@ class Engine:
             del self.terms[name]
             removed = True
         if name in self.diffs:
+            params = self.diffs[name]
+            for ref in (params["replace"], params["with"]):
+                if ref in self.diff_refs:
+                    self.diff_refs[ref].discard(name)
+                    if not self.diff_refs[ref]:
+                        del self.diff_refs[ref]
             del self.diffs[name]
             removed = True
         if Symbol(name) in self.env:
@@ -948,14 +959,8 @@ class Engine:
     # Consistency
     # ----------------------------------------------------------
 
-    def consistency(self) -> ConsistencyReport:
-        """Check full consistency state of the system.
-
-        Checks three layers:
-          1. Evidence grounding — are all quotes verified?
-          2. Fabrication propagation — any derived axioms tainted?
-          3. Diff agreement — do cross-checked values agree?
-        """
+    def _check_evidence(self) -> tuple[list[ConsistencyIssue], list[ConsistencyWarning]]:
+        """Check evidence grounding and fabrication propagation."""
         issues: list[ConsistencyIssue] = []
         warnings: list[ConsistencyWarning] = []
 
@@ -1016,8 +1021,21 @@ class Engine:
         if fabrications:
             issues.append(ConsistencyIssue(IssueType.POTENTIAL_FABRICATION, fabrications))
 
-        # 3. Diff divergences — evaluated live
-        all_diffs = sorted((self.eval_diff(n) for n in self.diffs), key=lambda d: d.name)
+        return issues, warnings
+
+    def _check_diffs(
+        self, diff_names: set[str] | None = None
+    ) -> tuple[list[ConsistencyIssue], list[ConsistencyWarning]]:
+        """Evaluate diffs and return issues/warnings.
+
+        If diff_names is given, only those diffs are evaluated.
+        If None, all diffs are evaluated.
+        """
+        issues: list[ConsistencyIssue] = []
+        warnings: list[ConsistencyWarning] = []
+
+        names = diff_names if diff_names is not None else set(self.diffs)
+        all_diffs = sorted((self.eval_diff(n) for n in names), key=lambda d: d.name)
         downstream_divergent = [d for d in all_diffs if not d.empty and not d.diff_contamination_only]
         diff_contamination = [d for d in all_diffs if d.diff_contamination_only]
         value_divergent = [d for d in all_diffs if d.values_diverge and d.empty]
@@ -1033,13 +1051,29 @@ class Engine:
                 ConsistencyWarning(WarningType.DIFF_CONTAMINATION, [d.name for d in diff_contamination], contam_details)
             )
 
+        return issues, warnings
+
+    def consistency(self, suppress_log: bool = True) -> ConsistencyReport:
+        """Check full consistency state of the system.
+
+        Checks three layers:
+          1. Evidence grounding — are all quotes verified?
+          2. Fabrication propagation — any derived axioms tainted?
+          3. Diff agreement — do cross-checked values agree?
+        """
+        issues, warnings = self._check_evidence()
+        diff_issues, diff_warnings = self._check_diffs()
+        issues.extend(diff_issues)
+        warnings.extend(diff_warnings)
+
         report = ConsistencyReport(
             consistent=len(issues) == 0,
             issues=issues,
             warnings=warnings,
         )
 
-        log.info("%s", report) if report.consistent else log.warning("%s", report)
+        if not suppress_log:
+            log.info("%s", report) if report.consistent else log.warning("%s", report)
         return report
 
     # ----------------------------------------------------------
@@ -1054,7 +1088,7 @@ class Engine:
             wff = parse(wff)
 
         if isinstance(origin, Evidence):
-            origin = self._verify_evidence(origin)
+            origin = self._verify_evidence(origin, caller=name)
 
         if not free_vars(wff):
             raise ValueError(
@@ -1078,7 +1112,7 @@ class Engine:
             definition = parse(definition)
 
         if isinstance(origin, Evidence):
-            origin = self._verify_evidence(origin)
+            origin = self._verify_evidence(origin, caller=name)
 
         term = Term(name=name, definition=definition, origin=origin)
         self.terms[name] = term
@@ -1087,7 +1121,7 @@ class Engine:
     def set_fact(self, name: str, value: Any, origin):
         """Set a ground truth value with evidence."""
         if isinstance(origin, Evidence):
-            origin = self._verify_evidence(origin)
+            origin = self._verify_evidence(origin, caller=name)
 
         if name in self.facts:
             if not self.overridable:

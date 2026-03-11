@@ -107,10 +107,21 @@ class QuoteVerifier:
         doc = self.index.get(doc_name)
         return self._verify_from_indexed(doc, quote, context_length)
 
-    def verify_indexed_quotes(self, doc_name: str, quotes: List[str]) -> List[Dict]:
-        """Verify multiple quotes against a pre-indexed document by name."""
+    def verify_indexed_quotes(self, doc_name: str, quotes: List[str], caller: str | None = None) -> List[Dict]:
+        """Verify multiple quotes against a pre-indexed document by name.
+
+        If caller is provided, verified quote ranges are registered in the index
+        for provenance tracing.
+        """
         doc = self.index.get(doc_name)
-        return [self._verify_from_indexed(doc, q) for q in quotes]
+        results = []
+        for q in quotes:
+            r = self._verify_from_indexed(doc, q)
+            if caller and r.get("verified") and "positions" in r:
+                orig = r["positions"]["original"]
+                self.index.register_quote(doc_name, orig["start"], orig["end"], caller)
+            results.append(r)
+        return results
 
     # ------------------------------------------------------------------
     # Internal: shared verification logic
@@ -143,6 +154,7 @@ class QuoteVerifier:
         )
 
         original_position = position_info["original"].start if position_info["original"] else -1
+        original_line = doc.original_text[:original_position].count("\n") + 1 if original_position != -1 else -1
         normalized_position = position_info["normalized"].start if position_info["normalized"] else -1
 
         context = None
@@ -158,6 +170,7 @@ class QuoteVerifier:
             "quote": quote,
             "verified": verified,
             "original_position": original_position,
+            "original_line": original_line,
             "normalized_position": normalized_position,
             "length": (len(normalized_quote.split()) if normalized_quote.strip() else len(quote.split())),
         }

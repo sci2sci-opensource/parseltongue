@@ -40,6 +40,7 @@ class System:
         docs: dict | None = None,
         strict_derive: bool = True,
         effects: dict[str, Callable] | None = None,
+        verifier=None,
     ):
         env: dict = {}
         if initial_env is not None:
@@ -47,7 +48,7 @@ class System:
         else:
             env.update(DEFAULT_OPERATORS)
 
-        self.engine = Engine(env, overridable=overridable, strict_derive=strict_derive)
+        self.engine = Engine(env, overridable=overridable, strict_derive=strict_derive, verifier=verifier)
         self._docs = docs if docs is not None else ENGINE_DOCS
 
         if effects:
@@ -222,7 +223,7 @@ class System:
     # ----------------------------------------------------------
 
     def to_dict(self) -> dict:
-        """Serialize system state: terms, facts, axioms, theorems."""
+        """Serialize system state: terms, facts, axioms, theorems, verifier index."""
         return {
             "terms": {n: serialize_term(t) for n, t in self.engine.terms.items()},
             "facts": {n: serialize_fact(f) for n, f in self.engine.facts.items()},
@@ -230,17 +231,31 @@ class System:
             "theorems": {n: serialize_theorem(t) for n, t in self.engine.theorems.items()},
             "diffs": dict(self.engine.diffs),
             "documents": dict(self.engine.documents),
+            "verifier_index": self.engine._verifier.index.to_dict(),
         }
 
     @classmethod
     def from_dict(cls, data: dict) -> "System":
-        system = cls()
+        from .quote_verifier import QuoteVerifier
+        from .quote_verifier.index import DocumentIndex
+
+        documents = data.get("documents", {})
+
+        # Restore verifier with pre-built index if available
+        verifier = None
+        if "verifier_index" in data:
+            index = DocumentIndex.from_dict(data["verifier_index"], documents)
+            verifier = QuoteVerifier()
+            verifier.set_index(index)
+
+        system = cls(verifier=verifier)
         system.engine.terms = {n: deserialize_term(n, d) for n, d in data.get("terms", {}).items()}
         system.engine.facts = {n: deserialize_fact(n, d) for n, d in data.get("facts", {}).items()}
         system.engine.axioms = {n: deserialize_axiom(n, d) for n, d in data.get("axioms", {}).items()}
         system.engine.theorems = {n: deserialize_theorem(n, d) for n, d in data.get("theorems", {}).items()}
-        system.engine.diffs = data.get("diffs", {})
-        for name, text in data.get("documents", {}).items():
+        for name, diff in data.get("diffs", {}).items():
+            system.engine.register_diff(name, diff["replace"], diff["with"])
+        for name, text in documents.items():
             system.engine.register_document(name, text)
         system._rebuild_env()
         return system
