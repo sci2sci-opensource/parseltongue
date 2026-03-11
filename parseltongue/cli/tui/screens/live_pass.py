@@ -21,6 +21,7 @@ from textual.widgets import (
     Tree,
 )
 
+from ..widgets import FocusedTree
 from ..widgets.hints_bar import HintsBar
 from ..widgets.pass_viewer import PassViewer
 from ..widgets.resizable_split import ResizableSplitMixin
@@ -78,7 +79,7 @@ class LivePassScreen(ResizableSplitMixin, Screen):
                 yield TabbedContent(id="dsl-tabs")
             with Container(id="state-panel"):
                 yield Label("Parseltongue State", id="state-title")
-                yield Tree("State", id="state-tree")
+                yield FocusedTree("State", id="state-tree")
         with Container(id="live-controls"):
             yield Input(
                 placeholder="Feedback to retry, or Enter to continue...",

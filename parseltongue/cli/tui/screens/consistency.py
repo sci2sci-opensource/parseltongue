@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from rich.markup import escape as rich_escape
 from textual.app import ComposeResult
 from textual.screen import Screen
-from textual.widgets import Tree
 
+from ..widgets import FocusedTree
 from ..widgets.hints_bar import HintsBar
 from ..widgets.tree_builders import (
     _add_definition_leaf,
@@ -41,7 +41,21 @@ class ConsistencyScreen(Screen):
     """Displays the system consistency report as a color-coded tree."""
 
     BINDINGS = [
+        ("f1", "app.switch_screen('answer')", "Answer"),
+        ("f2", "app.switch_screen('passes')", "Passes"),
+        ("f3", "app.switch_screen('system_state')", "System"),
+        ("f4", "app.switch_screen('consistency')", "Consistency"),
+        ("f5", "app.show_history", "History"),
+        ("f6", "app.main_menu", "Menu"),
         ("escape", "dismiss", "Back"),
+    ]
+
+    HINTS: list[tuple[str, ...]] = [
+        ("F1", "Answer", "app.switch_screen('answer')"),
+        ("F2", "Passes", "app.switch_screen('passes')"),
+        ("F3", "System", "app.switch_screen('system_state')"),
+        ("F4", "Consistency", "app.switch_screen('consistency')"),
+        ("Esc", "Back", "screen.dismiss"),
     ]
 
     def __init__(self, result: PipelineResult, **kwargs) -> None:
@@ -49,24 +63,21 @@ class ConsistencyScreen(Screen):
         self._result = result
 
     def compose(self) -> ComposeResult:
-        tree: Tree[str] = Tree("Consistency Report", id="consistency-tree")
+        tree = FocusedTree("Consistency Report", id="consistency-tree", require_focus=False)
         tree.root.expand()
         self._populate(tree)
         yield tree
-        yield HintsBar(
-            [
-                ("F1", "Answer", "app.switch_screen('answer')"),
-                ("F2", "Passes", "app.switch_screen('passes')"),
-                ("F3", "System", "app.switch_screen('system_state')"),
-                ("F4", "Consistency", "app.switch_screen('consistency')"),
-                ("Esc", "Back", "screen.dismiss"),
-            ]
-        )
+        yield HintsBar(self.HINTS)
 
-    def _populate(self, tree: Tree[str]) -> None:
+    def _populate(self, tree: Any) -> None:
         system = self._result.system
         if system is not None:
-            report = system.consistency()
+            try:
+                report = system.consistency()
+            except Exception as exc:
+                tree.root.add_leaf(f"[red bold]Consistency check failed:[/red bold] {rich_escape(str(exc))}")
+                self.notify(f"Consistency error: {exc}", severity="error")
+                return
             self._build_report_tree(tree, report)
         elif hasattr(self._result, "output") and hasattr(self._result.output, "consistency"):
             text = self._result.output.consistency
@@ -77,7 +88,7 @@ class ConsistencyScreen(Screen):
         else:
             tree.root.add_leaf("[dim]No live system available (history mode).[/dim]")
 
-    def _build_report_tree(self, tree: Tree[str], report: ConsistencyReport) -> None:
+    def _build_report_tree(self, tree: Any, report: ConsistencyReport) -> None:
         root = tree.root
 
         # Status node

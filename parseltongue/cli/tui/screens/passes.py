@@ -8,8 +8,9 @@ from typing import TYPE_CHECKING
 from textual.app import ComposeResult
 from textual.containers import Container, Horizontal
 from textual.screen import Screen
-from textual.widgets import Label, Static, TabbedContent, TabPane, Tree
+from textual.widgets import Label, Static, TabbedContent, TabPane
 
+from ..widgets import FocusedTree
 from ..widgets.hints_bar import HintsBar
 from ..widgets.pass_viewer import PassViewer
 from ..widgets.resizable_split import ResizableSplitMixin
@@ -27,6 +28,12 @@ class PassesScreen(ResizableSplitMixin, Screen):
     _split_grid_id = "passes-layout"
 
     BINDINGS = [
+        ("f1", "app.switch_screen('answer')", "Answer"),
+        ("f2", "app.switch_screen('passes')", "Passes"),
+        ("f3", "app.switch_screen('system_state')", "System"),
+        ("f4", "app.switch_screen('consistency')", "Consistency"),
+        ("f5", "app.show_history", "History"),
+        ("f6", "app.main_menu", "Menu"),
         ("escape", "dismiss", "Back"),
         ("ctrl+y", "copy_pass", "Copy pass"),
         ("f9", "grow_right", "F9 Grow right"),
@@ -63,7 +70,7 @@ class PassesScreen(ResizableSplitMixin, Screen):
                         )
             with Container(id="passes-state-panel"):
                 yield Label("Parseltongue State", id="passes-state-title")
-                yield Tree("State", id="passes-state-tree")
+                yield FocusedTree("State", id="passes-state-tree")
         yield HintsBar(
             [
                 ("F1", "Answer", "app.switch_screen('answer')"),
@@ -107,7 +114,7 @@ class PassesScreen(ResizableSplitMixin, Screen):
 
     def action_ref_clicked(self, ref_type: str, ref_name: str) -> None:
         """Handle @click from PassViewer refs."""
-        tree = self.query_one("#passes-state-tree", Tree)
+        tree = self.query_one("#passes-state-tree", FocusedTree)
         tree.root.expand()
         for node in tree.root.children:
             node.expand()
@@ -115,8 +122,8 @@ class PassesScreen(ResizableSplitMixin, Screen):
                 plain = re.sub(r"\[/?[^\]]*\]", "", str(child.label))
                 if plain.startswith(ref_name + ":") or plain.startswith(ref_name + " ="):
                     child.toggle()
-                    tree.move_cursor(child)
-                    tree.focus()
+                    tree.scroll_to_node(child)
+                    tree.focus(scroll_visible=False)
                     return
         self.notify(
             f"{ref_type}:{ref_name} not in state tree.",
@@ -124,7 +131,7 @@ class PassesScreen(ResizableSplitMixin, Screen):
         )
 
     def _refresh_state_tree(self, pass_num: int) -> None:
-        tree = self.query_one("#passes-state-tree", Tree)
+        tree = self.query_one("#passes-state-tree", FocusedTree)
         tree.clear()
         tree.root.expand()
 

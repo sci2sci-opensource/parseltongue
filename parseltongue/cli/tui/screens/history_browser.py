@@ -20,6 +20,14 @@ class RunSelected(Message):
         self.run_id = run_id
 
 
+class ExportRunRequested(Message):
+    """Posted when user wants to export a run as a project."""
+
+    def __init__(self, run_id: int) -> None:
+        super().__init__()
+        self.run_id = run_id
+
+
 class HistoryBrowser(Screen):
     """Table of past runs.  Select one to view cached results."""
 
@@ -27,12 +35,20 @@ class HistoryBrowser(Screen):
         ("escape", "dismiss", "Back"),
         ("delete", "delete_run", "Delete"),
         ("backspace", "delete_run", "Delete"),
+        ("ctrl+e", "export_run", "Export as project"),
     ]
 
     def compose(self) -> ComposeResult:
         yield Label("Run History", id="history-title")
         yield DataTable(id="history-table")
-        yield HintsBar([("Enter", "Open"), ("Del", "Delete", "screen.delete_run"), ("Esc", "Back", "screen.dismiss")])
+        yield HintsBar(
+            [
+                ("Enter", "Open"),
+                ("Ctrl+E", "Export", "screen.export_run"),
+                ("Del", "Delete", "screen.delete_run"),
+                ("Esc", "Back", "screen.dismiss"),
+            ]
+        )
 
     def on_mount(self) -> None:
         table = self.query_one("#history-table", DataTable)
@@ -98,6 +114,22 @@ class HistoryBrowser(Screen):
                 self.notify(f"Run {run_id} deleted.")
 
         self.app.push_screen(ConfirmModal(f"Delete run {run_id}?"), callback=on_confirm)  # type: ignore[arg-type]
+
+    def action_export_run(self) -> None:
+        """Export the selected run as a project."""
+        table = self.query_one("#history-table", DataTable)
+        if table.cursor_row is None:
+            return
+        try:
+            row = table.get_row_at(table.cursor_row)
+            run_id = int(row[0])
+            status = row[4]
+        except Exception:
+            return
+        if status != "completed":
+            self.notify("Only completed runs can be exported.", severity="warning")
+            return
+        self.post_message(ExportRunRequested(run_id))
 
     def _refresh_table(self) -> None:
         table = self.query_one("#history-table", DataTable)

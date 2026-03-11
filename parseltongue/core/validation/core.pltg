@@ -838,6 +838,17 @@
 (diff thm-lazy-patch-paired :replace lazy_loader.patch-paired :with stub-lazy-patch-paired)
 (diff thm-lazy-result-methods :replace lazy_loader.result-method-count :with readme-lazy-result-count)
 
+; =====================================================================
+; Notebooks module — pgmd, companion, companion_integrity
+; TODO: create notebooks.pltg with ground-truth facts
+; =====================================================================
+
+(derive stub-notebooks-pgmd-parser stub :using (stub))
+(derive stub-notebooks-companion-tracker stub :using (stub))
+(derive stub-notebooks-integrity-chain stub :using (stub))
+(derive stub-notebooks-integrity-corruption stub :using (stub))
+(derive stub-notebooks-block-markers stub :using (stub))
+
 ; --- other module theorems ---
 (print "")
 (print "--- other theorem cross-checks ---")
@@ -895,6 +906,10 @@
 (diff thm-readme-operator-categories :replace readme.readme-operator-category-count :with default_system_settings.export-operator-category-count)
 (diff thm-readme-parser-stages :replace readme.readme-parser-stages-listing-count :with atoms.export-parser-stages-count)
 (diff thm-readme-issue-types :replace readme.export-issue-types-count :with engine.issue-types-impl-count)
+(diff thm-readme-warning-types :replace readme.export-warning-types-count :with engine.warning-type-count)
+(diff thm-engine-error-cross-check :replace engine.export-error-cross-check :with readme.export-issue-types-count)
+(diff thm-engine-warning-cross-check :replace engine.export-warning-cross-check :with readme.export-warning-types-count)
+(diff thm-consistency-states-total :replace engine.export-consistency-states-total :with readme.export-consistency-states-total)
 (diff thm-readme-manual-categories :replace readme.export-manual-categories-count :with manual-categories-count)
 
 (print "")

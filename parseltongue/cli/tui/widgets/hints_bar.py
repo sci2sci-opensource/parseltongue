@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+
 from textual.containers import Horizontal
 from textual.widgets import Static
 
@@ -45,13 +47,13 @@ class HintsBar(Horizontal):
     DEFAULT_CSS = """
     HintsBar {
         dock: bottom;
-        height: 2;
+        height: 3;
         color: $text-muted;
-        padding: 1 1 0 1;
+        padding: 1 2 1 2;
     }
     """
 
-    def __init__(self, hints: list[tuple[str, ...]], **kwargs) -> None:
+    def __init__(self, hints: Sequence[tuple[str, ...]], **kwargs) -> None:
         self._hints = hints
         super().__init__(**kwargs)
 

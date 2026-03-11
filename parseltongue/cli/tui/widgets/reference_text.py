@@ -6,8 +6,9 @@ import re
 
 from markdown_it import MarkdownIt
 from markdown_it.rules_inline import StateInline
+from textual import events
 from textual.app import ComposeResult
-from textual.containers import VerticalScroll
+from textual.containers import Vertical
 from textual.content import Content, Span
 from textual.message import Message
 from textual.style import Style
@@ -15,6 +16,8 @@ from textual.widgets import Markdown, Static
 from textual.widgets._markdown import MarkdownBlock
 
 TAG_RE = re.compile(r"\[\[(\w+):([^\]]+)\]\]")
+# Match fenced code blocks (``` or ~~~) and inline code (`...`)
+_CODE_FENCE_RE = re.compile(r"(```.*?```|~~~.*?~~~|`[^`]+`)", re.DOTALL)
 
 # ---------------------------------------------------------------------------
 # ==mark== plugin for markdown-it  (produces mark_open / mark_close tokens)
@@ -130,6 +133,17 @@ MarkdownBlock._token_to_content = _token_to_content_with_mark  # type: ignore[me
 # ---------------------------------------------------------------------------
 
 
+def collect_footnotes(*texts: str) -> dict[tuple[str, str], int]:
+    """Collect all [[type:name]] references across multiple texts, returning a shared footnote map."""
+    footnotes: dict[tuple[str, str], int] = {}
+    for text in texts:
+        for m in TAG_RE.finditer(text):
+            key = (m.group(1), m.group(2))
+            if key not in footnotes:
+                footnotes[key] = len(footnotes) + 1
+    return footnotes
+
+
 class ReferenceClicked(Message):
     """Posted when a [[type:name]] reference is clicked."""
 
@@ -169,12 +183,33 @@ class FootnoteLabel(Static):
         self.post_message(ReferenceClicked(self.ref_type, self.ref_name))
 
 
-class ReferenceText(VerticalScroll):
-    """Scrollable markdown display with clickable footnote references."""
+class ReferenceText(Vertical):
+    """Markdown display with clickable footnote references."""
 
-    def __init__(self, markdown_text: str, **kwargs) -> None:
+    DEFAULT_CSS = """
+    ReferenceText {
+        overflow: hidden hidden;
+    }
+    """
+
+    def _on_mouse_scroll_down(self, event: events.MouseScrollDown) -> None:
+        pass  # let it bubble
+
+    def _on_mouse_scroll_up(self, event: events.MouseScrollUp) -> None:
+        pass  # let it bubble
+
+    def __init__(
+        self,
+        markdown_text: str,
+        *,
+        shared_footnotes: dict[tuple[str, str], int] | None = None,
+        show_footnotes: bool = True,
+        **kwargs,
+    ) -> None:
         super().__init__(**kwargs)
         self._raw = markdown_text
+        self._shared_footnotes = shared_footnotes
+        self._show_footnotes = show_footnotes
         self._footnotes: dict[tuple[str, str], int] = {}
         self._active_ref: tuple[str, str] | None = None
         self._link_clicked = False
@@ -199,10 +234,27 @@ class ReferenceText(VerticalScroll):
                 return f"==\\[{num}\\]=="
             return f"[\\[{num}\\]]({ref_type}:{ref_name})"
 
-        return TAG_RE.sub(_replace_ref, self._raw)
+        def _replace_in_code(m: re.Match) -> str:
+            """Replace refs inside code spans/fences with plain [N] markers."""
+            code = m.group(0)
+
+            def _code_ref(rm: re.Match) -> str:
+                key = (rm.group(1), rm.group(2))
+                num = self._footnotes.get(key, 0)
+                return f"[{num}]"
+
+            return TAG_RE.sub(_code_ref, code)
+
+        # First pass: replace refs in code blocks with plain [N]
+        text = _CODE_FENCE_RE.sub(_replace_in_code, self._raw)
+        # Second pass: replace refs in prose with clickable links
+        return TAG_RE.sub(_replace_ref, text)
 
     def compose(self) -> ComposeResult:
-        self._footnotes = self._collect_footnotes()
+        if self._shared_footnotes is not None:
+            self._footnotes = self._shared_footnotes
+        else:
+            self._footnotes = self._collect_footnotes()
 
         yield Markdown(
             self._build_body(),
@@ -210,7 +262,7 @@ class ReferenceText(VerticalScroll):
             parser_factory=_make_parser,
         )
 
-        if self._footnotes:
+        if self._show_footnotes and self._footnotes:
             yield Static("───", id="footnote-divider")
             for (ref_type, ref_name), num in self._footnotes.items():
                 yield FootnoteLabel(ref_type, ref_name, num)

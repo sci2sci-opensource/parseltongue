@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from textual.app import ComposeResult
-from textual.containers import Container, Horizontal
+from textual.containers import Container, Horizontal, VerticalScroll
 from textual.screen import Screen
 from textual.widgets import Label, Static
 
@@ -22,6 +22,12 @@ class AnswerScreen(ResizableSplitMixin, Screen):
     """Main answer view: markdown on the left, provenance on the right."""
 
     BINDINGS = [
+        ("f1", "app.switch_screen('answer')", "Answer"),
+        ("f2", "app.switch_screen('passes')", "Passes"),
+        ("f3", "app.switch_screen('system_state')", "System"),
+        ("f4", "app.switch_screen('consistency')", "Consistency"),
+        ("f5", "app.show_history", "History"),
+        ("f6", "app.main_menu", "Menu"),
         ("escape", "dismiss", "Back"),
         ("ctrl+y", "copy_answer", "Copy answer"),
         ("f9", "grow_right", "F9 Grow right"),
@@ -37,7 +43,8 @@ class AnswerScreen(ResizableSplitMixin, Screen):
             with Horizontal(id="report-header"):
                 yield Label("Report", id="report-title")
                 yield Static("[@click=screen.copy_answer]Copy[/]", id="copy-btn")
-            yield ReferenceText(str(self._result.output))
+            with VerticalScroll(id="answer-scroll"):
+                yield ReferenceText(str(self._result.output))
         with Container(id="provenance-panel"):
             yield Label("Parseltongue Provenance", id="provenance-title")
             yield ProvenanceTree(id="provenance-tree")

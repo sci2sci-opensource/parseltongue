@@ -91,7 +91,10 @@ def _normalize_lists(
 
     while i < len(text):
         match = re.match(r"([12]?\d)\.\s+", text[i:])
-        if match and (i == 0 or text[i - 1] == "\n"):
+        line_start = text.rfind("\n", 0, i) + 1
+        prefix = text[line_start:i]
+        at_line_start = prefix == "" or (len(prefix) >= 2 and prefix.strip() == "")
+        if match and at_line_start:
             list_items_removed += 1
             i += len(match.group(0))
             normalized_text += " "
@@ -180,7 +183,7 @@ def _normalize_punctuation(
         return text, position_map, transformations
 
     # Only strip actual prose punctuation — not operator/math symbols
-    _PUNCTUATION = set('.,;:?\'"()[]{}…—–-`\u2018\u2019\u201c\u201d\u00ab\u00bb')
+    _PUNCTUATION = set('.,;:?\'"()[]{}…—–-`\u2018\u2019\u201c\u201d\u00ab\u00bb\u00a0\u2007\u202f')
 
     normalized_text = ""
     normalized_map = []
