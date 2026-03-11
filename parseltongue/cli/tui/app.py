@@ -347,6 +347,10 @@ class ParseltongueApp(App):
 
         self.push_screen(ConfigureScreen())
 
+    def on_quit_requested(self, event) -> None:
+        """Main menu → Quit → show quit confirmation."""
+        self.action_request_quit()
+
     # ------------------------------------------------------------------
     # Standalone mode: doc picker → query input → pipeline
     # ------------------------------------------------------------------
