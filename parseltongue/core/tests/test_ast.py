@@ -220,27 +220,23 @@ class TestAstFromPltg(_TmpDirMixin, unittest.TestCase):
         return nodes
 
     def test_fact_chain(self):
-        nodes = self._parse_nodes(
-            '''
+        nodes = self._parse_nodes('''
             (fact a 1 :origin "test")
             (fact b (+ a 1) :origin "test")
             (derive c (> b 0) :using (b))
-        '''
-        )
+        ''')
         self.assertEqual(len(nodes), 3)
         self.assertEqual(nodes[0].name, "a")
         self.assertIn("a", nodes[1].dep_names)
         self.assertIn("b", nodes[2].dep_names)
 
     def test_graph_from_pltg(self):
-        nodes = self._parse_nodes(
-            '''
+        nodes = self._parse_nodes('''
             (fact x 1 :origin "test")
             (fact y 2 :origin "test")
             (derive z (+ x y) :using (x y))
             (diff check :replace z :with x)
-        '''
-        )
+        ''')
         index = resolve_graph(nodes)
         self.assertIn("x", index["z"].dep_names)
         self.assertIn("y", index["z"].dep_names)
@@ -249,37 +245,31 @@ class TestAstFromPltg(_TmpDirMixin, unittest.TestCase):
         self.assertIn(index["z"], index["check"].children)
 
     def test_count_exists_deps(self):
-        nodes = self._parse_nodes(
-            '''
+        nodes = self._parse_nodes('''
             (fact a true :origin "test")
             (fact b true :origin "test")
             (derive count (count-exists a b) :using (count-exists a b))
-        '''
-        )
+        ''')
         count_node = nodes[2]
         self.assertIn("a", count_node.dep_names)
         self.assertIn("b", count_node.dep_names)
         self.assertIn("count-exists", count_node.dep_names)
 
     def test_effects_have_no_name(self):
-        nodes = self._parse_nodes(
-            '''
+        nodes = self._parse_nodes('''
             (print "hello")
             (fact x 1 :origin "test")
             (print "bye")
-        '''
-        )
+        ''')
         self.assertIsNone(nodes[0].name)
         self.assertEqual(nodes[1].name, "x")
         self.assertIsNone(nodes[2].name)
 
     def test_diff_deps_on_both_sides(self):
-        nodes = self._parse_nodes(
-            '''
+        nodes = self._parse_nodes('''
             (fact a 1 :origin "test")
             (fact b 2 :origin "test")
             (diff check :replace a :with b)
-        '''
-        )
+        ''')
         diff_node = nodes[2]
         self.assertEqual(diff_node.dep_names, {"a", "b"})
