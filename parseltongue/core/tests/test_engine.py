@@ -1083,7 +1083,7 @@ class TestConsistency(unittest.TestCase):
         self.assertEqual(lines[0], "System inconsistent: 3 issue(s)")
         # Each issue block starts with 2-space indent label
         self.assertEqual(lines[1], "  Potential fabrication:")
-        self.assertEqual(lines[2], "    bad-thm")
+        self.assertEqual(lines[2], "      bad-thm")
         self.assertEqual(lines[3], "  Diff divergence:")
         self.assertEqual(lines[4], "    d1: a (10) vs b (20)")
         self.assertEqual(lines[5], "      t1: 11 \u2192 21")
