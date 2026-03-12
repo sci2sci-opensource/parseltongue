@@ -4,7 +4,7 @@ Guide for an LLM agent that needs to load parseltongue files, build provenance s
 
 ## Quick start — use Bench
 
-**Bench is the recommended entry point.** Prepare a specimen, then observe with `lens()` (structure), `diagnose()` (health), or `search()` (full-text with provenance). Backed by Merkle tree caching with eventual consistency.
+**Bench is the recommended entry point.** Prepare a sample, then observe with `lens()` (structure), `diagnose()` (health), or `search()` (full-text with provenance). Backed by Merkle tree caching with eventual consistency.
 
 ```python
 from parseltongue.core.inspect.bench import Bench
@@ -77,9 +77,26 @@ bench.search("def", max_callers=3)             # cap callers per line
 
 ```python
 from parseltongue.core.inspect.search import Search, Ranking
+from parseltongue.core.inspect.store import SearchStore
 
-search = Search(engine._verifier.index)
+search = Search(SearchStore(index=engine._verifier.index))
 r = search.query("consistency", rank=Ranking.DOCUMENT, max_lines=20, offset=0)
+```
+
+### CLI commands (pg-bench)
+
+```bash
+# Index a directory into the search engine
+pg-bench index parseltongue/core
+
+# Reindex known files (only reports changed files)
+pg-bench reindex
+
+# Purge all caches (memory + disk) and reload
+pg-bench purge
+
+# Start server with background reindex every 60 seconds
+pg-bench serve path/to/file.pltg --refresh-index 60
 ```
 
 ## Lens API
@@ -275,7 +292,7 @@ print(dx.summary())
 
 ### Status and integrity
 
-Bench tracks two states per specimen:
+Bench tracks two states per sample:
 
 | State | Values | Meaning |
 |-------|--------|---------|

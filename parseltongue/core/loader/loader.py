@@ -50,12 +50,12 @@ class PltgError(Exception):
         super().__init__(message)
 
     def __str__(self):
-        loc = self.file or "?"
-        if self.line:
-            loc += f":{self.line}"
+        from .lazy_loader import format_loc
+
+        loc = format_loc(self.file, self.line)
         parts = [f"{loc}: {super().__str__()}"]
         for frame in self.stack:
-            parts.append(f"  imported from {frame}")
+            parts.append(f"  imported from {format_loc(frame)}")
         return "\n".join(parts)
 
 
@@ -103,6 +103,7 @@ class Loader:
         self._path_to_module: dict[str, str] = {}
         self._module_aliases: dict[str, str] = {}
         self.names_to_modules: dict[str, str] = {}
+        self.names_to_lines: dict[str, int] = {}
 
     def create_md_ctx(self, abs_path, module_name):
         """Create and register a ModuleContext for a file."""
@@ -194,18 +195,26 @@ class Loader:
                     if not self._current.is_main:
                         expr[1] = f"{self._current.module_name}.{expr[1]}"
                         self.names_to_modules[str(expr[1])] = self._current.module_name
+                    self.names_to_lines[str(expr[1])] = expr_line
                 # Patch (context :key) everywhere in the expression tree
                 self._patch_context(expr)
                 # Patch bare symbol references to their namespaced versions
                 if not self._current.is_main:
-                    self._patch_symbols(expr, system.engine, skip_index=1)
+                    skip = 1 if (head in DSL_KEYWORDS or head in SPECIAL_FORMS) else None
+                    self._patch_symbols(expr, system.engine, skip_index=skip)
                 elif self._module_aliases:
                     # Main module: still resolve aliases (e.g. counting.X → std.counting.X)
                     self._patch_symbols(expr, system.engine)
             try:
                 _execute_directive(system.engine, expr)
-            except PltgError:
-                raise
+            except PltgError as e:
+                raise PltgError(
+                    e.args[0] if e.args else str(e),
+                    file=self._current.current_file,
+                    line=expr_line,
+                    stack=list(self._file_stack),
+                    cause=e,
+                ) from e
             except Exception as e:
                 raise PltgError(
                     str(e),
@@ -353,12 +362,33 @@ class Loader:
                 (consistency :bool)  — return True/False without printing
                 (consistency :report) — return the ConsistencyReport object
             """
-            report = system.consistency()
+            try:
+                report = system.consistency()
+            except KeyError as e:
+                # Resolve the failing symbol to its .pltg source location
+                sym = str(e).strip("'\"").removeprefix("Unknown symbol: ")
+                file, line = self._current.current_file, 0
+                for diff_name, diff_def in system.engine.diffs.items():
+                    if diff_def["replace"] == sym or diff_def["with"] == sym:
+                        mod = self.names_to_modules.get(diff_name)
+                        if mod:
+                            file = self.modules_contexts[mod].current_file
+                        line = self.names_to_lines.get(diff_name, 0)
+                        break
+                raise PltgError(
+                    str(e),
+                    file=file,
+                    line=line,
+                    stack=list(self._file_stack),
+                    cause=e,
+                ) from e
             mode = str(args[0]) if args else None
             if mode == ":raise":
                 print(report)
                 if not report.consistent:
-                    raise SystemError(f"System inconsistent:\n{report}")
+                    raise SystemError(f"System inconsistent:\n{report}") from SystemError(
+                        f"System inconsistent:\n{report}"
+                    )
                 return True
             elif mode == ":bool":
                 return report.consistent

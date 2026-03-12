@@ -33,6 +33,18 @@ from .loader import Loader
 log = logging.getLogger("parseltongue")
 
 
+def format_loc(file: str | None, line: int = 0, col: int = 1) -> str:
+    """Format source location as a clickable file:// link with URL-encoded path."""
+    if not file:
+        return "?"
+    from urllib.parse import quote
+
+    loc = "file://" + quote(file, safe="/")
+    if line:
+        loc += f":{line}:{col}"
+    return loc
+
+
 @dataclass
 class LocatedItem:
     """A consistency item enriched with source location."""
@@ -45,9 +57,7 @@ class LocatedItem:
 
     @property
     def loc(self) -> str:
-        if self.source_file:
-            return f"{self.source_file}:{self.source_line}"
-        return "?"
+        return format_loc(self.source_file, self.source_line)
 
 
 @dataclass
@@ -213,13 +223,8 @@ class LazyLoadResult:
 
     @staticmethod
     def _loc(node: DirectiveNode) -> str:
-        """Format source location as file:line."""
-        parts = []
-        if node.source_file:
-            parts.append(node.source_file)
-        if node.source_line:
-            parts.append(str(node.source_line))
-        return ":".join(parts) if parts else "?"
+        """Format source location as a clickable file:// link."""
+        return format_loc(node.source_file, node.source_line)
 
     def summary(self) -> str:
         lines = [f"Loaded: {len(self.loaded)}, Errors: {len(self.errors)}, Skipped: {len(self.skipped)}"]

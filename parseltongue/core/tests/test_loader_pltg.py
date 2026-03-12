@@ -115,7 +115,12 @@ class TestImport(_TmpDirMixin, unittest.TestCase):
         with self.assertRaises(PltgError) as cm:
             load_pltg(path)
         self.assertIn("Circular import", str(cm.exception))
-        self.assertIsInstance(cm.exception.__cause__, ImportError)
+        # The cause chain may be PltgError-wrapped due to recursive import;
+        # walk up to find the original ImportError
+        cause = cm.exception.cause
+        while cause is not None and isinstance(cause, PltgError):
+            cause = cause.cause
+        self.assertIsInstance(cause, ImportError)
 
     def test_import_not_found(self):
         path = self._write("main.pltg", '(import (quote nonexistent))')

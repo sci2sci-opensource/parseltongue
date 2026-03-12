@@ -1,6 +1,6 @@
 """Diagnosis — consistency view with focus, search, and filtering.
 
-Like Lens is for structure, Diagnosis is for health. Prepare a specimen
+Like Lens is for structure, Diagnosis is for health. Prepare a sample
 on the bench, then diagnose it.
 
 Usage::
@@ -23,7 +23,12 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+from parseltongue import System
+
+if TYPE_CHECKING:
+    from parseltongue.core.quote_verifier.index import DocumentIndex
 
 
 @dataclass
@@ -409,3 +414,123 @@ class Diagnosis:
         parts.append(f"{len(self.warnings())} warnings")
         parts.append(f"{len(self.danglings())} danglings")
         return f"Diagnosis({', '.join(parts)})"
+
+    def to_search_scope(self) -> tuple["DocumentIndex", System]:
+        """Build a DocumentIndex + operators for the search scope system.
+
+        Documents are grouped by category (issues, warnings, danglings, loader).
+        Each item is one line: "name [kind] type: detail".
+
+        Scope operators:
+            (kind "diff")      — filter by directive kind
+            (category "issue") — filter by category
+            (type "diverge")   — filter by issue/warning type (substring)
+        """
+        from parseltongue.core.quote_verifier.index import DocumentIndex
+
+        idx = DocumentIndex()
+        # Group items by category → each category becomes a "document"
+        by_cat: dict[str, list[str]] = {}
+        for item in self._items:
+            kind_str = f"[{item.kind}] " if item.kind else ""
+            detail_str = f": {item.detail}" if item.detail else ""
+            line = f"{item.name} {kind_str}{item.type}{detail_str}"
+            by_cat.setdefault(item.category, []).append(line)
+        for cat, lines in by_cat.items():
+            idx.add(cat, "\n".join(lines))
+
+        # Build item lookup by (category_doc, line_number)
+        item_index: dict[tuple[str, int], DiagnosisItem] = {}
+        for item in self._items:
+            cat = item.category
+            cat_items = [i for i in self._items if i.category == cat]
+            line_num = cat_items.index(item) + 1
+            item_index[(cat, line_num)] = item
+
+        def _kind(kind_pattern):
+            """Filter posting set to items matching directive kind."""
+
+            def _filter(posting=None):
+                if posting is None:
+                    # No input — match all items with this kind
+                    result = {}
+                    for key, item in item_index.items():
+                        if item.kind and kind_pattern in item.kind:
+                            doc = idx.documents.get(key[0])
+                            if doc:
+                                lines = doc.original_text.splitlines()
+                                if key[1] <= len(lines):
+                                    result[key] = {
+                                        "document": key[0],
+                                        "line": key[1],
+                                        "column": 1,
+                                        "context": lines[key[1] - 1],
+                                        "callers": [],
+                                        "total_callers": 0,
+                                    }
+                    return result
+                # Filter existing posting set
+                return {
+                    k: v
+                    for k, v in posting.items()
+                    if k in item_index and item_index[k].kind is not None and kind_pattern in str(item_index[k].kind)
+                }
+
+            return _filter
+
+        def _category(cat_name):
+            """Filter to items in a specific category."""
+
+            def _filter(posting=None):
+                if posting is None:
+                    result = {}
+                    for key, item in item_index.items():
+                        if item.category == cat_name:
+                            doc = idx.documents.get(key[0])
+                            if doc:
+                                lines = doc.original_text.splitlines()
+                                if key[1] <= len(lines):
+                                    result[key] = {
+                                        "document": key[0],
+                                        "line": key[1],
+                                        "column": 1,
+                                        "context": lines[key[1] - 1],
+                                        "callers": [],
+                                        "total_callers": 0,
+                                    }
+                    return result
+                return {k: v for k, v in posting.items() if k in item_index and item_index[k].category == cat_name}
+
+            return _filter
+
+        def _type(type_pattern):
+            """Filter to items matching issue/warning type."""
+
+            def _filter(posting=None):
+                if posting is None:
+                    result = {}
+                    for key, item in item_index.items():
+                        if type_pattern in item.type:
+                            doc = idx.documents.get(key[0])
+                            if doc:
+                                lines = doc.original_text.splitlines()
+                                if key[1] <= len(lines):
+                                    result[key] = {
+                                        "document": key[0],
+                                        "line": key[1],
+                                        "column": 1,
+                                        "context": lines[key[1] - 1],
+                                        "callers": [],
+                                        "total_callers": 0,
+                                    }
+                    return result
+                return {k: v for k, v in posting.items() if k in item_index and type_pattern in item_index[k].type}
+
+            return _filter
+
+        ops = {
+            "kind": _kind,
+            "category": _category,
+            "type": _type,
+        }
+        return idx, System(initial_env=ops)

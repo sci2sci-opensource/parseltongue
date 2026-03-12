@@ -49,6 +49,7 @@ cli = [
 
 [project.scripts]
 parseltongue = "parseltongue.cli.app:main"
+pg-bench = "parseltongue.core.inspect.bench_cli:cli"
 
 [tool.setuptools.packages.find]
 include = ["parseltongue", "parseltongue.*"]

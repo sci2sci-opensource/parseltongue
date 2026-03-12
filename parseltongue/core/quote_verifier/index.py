@@ -180,7 +180,7 @@ class DocumentIndex:
     def add(self, name: str, text: str) -> IndexedDocument:
         """Index a document. Skips re-indexing if content hash matches."""
         h = _content_hash(text)
-        if name in self._hashes and self._hashes[name] == h:
+        if name in self._hashes and self._hashes[name] == h and name in self.documents:
             return self.documents[name]
         doc = IndexedDocument(name, text, self.config)
         self.documents[name] = doc
