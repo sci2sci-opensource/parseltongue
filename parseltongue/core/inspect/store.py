@@ -31,7 +31,7 @@ from ..integrity.merkle import MerkleNode, _sha256, merkle_combine
 from ..loader.lazy_loader import LazyLoader, LazyLoadResult
 from ..quote_verifier import DocumentIndex
 from ..system import System
-from .diagnosis import Diagnosis
+from .evaluation import Evaluation
 from .probe_core_to_consequence import CoreToConsequenceStructure
 from .serialization import deserialize_structure, serialize_structure
 
@@ -81,6 +81,49 @@ def _collect_tree_leaves(node: MerkleNode) -> dict[str, str]:
     return result
 
 
+def _load_pgignore(directory: str) -> list[str]:
+    """Load .pgignore patterns from directory (gitignore-style). Returns pattern list."""
+    pgignore = Path(directory) / ".pgignore"
+    if not pgignore.exists():
+        return []
+    patterns = []
+    for line in pgignore.read_text().splitlines():
+        line = line.strip()
+        if line and not line.startswith("#"):
+            patterns.append(line)
+    return patterns
+
+
+def _is_ignored(rel_path: str, patterns: list[str]) -> bool:
+    """Check if a relative path matches any .pgignore pattern (gitignore-style)."""
+    import fnmatch
+
+    parts = Path(rel_path).parts
+    for pat in patterns:
+        dir_only = pat.endswith("/")
+        p = pat.rstrip("/")
+        # Full path match
+        if fnmatch.fnmatch(rel_path, p) or fnmatch.fnmatch(rel_path, p + "/*"):
+            return True
+        # Any suffix of the path (gitignore matches at any level)
+        for i in range(len(parts)):
+            sub = str(Path(*parts[i:]))
+            if fnmatch.fnmatch(sub, p):
+                return True
+            if dir_only and fnmatch.fnmatch(sub, p + "/*"):
+                return True
+        # For directory patterns, check if any parent dir matches
+        if dir_only:
+            for i in range(len(parts) - 1):
+                parent = str(Path(*parts[: i + 1]))
+                if fnmatch.fnmatch(parent, p):
+                    return True
+                # Single-segment pattern matches any dir component
+                if "/" not in p and fnmatch.fnmatch(parts[i], p):
+                    return True
+    return False
+
+
 class Store:
     """Disk cache for bench state.
 
@@ -88,7 +131,7 @@ class Store:
     - File hashing and Merkle tree construction
     - Reading/writing cached data to .pgz files
     - Deserializing cached data back into structures + loaders
-    - Diagnosis cache (separate .dx.pgz files)
+    - Evaluation cache (separate .dx.pgz files)
     """
 
     def __init__(self, bench_dir: str | Path | None = None):
@@ -217,10 +260,10 @@ class Store:
         loader._result._all_nodes = nodes
         return structure, loader
 
-    # ── Diagnosis cache ──
+    # ── Evaluation cache ──
 
-    def save_diagnosis(self, path: str, merkle_root: str, dx: Diagnosis):
-        """Save diagnosis to disk as .pgz."""
+    def save_diagnosis(self, path: str, merkle_root: str, dx: Evaluation):
+        """Save evaluation to disk as .pgz."""
         self._ensure_dir()
         data = {"merkle_root": merkle_root, "diagnosis": dx.to_dict()}
         try:
@@ -228,28 +271,28 @@ class Store:
             _pgz_write(self._diagnosis_cache_path(path), payload)
             self._legacy_diagnosis_cache_path(path).unlink(missing_ok=True)
         except Exception as e:
-            log.warning("Failed to save diagnosis for %s: %s", path, e)
+            log.warning("Failed to save evaluation for %s: %s", path, e)
 
-    def load_diagnosis(self, path: str, expected_merkle_root: str) -> Diagnosis | None:
-        """Load diagnosis from disk if Merkle root matches."""
+    def load_diagnosis(self, path: str, expected_merkle_root: str) -> Evaluation | None:
+        """Load evaluation from disk if Merkle root matches."""
         data = self._read_diagnosis_raw(path)
         if data is None:
             return None
         if data.get("merkle_root") != expected_merkle_root:
             return None
         try:
-            return Diagnosis.from_dict(data["diagnosis"])
+            return Evaluation.from_dict(data["diagnosis"])
         except Exception:
             self._diagnosis_cache_path(path).unlink(missing_ok=True)
             return None
 
-    def load_stale_diagnosis(self, path: str) -> Diagnosis | None:
-        """Load diagnosis from disk regardless of Merkle root match."""
+    def load_stale_diagnosis(self, path: str) -> Evaluation | None:
+        """Load evaluation from disk regardless of Merkle root match."""
         data = self._read_diagnosis_raw(path)
         if data is None:
             return None
         try:
-            return Diagnosis.from_dict(data["diagnosis"])
+            return Evaluation.from_dict(data["diagnosis"])
         except Exception:
             self._diagnosis_cache_path(path).unlink(missing_ok=True)
             return None
@@ -452,24 +495,43 @@ class SearchStore:
         _index: DocumentIndex,
         directory: str,
         extensions: list[str] | None = None,
+        exclude: list[str] | None = None,
         on_progress: Callable[[int, int, str], None] | None = None,
     ) -> tuple[DocumentIndex, int]:
         """Walk *directory*, index every file matching *extensions*.
 
         Uses Merkle-based caching: only changed files are re-indexed.
         Deleted files are removed from the index.
+        Reads .pgignore from directory root (gitignore-style patterns).
+        Additional exclude patterns can be passed via *exclude*.
         """
         extensions = extensions or [".py", ".pltg", ".md", ".txt"]
         ext_set = set(extensions)
         directory = str(Path(directory).resolve())
 
+        # Load ignore patterns: .pgignore + explicit excludes
+        ignore_patterns = _load_pgignore(directory)
+        if exclude:
+            ignore_patterns.extend(exclude)
+
         # Collect files as (absolute, relative_key)
         paths: list[tuple[Path, str]] = []
-        for root, _, fnames in os.walk(directory):
+        for root, dirs, fnames in os.walk(directory):
+            # Prune ignored directories
+            if ignore_patterns:
+                rel_root = str(Path(root).relative_to(directory))
+                kept = []
+                for d in dirs:
+                    rel_dir = str(Path(rel_root) / d) if rel_root != "." else d
+                    if not _is_ignored(rel_dir + "/placeholder", ignore_patterns):
+                        kept.append(d)
+                dirs[:] = kept
             for fname in fnames:
                 if any(fname.endswith(e) for e in ext_set):
                     fpath = Path(root) / fname
                     rel = str(fpath.relative_to(directory))
+                    if ignore_patterns and _is_ignored(rel, ignore_patterns):
+                        continue
                     paths.append((fpath, rel))
 
         file_texts, new_hashes = self._read_and_hash(paths)

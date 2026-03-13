@@ -33,10 +33,10 @@
         :quotes ("EQ = Symbol(\"=\")")
         :explanation "= symbol"))
 
-(fact special-forms-tuple-size 4
+(fact special-forms-tuple-size 8
     :evidence (evidence "lang.py"
-        :quotes ("SPECIAL_FORMS = (IF, LET, QUOTE, STRICT)")
-        :explanation "SPECIAL_FORMS has 4 members"))
+        :quotes ("SPECIAL_FORMS = (IF, LET, QUOTE, STRICT, SCOPE, SELF, PROJECT, DELEGATE)")
+        :explanation "SPECIAL_FORMS has 8 members"))
 
 ; EQ is NOT in SPECIAL_FORMS — it's separate
 ; But EQ has special-form behavior in engine (rewrite rules, comparison fallback)
@@ -323,10 +323,10 @@ SPLAT_PREFIX = \"?...\"")
     :using (count-exists counting.count-exists-base counting.count-exists-step
             if-symbol let-symbol quote-symbol strict-symbol eq-symbol))
 
-(defterm special-forms-impl-count 5
+(defterm special-forms-impl-count 9
     :evidence (evidence "lang.py"
-        :quotes ("IF = Symbol(\"if\")" "LET = Symbol(\"let\")" "QUOTE = Symbol(\"quote\")" "STRICT = Symbol(\"strict\")" "EQ = Symbol(\"=\")")
-        :explanation "5 special form symbols in source"))
+        :quotes ("IF = Symbol(\"if\")" "LET = Symbol(\"let\")" "QUOTE = Symbol(\"quote\")" "STRICT = Symbol(\"strict\")" "EQ = Symbol(\"=\")" "SCOPE = Symbol(\"scope\")" "SELF = Symbol(\"self\")" "PROJECT = Symbol(\"project\")" "DELEGATE = Symbol(\"delegate\")")
+        :explanation "9 special form symbols in source"))
 
 (diff special-forms-coverage
     :replace special-forms-doc-count
@@ -408,3 +408,32 @@ SPLAT_PREFIX = \"?...\"")
 (derive export-lang-docs
     (util.export splat-lang-docs-impl)
     :using (util.export splat-lang-docs-impl))
+
+; =====================================================================
+; Scope special forms — new symbols
+; =====================================================================
+
+(fact scope-symbol "scope"
+    :evidence (evidence "lang.py"
+        :quotes ("SCOPE = Symbol(\"scope\")")
+        :explanation "scope special form"))
+
+(fact self-symbol "self"
+    :evidence (evidence "lang.py"
+        :quotes ("SELF = Symbol(\"self\")")
+        :explanation "self special form"))
+
+(fact project-symbol "project"
+    :evidence (evidence "lang.py"
+        :quotes ("PROJECT = Symbol(\"project\")")
+        :explanation "project special form"))
+
+(fact delegate-symbol "delegate"
+    :evidence (evidence "lang.py"
+        :quotes ("DELEGATE = Symbol(\"delegate\")")
+        :explanation "delegate special form"))
+
+(defterm stub-scope-lang-docs :origin "TODO: SCOPE LANG_DOCS entry — dispatches to callable, project resolved eagerly")
+(defterm stub-self-lang-docs :origin "TODO: SELF LANG_DOCS entry — identity scope, evaluates in current engine")
+(defterm stub-project-lang-docs :origin "TODO: PROJECT LANG_DOCS entry — evaluate in current or named basis")
+(defterm stub-delegate-lang-docs :origin "TODO: DELEGATE LANG_DOCS entry — :bind stack semantics, ?_level, conditional patterns")

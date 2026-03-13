@@ -1,4 +1,4 @@
-"""Tests for the Bench — real .pltg files, caching, lens, diagnosis, search.
+"""Tests for the Bench — real .pltg files, caching, lens, evaluation, search.
 
 Exercises:
 - Documents loaded via (load-document) with evidence and quote verification
@@ -18,7 +18,7 @@ import unittest
 from unittest.mock import patch
 
 from ..inspect.bench import Bench
-from ..inspect.diagnosis import Diagnosis
+from ..inspect.evaluation import Evaluation
 
 # Patch path for disabling background reloads in tests
 _BG_RELOAD = "parseltongue.core.inspect.technician.Technician._background_reload"
@@ -222,7 +222,7 @@ class TestBenchDocumentsAndQuotes(_BenchTestBase):
         path = self._write_main()
         bench = self._bench()
         bench.prepare(path)
-        dx = bench.diagnose()
+        dx = bench.evaluate()
         evidence_issues = [i for i in dx.issues() if "evidence" in i.type or "fabrication" in i.type]
         self.assertEqual(len(evidence_issues), 0)
         diff_issues = [i for i in dx.issues() if "diff" in i.type]
@@ -232,7 +232,7 @@ class TestBenchDocumentsAndQuotes(_BenchTestBase):
         path = self._write_main()
         bench = self._bench()
         bench.prepare(path)
-        dx = bench.diagnose()
+        dx = bench.evaluate()
         fab_issues = [i for i in dx.issues() if "fabrication" in i.type]
         self.assertEqual(len(fab_issues), 0)
 
@@ -256,7 +256,7 @@ class TestBenchDocumentsAndQuotes(_BenchTestBase):
         self.assertIn("beta.txt", engine.documents)
         self.assertTrue(engine.facts["revenue-growth"].origin.is_grounded)
         self.assertTrue(engine.facts["customer-count"].origin.is_grounded)
-        dx = bench.diagnose()
+        dx = bench.evaluate()
         evidence_issues = [i for i in dx.issues() if "evidence" in i.type or "fabrication" in i.type]
         self.assertEqual(len(evidence_issues), 0)
         # Diff divergence expected (10 vs 1200)
@@ -269,7 +269,7 @@ class TestBenchDocumentsAndQuotes(_BenchTestBase):
         path = self._write_bad()
         bench = self._bench()
         bench.prepare(path)
-        dx = bench.diagnose()
+        dx = bench.evaluate()
         self.assertFalse(dx.consistent)
         self.assertGreater(len(dx.issues()), 0)
 
@@ -277,7 +277,7 @@ class TestBenchDocumentsAndQuotes(_BenchTestBase):
         path = self._write_bad()
         bench = self._bench()
         bench.prepare(path)
-        dx = bench.diagnose()
+        dx = bench.evaluate()
         issue_types = {i.type for i in dx.issues()}
         evidence_issues = issue_types & {"unverified_evidence", "potential_fabrication"}
         self.assertTrue(evidence_issues, f"Expected evidence issues, got: {issue_types}")
@@ -299,7 +299,7 @@ class TestBenchDocumentsAndQuotes(_BenchTestBase):
         path = self._write("consistent.pltg", CONSISTENT_DIFF_PLTG)
         bench = self._bench()
         bench.prepare(path)
-        dx = bench.diagnose()
+        dx = bench.evaluate()
         self.assertTrue(dx.consistent, f"Expected consistent: {dx.summary()}")
         diff_issues = [i for i in dx.issues() if "diff" in i.type]
         self.assertEqual(len(diff_issues), 0)
@@ -374,7 +374,7 @@ class TestBenchImportChain(_BenchTestBase):
         path = self._write_chain()
         bench = self._bench()
         bench.prepare(path)
-        dx = bench.diagnose()
+        dx = bench.evaluate()
         evidence_issues = [i for i in dx.issues() if "evidence" in i.type or "fabrication" in i.type]
         self.assertEqual(len(evidence_issues), 0, f"Evidence issues: {evidence_issues}")
 
@@ -587,14 +587,14 @@ class TestBenchStateTransitions(_BenchTestBase):
         path = self._write_main()
         bench = self._bench()
         bench.prepare(path)
-        dx1 = bench.diagnose()
+        dx1 = bench.evaluate()
 
         with open(path, "a") as f:
             f.write('\n(fact dx-change 1 :origin "change")\n')
 
         bench.prepare(path)
         # Should be able to get a fresh diagnosis
-        dx2 = bench.diagnose()
+        dx2 = bench.evaluate()
         self.assertIsNot(dx1, dx2)
 
     def test_hot_patch_tracks_affected_names(self):
@@ -667,7 +667,7 @@ class TestBenchDiskCache(_BenchTestBase):
         path = self._write_main()
         bench = self._bench()
         bench.prepare(path)
-        bench.diagnose()
+        bench.evaluate()
         bench.invalidate()
         if os.path.isdir(self.bench_dir):
             json_files = [f for f in os.listdir(self.bench_dir) if f.endswith((".pgz", ".json"))]
@@ -690,7 +690,7 @@ class TestBenchDiskCache(_BenchTestBase):
         path = self._write_main()
         bench = self._bench()
         bench.prepare(path)
-        bench.diagnose()
+        bench.evaluate()
         dx_files = [f for f in os.listdir(self.bench_dir) if f.endswith((".dx.pgz", ".dx.json"))]
         self.assertGreater(len(dx_files), 0)
 
@@ -698,11 +698,11 @@ class TestBenchDiskCache(_BenchTestBase):
         path = self._write_main()
         bench1 = self._bench()
         bench1.prepare(path)
-        dx1 = bench1.diagnose()
+        dx1 = bench1.evaluate()
 
         bench2 = self._bench()
         bench2.prepare(path)
-        dx2 = bench2.diagnose()
+        dx2 = bench2.evaluate()
         self.assertEqual(dx2.consistent, dx1.consistent)
 
     def test_store_save_receives_file_hashes(self):
@@ -748,7 +748,7 @@ class TestBenchDiagnosis(_BenchTestBase):
         path = self._write("clean.pltg", MAIN_PLTG)
         bench = self._bench()
         bench.prepare(path)
-        dx = bench.diagnose()
+        dx = bench.evaluate()
         self.assertIsInstance(dx.summary(), str)
 
     def test_inconsistent_system_has_issues(self):
@@ -756,7 +756,7 @@ class TestBenchDiagnosis(_BenchTestBase):
         path = self._write("bad.pltg", BAD_QUOTE_PLTG)
         bench = self._bench()
         bench.prepare(path)
-        dx = bench.diagnose()
+        dx = bench.evaluate()
         self.assertFalse(dx.consistent)
         self.assertGreater(len(dx.issues()), 0)
 
@@ -765,7 +765,7 @@ class TestBenchDiagnosis(_BenchTestBase):
         path = self._write("bad.pltg", BAD_QUOTE_PLTG)
         bench = self._bench()
         bench.prepare(path)
-        dx = bench.diagnose()
+        dx = bench.evaluate()
         stats = dx.stats()
         self.assertIn("by_category", stats)
         self.assertIn("by_type", stats)
@@ -776,7 +776,7 @@ class TestBenchDiagnosis(_BenchTestBase):
         path = self._write("bad.pltg", BAD_QUOTE_PLTG)
         bench = self._bench()
         bench.prepare(path)
-        dx = bench.diagnose()
+        dx = bench.evaluate()
         results = dx.find(".*")
         self.assertGreater(len(results), 0)
 
@@ -785,8 +785,8 @@ class TestBenchDiagnosis(_BenchTestBase):
         path = self._write("clean.pltg", MAIN_PLTG)
         bench = self._bench()
         bench.prepare(path)
-        dx1 = bench.diagnose()
-        dx2 = bench.diagnose()
+        dx1 = bench.evaluate()
+        dx2 = bench.evaluate()
         self.assertIs(dx1, dx2)
 
     def test_diagnosis_repr(self):
@@ -794,17 +794,17 @@ class TestBenchDiagnosis(_BenchTestBase):
         path = self._write("bad.pltg", BAD_QUOTE_PLTG)
         bench = self._bench()
         bench.prepare(path)
-        dx = bench.diagnose()
-        self.assertIn("Diagnosis", repr(dx))
+        dx = bench.evaluate()
+        self.assertIn("Evaluation", repr(dx))
 
     def test_diagnosis_to_dict_roundtrip(self):
         self._write("truth.txt", TRUTH_TEXT)
         path = self._write("bad.pltg", BAD_QUOTE_PLTG)
         bench = self._bench()
         bench.prepare(path)
-        dx = bench.diagnose()
+        dx = bench.evaluate()
         d = dx.to_dict()
-        dx2 = Diagnosis.from_dict(d)
+        dx2 = Evaluation.from_dict(d)
         self.assertEqual(len(dx2.issues()), len(dx.issues()))
         self.assertEqual(dx2.consistent, dx.consistent)
 
@@ -867,8 +867,8 @@ class TestBenchMultipleSamples(_BenchTestBase):
         bench.prepare(path1)
         bench.prepare(path2)
 
-        dx1 = bench.diagnose(path1)
-        dx2 = bench.diagnose(path2)
+        dx1 = bench.evaluate(path1)
+        dx2 = bench.evaluate(path2)
         ev1 = [i for i in dx1.issues() if "evidence" in i.type or "fabrication" in i.type]
         self.assertEqual(len(ev1), 0)
         ev2 = [i for i in dx2.issues() if "evidence" in i.type or "fabrication" in i.type]
@@ -965,7 +965,7 @@ class TestBenchEdgeCases(_BenchTestBase):
     def test_no_prepare_diagnose_raises(self):
         bench = self._bench()
         with self.assertRaises(RuntimeError):
-            bench.diagnose()
+            bench.evaluate()
 
     def test_nonexistent_file_raises(self):
         bench = self._bench()

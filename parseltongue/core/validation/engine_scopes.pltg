@@ -1,0 +1,273 @@
+; engine_scopes.pltg — Scope integrity: scope, self, project, delegate
+;
+; Validates the scope subsystem of engine.py:
+;   - SCOPE handler dispatches to callables, resolves project/delegate in args
+;   - SELF handler evaluates in current engine
+;   - PROJECT handler evaluates in current or named basis
+;   - DELEGATE handler picks from :bind proposal stack by nesting depth
+;   - _rp resolves projects and posts delegate proposals
+;   - _delegate_proposal evaluates proposals with ?-var binding
+
+(load-document "engine.py" "../engine.py")
+(load-document "lang.py" "../lang.py")
+(import (quote ..std.counting))
+(import (quote ..std.util))
+(defterm count-exists counting.count-exists :origin "import")
+
+; =====================================================================
+; SCOPE handler — dispatches to callable or self
+; =====================================================================
+
+(fact scope-checks-self true
+    :evidence (evidence "engine.py"
+        :quotes ("if name == SELF:")
+        :explanation "SCOPE handler checks if name is SELF"))
+
+(fact scope-evaluates-self-args true
+    :evidence (evidence "engine.py"
+        :quotes ("result = self._eval(arg, env, axiom_scope, restricted)")
+        :explanation "SCOPE self branch evaluates args in current engine"))
+
+(fact scope-resolves-name true
+    :evidence (evidence "engine.py"
+        :quotes ("scope_val = self._eval(name, env, axiom_scope, restricted)")
+        :explanation "SCOPE resolves name to a value"))
+
+(fact scope-requires-callable true
+    :evidence (evidence "engine.py"
+        :quotes ("if callable(scope_val):")
+        :explanation "SCOPE requires resolved name to be callable"))
+
+(fact scope-passes-name-to-callable true
+    :evidence (evidence "engine.py"
+        :quotes ("return scope_val(name, *resolved)")
+        :explanation "SCOPE passes name as first arg to callable"))
+
+(fact scope-resolves-project-in-args true
+    :evidence (evidence "engine.py"
+        :quotes ("resolved = [_rp(a) for a in expr[2:]]")
+        :explanation "SCOPE resolves project/delegate in args before forwarding"))
+
+(defterm stub-scope-error-message :origin "TODO: scope target not callable error message")
+
+; =====================================================================
+; SELF handler — identity scope
+; =====================================================================
+
+(fact self-evaluates-all-args true
+    :evidence (evidence "engine.py"
+        :quotes ("if head == SELF:\n            # (self expr ...) — evaluate all args in the current engine\n            result = None\n            for arg in expr[1:]:\n                result = self._eval(arg, env, axiom_scope, restricted)\n            return result")
+        :explanation "SELF evaluates all args in current engine, returns last"))
+
+; =====================================================================
+; PROJECT handler — evaluate in basis
+; =====================================================================
+
+(fact project-self-basis true
+    :evidence (evidence "engine.py"
+        :quotes ("# (project expr) — evaluate expr in current engine (self basis)")
+        :explanation "PROJECT with one arg evaluates in current engine"))
+
+(fact project-named-basis true
+    :evidence (evidence "engine.py"
+        :quotes ("# (project basis expr) — resolve basis to a callable, evaluate expr in that basis")
+        :explanation "PROJECT with two args resolves basis to callable"))
+
+(fact project-self-shortcut true
+    :evidence (evidence "engine.py"
+        :quotes ("if basis == SELF:\n                return self._eval(expr[2], env, axiom_scope, restricted)")
+        :explanation "PROJECT with basis=self evaluates directly"))
+
+(fact project-calls-basis true
+    :evidence (evidence "engine.py"
+        :quotes ("basis_val = self._eval(basis, env, axiom_scope, restricted)\n            if callable(basis_val):\n                return basis_val(basis, *expr[2:])")
+        :explanation "PROJECT resolves basis and calls it"))
+
+; =====================================================================
+; DELEGATE handler — picks from :bind proposal stack
+; =====================================================================
+
+(fact delegate-counts-depth true
+    :evidence (evidence "engine.py"
+        :quotes ("depth = 0\n            e = expr\n            while isinstance(e, list) and e and e[0] == DELEGATE:\n                depth += 1\n                e = e[1]")
+        :explanation "DELEGATE counts nesting depth"))
+
+(fact delegate-reads-bind-stack true
+    :evidence (evidence "engine.py"
+        :quotes ("binds = get_keyword(expr, KW_BIND, [])")
+        :explanation "DELEGATE reads :bind stack from expression"))
+
+(fact delegate-picks-by-depth true
+    :evidence (evidence "engine.py"
+        :quotes ("for proposal in reversed(binds):\n                if proposal != []:\n                    found += 1\n                    if found == depth:\n                        return proposal")
+        :explanation "DELEGATE picks depth-th non-[] proposal from closest"))
+
+(fact delegate-raises-on-insufficient true
+    :evidence (evidence "engine.py"
+        :quotes ("raise NameError(\n                f\"delegate depth {depth} but only {found} matching proposals: \"")
+        :explanation "DELEGATE raises NameError if not enough proposals"))
+
+; =====================================================================
+; _rp — project resolution walk
+; =====================================================================
+
+(fact rp-resolves-project true
+    :evidence (evidence "engine.py"
+        :quotes ("if e[0] == PROJECT:\n                        return self._eval(e, env, axiom_scope, restricted)")
+        :explanation "_rp eagerly evaluates project expressions"))
+
+(fact rp-posts-delegate-proposal true
+    :evidence (evidence "engine.py"
+        :quotes ("if e[0] == DELEGATE:\n                        # Post this level's proposal, keep body unevaluated\n                        existing = get_keyword(e, KW_BIND, [])")
+        :explanation "_rp enters delegate to post proposal"))
+
+(fact rp-appends-to-bind-stack true
+    :evidence (evidence "engine.py"
+        :quotes ("return base + [KW_BIND, new_binds]")
+        :explanation "_rp appends proposal to :bind stack"))
+
+(fact rp-recurses-into-children true
+    :evidence (evidence "engine.py"
+        :quotes ("return [_rp(x) for x in e]")
+        :explanation "_rp recurses into non-project non-delegate children"))
+
+; =====================================================================
+; _delegate_proposal — evaluate proposal at current scope
+; =====================================================================
+
+(fact proposal-peels-delegate-nesting true
+    :evidence (evidence "engine.py"
+        :quotes ("while isinstance(e, list) and e and e[0] == DELEGATE:")
+        :explanation "_delegate_proposal peels all delegate nesting"))
+
+(fact proposal-detects-conditional true
+    :evidence (evidence "engine.py"
+        :quotes ("if len(e) > 2 and e[2] != KW_BIND:\n                            pattern = e[1]")
+        :explanation "_delegate_proposal detects conditional pattern"))
+
+(fact proposal-binds-level true
+    :evidence (evidence "engine.py"
+        :quotes ("if vname == \"?_level\":\n                            bindings[var] = level")
+        :explanation "_delegate_proposal binds ?_level to stack position"))
+
+(fact proposal-binds-from-env true
+    :evidence (evidence "engine.py"
+        :quotes ("plain = Symbol(vname.lstrip(\"?\"))\n                        if plain not in env:\n                            return []\n                        bindings[var] = env[plain]")
+        :explanation "_delegate_proposal binds ?-vars from env"))
+
+(fact proposal-evaluates-pattern true
+    :evidence (evidence "engine.py"
+        :quotes ("if pattern is not None:\n                        bound_pattern = substitute(pattern, bindings)")
+        :explanation "_delegate_proposal evaluates bound pattern"))
+
+(fact proposal-returns-empty-on-mismatch true
+    :evidence (evidence "engine.py"
+        :quotes ("if not result:\n                            return []")
+        :explanation "_delegate_proposal returns [] when pattern doesn't match"))
+
+(fact proposal-evaluates-body true
+    :evidence (evidence "engine.py"
+        :quotes ("bound_body = substitute(body, bindings)\n                    return self._eval(\n                        bound_body, env, axiom_scope, restricted)")
+        :explanation "_delegate_proposal evaluates substituted body"))
+
+; =====================================================================
+; Cross-checks: handler count × symbol count
+; =====================================================================
+
+; 4 scope-related special form handlers in _eval
+(derive scope-handler-count
+    (count-exists scope-checks-self self-evaluates-all-args
+                  project-self-basis delegate-counts-depth)
+    :using (count-exists scope-checks-self self-evaluates-all-args
+            project-self-basis delegate-counts-depth))
+
+; 4 scope-related symbols in lang.py
+(fact scope-symbol-exists true
+    :evidence (evidence "lang.py"
+        :quotes ("SCOPE = Symbol(\"scope\")")
+        :explanation "SCOPE symbol defined"))
+
+(fact self-symbol-exists true
+    :evidence (evidence "lang.py"
+        :quotes ("SELF = Symbol(\"self\")")
+        :explanation "SELF symbol defined"))
+
+(fact project-symbol-exists true
+    :evidence (evidence "lang.py"
+        :quotes ("PROJECT = Symbol(\"project\")")
+        :explanation "PROJECT symbol defined"))
+
+(fact delegate-symbol-exists true
+    :evidence (evidence "lang.py"
+        :quotes ("DELEGATE = Symbol(\"delegate\")")
+        :explanation "DELEGATE symbol defined"))
+
+(derive scope-symbol-count
+    (count-exists scope-symbol-exists self-symbol-exists
+                  project-symbol-exists delegate-symbol-exists)
+    :using (count-exists scope-symbol-exists self-symbol-exists
+            project-symbol-exists delegate-symbol-exists))
+
+(diff scope-handlers-vs-symbols
+    :replace scope-handler-count
+    :with scope-symbol-count)
+
+; =====================================================================
+; SCOPE handler internal structure: features × impl
+; =====================================================================
+
+(derive scope-handler-feature-count
+    (count-exists scope-checks-self scope-resolves-name scope-requires-callable
+                  scope-passes-name-to-callable scope-resolves-project-in-args)
+    :using (count-exists scope-checks-self scope-resolves-name scope-requires-callable
+            scope-passes-name-to-callable scope-resolves-project-in-args))
+
+; PROJECT handler: 2 forms (self-basis, named-basis)
+(derive project-form-count
+    (count-exists project-self-basis project-named-basis)
+    :using (count-exists project-self-basis project-named-basis))
+
+; DELEGATE handler: 4 key properties
+(derive delegate-property-count
+    (count-exists delegate-counts-depth delegate-reads-bind-stack
+                  delegate-picks-by-depth delegate-raises-on-insufficient)
+    :using (count-exists delegate-counts-depth delegate-reads-bind-stack
+            delegate-picks-by-depth delegate-raises-on-insufficient))
+
+; _rp: 4 branches
+(derive rp-branch-count
+    (count-exists rp-resolves-project rp-posts-delegate-proposal
+                  rp-appends-to-bind-stack rp-recurses-into-children)
+    :using (count-exists rp-resolves-project rp-posts-delegate-proposal
+            rp-appends-to-bind-stack rp-recurses-into-children))
+
+; _delegate_proposal: 7 steps
+(derive proposal-step-count
+    (count-exists proposal-peels-delegate-nesting proposal-detects-conditional
+                  proposal-binds-level proposal-binds-from-env
+                  proposal-evaluates-pattern proposal-returns-empty-on-mismatch
+                  proposal-evaluates-body)
+    :using (count-exists proposal-peels-delegate-nesting proposal-detects-conditional
+            proposal-binds-level proposal-binds-from-env
+            proposal-evaluates-pattern proposal-returns-empty-on-mismatch
+            proposal-evaluates-body))
+
+; =====================================================================
+; Exports
+; =====================================================================
+
+(derive export-scope-handler-count
+    (util.export scope-handler-count)
+    :using (util.export scope-handler-count))
+
+(derive export-scope-symbol-count
+    (util.export scope-symbol-count)
+    :using (util.export scope-symbol-count))
+
+(derive export-delegate-property-count
+    (util.export delegate-property-count)
+    :using (util.export delegate-property-count))
+
+(derive export-proposal-step-count
+    (util.export proposal-step-count)
+    :using (util.export proposal-step-count))

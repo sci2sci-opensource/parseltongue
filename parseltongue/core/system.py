@@ -3,7 +3,7 @@ Parseltongue System — composes Engine with defaults, serialization, and intros
 """
 
 import logging
-from typing import Callable
+from typing import Callable, Self
 
 from .atoms import Evidence, Symbol
 from .default_system_settings import DEFAULT_OPERATORS, ENGINE_DOCS
@@ -30,30 +30,26 @@ from .serialization import (
 log = logging.getLogger("parseltongue")
 
 
-class System:
-    """Composes Engine with default operators, serialization, and introspection."""
+class AbstractSystem:
+    """Composes Engine with serialization and introspection. All args required — no defaults."""
 
     def __init__(
         self,
-        overridable: bool = False,
-        initial_env: dict | None = None,
-        docs: dict | None = None,
-        strict_derive: bool = True,
-        effects: dict[str, Callable] | None = None,
-        verifier=None,
+        initial_env: dict,
+        docs: dict,
+        overridable: bool,
+        strict_derive: bool,
+        effects: dict[str, Callable],
+        verifier,
     ):
         env: dict = {}
-        if initial_env is not None:
-            env.update(initial_env)
-        else:
-            env.update(DEFAULT_OPERATORS)
+        env.update(initial_env)
 
         self.engine = Engine(env, overridable=overridable, strict_derive=strict_derive, verifier=verifier)
-        self._docs = docs if docs is not None else ENGINE_DOCS
+        self._docs = docs
 
-        if effects:
-            for name, fn in effects.items():
-                self.engine.env[Symbol(name)] = lambda *args, _fn=fn: _fn(self, *args)
+        for name, fn in effects.items():
+            self.engine.env[Symbol(name)] = lambda *args, _fn=fn: _fn(self, *args)
 
     @property
     def facts(self):
@@ -81,6 +77,10 @@ class System:
 
     def evaluate(self, expr, local_env=None):
         return self.engine.evaluate(expr, local_env)
+
+    def interpret(self, source: str):
+        """Parse and execute pltg source (directives + expressions)."""
+        load_source(self, source)
 
     def set_fact(self, name, value, origin):
         self.engine.set_fact(name, value, origin)
@@ -235,7 +235,7 @@ class System:
         }
 
     @classmethod
-    def from_dict(cls, data: dict) -> "System":
+    def from_dict(cls, data: dict, **kwargs) -> Self:
         from .quote_verifier import QuoteVerifier
         from .quote_verifier.index import DocumentIndex
 
@@ -248,7 +248,7 @@ class System:
             verifier = QuoteVerifier()
             verifier.set_index(index)
 
-        system = cls(verifier=verifier)
+        system = cls(verifier=verifier, **kwargs)
         system.engine.terms = {n: deserialize_term(n, d) for n, d in data.get("terms", {}).items()}
         system.engine.facts = {n: deserialize_fact(n, d) for n, d in data.get("facts", {}).items()}
         system.engine.axioms = {n: deserialize_axiom(n, d) for n, d in data.get("axioms", {}).items()}
@@ -376,5 +376,53 @@ class System:
         )
 
 
-def load_source(system: System, source: str):
+class DefaultSystem(AbstractSystem):
+    """System with default operators and docs. The standard entry point."""
+
+    def __init__(
+        self,
+        overridable: bool = False,
+        initial_env: dict | None = None,
+        docs: dict | None = None,
+        strict_derive: bool = True,
+        effects: dict[str, Callable] | None = None,
+        verifier=None,
+    ):
+        super().__init__(
+            initial_env=initial_env if initial_env is not None else DEFAULT_OPERATORS,
+            docs=docs if docs is not None else ENGINE_DOCS,
+            overridable=overridable,
+            strict_derive=strict_derive,
+            effects=effects or {},
+            verifier=verifier,
+        )
+
+
+class EmptySystem(AbstractSystem):
+    """System with no operators — a blank slate."""
+
+    def __init__(
+        self,
+        overridable: bool = False,
+        initial_env: dict | None = None,
+        docs: dict | None = None,
+        strict_derive: bool = True,
+        effects: dict[str, Callable] | None = None,
+        verifier=None,
+    ):
+        super().__init__(
+            initial_env=initial_env if initial_env is not None else {},
+            docs=docs if docs is not None else {},
+            overridable=overridable,
+            strict_derive=strict_derive,
+            effects=effects or {},
+            verifier=verifier,
+        )
+
+
+# Backward-compatible alias — System() gives DefaultSystem
+System = DefaultSystem
+
+
+def load_source(system: AbstractSystem, source: str):
     _engine_load_source(system.engine, source)

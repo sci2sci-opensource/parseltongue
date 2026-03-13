@@ -4,7 +4,7 @@ Guide for an LLM agent that needs to load parseltongue files, build provenance s
 
 ## Quick start — use Bench
 
-**Bench is the recommended entry point.** Prepare a sample, then observe with `lens()` (structure), `diagnose()` (health), or `search()` (full-text with provenance). Backed by Merkle tree caching with eventual consistency.
+**Bench is the recommended entry point.** Prepare a sample, then observe with `lens()` (structure), `evaluate()` (health), or `search()` (full-text with provenance). Backed by Merkle tree caching with eventual consistency.
 
 ```python
 from parseltongue.core.inspect.bench import Bench
@@ -14,17 +14,17 @@ bench = Bench()  # caches to .parseltongue-bench/
 bench.prepare("parseltongue/core/validation/core_clean.pltg")
 
 lens = bench.lens()          # structural observation (Lens)
-dx   = bench.diagnose()      # consistency observation (Diagnosis)
+dx   = bench.evaluate()      # consistency observation (Evaluation)
 r    = bench.search("def")   # full-text search with provenance
 ```
 
-Bench caches per resolved file path. Edit a file and call `bench.prepare()` again: Merkle tree diff detects which files changed, hot-patches the system, and re-probes only affected nodes. Diagnosis is also incremental — only diffs affected by changed names are re-evaluated. A background loader runs to reach full integrity.
+Bench caches per resolved file path. Edit a file and call `bench.prepare()` again: Merkle tree diff detects which files changed, hot-patches the system, and re-probes only affected nodes. Evaluation is also incremental — only diffs affected by changed names are re-evaluated. A background loader runs to reach full integrity.
 
 ### When to use what
 
 | Need | Use |
 |------|-----|
-| Load + probe + cache (default) | `bench.prepare(path)` then `bench.lens()` / `bench.diagnose()` / `bench.search()` |
+| Load + probe + cache (default) | `bench.prepare(path)` then `bench.lens()` / `bench.evaluate()` / `bench.search()` |
 | Full-text search with provenance | `bench.search(query)` |
 | Probe a single term by name | `inspect_loaded(term, loader)` → `Lens` |
 | Probe without file:line | `probe(term, engine)` → structure, then `inspect(structure)` |
@@ -152,12 +152,12 @@ from parseltongue.core.inspect.probe_core_to_consequence import InputType
 lens.view_inputs("module.theorem", InputType.PULL)
 ```
 
-## Diagnosis API
+## Evaluation API
 
-`bench.diagnose()` returns a `Diagnosis` — the health side of observation. Wraps consistency into a searchable, focusable object.
+`bench.evaluate()` returns an `Evaluation` — the health side of observation. Wraps consistency into a searchable, focusable object.
 
 ```python
-dx = bench.diagnose()
+dx = bench.evaluate()
 
 # Overview
 print(dx.summary())           # counts by category and type
@@ -175,16 +175,16 @@ dx.danglings(kind="derive")   # unused derives
 dx.loader()                    # loader errors, skips, warnings
 
 # Search
-dx.find("count")               # regex over all names in diagnosis
+dx.find("count")               # regex over all names in evaluation
 dx.fuzzy("special")            # substring match, ranked
 
-# Focus — narrow to namespace, returns new Diagnosis
+# Focus — narrow to namespace, returns new Evaluation
 rdx = dx.focus("readme.")
 print(rdx.summary())
 print(rdx.issues())
 ```
 
-Each item is a `DiagnosisItem` with: `name`, `category` (issue/warning/dangling/loader), `type`, `kind` (directive kind), `loc` (file:line), `detail`.
+Each item is an `EvaluationItem` with: `name`, `category` (issue/warning/dangling/loader), `type`, `kind` (directive kind), `loc` (file:line), `detail`.
 
 ## Perspectives
 
@@ -204,7 +204,7 @@ Perspectives are **instances** registered on lens creation. Bench registers `MDe
 
 ```python
 bench.prepare("parseltongue/core/validation/core_clean.pltg")
-dx = bench.diagnose()
+dx = bench.evaluate()
 
 # Find failing diffs
 for item in dx.issues(kind="diff"):
@@ -236,10 +236,10 @@ r = bench.search("def register_document")
 # → engine.py:298 ← [engine.engine-has-register-document(1.0)]
 ```
 
-### 2. Diagnose
+### 2. Evaluate
 
 ```python
-dx = bench.diagnose()
+dx = bench.evaluate()
 
 # Failing diffs
 for item in dx.issues(kind="diff"):
@@ -284,7 +284,7 @@ print(f"{r} == {w}: {r == w}")
 
 # Or reload via bench — detects changes, re-probes incrementally
 bench.prepare("parseltongue/core/validation/core_clean.pltg")
-dx = bench.diagnose()
+dx = bench.evaluate()
 print(dx.summary())
 ```
 
@@ -313,10 +313,10 @@ On `bench.prepare(path)`:
 3. On mismatch: find changed files, hot-patch system (retract + re-execute + re-probe affected), start background reload (~200ms)
 4. No cache: cold load (~4s)
 
-On `bench.diagnose()`:
+On `bench.evaluate()`:
 1. Memory cache hit → return immediately
 2. Disk cache with matching Merkle root → return from disk
-3. Incremental: stale diagnosis + affected names from prepare → re-evaluate only affected diffs → patch old diagnosis
+3. Incremental: stale evaluation + affected names from prepare → re-evaluate only affected diffs → patch old evaluation
 4. Cold: full consistency check
 
 ```python

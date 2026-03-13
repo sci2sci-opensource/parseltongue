@@ -70,6 +70,7 @@ class BenchServer:
 
         self.bench = Bench()
         self.pltg_path = pltg_path
+        self._last_search: dict | None = None  # cached last search query+params
         if not background:
             self.bench.prepare(pltg_path)
 
@@ -139,7 +140,7 @@ class BenchServer:
                 return {"ok": True, "text": str(text)}
 
             elif action == "diagnose":
-                dx = self.bench.diagnose()
+                dx = self.bench.evaluate()
                 focus = cmd.get("focus")
                 if focus:
                     dx = dx.focus(focus)
@@ -168,16 +169,57 @@ class BenchServer:
                 return {"ok": True, "text": str(text)}
 
             elif action == "search":
+                limit = cmd.get("limit", 20)
+                offset = cmd.get("offset", 0)
+                query = cmd.get("query", "")
+
+                # next/prev with query: use that query, shift from cached offset
+                # next/prev without query: reuse last query entirely
+                if cmd.get("next"):
+                    if not query and self._last_search:
+                        query = self._last_search["query"]
+                        limit = self._last_search["limit"]
+                    ref = self._last_search or {"offset": 0, "limit": limit}
+                    offset = ref["offset"] + limit
+                elif cmd.get("prev"):
+                    if not query and self._last_search:
+                        query = self._last_search["query"]
+                        limit = self._last_search["limit"]
+                    ref = self._last_search or {"offset": 0, "limit": limit}
+                    offset = max(0, ref["offset"] - limit)
+
                 search_result = self.bench.search(
-                    cmd.get("query", ""),
-                    max_lines=cmd.get("max_lines", 20),
-                    max_callers=cmd.get("max_callers", 5),
+                    query,
+                    max_lines=limit,
+                    max_callers=5,
+                    offset=offset,
                 )
-                lines = []
+                self._last_search = {"query": query, "limit": limit, "offset": offset}
+
+                lines: list[str] = []
+                prev_doc = None
+                prev_line = None
+                rank = offset
                 for r in search_result.get("lines", []):
+                    doc = r["document"]
+                    line_no = r["line"]
+                    if lines and (doc != prev_doc or (prev_line and line_no - prev_line > 1)):
+                        lines.append("")
+                    rank += 1
                     callers = ", ".join(c["name"] for c in r.get("callers", []))
                     prefix = f"[{callers}] " if callers else ""
-                    lines.append(f"{r['document']}:{r['line']}  {prefix}{r['context']}")
+                    lines.append(f"{rank}. {doc}:{line_no}  {prefix}{r['context']}")
+                    prev_doc = doc
+                    prev_line = line_no
+                total = search_result.get("total_lines", 0)
+                shown = rank - offset
+                page = offset // limit + 1 if limit else 1
+                pages = (total + limit - 1) // limit if limit else 1
+                lines.append("")
+                if total > limit:
+                    lines.append(f"({offset + 1}-{offset + shown}/{total} results, page {page}/{pages})")
+                else:
+                    lines.append(f"({total} results)")
                 return {"ok": True, "results": lines}
 
             elif action == "index":
@@ -213,7 +255,8 @@ class BenchServer:
                 def _progress(count, total, rel):
                     _send(conn, {"progress": True, "count": count, "total": total, "file": rel})
 
-                count = self.bench.index.index_dir(directory, extensions, on_progress=_progress)
+                exclude = cmd.get("exclude")
+                count = self.bench.index.index_dir(directory, extensions, exclude=exclude, on_progress=_progress)
                 _send(conn, {"ok": True, "done": True, "text": f"Indexed {count} files from {directory}"})
 
             elif action == "reindex":
@@ -247,7 +290,8 @@ def _handle_client(server: BenchServer, conn: socket.socket):
         conn.close()
 
 
-def _run_server(pltg_path: str, sock_path: Path, refresh_s: int = 0):
+def _run_server(pltg_path: str, sock_path: Path, refresh_s: int = 0, log_level: str = "ERROR"):
+    logging.getLogger("parseltongue").setLevel(getattr(logging, log_level.upper(), logging.ERROR))
     sock_path.parent.mkdir(parents=True, exist_ok=True)
     if sock_path.exists():
         sock_path.unlink()
@@ -349,11 +393,22 @@ def cli():
 @click.argument("path")
 @click.option("--socket", "sock", default=str(SOCK_PATH), help="Unix socket path.")
 @click.option(
-    "--refresh-index", "refresh_s", default=0, type=int, help="Background reindex interval in seconds (0=off)."
+    "--refresh-index", "refresh_s", default=2, type=int, help="Background reindex interval in seconds (0=off)."
 )
-def serve(path: str, sock: str, refresh_s: int):
+@click.option("--verbose", "-v", is_flag=True, help="Shorthand for --log-level INFO.")
+@click.option(
+    "--log-level",
+    default="ERROR",
+    type=click.Choice(["DEBUG", "INFO", "WARNING", "ERROR"], case_sensitive=False),
+    help="Log level (default: ERROR).",
+)
+def serve(path: str, sock: str, refresh_s: int, verbose: bool, log_level: str):
     """Start the bench server. Loads PATH and listens for queries."""
-    _run_server(path, Path(sock), refresh_s=refresh_s)
+    if verbose and log_level != "ERROR":
+        raise click.UsageError("Cannot use --verbose and --log-level together.")
+    if verbose:
+        log_level = "INFO"
+    _run_server(path, Path(sock), refresh_s=refresh_s, log_level=log_level)
 
 
 @cli.command()
@@ -446,12 +501,28 @@ def compose(names: tuple[str, ...]):
 
 
 @cli.command()
-@click.argument("query")
-@click.option("--max-lines", default=20)
-@click.option("--max-callers", default=5)
-def search(query: str, max_lines: int, max_callers: int):
+@click.argument("query", default="")
+@click.option("-n", "--limit", default=20, help="Results per page.")
+@click.option("--offset", default=0, help="Skip first N results.")
+@click.option("--page", default=0, type=int, help="Jump to page (1-based). Overrides offset.")
+@click.option("--next", "go_next", is_flag=True, help="Next page of last search.")
+@click.option("--prev", "go_prev", is_flag=True, help="Previous page of last search.")
+def search(query: str, limit: int, offset: int, page: int, go_next: bool, go_prev: bool):
     """Full-text search across loaded documents."""
-    _print_result(_query({"action": "search", "query": query, "max_lines": max_lines, "max_callers": max_callers}))
+    cmd: dict = {"action": "search", "limit": limit}
+    if query:
+        cmd["query"] = query
+    if page > 0:
+        offset = (page - 1) * limit
+    if offset:
+        cmd["offset"] = offset
+    if go_next:
+        cmd["next"] = True
+    if go_prev:
+        cmd["prev"] = True
+    if not query and not go_next and not go_prev:
+        raise click.UsageError("Provide a query or use --next/--prev.")
+    _print_result(_query(cmd))
 
 
 @cli.command("index")
@@ -463,9 +534,18 @@ def search(query: str, max_lines: int, max_callers: int):
     default=[".py", ".pltg", ".md", ".txt"],
     help="File extensions to index (repeatable).",
 )
-def index_dir(directory: str, extensions: tuple[str, ...]):
-    """Index all files in DIRECTORY into the search engine."""
-    for msg in _query_stream({"action": "index", "directory": directory, "extensions": list(extensions)}):
+@click.option(
+    "--exclude",
+    "excludes",
+    multiple=True,
+    help="Glob patterns to exclude (repeatable, in addition to .pgignore).",
+)
+def index_dir(directory: str, extensions: tuple[str, ...], excludes: tuple[str, ...]):
+    """Index all files in DIRECTORY into the search engine. Reads .pgignore from directory root."""
+    cmd = {"action": "index", "directory": directory, "extensions": list(extensions)}
+    if excludes:
+        cmd["exclude"] = list(excludes)
+    for msg in _query_stream(cmd):
         if msg.get("progress"):
             click.echo(f"\r  {msg['count']}/{msg['total']}  {msg['file']}", nl=False)
         elif msg.get("done"):

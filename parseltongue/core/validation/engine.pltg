@@ -1626,3 +1626,11 @@
 ; --- TODO: new functionality ---
 (defterm stub-suppress-log :origin "TODO: consistency() gained suppress_log: bool = True param — silences log.warning output by default")
 
+; --- Scope special forms in _eval ---
+(defterm stub-scope-handler :origin "TODO: SCOPE handler — dispatches to callable or self, resolves project/delegate in args via _rp")
+(defterm stub-self-handler :origin "TODO: SELF handler — evaluates all args in current engine (identity scope)")
+(defterm stub-project-handler :origin "TODO: PROJECT handler — evaluates in current engine (1 arg) or named basis (2 args)")
+(defterm stub-delegate-handler :origin "TODO: DELEGATE handler — counts nesting depth, picks from :bind proposal stack")
+(defterm stub-rp :origin "TODO: _rp — project resolution walk inside SCOPE, eagerly evaluates project, posts delegate proposals to :bind stack")
+(defterm stub-delegate-proposal :origin "TODO: _delegate_proposal — peels delegate nesting, binds ?-vars from env + ?_level, evaluates conditional pattern then body")
+

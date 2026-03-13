@@ -1,0 +1,239 @@
+; integrity.pltg — Ground truth for parseltongue.core.integrity package
+;
+; Two complementary integrity mechanisms:
+;   - chain.py: Linear hash chain over ordered blocks (Bitcoin-style)
+;   - merkle.py: Structural Merkle tree over S-expressions within a block
+;
+; Plus stubs for cryptographic extensions proven in test_scopes.py:
+;   - Ed25519 delegated signing per block
+;   - X25519 ECDH + AES-GCM encrypted channels via delegation
+;   - Public key stores via scope routing
+;   - ZK proofs via committed env merkle tree + delegation
+
+(load-document "merkle.py" "../integrity/merkle.py")
+(load-document "chain.py" "../integrity/chain.py")
+(load-document "__init__.py" "../integrity/__init__.py")
+(import (quote ..std.counting))
+(import (quote ..std.util))
+(defterm count-exists counting.count-exists :origin "import")
+(defterm stub util.stub :origin "import")
+
+; =====================================================================
+; chain.py — Linear integrity
+; =====================================================================
+
+(fact chain-hash-impl true
+    :evidence (evidence "chain.py"
+        :quotes ("def chain_hash(content: str, prev: str = \"\") -> str:")
+        :explanation "chain_hash function exists"))
+
+(fact chain-uses-sha256 true
+    :evidence (evidence "chain.py"
+        :quotes ("return hashlib.sha256((content + prev).encode(\"utf-8\")).hexdigest()")
+        :explanation "chain_hash uses SHA-256"))
+
+(fact build-chain-impl true
+    :evidence (evidence "chain.py"
+        :quotes ("def build_chain(blocks: list[str]) -> list[str]:")
+        :explanation "build_chain function exists"))
+
+(fact check-chain-impl true
+    :evidence (evidence "chain.py"
+        :quotes ("def check_chain(source_blocks: list[str], stored: dict[int, tuple[str, str]]) -> IntegrityResult:")
+        :explanation "check_chain function exists"))
+
+(fact block-status-valid true
+    :evidence (evidence "chain.py"
+        :quotes ("VALID = auto()")
+        :explanation "BlockStatus.VALID exists"))
+
+(fact block-status-invalid true
+    :evidence (evidence "chain.py"
+        :quotes ("INVALID = auto()")
+        :explanation "BlockStatus.INVALID exists"))
+
+(fact block-status-stale true
+    :evidence (evidence "chain.py"
+        :quotes ("STALE = auto()")
+        :explanation "BlockStatus.STALE exists"))
+
+(fact integrity-result-is-clean true
+    :evidence (evidence "chain.py"
+        :quotes ("def is_clean(self) -> bool:")
+        :explanation "IntegrityResult.is_clean property"))
+
+(fact integrity-result-break-point true
+    :evidence (evidence "chain.py"
+        :quotes ("def break_point(self) -> int | None:")
+        :explanation "IntegrityResult.break_point property"))
+
+; Chain cross-checks
+(derive chain-function-count
+    (count-exists chain-hash-impl build-chain-impl check-chain-impl)
+    :using (count-exists chain-hash-impl build-chain-impl check-chain-impl))
+
+(derive block-status-count
+    (count-exists block-status-valid block-status-invalid block-status-stale)
+    :using (count-exists block-status-valid block-status-invalid block-status-stale))
+
+; =====================================================================
+; merkle.py — Structural integrity
+; =====================================================================
+
+(fact merkle-leaf-impl true
+    :evidence (evidence "merkle.py"
+        :quotes ("def merkle_leaf(expr) -> MerkleNode:")
+        :explanation "merkle_leaf function exists"))
+
+(fact merkle-combine-impl true
+    :evidence (evidence "merkle.py"
+        :quotes ("def merkle_combine(nodes: list[MerkleNode]) -> MerkleNode:")
+        :explanation "merkle_combine function exists"))
+
+(fact build-merkle-impl true
+    :evidence (evidence "merkle.py"
+        :quotes ("def build_merkle(block_content: str) -> MerkleNode:")
+        :explanation "build_merkle function exists"))
+
+(fact merkle-root-impl true
+    :evidence (evidence "merkle.py"
+        :quotes ("def merkle_root(block_content: str) -> str:")
+        :explanation "merkle_root function exists"))
+
+(fact proof-path-impl true
+    :evidence (evidence "merkle.py"
+        :quotes ("def proof_path(root: MerkleNode, leaf_index: int) -> list[ProofStep] | None:")
+        :explanation "proof_path function exists"))
+
+(fact verify-proof-impl true
+    :evidence (evidence "merkle.py"
+        :quotes ("def verify_proof(leaf_hash: str, path: list[ProofStep], expected_root: str) -> bool:")
+        :explanation "verify_proof function exists"))
+
+(fact diff-trees-impl true
+    :evidence (evidence "merkle.py"
+        :quotes ("def diff_trees(old: MerkleNode, new: MerkleNode) -> list[tuple[str, str, str]]:")
+        :explanation "diff_trees function exists"))
+
+(fact collect-leaves-impl true
+    :evidence (evidence "merkle.py"
+        :quotes ("def collect_leaves(node: MerkleNode) -> list[MerkleNode]:")
+        :explanation "collect_leaves function exists"))
+
+(fact merkle-uses-sha256 true
+    :evidence (evidence "merkle.py"
+        :quotes ("return hashlib.sha256(data.encode(\"utf-8\")).hexdigest()")
+        :explanation "merkle uses SHA-256"))
+
+(fact merkle-normalises-via-to-sexp true
+    :evidence (evidence "merkle.py"
+        :quotes ("text = to_sexp(expr)")
+        :explanation "merkle_leaf normalises via to_sexp before hashing"))
+
+(fact merkle-node-is-leaf true
+    :evidence (evidence "merkle.py"
+        :quotes ("def is_leaf(self) -> bool:")
+        :explanation "MerkleNode.is_leaf property"))
+
+(fact merkle-node-serialisable true
+    :evidence (evidence "merkle.py"
+        :quotes ("def to_dict(self) -> dict:")
+        :explanation "MerkleNode serialisable to dict"))
+
+(fact merkle-node-deserialisable true
+    :evidence (evidence "merkle.py"
+        :quotes ("def from_dict(cls, d: dict) -> \"MerkleNode\":")
+        :explanation "MerkleNode deserialisable from dict"))
+
+; Merkle cross-checks
+(derive merkle-function-count
+    (count-exists merkle-leaf-impl merkle-combine-impl build-merkle-impl
+                  merkle-root-impl proof-path-impl verify-proof-impl
+                  diff-trees-impl collect-leaves-impl)
+    :using (count-exists merkle-leaf-impl merkle-combine-impl build-merkle-impl
+            merkle-root-impl proof-path-impl verify-proof-impl
+            diff-trees-impl collect-leaves-impl))
+
+; __init__.py exports
+(fact init-exports-chain true
+    :evidence (evidence "__init__.py"
+        :quotes ("from .chain import BlockIntegrity, BlockStatus, IntegrityResult, chain_hash")
+        :explanation "__init__ exports chain symbols"))
+
+(fact init-exports-merkle true
+    :evidence (evidence "__init__.py"
+        :quotes ("from .merkle import (")
+        :explanation "__init__ exports merkle symbols"))
+
+(derive init-export-paired
+    (count-exists (and init-exports-chain chain-hash-impl)
+                  (and init-exports-merkle merkle-leaf-impl))
+    :using (count-exists init-exports-chain chain-hash-impl
+            init-exports-merkle merkle-leaf-impl))
+
+; SHA-256 consistency: both modules use the same hash
+(diff chain-vs-merkle-hash
+    :replace chain-uses-sha256
+    :with merkle-uses-sha256)
+
+; =====================================================================
+; Proof properties documented in merkle.py
+; =====================================================================
+
+(fact merkle-olog-n-recomputation true
+    :evidence (evidence "merkle.py"
+        :quotes ("Editing one expression changes only its leaf and the path to root.\n  All other nodes keep their hashes — O(log N) recomputation.")
+        :explanation "O(log N) recomputation on edit"))
+
+(fact merkle-deterministic-root true
+    :evidence (evidence "merkle.py"
+        :quotes ("Two blocks with identical expressions in the same order produce\n  identical roots.")
+        :explanation "Deterministic root from identical inputs"))
+
+(fact merkle-olog-n-proof true
+    :evidence (evidence "merkle.py"
+        :quotes ("Proof of membership for any single expression is O(log N) hashes.")
+        :explanation "O(log N) inclusion proof"))
+
+(fact merkle-pure-functions true
+    :evidence (evidence "merkle.py"
+        :quotes ("All functions are pure — no I/O, no state.")
+        :explanation "Pure functions, no side effects"))
+
+(fact chain-pure-functions true
+    :evidence (evidence "chain.py"
+        :quotes ("All functions are pure — no I/O, no mutation.")
+        :explanation "Pure functions, no mutation"))
+
+; =====================================================================
+; Stubs — cryptographic extensions proven in test_scopes.py
+; =====================================================================
+
+; --- Delegated signing (TestDelegatedSignerBlockchain) ---
+(derive stub-ed25519-signer-per-block stub :using (stub))
+(derive stub-signer-accessible-only-via-delegate stub :using (stub))
+(derive stub-conditional-delegate-routes-to-block stub :using (stub))
+(derive stub-merkle-over-signed-leaves stub :using (stub))
+(derive stub-tamper-detection-via-hash stub :using (stub))
+(derive stub-isolated-merkle-cannot-sign stub :using (stub))
+
+; --- PKI via delegation (TestDelegatedPKI) ---
+(derive stub-keystore-public-directory stub :using (stub))
+(derive stub-ed25519-signing-via-scope stub :using (stub))
+(derive stub-x25519-ecdh-key-exchange stub :using (stub))
+(derive stub-aes-gcm-encryption stub :using (stub))
+(derive stub-delegation-routes-by-role stub :using (stub))
+(derive stub-verifier-scope-isolated stub :using (stub))
+(derive stub-cross-signing-handshake stub :using (stub))
+
+; --- ZK proof via committed env (TestZeroKnowledgeDerive) ---
+(derive stub-committed-env-merkle-root stub :using (stub))
+(derive stub-signed-env-commitment stub :using (stub))
+(derive stub-prover-scope-isolation stub :using (stub))
+(derive stub-delegate-project-through-prover stub :using (stub))
+(derive stub-boolean-only-crosses-scope stub :using (stub))
+(derive stub-attack-fake-fact-rejected stub :using (stub))
+(derive stub-attack-recommit-detected stub :using (stub))
+(derive stub-attack-phantom-fact-rejected stub :using (stub))
+(derive stub-attack-underage-returns-false stub :using (stub))
+(derive stub-attack-false-result-rejected stub :using (stub))

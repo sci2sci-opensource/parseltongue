@@ -1,6 +1,6 @@
 ---
 name: parseltongue-bench
-description: Use pg-bench CLI daemon for instant .pltg inspection — search, lens, diagnose, dissect, compose. Activates when working with .pltg files, debugging consistency, tracing provenance, or exploring parseltongue codebase. Always prefer pg-bench over grep/read for this codebase.
+description: Use pg-bench CLI daemon for instant .pltg inspection — search, lens, evaluate, dissect, compose. Activates when working with .pltg files, debugging consistency, tracing provenance, or exploring parseltongue codebase. Always prefer pg-bench over grep/read for this codebase.
 user-invocable: true
 ---
 
@@ -88,7 +88,7 @@ pg-bench dissect atoms.theorem-derivation-sources
 pg-bench compose engine.eval-bind engine.derive
 ```
 
-## Diagnosis
+## Evaluation
 
 ```bash
 pg-bench diagnose                          # summary
@@ -124,7 +124,7 @@ Bench is cached via Merkle trees. After first load, queries are ~2ms.
 ## Languages TBD
 
 The S-expression search language uses a real pltg System with posting-set operators. The same approach can be extended to:
-- **Diagnosis queries** — filter/combine diagnostic results with S-expressions
+- **Evaluation queries** — filter/combine evaluation results with S-expressions
 - **Lens queries** — structural navigation expressed as S-expressions
 - **Hologram queries** — bias selection and composition as expressions
 

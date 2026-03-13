@@ -1,7 +1,7 @@
 """Bench — workstation for observing .pltg samples.
 
 Prepare a sample, then observe: ``lens()`` for structure,
-``diagnose()`` for health. Backed by Merkle tree caching.
+``evaluate()`` for health. Backed by Merkle tree caching.
 
 The Bench owns sample status and integrity labels. A Technician
 handles loading (cold, cache hit, hot-patch, background reload)
@@ -16,7 +16,7 @@ Usage::
     bench.prepare("parseltongue/core/validation/core_clean.pltg")
 
     lens = bench.lens()          # structural observation
-    dx   = bench.diagnose()      # consistency observation
+    dx   = bench.evaluate()      # consistency observation
 
     dx.summary()
     dx.focus("readme.").issues()
@@ -29,7 +29,7 @@ import logging
 from pathlib import Path
 
 from ..loader.lazy_loader import LazyLoadResult
-from .diagnosis import Diagnosis
+from .evaluation import Evaluation
 from .optics import Lens
 from .optics.hologram import Hologram
 from .perspectives.md_debugger import MDebuggerPerspective
@@ -44,7 +44,7 @@ class Bench:
 
     ``prepare(path)`` loads the file (cached via Merkle trees).
     ``lens()`` returns structural observation.
-    ``diagnose()`` returns consistency observation.
+    ``evaluate()`` returns consistency observation.
     Both are first-class objects with focus, search, and filtering.
     """
 
@@ -100,7 +100,7 @@ class Bench:
         self._store = Store(bench_dir)
         self._technician = Technician(self._store, self._on_status)
         self._mem: dict[str, Sample] = {}
-        self._diagnosis_mem: dict[str, Diagnosis] = {}
+        self._evaluation_mem: dict[str, Evaluation] = {}
         self._affected: dict[str, set[str]] = {}
         self._current_path: str | None = None
         self.integrity = self.Integrity()
@@ -120,8 +120,8 @@ class Bench:
             if bg is not None and bg[0] == path:
                 self._mem[path] = bg[1]
                 self._technician._bg_result = None
-                # Invalidate diagnosis — stale after background swap
-                self._diagnosis_mem.pop(path, None)
+                # Invalidate evaluation — stale after background swap
+                self._evaluation_mem.pop(path, None)
 
     # ── Prepare ──
 
@@ -133,7 +133,7 @@ class Bench:
         self._mem[path] = sample
         if affected is not None:
             self._affected[path] = affected
-            self._diagnosis_mem.pop(path, None)
+            self._evaluation_mem.pop(path, None)
         self._populate_scopes(path)
         return self
 
@@ -185,17 +185,17 @@ class Bench:
 
     # ── Observe: health ──
 
-    def diagnose(self, path: str | None = None) -> Diagnosis:
-        """Consistency observation — a Diagnosis with focus, search, filtering.
+    def evaluate(self, path: str | None = None) -> Evaluation:
+        """Consistency observation — a Evaluation with focus, search, filtering.
 
-        Cached in memory and on disk. Same Merkle root = same diagnosis.
+        Cached in memory and on disk. Same Merkle root = same evaluation.
         Incremental: when only some nodes changed, patches only affected diffs.
         """
         path = str(Path(path).resolve()) if path else self._require_current()
 
         # Memory cache
-        if path in self._diagnosis_mem:
-            return self._diagnosis_mem[path]
+        if path in self._evaluation_mem:
+            return self._evaluation_mem[path]
 
         # Disk cache — exact Merkle match
         cached = self._mem.get(path)
@@ -203,10 +203,10 @@ class Bench:
             merkle_root = cached[1].hash
             disk_dx = self._store.load_diagnosis(path, merkle_root)
             if disk_dx is not None:
-                self._diagnosis_mem[path] = disk_dx
+                self._evaluation_mem[path] = disk_dx
                 return disk_dx
 
-        # Incremental: stale diagnosis + known affected set from prepare
+        # Incremental: stale evaluation + known affected set from prepare
         affected = self._affected.get(path)
         if affected is not None:
             old_dx = self._store.load_stale_diagnosis(path)
@@ -219,27 +219,27 @@ class Bench:
                     diffs_to_patch |= engine.diff_refs.get(name, set())
 
                 if diffs_to_patch:
-                    log.info("Incremental diagnose: %d/%d diffs", len(diffs_to_patch), len(engine.diffs))
+                    log.info("Incremental evaluate: %d/%d diffs", len(diffs_to_patch), len(engine.diffs))
                     lc = result.consistency_incremental(diffs_to_patch)
                     dx = old_dx.incremental(diffs_to_patch, lc)
-                    self._diagnosis_mem[path] = dx
-                    self._save_diagnosis(path, dx)
+                    self._evaluation_mem[path] = dx
+                    self._save_evaluation(path, dx)
                     self._affected.pop(path, None)
                     return dx
 
         # Cold — full consistency
         result = self._ensure_live_result(path)
         lc = result.consistency()
-        dx = Diagnosis.from_report(lc, result)
-        self._diagnosis_mem[path] = dx
-        self._save_diagnosis(path, dx)
+        dx = Evaluation.from_report(lc, result)
+        self._evaluation_mem[path] = dx
+        self._save_evaluation(path, dx)
         return dx
 
     def _populate_scopes(self, path: str):
         """Register all search scopes after prepare."""
         self._populate_search_docs(path)
-        dx = self.diagnose(path)
-        self._register_diagnosis_scope(path, dx)
+        dx = self.evaluate(path)
+        self._register_evaluation_scope(path, dx)
 
     def _populate_search_docs(self, path: str):
         """Add engine documents to the search index."""
@@ -249,10 +249,12 @@ class Bench:
             if doc_name not in search._index.documents:
                 search._index.add(doc_name, doc_text)
 
-    def _register_diagnosis_scope(self, path: str, dx: Diagnosis):
-        """Register diagnosis as a search scope."""
-        idx, ops = dx.to_search_scope()
-        # TODO self._search_engine(path).register_scope("diagnosis", idx, ops)
+    def _register_evaluation_scope(self, path: str, dx: Evaluation):
+        """Register evaluation as a search scope."""
+        from .evaluation import EvaluationSearchSystem
+
+        ds = EvaluationSearchSystem(dx)
+        self._search_engine(path).register_scope("evaluation", ds._system)
 
     # ── Search ──
 
@@ -301,14 +303,14 @@ class Bench:
         """Clear cache for a path, or all if None."""
         if path is None:
             self._mem.clear()
-            self._diagnosis_mem.clear()
+            self._evaluation_mem.clear()
             self._technician.invalidate()
             if hasattr(self, "_search_mem"):
                 self._search_mem.clear()
         else:
             path = str(Path(path).resolve())
             self._mem.pop(path, None)
-            self._diagnosis_mem.pop(path, None)
+            self._evaluation_mem.pop(path, None)
             self._technician.invalidate(path)
             if hasattr(self, "_search_mem"):
                 self._search_mem.pop(path, None)
@@ -316,7 +318,7 @@ class Bench:
     def purge(self):
         """Purge all caches — memory and disk. Nuclear option."""
         self._mem.clear()
-        self._diagnosis_mem.clear()
+        self._evaluation_mem.clear()
         self._affected.clear()
         if hasattr(self, "_search_mem"):
             self._search_mem.clear()
@@ -333,7 +335,7 @@ class Bench:
         self._mem[path] = sample
         return result
 
-    def _save_diagnosis(self, path: str, dx: Diagnosis):
+    def _save_evaluation(self, path: str, dx: Evaluation):
         cached = self._mem.get(path)
         merkle_root = cached[1].hash if cached else ""
         self._store.save_diagnosis(path, merkle_root, dx)

@@ -18,6 +18,9 @@
 ; (import (quote self_test))
 (import (quote ..std.util))
 (import (quote domain))
+(import (quote engine_scopes))
+(import (quote integrity))
+(import (quote inspect_main))
 (import (quote ..std.counting))
 
 (defterm count-exists counting.count-exists :origin "import")

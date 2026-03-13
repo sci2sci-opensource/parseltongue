@@ -1,4 +1,4 @@
-"""Tests for the inspect module: probe, lens, search, diagnosis, serialization."""
+"""Tests for the inspect module: probe, lens, search, evaluation, serialization."""
 
 import unittest
 from unittest.mock import patch
@@ -6,7 +6,7 @@ from unittest.mock import patch
 from parseltongue.core.inspect import inspect
 
 from ..atoms import Evidence, Symbol
-from ..inspect.diagnosis import Diagnosis, DiagnosisItem
+from ..inspect.evaluation import Evaluation, EvaluationItem
 from ..inspect.optics import Lens
 from ..inspect.perspective import Perspective
 from ..inspect.probe_core_to_consequence import (
@@ -282,83 +282,85 @@ class TestSerialization(unittest.TestCase):
 # ==============================================================
 
 
-class TestDiagnosis(unittest.TestCase):
+class TestEvaluation(unittest.TestCase):
     def _make_items(self):
         return [
-            DiagnosisItem(name="ax-bad", category="issue", type="potential_fabrication", kind="axiom", loc="f.pltg:10"),
-            DiagnosisItem(name="m1", category="warning", type="manually_verified", kind="fact", loc="f.pltg:20"),
-            DiagnosisItem(name="orphan", category="dangling", type="dangling", kind="derive", loc="f.pltg:30"),
-            DiagnosisItem(
+            EvaluationItem(
+                name="ax-bad", category="issue", type="potential_fabrication", kind="axiom", loc="f.pltg:10"
+            ),
+            EvaluationItem(name="m1", category="warning", type="manually_verified", kind="fact", loc="f.pltg:20"),
+            EvaluationItem(name="orphan", category="dangling", type="dangling", kind="derive", loc="f.pltg:30"),
+            EvaluationItem(
                 name="engine.fact-x", category="issue", type="diff_divergence", kind="diff", loc="engine.pltg:5"
             ),
-            DiagnosisItem(
+            EvaluationItem(
                 name="engine.warn-y", category="warning", type="manually_verified", kind="fact", loc="engine.pltg:15"
             ),
         ]
 
     def test_consistent_when_no_issues(self):
-        dx = Diagnosis(items=[], consistent=True)
+        dx = Evaluation(items=[], consistent=True)
         self.assertTrue(dx.consistent)
 
     def test_inconsistent_when_issues(self):
         items = self._make_items()
-        dx = Diagnosis(items=items, consistent=False)
+        dx = Evaluation(items=items, consistent=False)
         self.assertFalse(dx.consistent)
 
     def test_issues_filter(self):
-        dx = Diagnosis(items=self._make_items(), consistent=False)
+        dx = Evaluation(items=self._make_items(), consistent=False)
         issues = dx.issues()
         self.assertEqual(len(issues), 2)
         self.assertTrue(all(i.category == "issue" for i in issues))
 
     def test_issues_filter_by_kind(self):
-        dx = Diagnosis(items=self._make_items(), consistent=False)
+        dx = Evaluation(items=self._make_items(), consistent=False)
         issues = dx.issues(kind="axiom")
         self.assertEqual(len(issues), 1)
         self.assertEqual(issues[0].name, "ax-bad")
 
     def test_warnings_filter(self):
-        dx = Diagnosis(items=self._make_items(), consistent=False)
+        dx = Evaluation(items=self._make_items(), consistent=False)
         warnings = dx.warnings()
         self.assertEqual(len(warnings), 2)
 
     def test_danglings_filter(self):
-        dx = Diagnosis(items=self._make_items(), consistent=False)
+        dx = Evaluation(items=self._make_items(), consistent=False)
         danglings = dx.danglings()
         self.assertEqual(len(danglings), 1)
         self.assertEqual(danglings[0].name, "orphan")
 
     def test_focus_namespace(self):
-        dx = Diagnosis(items=self._make_items(), consistent=False)
+        dx = Evaluation(items=self._make_items(), consistent=False)
         focused = dx.focus("engine.")
         self.assertEqual(len(focused._items), 2)
         self.assertTrue(all(i.name.startswith("engine.") for i in focused._items))
 
     def test_find(self):
-        dx = Diagnosis(items=self._make_items(), consistent=False)
+        dx = Evaluation(items=self._make_items(), consistent=False)
         results = dx.find("engine")
         self.assertEqual(len(results), 2)
 
     def test_fuzzy(self):
-        dx = Diagnosis(items=self._make_items(), consistent=False)
+        dx = Evaluation(items=self._make_items(), consistent=False)
         results = dx.fuzzy("bad")
         self.assertIn("ax-bad", results)
 
     def test_summary_non_empty(self):
-        dx = Diagnosis(items=self._make_items(), consistent=False)
+        dx = Evaluation(items=self._make_items(), consistent=False)
         summary = dx.summary()
         self.assertIn("issue", summary)
 
     def test_stats(self):
-        dx = Diagnosis(items=self._make_items(), consistent=False)
+        dx = Evaluation(items=self._make_items(), consistent=False)
         stats = dx.stats()
         self.assertIn("by_category", stats)
         self.assertIn("by_type", stats)
 
     def test_serialization_roundtrip(self):
-        dx = Diagnosis(items=self._make_items(), consistent=False)
+        dx = Evaluation(items=self._make_items(), consistent=False)
         data = dx.to_dict()
-        restored = Diagnosis.from_dict(data)
+        restored = Evaluation.from_dict(data)
         self.assertEqual(len(restored._items), len(dx._items))
         self.assertEqual(restored.consistent, dx.consistent)
         for orig, rest in zip(dx._items, restored._items):
@@ -366,9 +368,9 @@ class TestDiagnosis(unittest.TestCase):
             self.assertEqual(orig.category, rest.category)
 
     def test_diagnosis_item_roundtrip(self):
-        item = DiagnosisItem(name="x", category="issue", type="t", kind="fact", loc="f:1", detail="some detail")
+        item = EvaluationItem(name="x", category="issue", type="t", kind="fact", loc="f:1", detail="some detail")
         data = item.to_dict()
-        restored = DiagnosisItem.from_dict(data)
+        restored = EvaluationItem.from_dict(data)
         self.assertEqual(restored.name, "x")
         self.assertEqual(restored.category, "issue")
         self.assertEqual(restored.loc, "f:1")

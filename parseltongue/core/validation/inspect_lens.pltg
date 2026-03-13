@@ -1,0 +1,37 @@
+; inspect_lens — validation stubs for Lens and optics
+; Covers: optics/lens.py, optics/base.py, optics/__init__.py
+
+(load-document "lens.py" "../inspect/optics/lens.py")
+(load-document "base.py" "../inspect/optics/base.py")
+(load-document "optics_init.py" "../inspect/optics/__init__.py")
+(import (quote ..std.util))
+(defterm stub util.stub :origin "import")
+
+; ── Lens API ──
+(derive stub-lens-view stub :using (stub))
+(derive stub-lens-view-node stub :using (stub))
+(derive stub-lens-view-consumer stub :using (stub))
+(derive stub-lens-view-inputs stub :using (stub))
+(derive stub-lens-view-layer stub :using (stub))
+(derive stub-lens-view-subgraph stub :using (stub))
+(derive stub-lens-view-kinds stub :using (stub))
+(derive stub-lens-view-roots stub :using (stub))
+(derive stub-lens-focus stub :using (stub))
+(derive stub-lens-find stub :using (stub))
+(derive stub-lens-fuzzy stub :using (stub))
+
+; ── Lens internals ──
+(derive stub-lens-perspectives stub :using (stub))
+(derive stub-lens-topological-order stub :using (stub))
+(derive stub-lens-subgraph-directions stub :using (stub))
+
+; ── TODO: lens needs its own language system ──
+; Lens navigation could be expressed as S-expressions:
+; - (focus "engine.") (find "count") (view-node "name")
+; - Compose lens operations: (pipe (focus "engine.") (filter kind "diff"))
+; - Structural queries: (upstream "name" 3) (downstream "name")
+; The Lens already has the data model — it needs a System wiring
+; similar to how SearchSystem maps operators to posting-set functions.
+(derive stub-todo-lens-language-system stub :using (stub))
+
+; ── TODO: exports ──

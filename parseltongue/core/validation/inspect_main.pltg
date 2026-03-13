@@ -1,0 +1,44 @@
+; inspect_main — validation stubs for the inspect package entry point
+; Covers: inspect/__init__.py, inspect/inspect.py, perspective.py, probe_core_to_consequence.py
+
+(load-document "inspect_init.py" "../inspect/__init__.py")
+(load-document "inspect.py" "../inspect/inspect.py")
+(load-document "perspective.py" "../inspect/perspective.py")
+(load-document "probe.py" "../inspect/probe_core_to_consequence.py")
+(import (quote ..std.util))
+(import (quote inspect_bench))
+(import (quote inspect_search))
+(import (quote inspect_lens))
+(import (quote inspect_evaluate))
+(import (quote inspect_hologram))
+(defterm stub util.stub :origin "import")
+
+; ── __init__.py exports ──
+(derive stub-exports-probe stub :using (stub))
+(derive stub-exports-inspect stub :using (stub))
+(derive stub-exports-inspect-loaded stub :using (stub))
+(derive stub-exports-lens stub :using (stub))
+(derive stub-exports-perspective stub :using (stub))
+
+; ── inspect.py functions ──
+(derive stub-inspect-builds-lens stub :using (stub))
+(derive stub-inspect-loaded-resolves-term stub :using (stub))
+(derive stub-find-regex-over-names stub :using (stub))
+(derive stub-fuzzy-matches-ranked stub :using (stub))
+
+; ── perspective.py ──
+(derive stub-perspective-protocol stub :using (stub))
+(derive stub-md-debugger-perspective stub :using (stub))
+(derive stub-ascii-perspective stub :using (stub))
+(derive stub-markdown-perspective stub :using (stub))
+
+; ── probe_core_to_consequence.py ──
+(derive stub-probe-walks-terms stub :using (stub))
+(derive stub-probe-accepts-str-or-list stub :using (stub))
+(derive stub-probe-all-uses-roots stub :using (stub))
+(derive stub-consumer-input-types stub :using (stub))
+(derive stub-core-to-consequence-structure stub :using (stub))
+(derive stub-probe-shared-visited-set stub :using (stub))
+
+; ── TODO: exports ──
+; These stubs are dangling by design — consumed by a future cross-check module

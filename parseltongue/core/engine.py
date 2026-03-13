@@ -16,6 +16,7 @@ from .atoms import Evidence, Symbol, free_vars, match, substitute
 from .lang import (
     AXIOM,
     DEFTERM,
+    DELEGATE,
     DERIVE,
     DIFF,
     EQ,
@@ -28,7 +29,10 @@ from .lang import (
     KW_USING,
     KW_WITH,
     LET,
+    PROJECT,
     QUOTE,
+    SCOPE,
+    SELF,
     SPECIAL_FORMS,
     STRICT,
     Axiom,
@@ -270,6 +274,11 @@ class ConsistencyReport:
 
 
 # ============================================================
+# Delegate helpers
+# ============================================================
+
+
+# ============================================================
 # Engine
 # ============================================================
 
@@ -441,11 +450,12 @@ class Engine:
                 return expr  # forward-declared / primitive term
             if not restricted and name in self.theorems:
                 return self._eval(self.theorems[name].wff, env, axiom_scope, restricted)
-            raise NameError(
-                f"Unresolved symbol: {expr} — not in :using"
-                if restricted
-                else f"Unresolved symbol: {expr} — not in current system"
-            )
+            if self.strict_derive:
+                raise NameError(
+                    f"Unresolved symbol: {expr} — not in :using"
+                    if restricted
+                    else f"Unresolved symbol: {expr} — not in current system"
+                )
         if not isinstance(expr, list):
             return expr
 
@@ -473,7 +483,145 @@ class Engine:
             return expr[1]
 
         if head == STRICT:
-            return self._eval(expr[1], env, axiom_scope, restricted)
+            inner = expr[1]
+            # Propagate strict through scope boundaries:
+            # (strict (scope name expr ...)) → (scope name (strict expr) ...)
+            if isinstance(inner, list) and inner and inner[0] == SCOPE and len(inner) > 2:
+                wrapped = [SCOPE, inner[1]] + [[STRICT, arg] for arg in inner[2:]]
+                return self._eval(wrapped, env, axiom_scope, restricted)
+            return self._eval(inner, env, axiom_scope, restricted)
+
+        if head == SELF:
+            # (self expr ...) — evaluate all args in the current engine
+            result = None
+            for arg in expr[1:]:
+                result = self._eval(arg, env, axiom_scope, restricted)
+            return result
+
+        if head == PROJECT:
+            # (project expr) — evaluate expr in current engine (self basis)
+            # (project basis expr) — resolve basis to a callable, evaluate expr in that basis
+            if len(expr) == 2:
+                return self._eval(expr[1], env, axiom_scope, restricted)
+            basis = expr[1]
+            if basis == SELF:
+                return self._eval(expr[2], env, axiom_scope, restricted)
+            basis_val = self._eval(basis, env, axiom_scope, restricted)
+            if callable(basis_val):
+                return basis_val(basis, *expr[2:])
+            raise TypeError(f"project basis is not callable: {basis_val!r}")
+
+        if head == DELEGATE:
+            # (delegate body :bind (...)) or (delegate pattern body :bind (...))
+            # Count nesting depth — each delegate layer = +1 level.
+            depth = 0
+            e = expr
+            while isinstance(e, list) and e and e[0] == DELEGATE:
+                depth += 1
+                e = e[1]
+            binds = get_keyword(expr, KW_BIND, [])
+            # Pick the depth-th non-[] entry from closest (end)
+            found = 0
+            for proposal in reversed(binds):
+                if proposal != []:
+                    found += 1
+                    if found == depth:
+                        return proposal
+            raise NameError(f"delegate depth {depth} but only {found} matching proposals: " f"{to_sexp(expr)}")
+
+        if head == SCOPE:
+            # (scope name expr ...) — resolve name to callable, pass args with:
+            #   - (project ...) eagerly evaluated by THIS engine
+            #   - (delegate ...) pattern evaluated, proposal posted to :bind
+            name = expr[1]
+            if name == SELF:
+                result = None
+                for arg in expr[2:]:
+                    result = self._eval(arg, env, axiom_scope, restricted)
+                return result
+            scope_val = self._eval(name, env, axiom_scope, restricted)
+            if callable(scope_val):
+
+                def _delegate_proposal(delegate_expr):
+                    """Post a proposal for this scope level.
+
+                    Peel all delegate nesting to find the innermost body.
+                    Collect ?-vars, bind ?name → env[name], ?level → stack pos.
+                    If conditional (pattern present): evaluate pattern first,
+                    return [] if it doesn't hold.
+                    Evaluate body with bindings → return result.
+                    """
+                    # Peel to innermost body, collect any patterns
+                    pattern = None
+                    e = delegate_expr
+                    while isinstance(e, list) and e and e[0] == DELEGATE:
+                        # Check for conditional: e[2] exists and isn't :bind
+                        if len(e) > 2 and e[2] != KW_BIND:
+                            pattern = e[1]
+                            e = e[2]
+                        else:
+                            e = e[1]
+                    body = e
+
+                    existing = get_keyword(delegate_expr, KW_BIND, [])
+                    level = len(existing) + 1
+
+                    # Collect ?-vars from pattern + body
+                    all_vars = set()
+                    if pattern:
+                        all_vars |= free_vars(pattern)
+                    all_vars |= free_vars(body)
+
+                    # Bind ?name → env[name], ?_level → stack position
+                    bindings = {}
+                    for var in all_vars:
+                        vname = str(var)
+                        if vname == "?_level":
+                            bindings[var] = level
+                            continue
+                        plain = Symbol(vname.lstrip("?"))
+                        if plain not in env:
+                            return []
+                        bindings[var] = env[plain]
+
+                    if pattern is not None:
+                        bound_pattern = substitute(pattern, bindings)
+                        try:
+                            result = self._eval(bound_pattern, env, axiom_scope, restricted)
+                        except (NameError, TypeError):
+                            return []
+                        if not result:
+                            return []
+
+                    bound_body = substitute(body, bindings)
+                    return self._eval(bound_body, env, axiom_scope, restricted)
+
+                def _rp(e):
+                    """Resolve (project ...) and build delegate proposals."""
+                    if not isinstance(e, list) or not e:
+                        return e
+                    if e[0] == PROJECT:
+                        return self._eval(e, env, axiom_scope, restricted)
+                    if e[0] == DELEGATE:
+                        # Post this level's proposal, keep body unevaluated
+                        existing = get_keyword(e, KW_BIND, [])
+                        try:
+                            proposal = _delegate_proposal(e)
+                            new_binds = existing + [proposal]
+                        except (NameError, TypeError):
+                            new_binds = existing + [[]]
+                        # Rebuild: strip old :bind, attach new
+                        base = []
+                        for x in e:
+                            if x == KW_BIND:
+                                break
+                            base.append(x)
+                        return base + [KW_BIND, new_binds]
+                    return [_rp(x) for x in e]
+
+                resolved = [_rp(a) for a in expr[2:]]
+                return scope_val(name, *resolved)
+            raise TypeError(f"scope target is not callable: {scope_val!r}")
 
         head_val = self._eval(head, env, axiom_scope, restricted)
 

@@ -54,11 +54,18 @@ from .atoms import (  # noqa: F401 — re-export
 # ============================================================
 
 # Special forms — evaluated directly by the interpreter, not via env
+# scope receives its args unevaluated and delegates to a registered System
+# self evaluates its args in the current engine (identity scope)
+# project evaluates in a named basis (default: self) and yields the value
 IF = Symbol("if")
 LET = Symbol("let")
 EQ = Symbol("=")
 QUOTE = Symbol("quote")
 STRICT = Symbol("strict")
+SCOPE = Symbol("scope")
+SELF = Symbol("self")
+PROJECT = Symbol("project")
+DELEGATE = Symbol("delegate")
 
 # DSL keywords — structural symbols of the language
 AXIOM = Symbol("axiom")
@@ -68,7 +75,7 @@ DERIVE = Symbol("derive")
 DIFF = Symbol("diff")
 EVIDENCE = Symbol("evidence")
 
-SPECIAL_FORMS = (IF, LET, QUOTE, STRICT)
+SPECIAL_FORMS = (IF, LET, QUOTE, STRICT, SCOPE, SELF, PROJECT, DELEGATE)
 DSL_KEYWORDS = (AXIOM, DEFTERM, FACT, DERIVE, DIFF, EVIDENCE)
 
 # Pattern variable prefixes — used in axiom ?-variables and splat patterns
@@ -138,12 +145,146 @@ LANG_DOCS = {
     },
     STRICT: {
         "category": "special",
-        "description": "Force eager evaluation of an argument in a lazy context. "
-        "When the engine encounters a non-callable head and defers arg evaluation, "
-        "(strict x) forces x to be evaluated immediately so its structure "
-        "is visible to rewrite patterns.",
+        "description": "Force eager evaluation. Within a single system, "
+        "(strict x) evaluates x immediately so its structure is visible "
+        "to rewrite patterns. Across scope boundaries, strict propagates "
+        "via scope: when scope is evaluated inside a strict context, "
+        "scope wraps the outer expression it forwards in (strict ...), "
+        "notifying the target system that eager evaluation is requested. "
+        "The target system processes strict with its own engine — "
+        "no definitions change, no ownership is violated.",
         "example": "(joint-status (strict r))",
         "expected": "r is evaluated before joint-status rewrites",
+        "patterns": [
+            ";; Force eval in lazy context (original use case)\n" "(joint-status (strict r))",
+            ";; Strict outside scope: scope wraps the forwarded expr in strict\n" "(strict (scope sieve (+ 1 2)))",
+            ";; Propagation chains: each scope boundary wraps once\n"
+            "(strict (scope sieve (scope fermat (pow-mod 2 6 7))))",
+            ";; Case 1: strict propagates through scopes but not into branches\n"
+            ";; rewritten as: (strict (scope outer (strict (scope inner (strict (if cond lazy1 lazy2))))))\n"
+            ";; → cond forced, branches stay lazy\n"
+            "(strict (scope outer (scope inner (if cond lazy1 lazy2))))",
+            ";; Case 2: strict only on branch, no outer propagation\n"
+            ";; rewritten as: (scope outer (scope inner (if true (strict lazy1) lazy2)))\n"
+            ";; → lazy1 evaluated, lazy2 never reached\n"
+            "(scope outer (scope inner (if true (strict lazy1) lazy2)))",
+            ";; Case 3: strict on dead branch\n"
+            ";; rewritten as: (scope outer (scope inner (if false (strict lazy1) lazy2)))\n"
+            ";; → lazy2 evaluated normally, (strict lazy1) never touched\n"
+            "(scope outer (scope inner (if false (strict lazy1) lazy2)))",
+            ";; Case 4: outer strict does not infect the chosen branch\n"
+            ";; rewritten as: (strict (scope outer (strict (scope inner (strict (if false (strict lazy1) lazy2))))))\n"
+            ";; → lazy2 evaluated normally despite outer strict\n"
+            "(strict (scope outer (scope inner (if false (strict lazy1) lazy2))))",
+        ],
+    },
+    PROJECT: {
+        "category": "special",
+        "description": "Evaluate an expression in a named basis and yield the value. "
+        "With one argument, projects in the current engine (self). "
+        "With two arguments, the first names the basis (a scope) and "
+        "the second is the expression to evaluate in that basis. "
+        "The result is a concrete value — it crosses scope boundaries "
+        "without carrying unresolved symbols from the source system.",
+        "example": '(scope logic (and (project (= 2 2)) (project (= 3 3))))',
+        "expected": "parent evaluates (= 2 2) → True, (= 3 3) → True; logic receives (and True True)",
+        "patterns": [
+            ";; Parent has =, logic has and. Project bridges the gap.\n"
+            ";; Parent resolves (project (= 2 2)) → True before entering logic scope.\n"
+            "(scope arithmetic (scope logic (and (project (= 2 2)) (project (= 3 3)))))",
+            ";; Project a fact from parent into child scope\n"
+            ";; Parent has my-fact=42. Child only has hash-leaf.\n"
+            ";; Parent resolves (project my-fact) → 42, child sees (hash-leaf 42).\n"
+            "(scope merkle (hash-leaf (project my-fact)))",
+            ";; Project through nested scopes — each scope resolves its own projects\n"
+            ";; arith resolves (project (+ a b)) → 10, then logic sees (and 10 True)\n"
+            "(scope arith (scope logic (and (project (+ a b)) True)))",
+            ";; Project with explicit named basis\n" '(scope evaluation (project search (in "engine.py" "def")))',
+            ";; self is the default system with basic language operators\n"
+            '(self (scope search (project (and bool1 bool2))))',
+            ";; if works outside project (in scope) — if is a special form\n"
+            '(scope search (if found (project (kind "diff")) "fallback"))',
+            ";; Chain: project from self inside nested scope\n"
+            '(scope search (and "class" (scope evaluation (project (or "query1" "query2")))))',
+            ";; Nested project: outer project triggers scope, inner project injects parent value\n"
+            ";; 1. parent hits project, evaluates its arg\n"
+            ";; 2. arg is (scope child (hash (project my-fact)))\n"
+            ";; 3. before entering child, parent resolves inner (project my-fact) → 42\n"
+            ";; 4. child receives (hash 42), returns hash value\n"
+            ";; 5. outer project yields that hash as concrete\n"
+            "(project (scope child (hash (project my-fact))))",
+        ],
+    },
+    DELEGATE: {
+        "category": "special",
+        "description": "Transport modifier — a happens-before operation where each scope "
+        "in the chain eagerly evaluates a proposal and posts it to a :bind stack "
+        "on the delegate expression. The DELEGATE handler then picks the result "
+        "by depth (bare) or pattern match (conditional).\n\n"
+        "Bare form: (delegate body) — every scope posts a proposal. Nesting "
+        "(delegate (delegate body)) increases depth. The DELEGATE handler counts "
+        "nesting depth and picks the Nth non-[] entry from closest.\n\n"
+        "Conditional form: (delegate pattern body) — each scope binds ?-vars from "
+        "its env (?name → env[name], ?_level → stack position). If pattern evaluates "
+        "to true, body is evaluated and posted; otherwise [] is posted. The DELEGATE "
+        "handler picks the first non-[] proposal from closest.\n\n"
+        "The :bind stack is appended to the delegate expression as :bind (r1 r2 ...). "
+        "Each scope adds one entry. [] means no match / not applicable.",
+        "example": "(delegate (project store val))",
+        "expected": "resolves store val at the caller's scope, not the current one",
+        "patterns": [
+            ";; Bare: skip one level, resolve at caller\n" "(delegate (project store val))",
+            ";; Skip two levels\n" "(delegate (delegate (project store val)))",
+            ";; At E in chain A→B→C→D→E:\n"
+            ";; (project store val) → resolves at outermost (A)\n"
+            ";; (delegate ...) → D's store (40)\n"
+            ";; (delegate (delegate ...)) → C's store (30)\n"
+            "(scope d (scope e (= (delegate (project store val)) 40)))",
+            ";; Conditional: ?-var binds from each scope's env\n"
+            ";; finds the scope where answer == 42\n"
+            "(delegate (= ?answer 42) ?answer)",
+            ";; Conditional with ?_level — binds to stack position\n"
+            ";; routes to a specific depth in the scope chain\n"
+            "(delegate (= ?_level 3) (scope signer (sign data)))",
+            ";; Delegation through isolated scope — ZK-style proof\n"
+            ";; prover scope sees fact via delegate+project, only boolean crosses out\n"
+            "(delegate (project age))",
+        ],
+    },
+    SELF: {
+        "category": "special",
+        "description": "Evaluate expressions in the current engine. "
+        "All arguments are evaluated normally in the calling engine's "
+        "environment. Acts as the identity scope — useful inside "
+        "scope-aware contexts where you want to stay in the current system.",
+        "example": '(self (and "def" "class"))',
+        "expected": "result of evaluating (and \"def\" \"class\") in the current engine",
+        "patterns": [
+            ';; Evaluate in current engine\n' '(self (+ a b))',
+            ';; Use self inside scope to stay in current system\n' '(scope self (and "def" "class"))',
+        ],
+    },
+    SCOPE: {
+        "category": "special",
+        "description": "Evaluate expressions in a named scope. "
+        "The first argument names the scope. If it is ``self``, "
+        "the remaining expressions are evaluated in the current engine. "
+        "Otherwise the name is resolved to a callable and the remaining "
+        "arguments are passed unevaluated — the callable decides how "
+        "to interpret them. The scope name is passed as the first "
+        "argument to the callable. "
+        "Exception: any (project ...) inside scope args is eagerly resolved "
+        "by the current engine before forwarding. This is how the parent "
+        "injects its own values into child scopes.",
+        "example": '(scope evaluation (kind "diff"))',
+        "expected": "result of calling the evaluation callable with \"evaluation\" and (kind \"diff\") unevaluated",
+        "patterns": [
+            ';; Query evaluation scope from search\n' '(scope evaluation (kind "diff"))',
+            ';; Compose search and evaluation\n' '(and "def" (scope evaluation (category "issue")))',
+            ';; Self-reference — evaluates in current engine\n' '(scope self (and "def" "class"))',
+            ';; Project resolves before scope forwards — child gets concrete value\n'
+            '(scope child (hash-leaf (project my-fact)))',
+        ],
     },
     EQ: {
         "category": "special",

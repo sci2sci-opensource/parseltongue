@@ -327,7 +327,7 @@ class TestIndexDir(unittest.TestCase):
         # Second search with fresh Search should use cache
         search2 = Search(SearchStore(store=store, path=self.tmpdir))
         count = search2.index_dir(self.tmpdir)
-        self.assertEqual(count, 1)
+        self.assertEqual(count, 0)  # cache hit — nothing re-indexed
         r = search2.query("cached")
         self.assertGreater(r["total_lines"], 0)
 

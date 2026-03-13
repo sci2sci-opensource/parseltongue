@@ -1,0 +1,50 @@
+; inspect_evaluate — validation stubs for Evaluation (formerly Diagnosis)
+; Covers: evaluation.py, diagnosis.py (backward-compat shim)
+
+(load-document "evaluation.py" "../inspect/evaluation.py")
+(load-document "diagnosis.py" "../inspect/diagnosis.py")
+(import (quote ..std.util))
+(defterm stub util.stub :origin "import")
+
+; ── Evaluation API ──
+(derive stub-evaluation-from-report stub :using (stub))
+(derive stub-evaluation-summary stub :using (stub))
+(derive stub-evaluation-consistent stub :using (stub))
+(derive stub-evaluation-stats stub :using (stub))
+(derive stub-evaluation-issues stub :using (stub))
+(derive stub-evaluation-warnings stub :using (stub))
+(derive stub-evaluation-danglings stub :using (stub))
+(derive stub-evaluation-loader stub :using (stub))
+(derive stub-evaluation-find stub :using (stub))
+(derive stub-evaluation-fuzzy stub :using (stub))
+(derive stub-evaluation-focus stub :using (stub))
+(derive stub-evaluation-incremental stub :using (stub))
+
+; ── EvaluationItem ──
+(derive stub-evaluation-item-fields stub :using (stub))
+(derive stub-evaluation-item-to-dict stub :using (stub))
+(derive stub-evaluation-item-from-dict stub :using (stub))
+
+; ── Serialization ──
+(derive stub-evaluation-to-dict stub :using (stub))
+(derive stub-evaluation-from-dict stub :using (stub))
+
+; ── EvaluationSearchSystem ──
+(derive stub-evaluation-search-system stub :using (stub))
+(derive stub-evaluation-to-search-scope stub :using (stub))
+
+; ── Backward compatibility ──
+(derive stub-diagnosis-shim-imports stub :using (stub))
+
+; ── TODO: evaluation needs its own language system ──
+; Evaluation filtering could be expressed as S-expressions:
+; - (issues kind "diff") (warnings namespace "engine.")
+; - (and (issues) (focus "readme.")) → filtered view
+; - (stats by-namespace) → aggregated report
+; - Compose: (pipe (focus "engine.") (issues type "divergence"))
+; The Evaluation already classifies items — it needs a System
+; that maps operators to item-set filters (like SearchSystem does
+; for posting sets).
+(derive stub-todo-evaluation-language-system stub :using (stub))
+
+; ── TODO: exports ──

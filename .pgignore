@@ -1,0 +1,26 @@
+# CLI and LLM packages — not indexed yet
+parseltongue/cli/
+parseltongue/llm/
+
+# Virtual env & dependencies
+venv/
+
+# Build artifacts
+dist/
+build/
+*.egg-info/
+.eggs/
+
+# Caches
+__pycache__/
+.parseltongue-bench/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+
+# Temp / scratch
+temp/
+documentation/
+
+# OS junk
+.DS_Store
