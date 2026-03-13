@@ -181,3 +181,108 @@ class MDebuggerPerspective(Perspective[Markdown]):
         header = f"**Roots: {len(layer.consumers)}**\n\n"
         table = _md_table(["name", "kind", "location"], rows)
         return Markdown(f"{header}{table}")
+
+    def render_form(self, form: list) -> Markdown:
+        tag = str(form[0]).rsplit(".", 1)[-1] if "." in str(form[0]) else str(form[0])
+        # fields[0] is perspective, fields[1:] are display fields
+        fields = form[1:]
+        f = fields[1:]
+        if tag == "sr-fmt":
+            doc, line = str(f[0]), str(f[1])
+            ctx = str(f[2]) if len(f) > 2 else ""
+            callers = f[3] if len(f) > 3 and f[3] else []
+            caller_names = []
+            for c in callers:
+                caller_names.append(str(c[0]) if isinstance(c, list) and c else str(c))
+            prefix = f"[{', '.join(caller_names)}] " if caller_names else ""
+            loc = self._loc(doc) if hasattr(self, "_loc") else ""
+            loc_s = f"  @ {loc}" if loc else ""
+            return Markdown(f"`{doc}:{line}`{loc_s}  {prefix}{ctx}")
+        if tag == "ln-fmt":
+            name = str(f[0])
+            loc = self._loc(name) if hasattr(self, "_loc") else ""
+            rows = [["kind", str(f[1])]]
+            if loc:
+                rows.append(["location", loc])
+            if len(f) > 2:
+                rows.append(["value", str(f[2])])
+            if len(f) > 3:
+                rows.append(["depth", str(f[3])])
+            if len(f) > 4 and f[4]:
+                rows.append(["inputs", ", ".join(str(i) for i in f[4])])
+            return Markdown(f"### {name}\n\n{_md_table(['', ''], rows)}")
+        if tag == "dx-fmt":
+            name = str(f[0])
+            rows = [["category", str(f[1])]]
+            if len(f) > 2:
+                rows.append(["kind", str(f[2])])
+            if len(f) > 3:
+                rows.append(["type", str(f[3])])
+            if len(f) > 4:
+                rows.append(["detail", str(f[4])])
+            return Markdown(f"### {name}\n\n{_md_table(['', ''], rows)}")
+        if tag == "hn-fmt":
+            name = str(f[0])
+            rows = [["kind", str(f[1])]]
+            if len(f) > 2:
+                rows.append(["value", str(f[2])])
+            if len(f) > 3 and isinstance(f[3], list):
+                rows.append(["lenses", ", ".join(str(x) for x in f[3])])
+            return Markdown(f"### {name}\n\n{_md_table(['', ''], rows)}")
+        from parseltongue.core.lang import to_sexp
+
+        return Markdown(to_sexp(form))
+
+    def render_form_list(self, forms: list[list]) -> Markdown:
+        if not forms:
+            return Markdown("*empty*")
+        tag = str(forms[0][0]).rsplit(".", 1)[-1] if "." in str(forms[0][0]) else str(forms[0][0])
+        # fields: [perspective, ...display fields]
+        if tag == "sr-fmt":
+            rows = []
+            for form in forms:
+                f = form[2:]  # skip tag + perspective
+                doc, line = str(f[0]), str(f[1])
+                ctx = str(f[2]) if len(f) > 2 else ""
+                callers = f[3] if len(f) > 3 and f[3] else []
+                caller_strs = []
+                for c in callers:
+                    caller_strs.append(str(c[0]) if isinstance(c, list) and c else str(c))
+                loc = self._loc(doc) if hasattr(self, "_loc") else ""
+                rows.append([f"{doc}:{line}", loc, ", ".join(caller_strs), ctx])
+            return Markdown(_md_table(["location", "pltg", "callers", "context"], rows))
+        if tag == "ln-fmt":
+            rows = []
+            for form in forms:
+                f = form[2:]
+                name = str(f[0])
+                kind = str(f[1]) if len(f) > 1 else ""
+                value = str(f[2]) if len(f) > 2 else ""
+                depth = str(f[3]) if len(f) > 3 else ""
+                inputs = ", ".join(str(i) for i in f[4]) if len(f) > 4 and f[4] else ""
+                loc = self._loc(name) if hasattr(self, "_loc") else ""
+                rows.append([name, kind, value, depth, inputs, loc])
+            return Markdown(_md_table(["name", "kind", "value", "depth", "inputs", "location"], rows))
+        if tag == "dx-fmt":
+            rows = []
+            for form in forms:
+                f = form[2:]
+                name = str(f[0])
+                cat = str(f[1]) if len(f) > 1 else ""
+                kind = str(f[2]) if len(f) > 2 else ""
+                typ = str(f[3]) if len(f) > 3 else ""
+                detail = str(f[4]) if len(f) > 4 else ""
+                rows.append([name, cat, kind, typ, detail])
+            return Markdown(_md_table(["name", "category", "kind", "type", "detail"], rows))
+        if tag == "hn-fmt":
+            rows = []
+            for form in forms:
+                f = form[2:]
+                name = str(f[0])
+                kind = str(f[1]) if len(f) > 1 else ""
+                value = str(f[2]) if len(f) > 2 else ""
+                lenses = ", ".join(str(x) for x in f[3]) if len(f) > 3 and isinstance(f[3], list) else ""
+                rows.append([name, kind, value, lenses])
+            return Markdown(_md_table(["name", "kind", "value", "lenses"], rows))
+        parts = [str(self.render_form(f)) for f in forms]
+        return Markdown("\n\n".join(parts))

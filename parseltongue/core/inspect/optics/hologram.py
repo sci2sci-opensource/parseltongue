@@ -16,12 +16,15 @@ Usage::
 
 from __future__ import annotations
 
-from typing import Any, Callable, TypeVar
+from typing import TYPE_CHECKING, Any, Callable, TypeVar
 
 from ..perspective import Perspective
 from ..probe_core_to_consequence import InputType
 from .base import Optics
 from .lens import Lens
+
+if TYPE_CHECKING:
+    from ..systems.hologram import HologramSearchSystem
 
 T = TypeVar("T")
 
@@ -121,7 +124,28 @@ class Hologram(Optics):
         self._name = name
         self._labels = labels or [f"L{i}" for i in range(len(lenses))]
         self._bias = _bias or Bias.NEUTRAL
-        self.__names: set[str] | None = None
+        self._search: HologramSearchSystem | None = None
+
+    @property
+    def search_system(self) -> "HologramSearchSystem":
+        """Lazy-init search system."""
+        if self._search is None:
+            from ..systems.hologram import HologramSearchSystem
+
+            self._search = HologramSearchSystem(self)
+        return self._search
+
+    def find(self, pattern: str, max_results: int = 50) -> list[str]:
+        """Regex search over node names across all lenses."""
+        return self.search_system.find(pattern, max_results)
+
+    def fuzzy(self, query: str, max_results: int = 10) -> list[str]:
+        """Ranked substring search across all lenses."""
+        return self.search_system.fuzzy(query, max_results)
+
+    def search(self, query: str) -> dict:
+        """S-expression query against the hologram search system."""
+        return self.search_system.evaluate(query)
 
     @property
     def left(self) -> Lens:
@@ -138,14 +162,6 @@ class Hologram(Optics):
 
     def __len__(self) -> int:
         return len(self._lenses)
-
-    @property
-    def _names(self) -> set[str]:
-        if self.__names is None:
-            self.__names = set()
-            for lens in self._lenses:
-                self.__names |= lens._names
-        return self.__names
 
     def bias(self, b: Bias) -> "Hologram":
         """Return a new Hologram with a different bias. Same lenses."""

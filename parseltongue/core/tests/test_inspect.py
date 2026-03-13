@@ -17,7 +17,7 @@ from ..inspect.probe_core_to_consequence import (
     NodeKind,
     probe,
 )
-from ..inspect.search import Ranking, Search
+from ..inspect.search import Search
 from ..inspect.serialization import (
     deserialize_structure,
     serialize_structure,
@@ -162,7 +162,7 @@ class TestLens(unittest.TestCase):
         lens = Lens(self.structure, [MarkdownPerspective()])
         focused = lens.focus("double-rev")
         self.assertIsInstance(focused, Lens)
-        self.assertIn("double-rev", focused._names)
+        self.assertIn("double-rev", focused.find("double-rev"))
 
     def test_lens_find(self):
         from ..inspect.perspectives.markdown import MarkdownPerspective
@@ -421,17 +421,17 @@ class TestSearch(unittest.TestCase):
 
     def test_search_ranking_callers(self):
         search = Search(SearchStore(index=self.index))
-        result = search.query("quick", rank=Ranking.CALLERS)
+        result = search.query("quick", rank="callers")
         self.assertIn("lines", result)
 
     def test_search_ranking_coverage(self):
         search = Search(SearchStore(index=self.index))
-        result = search.query("quick", rank=Ranking.COVERAGE)
+        result = search.query("quick", rank="coverage")
         self.assertIn("lines", result)
 
     def test_search_ranking_document(self):
         search = Search(SearchStore(index=self.index))
-        result = search.query("quick", rank=Ranking.DOCUMENT)
+        result = search.query("quick", rank="document")
         self.assertIn("lines", result)
 
     def test_search_ranking_string(self):

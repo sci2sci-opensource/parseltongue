@@ -4,8 +4,8 @@ Prepare a sample, then observe: ``lens()`` for structure,
 ``evaluate()`` for health. Backed by Merkle tree caching.
 
 The Bench owns sample status and integrity labels. A Technician
-handles loading (cold, cache hit, hot-patch, background reload)
-and flips the labels via a private callback. A Store handles
+handles loading (cold, cache hit, hot-patch, background reload),
+scope registration, and evaluation caching. A Store handles
 all disk I/O.
 
 Usage::
@@ -33,7 +33,7 @@ from .evaluation import Evaluation
 from .optics import Lens
 from .optics.hologram import Hologram
 from .perspectives.md_debugger import MDebuggerPerspective
-from .store import SearchStore, Store
+from .store import Store
 from .technician import Sample, Technician
 
 log = logging.getLogger("parseltongue.bench")
@@ -96,12 +96,22 @@ class Bench:
             parts = [f"{Path(p).name}: {s}" for p, s in self._state.items()]
             return f"Status({', '.join(parts)})"
 
-    def __init__(self, bench_dir: str | Path | None = None):
+    #: Default lib paths — includes parseltongue core/std for standard library imports.
+    STD_PATH = str(Path(__file__).resolve().parent.parent)
+    #: bench.pltg — right next to this file, imports bench_pg/*.pltg modules.
+    BENCH_PG = str(Path(__file__).resolve().parent / "bench.pltg")
+    BENCH_PG_DIR = str(Path(__file__).resolve().parent)
+
+    def __init__(self, bench_dir: str | Path | None = None, lib_paths: list[str] | None = None):
         self._store = Store(bench_dir)
-        self._technician = Technician(self._store, self._on_status)
+        self._lib_paths = lib_paths if lib_paths is not None else [self.STD_PATH]
+        self._technician = Technician(
+            self._store,
+            self._on_status,
+            lib_paths=self._lib_paths + [self.BENCH_PG_DIR],
+            bench_pg=self.BENCH_PG,
+        )
         self._mem: dict[str, Sample] = {}
-        self._evaluation_mem: dict[str, Evaluation] = {}
-        self._affected: dict[str, set[str]] = {}
         self._current_path: str | None = None
         self.integrity = self.Integrity()
         self.status = self.Status()
@@ -114,14 +124,12 @@ class Bench:
             self.integrity._state[path] = integrity
         if status:
             self.status._state[path] = status
-        # If background reload completed (VERIFIED + LIVE), swap in the result
+        # Background reload completed — swap in result
         if integrity == Technician.VERIFIED and status == Technician.LIVE:
             bg = getattr(self._technician, "_bg_result", None)
             if bg is not None and bg[0] == path:
                 self._mem[path] = bg[1]
                 self._technician._bg_result = None
-                # Invalidate evaluation — stale after background swap
-                self._evaluation_mem.pop(path, None)
 
     # ── Prepare ──
 
@@ -129,12 +137,8 @@ class Bench:
         """Prepare a .pltg file for observation. Returns self for chaining."""
         path = str(Path(path).resolve())
         self._current_path = path
-        sample, affected = self._technician.prepare(path, self._mem.get(path))
+        sample, _ = self._technician.prepare(path, self._mem.get(path))
         self._mem[path] = sample
-        if affected is not None:
-            self._affected[path] = affected
-            self._evaluation_mem.pop(path, None)
-        self._populate_scopes(path)
         return self
 
     def _require_current(self) -> str:
@@ -186,75 +190,11 @@ class Bench:
     # ── Observe: health ──
 
     def evaluate(self, path: str | None = None) -> Evaluation:
-        """Consistency observation — a Evaluation with focus, search, filtering.
-
-        Cached in memory and on disk. Same Merkle root = same evaluation.
-        Incremental: when only some nodes changed, patches only affected diffs.
-        """
+        """Consistency observation — an Evaluation with focus, search, filtering."""
         path = str(Path(path).resolve()) if path else self._require_current()
-
-        # Memory cache
-        if path in self._evaluation_mem:
-            return self._evaluation_mem[path]
-
-        # Disk cache — exact Merkle match
-        cached = self._mem.get(path)
-        if cached:
-            merkle_root = cached[1].hash
-            disk_dx = self._store.load_diagnosis(path, merkle_root)
-            if disk_dx is not None:
-                self._evaluation_mem[path] = disk_dx
-                return disk_dx
-
-        # Incremental: stale evaluation + known affected set from prepare
-        affected = self._affected.get(path)
-        if affected is not None:
-            old_dx = self._store.load_stale_diagnosis(path)
-            if old_dx is not None:
-                result = self._ensure_live_result(path)
-                engine = result.system.engine
-
-                diffs_to_patch: set[str] = set()
-                for name in affected:
-                    diffs_to_patch |= engine.diff_refs.get(name, set())
-
-                if diffs_to_patch:
-                    log.info("Incremental evaluate: %d/%d diffs", len(diffs_to_patch), len(engine.diffs))
-                    lc = result.consistency_incremental(diffs_to_patch)
-                    dx = old_dx.incremental(diffs_to_patch, lc)
-                    self._evaluation_mem[path] = dx
-                    self._save_evaluation(path, dx)
-                    self._affected.pop(path, None)
-                    return dx
-
-        # Cold — full consistency
-        result = self._ensure_live_result(path)
-        lc = result.consistency()
-        dx = Evaluation.from_report(lc, result)
-        self._evaluation_mem[path] = dx
-        self._save_evaluation(path, dx)
-        return dx
-
-    def _populate_scopes(self, path: str):
-        """Register all search scopes after prepare."""
-        self._populate_search_docs(path)
-        dx = self.evaluate(path)
-        self._register_evaluation_scope(path, dx)
-
-    def _populate_search_docs(self, path: str):
-        """Add engine documents to the search index."""
-        result = self._ensure_live_result(path)
-        search = self._search_engine(path)
-        for doc_name, doc_text in result.system.engine.documents.items():
-            if doc_name not in search._index.documents:
-                search._index.add(doc_name, doc_text)
-
-    def _register_evaluation_scope(self, path: str, dx: Evaluation):
-        """Register evaluation as a search scope."""
-        from .evaluation import EvaluationSearchSystem
-
-        ds = EvaluationSearchSystem(dx)
-        self._search_engine(path).register_scope("evaluation", ds._system)
+        if path not in self._mem:
+            self.prepare(path)
+        return self._technician._load_evaluate(path, self._mem.get(path))
 
     # ── Search ──
 
@@ -265,25 +205,53 @@ class Bench:
         path = self._require_current()
         if path not in self._mem:
             self.prepare(path)
-        return self._search_engine(path).query(
+        return self._technician.search_engine(path).query(
             query, max_lines=max_lines, max_callers=max_callers, offset=offset, rank=rank
         )
 
-    def _search_engine(self, path: str):
-        if not hasattr(self, "_search_mem"):
-            self._search_mem: dict[str, "Search"] = {}
-        if path not in self._search_mem:
-            from .search import Search
+    def eval(self, query: str):
+        """Evaluate an S-expression in the eval system (main + std + scopes)."""
+        from parseltongue.core.atoms import read_tokens, tokenize
 
-            self._search_store = SearchStore(self._store, path)
-            self._search_mem[path] = Search(store=self._search_store)
-        return self._search_mem[path]
+        path = self._require_current()
+        if path not in self._mem:
+            self.prepare(path)
+        eval_loader, eval_system = self._ensure_eval_system(path)
+        tokens = tokenize(query)
+        expr = read_tokens(tokens)
+        expr = eval_loader.prepare_script(expr, eval_system)
+        return eval_system.engine.evaluate(expr)
+
+    def _ensure_eval_system(self, path: str):
+        """Build or return cached eval system: live bench + scopes."""
+        if not hasattr(self, "_eval_sys_mem"):
+            self._eval_sys_mem: dict[str, tuple] = {}
+        if path in self._eval_sys_mem:
+            return self._eval_sys_mem[path]
+
+        from parseltongue.core.atoms import Symbol
+
+        live = self._technician._live.get(path)
+        if not live:
+            raise RuntimeError(f"No live system for {path} — is it loaded?")
+
+        system = live.system
+        engine = system.engine
+
+        # Register scopes
+        live.register_scope("lens", self.lens(path).search_system._system)
+        live.register_scope("evaluation", self.evaluate(path).search_system._system)
+        live.register_scope("search", self._technician.search_engine(path)._system._pltg_system)
+        engine.env[Symbol("count")] = lambda *args: len(args[0]) if args and isinstance(args[0], dict) else 0
+
+        self._eval_sys_mem[path] = (live._loader, system)
+        return live._loader, system
 
     @property
     def index(self):
         """The Search index for the current sample."""
         path = self._require_current()
-        return self._search_engine(path)
+        return self._technician.search_engine(path)
 
     # ── Access ──
 
@@ -303,25 +271,15 @@ class Bench:
         """Clear cache for a path, or all if None."""
         if path is None:
             self._mem.clear()
-            self._evaluation_mem.clear()
             self._technician.invalidate()
-            if hasattr(self, "_search_mem"):
-                self._search_mem.clear()
         else:
             path = str(Path(path).resolve())
             self._mem.pop(path, None)
-            self._evaluation_mem.pop(path, None)
             self._technician.invalidate(path)
-            if hasattr(self, "_search_mem"):
-                self._search_mem.pop(path, None)
 
     def purge(self):
         """Purge all caches — memory and disk. Nuclear option."""
         self._mem.clear()
-        self._evaluation_mem.clear()
-        self._affected.clear()
-        if hasattr(self, "_search_mem"):
-            self._search_mem.clear()
         self._store.remove_all()
         self._technician.invalidate()
 
@@ -334,8 +292,3 @@ class Bench:
         result, sample = self._technician.ensure_live(path, self._mem.get(path))
         self._mem[path] = sample
         return result
-
-    def _save_evaluation(self, path: str, dx: Evaluation):
-        cached = self._mem.get(path)
-        merkle_root = cached[1].hash if cached else ""
-        self._store.save_diagnosis(path, merkle_root, dx)

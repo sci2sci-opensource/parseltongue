@@ -1,7 +1,7 @@
 """Optics — optical instruments for viewing provenance structures.
 
 Lens views a single structure. Hologram views N structures combined via Bias.
-Both inherit from Optics ABC and the Searchable mixin.
+Both inherit from Optics ABC. Search is provided by dedicated search systems.
 """
 
 from .base import Optics

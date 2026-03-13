@@ -1,4 +1,4 @@
-"""Evaluation — consistency view with focus, search, and filtering.
+"""Evaluation — consistency view with focus and filtering.
 
 Like Lens is for structure, Evaluation is for health. Prepare a sample
 on the bench, then evaluate it.
@@ -15,20 +15,18 @@ Usage::
     dx.warnings(namespace="engine.")   # engine warnings
     dx.danglings(kind="derive")        # unused derives
     dx.focus("readme.")                # narrow to namespace → new Evaluation
-    dx.find("count")                   # regex over all names in the report
-    dx.fuzzy("special")               # substring match
+
+Search is handled by EvaluationSearchSystem — register as a scope
+in the main search system, or use ``(scope evaluation ...)`` queries.
 """
 
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
-from parseltongue import System
-
 if TYPE_CHECKING:
-    from parseltongue.core.quote_verifier.index import DocumentIndex
+    pass
 
 
 @dataclass
@@ -67,13 +65,34 @@ class EvaluationItem:
 class Evaluation:
     """Consistency view — the health side of observation.
 
-    Wraps a LocatedConsistencyReport into a searchable, focusable object.
+    Wraps a LocatedConsistencyReport into a focusable, filterable object.
     """
 
     def __init__(self, items: list[EvaluationItem], consistent: bool):
         self._items = items
         self._consistent = consistent
-        self._names: set[str] = {item.name for item in items}
+        self._search: "EvaluationSearchSystem | None" = None
+
+    @property
+    def search_system(self) -> "EvaluationSearchSystem":
+        """Lazy-init search system."""
+        if self._search is None:
+            from .systems.evaluation import EvaluationSearchSystem
+
+            self._search = EvaluationSearchSystem(self)
+        return self._search
+
+    def find(self, pattern: str, max_results: int = 50) -> list[str]:
+        """Regex search over item names via the search index."""
+        return self.search_system.find(pattern, max_results)
+
+    def fuzzy(self, query: str, max_results: int = 10) -> list[str]:
+        """Ranked substring search over item names via the search index."""
+        return self.search_system.fuzzy(query, max_results)
+
+    def search(self, query: str) -> dict:
+        """S-expression query against the evaluation search system."""
+        return self.search_system.evaluate(query)
 
     @classmethod
     def from_report(cls, lc, result=None) -> "Evaluation":
@@ -252,33 +271,6 @@ class Evaluation:
         has_issues = any(i.category == "issue" for i in filtered)
         return Evaluation(filtered, consistent=not has_issues)
 
-    # ── Search ──
-
-    def find(self, pattern: str, max_results: int = 50) -> list[str]:
-        """Regex search over all names in the evaluation."""
-        rx = re.compile(pattern)
-        return sorted(name for name in self._names if rx.search(name))[:max_results]
-
-    def fuzzy(self, query: str, max_results: int = 10) -> list[str]:
-        """Substring match, ranked by relevance."""
-        query_lower = query.lower()
-        scored = []
-        for name in self._names:
-            name_lower = name.lower()
-            if query_lower not in name_lower:
-                continue
-            if name_lower == query_lower:
-                score = 0
-            elif name_lower.endswith(query_lower):
-                score = 1
-            elif name_lower.startswith(query_lower):
-                score = 2
-            else:
-                score = 3
-            scored.append((score, len(name), name))
-        scored.sort()
-        return [name for _, _, name in scored[:max_results]]
-
     # ── Statistics ──
 
     def stats(self) -> dict[str, dict[str, int]]:
@@ -415,98 +407,7 @@ class Evaluation:
         parts.append(f"{len(self.danglings())} danglings")
         return f"Evaluation({', '.join(parts)})"
 
-    def to_search_scope(self) -> tuple["DocumentIndex", System]:
-        """Build a EvaluationSearchSystem. Returns (index, system) for scope registration."""
-        ds = EvaluationSearchSystem(self)
-        return ds._idx, ds._system
 
-
-class EvaluationSearchSystem:
-    """Parseltongue System with posting-set operators over evaluation data.
-
-    Operators:
-        (kind "diff")      — items matching directive kind
-        (category "issue") — items in a category
-        (type "diverge")   — items matching issue/warning type (substring)
-    """
-
-    def __init__(self, dx: Evaluation):
-        from parseltongue.core.atoms import Symbol
-        from parseltongue.core.quote_verifier.index import DocumentIndex
-
-        self._idx = DocumentIndex()
-
-        # Group items by category → each category becomes a "document"
-        by_cat: dict[str, list[str]] = {}
-        for item in dx._items:
-            kind_str = f"[{item.kind}] " if item.kind else ""
-            detail_str = f": {item.detail}" if item.detail else ""
-            line = f"{item.name} {kind_str}{item.type}{detail_str}"
-            by_cat.setdefault(item.category, []).append(line)
-        for cat, lines in by_cat.items():
-            self._idx.add(cat, "\n".join(lines))
-
-        # Build item lookup by (category_doc, line_number)
-        item_index: dict[tuple[str, int], EvaluationItem] = {}
-        for item in dx._items:
-            cat = item.category
-            cat_items = [i for i in dx._items if i.category == cat]
-            line_num = cat_items.index(item) + 1
-            item_index[(cat, line_num)] = item
-
-        idx = self._idx
-
-        def _posting(key: tuple[str, int]) -> dict:
-            doc = idx.documents.get(key[0])
-            if not doc:
-                return {}
-            lines = doc.original_text.splitlines()
-            if key[1] > len(lines):
-                return {}
-            return {
-                "document": key[0],
-                "line": key[1],
-                "column": 1,
-                "context": lines[key[1] - 1],
-                "callers": [],
-                "total_callers": 0,
-            }
-
-        def _kind(kind_pattern):
-            def _filter(posting=None):
-                if posting is None:
-                    return {
-                        k: _posting(k)
-                        for k, it in item_index.items()
-                        if it.kind and kind_pattern in it.kind and _posting(k)
-                    }
-                return {
-                    k: v
-                    for k, v in posting.items()
-                    if k in item_index and item_index[k].kind is not None and kind_pattern in str(item_index[k].kind)
-                }
-
-            return _filter
-
-        def _category(cat_name):
-            def _filter(posting=None):
-                if posting is None:
-                    return {k: _posting(k) for k, it in item_index.items() if it.category == cat_name and _posting(k)}
-                return {k: v for k, v in posting.items() if k in item_index and item_index[k].category == cat_name}
-
-            return _filter
-
-        def _type(type_pattern):
-            def _filter(posting=None):
-                if posting is None:
-                    return {k: _posting(k) for k, it in item_index.items() if type_pattern in it.type and _posting(k)}
-                return {k: v for k, v in posting.items() if k in item_index and type_pattern in item_index[k].type}
-
-            return _filter
-
-        ops = {
-            Symbol("kind"): _kind,
-            Symbol("category"): _category,
-            Symbol("type"): _type,
-        }
-        self._system = System(initial_env=ops)
+# EvaluationSearchSystem moved to systems/evaluation.py
+# Re-export for backwards compatibility
+from .systems.evaluation import EvaluationSearchSystem  # noqa: F401, E402

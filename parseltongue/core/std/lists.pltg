@@ -26,8 +26,8 @@
 ;   (cons-prepend 42 (quote (99 7))) => (quote (42 99 7))
 (defterm cons-prepend :origin "binary prepend — splice element into quoted list head")
 
-(axiom cons-prepend-rule (= (cons-prepend ?x (quote (?...rest))) (quote (?x ?...rest)))
-    :origin "rewrite: prepend ?x to quoted list contents")
+(axiom cons-prepend-rule (= (cons-prepend ?x (?...rest)) (?x ?...rest))
+    :origin "rewrite: prepend ?x to list contents")
 
 ; --- cons: variadic list constructor ---
 

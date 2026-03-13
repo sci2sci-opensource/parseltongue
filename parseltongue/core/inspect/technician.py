@@ -4,7 +4,8 @@ Uses the loader to load/reload .pltg files, the Store to check cache
 and persist results. Updates Bench status via a private callback.
 
 The Technician decides *how* to load (cold, cache hit, hot-patch,
-background reload). The Bench decides *what* to observe.
+background reload). Owns scope registration, evaluation computation,
+and search engine lifecycle. The Bench decides *what* to observe.
 """
 
 from __future__ import annotations
@@ -35,7 +36,8 @@ class Technician:
     """Lab technician — prepares samples for the Bench.
 
     Coordinates between the loader and the Store. Reports state
-    transitions via a callback provided by the Bench.
+    transitions via a callback provided by the Bench. Owns scope
+    registration, evaluation computation, and search engine.
     """
 
     # Integrity values (mirrors Bench.Integrity for the callback)
@@ -48,13 +50,26 @@ class Technician:
     LOADING = "loading"
     LIVE = "live"
 
-    def __init__(self, store: Store, on_status: StatusCallback):
+    def __init__(
+        self,
+        store: Store,
+        on_status: StatusCallback,
+        lib_paths: list[str] | None = None,
+        bench_pg: str | None = None,
+    ):
         self._store = store
         self._on_status = on_status
         self._file_lists: dict[str, list[str]] = {}
         self._file_hashes: dict[str, dict[str, str]] = {}
         self._bg_reload: dict[str, threading.Thread] = {}
         self._bg_result: tuple[str, Sample] | None = None
+        self._lib_paths: list[str] = lib_paths or []
+        self._bench_pg = bench_pg
+        self._frozen = None  # FrozenBench, created lazily on first prepare
+        self._live: dict = {}  # path → LiveBench
+        self._evaluation_mem: dict = {}  # path → Evaluation
+        self._affected: dict[str, set[str]] = {}
+        self._search_mem: dict = {}  # path → Search
 
     @property
     def file_lists(self) -> dict[str, list[str]]:
@@ -67,6 +82,114 @@ class Technician:
     @property
     def bg_reload(self) -> dict[str, threading.Thread]:
         return self._bg_reload
+
+    # ── Frozen / Live systems ──
+
+    def _ensure_frozen(self):
+        """Create FrozenBench lazily on first prepare."""
+        if self._frozen is None and self._bench_pg:
+            from .systems.frozen_bench import FrozenBench
+
+            self._frozen = FrozenBench(self._bench_pg, self._lib_paths)  # type: ignore[assignment]
+        return self._frozen
+
+    # ── Search engine ──
+
+    def search_engine(self, path: str):
+        """Get or create the Search engine for a path."""
+        if path not in self._search_mem:
+            from .search import Search
+            from .store import SearchStore
+
+            search_store = SearchStore(self._store, path)
+            self._search_mem[path] = Search(store=search_store)
+        return self._search_mem[path]
+
+    # ── Scope registration ──
+
+    def _register_scopes(self, path: str, sample: Sample):
+        """Register all scopes — lens and evaluation. Called on both prepare and live."""
+        from .optics import Lens
+        from .perspectives.md_debugger import MDebuggerPerspective
+
+        _, _, structure, loader = sample
+        search = self.search_engine(path)
+
+        # Lens scope — always available from structure
+        lens = Lens(structure, [MDebuggerPerspective(loader)])
+        search.register_scope("lens", lens.search_system._system)
+
+        # Evaluation scope — from cache if available
+        dx = self._load_evaluate(path, sample)
+        if dx is not None:
+            search.register_scope("evaluation", dx.search_system._system)
+
+        # Populate search docs if live
+        result = sample[3].last_result
+        if result is not None and hasattr(result.system, "engine") and result.system.engine.facts:
+            from .systems.live_bench import LiveBench
+
+            self._live[path] = LiveBench(result, self._bench_pg, self._lib_paths)  # type: ignore[arg-type]
+            for doc_name, doc_text in result.system.engine.documents.items():
+                if doc_name not in search._index.documents:
+                    search._index.add(doc_name, doc_text)
+
+    # ── Evaluation ──
+
+    def _load_evaluate(self, path: str, sample: Sample | None):
+        """Evaluate consistency — cached, incremental, or cold."""
+        from .evaluation import Evaluation
+
+        # Memory cache
+        if path in self._evaluation_mem:
+            return self._evaluation_mem[path]
+
+        # Disk cache — exact Merkle match
+        if sample:
+            merkle_root = sample[1].hash
+            disk_dx = self._store.load_diagnosis(path, merkle_root)
+            if disk_dx is not None:
+                self._evaluation_mem[path] = disk_dx
+                return disk_dx
+
+        # Incremental: stale evaluation + known affected set
+        affected = self._affected.get(path)
+        if affected is not None:
+            old_dx = self._store.load_stale_diagnosis(path)
+            if old_dx is not None:
+                result, sample = self.ensure_live(path, sample)
+                engine = result.system.engine
+
+                diffs_to_patch: set[str] = set()
+                for name in affected:
+                    diffs_to_patch |= engine.diff_refs.get(name, set())
+
+                if diffs_to_patch:
+                    log.info(
+                        "Incremental evaluate: %d/%d diffs",
+                        len(diffs_to_patch),
+                        len(engine.diffs),
+                    )
+                    lc = result.consistency_incremental(diffs_to_patch)
+                    dx = old_dx.incremental(diffs_to_patch, lc)
+                    self._evaluation_mem[path] = dx
+                    self._save_evaluation(path, dx, sample)
+                    self._affected.pop(path, None)
+                    return dx
+
+        # Cold — full consistency
+        result, sample = self.ensure_live(path, sample)
+        lc = result.consistency()
+        dx = Evaluation.from_report(lc, result)
+        self._evaluation_mem[path] = dx
+        self._save_evaluation(path, dx, sample)
+        return dx
+
+    def _save_evaluation(self, path: str, dx, sample: Sample | None):
+        merkle_root = sample[1].hash if sample else ""
+        self._store.save_diagnosis(path, merkle_root, dx)
+
+    # ── Prepare ──
 
     def prepare(
         self,
@@ -107,6 +230,8 @@ class Technician:
                 self._file_hashes[path] = new_hashes
                 self._on_status(path, self.VERIFIED, self.LOADING)
                 self._background_reload(path, sample)
+                self._ensure_frozen()
+                self._register_scopes(path, sample)
                 return sample, None
 
             # Tree differs — hot-patch if we have a cached system
@@ -126,10 +251,16 @@ class Technician:
                             self._file_hashes[path] = new_hashes
                             self._on_status(path, self.UNKNOWN, self.LOADING)
                             self._background_reload(path, sample)
+                            self._affected[path] = affected
+                            self._evaluation_mem.pop(path, None)
+                            self._ensure_frozen()
+                            self._register_scopes(path, sample)
                             return sample, affected
 
-        # Cold — full reload
-        return self._cold_load(path), None
+        # Cold — full reload (_cold_load registers live scopes)
+        sample = self._cold_load(path)
+        self._ensure_frozen()
+        return sample, None
 
     def ensure_live(
         self,
@@ -139,7 +270,7 @@ class Technician:
         """Get a live LazyLoadResult (with engine). Reloads if needed."""
         if cached:
             result: LazyLoadResult | None = cached[3].last_result
-            if result is not None and (result.system.engine.facts or result.system.engine.axioms):
+            if result is not None:
                 return result, cached
 
         # System is empty or missing — cold load
@@ -174,16 +305,24 @@ class Technician:
             self._file_lists.clear()
             self._file_hashes.clear()
             self._store.remove_all()
+            self._evaluation_mem.clear()
+            self._affected.clear()
+            self._search_mem.clear()
+            self._live.clear()
         else:
             self._file_lists.pop(path, None)
             self._file_hashes.pop(path, None)
             self._store.remove(path)
+            self._evaluation_mem.pop(path, None)
+            self._affected.pop(path, None)
+            self._search_mem.pop(path, None)
+            self._live.pop(path, None)
 
     # ── Internal ──
 
     def _cold_load(self, path: str) -> Sample:
         """Full reload from scratch."""
-        loader = LazyLoader()
+        loader = LazyLoader(lib_paths=self._lib_paths)
         loader.load_main(path)
         load_result = loader.last_result
         assert load_result is not None
@@ -197,6 +336,7 @@ class Technician:
         sample: Sample = (path, new_tree, structure, loader)
         self._on_status(path, self.VERIFIED, self.LIVE)
         self._store.save(path, new_tree, structure, loader, file_list, new_hashes)
+        self._register_scopes(path, sample)
         return sample
 
     def _hot_patch(
@@ -340,7 +480,7 @@ class Technician:
 
         def _reload():
             try:
-                loader = LazyLoader()
+                loader = LazyLoader(lib_paths=technician._lib_paths)
                 loader.load_main(path)
                 file_list = technician.collect_source_files(loader)
                 new_hashes = store.hash_files(file_list)
@@ -370,9 +510,10 @@ class Technician:
                 file_lists[path] = file_list
                 file_hashes[path] = new_hashes
                 new_sample: Sample = (path, new_tree, structure, loader)
-                # Store the result where the Bench can pick it up
                 technician._bg_result = (path, new_sample)
                 on_status(path, Technician.VERIFIED, Technician.LIVE)
+                # Register live scopes with the fresh sample
+                technician._register_scopes(path, new_sample)
                 store.save(path, new_tree, structure, loader, file_list, new_hashes)
                 log.info("Background reload complete for %s", path)
             except Exception as e:

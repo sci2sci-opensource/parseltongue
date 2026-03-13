@@ -94,7 +94,7 @@ class Loader:
     time — the definition→module mapping tells us where to look.
     """
 
-    def __init__(self):
+    def __init__(self, lib_paths: list[str] | None = None):
         self.main_ctx: LoaderContext = None  # type: ignore[assignment]
         self.modules_contexts: dict[str, ModuleContext] = {}
         self._current: ModuleContext = None  # type: ignore[assignment]
@@ -104,6 +104,7 @@ class Loader:
         self._module_aliases: dict[str, str] = {}
         self.names_to_modules: dict[str, str] = {}
         self.names_to_lines: dict[str, int] = {}
+        self._lib_paths: list[str] = lib_paths or []
 
     def create_md_ctx(self, abs_path, module_name):
         """Create and register a ModuleContext for a file."""
@@ -275,7 +276,14 @@ class Loader:
                 raise ImportError(f"Circular import detected: {chain}")
 
             if not os.path.isfile(abs_path):
-                raise FileNotFoundError(f"Module '{module_name}' not found at {abs_path}")
+                # Fall back to lib_paths
+                for lib_dir in self._lib_paths:
+                    candidate = os.path.normpath(os.path.join(lib_dir, module_name.replace(".", os.sep) + ".pltg"))
+                    if os.path.isfile(candidate):
+                        abs_path = candidate
+                        break
+                else:
+                    raise FileNotFoundError(f"Module '{module_name}' not found at {abs_path}")
 
             child_ctx = self.create_md_ctx(abs_path, module_name)
 
@@ -484,6 +492,27 @@ class Loader:
         self._imported.add(abs_path)
 
         return system
+
+    def prepare_script(self, expr, system: "System"):
+        """Patch a parsed expression for evaluation in the given system.
+
+        Resolves module aliases (counting.X → std.counting.X) and
+        namespaces bare symbols to their registered names.
+        """
+        if isinstance(expr, list):
+            self._patch_symbols(expr, system.engine)
+        return expr
+
+    def load_module(self, system: "System", module_name: str):
+        """Import a module into an existing system (post-load_main).
+
+        Resolves via lib_paths, same as (import (quote module_name)).
+        """
+        from ..atoms import Symbol
+
+        effects = self._make_loader_effects()
+        import_effect = effects["import"]
+        import_effect(system, Symbol(module_name))
 
 
 def load_pltg(path: str, effects: dict[str, Any] | None = None, **system_kwargs) -> System:

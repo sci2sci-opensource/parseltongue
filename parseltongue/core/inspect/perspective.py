@@ -44,3 +44,11 @@ class Perspective(Generic[T]):
 
     def render_roots(self, layer: Layer) -> T:
         raise NotImplementedError
+
+    def render_form(self, form: list) -> T:
+        """Render a display form (sr-fmt, ln-fmt, dx-fmt, hn-fmt) produced by view.pltg."""
+        raise NotImplementedError
+
+    def render_form_list(self, forms: list[list]) -> T:
+        """Render a list of display forms."""
+        raise NotImplementedError

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TypeVar
+from typing import TYPE_CHECKING, TypeVar
 
 from ..perspective import Perspective
 from ..probe_core_to_consequence import (
@@ -13,22 +13,45 @@ from ..probe_core_to_consequence import (
 )
 from .base import Optics
 
+if TYPE_CHECKING:
+    from ..systems.lens import LensSearchSystem
+
 T = TypeVar("T")
 
 
 class Lens(Optics):
-    """Single-structure optic. Views one provenance graph through perspectives."""
+    """Single-structure optic. Views one provenance graph through perspectives.
+
+    Holds a LensSearchSystem for find/fuzzy/search over the graph.
+    """
 
     def __init__(self, structure: CoreToConsequenceStructure, perspectives: list[Perspective] | None = None):
         self._structure = structure
         self._perspectives: dict[type[Perspective], Perspective] = {}
         for p in perspectives or []:
             self._perspectives[type(p)] = p
-        self.__names: set[str] = set(structure.graph.keys()) - {"__output__"}
+        self._search: LensSearchSystem | None = None
 
     @property
-    def _names(self) -> set[str]:
-        return self.__names
+    def search_system(self) -> "LensSearchSystem":
+        """Lazy-init search system."""
+        if self._search is None:
+            from ..systems.lens import LensSearchSystem
+
+            self._search = LensSearchSystem(self._structure)
+        return self._search
+
+    def find(self, pattern: str, max_results: int = 50) -> list[str]:
+        """Regex search over node names via the search index."""
+        return self.search_system.find(pattern, max_results)
+
+    def fuzzy(self, query: str, max_results: int = 10) -> list[str]:
+        """Ranked substring search over node names via the search index."""
+        return self.search_system.fuzzy(query, max_results)
+
+    def search(self, query: str) -> dict:
+        """S-expression query against the lens search system."""
+        return self.search_system.evaluate(query)
 
     def _get(self, perspective: type[Perspective[T]] | None = None) -> Perspective[T]:
         if perspective is None:

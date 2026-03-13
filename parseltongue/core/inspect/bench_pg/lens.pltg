@@ -1,0 +1,30 @@
+; lens.pltg — lens node form and accessors
+;
+; ln — tagged lens node:
+;   (ln name kind value depth (inputs...))
+;
+; Accessors via rewrite axioms:
+;   (ln-name result)    => node name
+;   (ln-kind result)    => node kind (fact, axiom, term, theorem, diff)
+;   (ln-value result)   => node value
+;   (ln-depth result)   => depth in dependency graph
+;   (ln-inputs result)  => input names list
+
+(defterm ln :origin "lens node constructor")
+
+(defterm ln-name :origin "ln accessor: node name")
+(defterm ln-kind :origin "ln accessor: node kind")
+(defterm ln-value :origin "ln accessor: node value")
+(defterm ln-depth :origin "ln accessor: graph depth")
+(defterm ln-inputs :origin "ln accessor: input names")
+
+(axiom ln-name-rule (= (ln-name (ln ?name ?kind ?val ?depth ?inputs)) ?name)
+    :origin "rewrite: extract name from ln")
+(axiom ln-kind-rule (= (ln-kind (ln ?name ?kind ?val ?depth ?inputs)) ?kind)
+    :origin "rewrite: extract kind from ln")
+(axiom ln-value-rule (= (ln-value (ln ?name ?kind ?val ?depth ?inputs)) ?val)
+    :origin "rewrite: extract value from ln")
+(axiom ln-depth-rule (= (ln-depth (ln ?name ?kind ?val ?depth ?inputs)) ?depth)
+    :origin "rewrite: extract depth from ln")
+(axiom ln-inputs-rule (= (ln-inputs (ln ?name ?kind ?val ?depth ?inputs)) ?inputs)
+    :origin "rewrite: extract inputs from ln")

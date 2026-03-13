@@ -572,17 +572,21 @@ class Engine:
                         all_vars |= free_vars(pattern)
                     all_vars |= free_vars(body)
 
-                    # Bind ?name → env[name], ?_level → stack position
+                    # Bind ?name → resolved(name), ?...name → resolved(name), ?_level → stack position
                     bindings = {}
                     for var in all_vars:
                         vname = str(var)
                         if vname == "?_level":
                             bindings[var] = level
                             continue
-                        plain = Symbol(vname.lstrip("?"))
-                        if plain not in env:
+                        if vname.startswith("?..."):
+                            plain = Symbol(vname[4:])
+                        else:
+                            plain = Symbol(vname[1:])
+                        try:
+                            bindings[var] = self._eval(plain, env, axiom_scope, restricted)
+                        except (NameError, TypeError):
                             return []
-                        bindings[var] = env[plain]
 
                     if pattern is not None:
                         bound_pattern = substitute(pattern, bindings)

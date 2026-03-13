@@ -7,16 +7,16 @@ from typing import TypeVar
 
 from ..perspective import Perspective
 from ..probe_core_to_consequence import InputType
-from ..searchable import Searchable
 
 T = TypeVar("T")
 
 
-class Optics(Searchable, ABC):
+class Optics(ABC):
     """Abstract base for provenance viewers.
 
-    Combines Searchable (find/fuzzy over _names) with abstract view methods.
     Subclasses: Lens (single structure), Hologram (two structures side-by-side).
+    Search is handled by dedicated search systems (LensSearchSystem,
+    HologramSearchSystem) registered as scopes in the main search engine.
     """
 
     @abstractmethod

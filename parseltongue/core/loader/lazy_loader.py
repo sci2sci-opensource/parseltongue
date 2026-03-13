@@ -23,7 +23,7 @@ import logging
 from dataclasses import dataclass, field
 from typing import Any
 
-from ..ast import DirectiveNode, parse_directive, resolve_graph
+from ..ast import DirectiveKind, DirectiveNode, parse_directive, resolve_graph
 from ..atoms import Symbol, read_tokens, tokenize
 from ..engine import _execute_directive
 from ..lang import DSL_KEYWORDS, SPECIAL_FORMS
@@ -311,8 +311,8 @@ class LazyLoader(Loader):
     def _is_pre_directive(self, head: str) -> bool:
         return any(head in names for names in self.PRE_DIRECTIVE_EFFECTS)
 
-    def __init__(self):
-        super().__init__()
+    def __init__(self, lib_paths: list[str] | None = None):
+        super().__init__(lib_paths=lib_paths)
         self._all_nodes: list[DirectiveNode] = []
         self._result: LazyLoadResult | None = None
         self._failed_names: dict[str, DirectiveNode] = {}  # global across modules
@@ -365,7 +365,7 @@ class LazyLoader(Loader):
                     name=None,
                     expr=[],
                     dep_names=set(),
-                    kind="error",
+                    kind=DirectiveKind.ERROR,
                     source_file=self._current.current_file,
                     source_order=order,
                     source_line=expr_line,

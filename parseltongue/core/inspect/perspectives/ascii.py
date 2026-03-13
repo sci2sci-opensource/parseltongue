@@ -265,6 +265,109 @@ class AsciiPerspective(Perspective[Ascii]):
         table = _table(["name", "kind"], rows)
         return Ascii(f"{header}\n{table}")
 
+    def render_form(self, form: list) -> "Ascii":
+        """Render a single display form (sr-fmt, ln-fmt, dx-fmt, hn-fmt)."""
+        tag = str(form[0]).rsplit(".", 1)[-1] if "." in str(form[0]) else str(form[0])
+        fields = form[1:]
+        if tag == "sr-fmt":
+            # (sr-fmt doc line ctx callers)
+            doc, line = str(fields[0]), str(fields[1])
+            ctx = str(fields[2]) if len(fields) > 2 else ""
+            callers = fields[3] if len(fields) > 3 else []
+            caller_names = []
+            for c in callers:
+                if isinstance(c, list) and c:
+                    caller_names.append(str(c[0]))
+                else:
+                    caller_names.append(str(c))
+            prefix = f"[{', '.join(caller_names)}] " if caller_names else ""
+            return Ascii(f"{doc}:{line}  {prefix}{ctx}")
+        if tag == "ln-fmt":
+            # (ln-fmt name kind value depth inputs)
+            pairs = [("kind", str(fields[1]))]
+            if len(fields) > 2:
+                pairs.append(("value", str(fields[2])))
+            if len(fields) > 3:
+                pairs.append(("depth", str(fields[3])))
+            if len(fields) > 4 and fields[4]:
+                pairs.append(("inputs", ", ".join(str(i) for i in fields[4])))
+            return Ascii(_kv_table(str(fields[0]), pairs))
+        if tag == "dx-fmt":
+            # (dx-fmt name category kind type detail)
+            pairs = [("category", str(fields[1]))]
+            if len(fields) > 2:
+                pairs.append(("kind", str(fields[2])))
+            if len(fields) > 3:
+                pairs.append(("type", str(fields[3])))
+            if len(fields) > 4:
+                pairs.append(("detail", str(fields[4])))
+            return Ascii(_kv_table(str(fields[0]), pairs))
+        if tag == "hn-fmt":
+            # (hn-fmt name kind value lenses)
+            pairs = [("kind", str(fields[1]))]
+            if len(fields) > 2:
+                pairs.append(("value", str(fields[2])))
+            if len(fields) > 3 and isinstance(fields[3], list):
+                pairs.append(("lenses", ", ".join(str(x) for x in fields[3])))
+            return Ascii(_kv_table(str(fields[0]), pairs))
+        return Ascii(str(form))
+
+    def render_form_list(self, forms: list[list]) -> "Ascii":
+        """Render a list of display forms as a table."""
+        if not forms:
+            return Ascii("(empty)")
+        tag = str(forms[0][0]).rsplit(".", 1)[-1] if "." in str(forms[0][0]) else str(forms[0][0])
+        if tag == "sr-fmt":
+            rows = []
+            for f in forms:
+                fields = f[1:]
+                doc, line = str(fields[0]), str(fields[1])
+                ctx = str(fields[2]) if len(fields) > 2 else ""
+                callers = fields[3] if len(fields) > 3 else []
+                caller_strs = []
+                for c in callers:
+                    if isinstance(c, list) and c:
+                        caller_strs.append(str(c[0]))
+                    else:
+                        caller_strs.append(str(c))
+                rows.append([f"{doc}:{line}", ", ".join(caller_strs), ctx])
+            return Ascii(_table(["location", "callers", "context"], rows))
+        if tag == "ln-fmt":
+            rows = []
+            for f in forms:
+                fields = f[1:]
+                name = str(fields[0])
+                kind = str(fields[1]) if len(fields) > 1 else ""
+                value = str(fields[2]) if len(fields) > 2 else ""
+                depth = str(fields[3]) if len(fields) > 3 else ""
+                inputs = ", ".join(str(i) for i in fields[4]) if len(fields) > 4 and fields[4] else ""
+                rows.append([name, kind, value, depth, inputs])
+            return Ascii(_table(["name", "kind", "value", "depth", "inputs"], rows))
+        if tag == "dx-fmt":
+            rows = []
+            for f in forms:
+                fields = f[1:]
+                name = str(fields[0])
+                cat = str(fields[1]) if len(fields) > 1 else ""
+                kind = str(fields[2]) if len(fields) > 2 else ""
+                typ = str(fields[3]) if len(fields) > 3 else ""
+                detail = str(fields[4]) if len(fields) > 4 else ""
+                rows.append([name, cat, kind, typ, detail])
+            return Ascii(_table(["name", "category", "kind", "type", "detail"], rows))
+        if tag == "hn-fmt":
+            rows = []
+            for f in forms:
+                fields = f[1:]
+                name = str(fields[0])
+                kind = str(fields[1]) if len(fields) > 1 else ""
+                value = str(fields[2]) if len(fields) > 2 else ""
+                lenses = ", ".join(str(x) for x in fields[3]) if len(fields) > 3 and isinstance(fields[3], list) else ""
+                rows.append([name, kind, value, lenses])
+            return Ascii(_table(["name", "kind", "value", "lenses"], rows))
+        # Fallback: render each individually
+        parts = [str(self.render_form(f)) for f in forms]
+        return Ascii("\n\n".join(parts))
+
     @staticmethod
     def _inputs_table(inputs: list[ConsumerInput]) -> str:
         rows = []

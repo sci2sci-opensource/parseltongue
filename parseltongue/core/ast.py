@@ -18,10 +18,21 @@ a DAG of DirectiveNode references.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from enum import StrEnum
 from typing import Any
 
 from .atoms import Symbol
 from .lang import AXIOM, DEFTERM, DERIVE, DIFF, FACT, KW_BIND, KW_REPLACE, KW_USING, KW_WITH, get_keyword
+
+
+class DirectiveKind(StrEnum):
+    FACT = "fact"
+    AXIOM = "axiom"
+    DEFTERM = "defterm"
+    DERIVE = "derive"
+    DIFF = "diff"
+    EFFECT = "effect"
+    ERROR = "error"
 
 
 @dataclass
@@ -37,7 +48,7 @@ class DirectiveNode:
     name: str | None
     expr: list
     dep_names: set[str]
-    kind: str  # "fact", "axiom", "defterm", "derive", "diff", "effect"
+    kind: DirectiveKind
     source_file: str = ""
     source_order: int = 0
     source_line: int = 0
@@ -78,7 +89,7 @@ def extract_symbols(expr: Any, out: set[str]) -> None:
 def parse_directive(expr: Any, order: int = 0) -> DirectiveNode:
     """Extract a DirectiveNode from a parsed S-expression."""
     if not isinstance(expr, list) or not expr:
-        return DirectiveNode(name=None, expr=expr, dep_names=set(), kind="effect", source_order=order)
+        return DirectiveNode(name=None, expr=expr, dep_names=set(), kind=DirectiveKind.EFFECT, source_order=order)
 
     head = expr[0]
     deps: set[str] = set()
@@ -87,7 +98,7 @@ def parse_directive(expr: Any, order: int = 0) -> DirectiveNode:
         name = str(expr[1])
         if len(expr) > 2:
             extract_symbols(expr[2], deps)
-        return DirectiveNode(name=name, expr=expr, dep_names=deps, kind="fact", source_order=order)
+        return DirectiveNode(name=name, expr=expr, dep_names=deps, kind=DirectiveKind.FACT, source_order=order)
 
     elif head == AXIOM:
         name = str(expr[1])
@@ -95,7 +106,7 @@ def parse_directive(expr: Any, order: int = 0) -> DirectiveNode:
             extract_symbols(expr[2], deps)
         if get_keyword(expr, KW_BIND, None) is not None:
             deps.add(str(expr[2]))
-        return DirectiveNode(name=name, expr=expr, dep_names=deps, kind="axiom", source_order=order)
+        return DirectiveNode(name=name, expr=expr, dep_names=deps, kind=DirectiveKind.AXIOM, source_order=order)
 
     elif head == DEFTERM:
         name = str(expr[1])
@@ -103,7 +114,7 @@ def parse_directive(expr: Any, order: int = 0) -> DirectiveNode:
             deps.add(str(expr[2]))
         elif len(expr) >= 3 and not (isinstance(expr[2], str) and expr[2].startswith(":")):
             extract_symbols(expr[2], deps)
-        return DirectiveNode(name=name, expr=expr, dep_names=deps, kind="defterm", source_order=order)
+        return DirectiveNode(name=name, expr=expr, dep_names=deps, kind=DirectiveKind.DEFTERM, source_order=order)
 
     elif head == DERIVE:
         name = str(expr[1])
@@ -117,7 +128,7 @@ def parse_directive(expr: Any, order: int = 0) -> DirectiveNode:
         if bind_raw is not None:
             deps.add(str(expr[2]))
             extract_symbols(bind_raw, deps)
-        return DirectiveNode(name=name, expr=expr, dep_names=deps, kind="derive", source_order=order)
+        return DirectiveNode(name=name, expr=expr, dep_names=deps, kind=DirectiveKind.DERIVE, source_order=order)
 
     elif head == DIFF:
         name = str(expr[1])
@@ -127,10 +138,10 @@ def parse_directive(expr: Any, order: int = 0) -> DirectiveNode:
             deps.add(str(replace_sym))
         if with_sym:
             deps.add(str(with_sym))
-        return DirectiveNode(name=name, expr=expr, dep_names=deps, kind="diff", source_order=order)
+        return DirectiveNode(name=name, expr=expr, dep_names=deps, kind=DirectiveKind.DIFF, source_order=order)
 
     else:
-        return DirectiveNode(name=None, expr=expr, dep_names=set(), kind="effect", source_order=order)
+        return DirectiveNode(name=None, expr=expr, dep_names=set(), kind=DirectiveKind.EFFECT, source_order=order)
 
 
 def resolve_graph(nodes: list[DirectiveNode]) -> dict[str, DirectiveNode]:

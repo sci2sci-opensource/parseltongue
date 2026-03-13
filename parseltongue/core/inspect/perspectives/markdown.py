@@ -182,6 +182,105 @@ class MarkdownPerspective(Perspective[Markdown]):
         table = _md_table(["name", "kind"], rows)
         return Markdown(f"{header}{table}")
 
+    def render_form(self, form: list) -> Markdown:
+        tag = str(form[0]).rsplit(".", 1)[-1] if "." in str(form[0]) else str(form[0])
+        f = form[2:]  # skip tag + perspective
+        if tag == "sr-fmt":
+            doc, line = str(f[0]), str(f[1])
+            ctx = str(f[2]) if len(f) > 2 else ""
+            callers = f[3] if len(f) > 3 and f[3] else []
+            caller_names = []
+            for c in callers:
+                caller_names.append(str(c[0]) if isinstance(c, list) and c else str(c))
+            prefix = f"[{', '.join(caller_names)}] " if caller_names else ""
+            return Markdown(f"`{doc}:{line}`  {prefix}{ctx}")
+        if tag == "ln-fmt":
+            rows = [["kind", str(f[1])]]
+            if len(f) > 2:
+                rows.append(["value", str(f[2])])
+            if len(f) > 3:
+                rows.append(["depth", str(f[3])])
+            if len(f) > 4 and f[4]:
+                rows.append(["inputs", ", ".join(str(i) for i in f[4])])
+            return Markdown(f"### {f[0]}\n\n{_md_table(['', ''], rows)}")
+        if tag == "dx-fmt":
+            rows = [["category", str(f[1])]]
+            if len(f) > 2:
+                rows.append(["kind", str(f[2])])
+            if len(f) > 3:
+                rows.append(["type", str(f[3])])
+            if len(f) > 4:
+                rows.append(["detail", str(f[4])])
+            return Markdown(f"### {f[0]}\n\n{_md_table(['', ''], rows)}")
+        if tag == "hn-fmt":
+            rows = [["kind", str(f[1])]]
+            if len(f) > 2:
+                rows.append(["value", str(f[2])])
+            if len(f) > 3 and isinstance(f[3], list):
+                rows.append(["lenses", ", ".join(str(x) for x in f[3])])
+            return Markdown(f"### {f[0]}\n\n{_md_table(['', ''], rows)}")
+        from parseltongue.core.lang import to_sexp
+
+        return Markdown(to_sexp(form))
+
+    def render_form_list(self, forms: list[list]) -> Markdown:
+        if not forms:
+            return Markdown("*empty*")
+        tag = str(forms[0][0]).rsplit(".", 1)[-1] if "." in str(forms[0][0]) else str(forms[0][0])
+        if tag == "sr-fmt":
+            rows = []
+            for form in forms:
+                f = form[2:]
+                doc, line = str(f[0]), str(f[1])
+                ctx = str(f[2]) if len(f) > 2 else ""
+                callers = f[3] if len(f) > 3 and f[3] else []
+                caller_strs = [str(c[0]) if isinstance(c, list) and c else str(c) for c in callers]
+                rows.append([f"{doc}:{line}", ", ".join(caller_strs), ctx])
+            return Markdown(_md_table(["location", "callers", "context"], rows))
+        if tag == "ln-fmt":
+            rows = []
+            for form in forms:
+                f = form[2:]
+                rows.append(
+                    [
+                        str(f[0]),
+                        str(f[1]) if len(f) > 1 else "",
+                        str(f[2]) if len(f) > 2 else "",
+                        str(f[3]) if len(f) > 3 else "",
+                        ", ".join(str(i) for i in f[4]) if len(f) > 4 and f[4] else "",
+                    ]
+                )
+            return Markdown(_md_table(["name", "kind", "value", "depth", "inputs"], rows))
+        if tag == "dx-fmt":
+            rows = []
+            for form in forms:
+                f = form[2:]
+                rows.append(
+                    [
+                        str(f[0]),
+                        str(f[1]) if len(f) > 1 else "",
+                        str(f[2]) if len(f) > 2 else "",
+                        str(f[3]) if len(f) > 3 else "",
+                        str(f[4]) if len(f) > 4 else "",
+                    ]
+                )
+            return Markdown(_md_table(["name", "category", "kind", "type", "detail"], rows))
+        if tag == "hn-fmt":
+            rows = []
+            for form in forms:
+                f = form[2:]
+                rows.append(
+                    [
+                        str(f[0]),
+                        str(f[1]) if len(f) > 1 else "",
+                        str(f[2]) if len(f) > 2 else "",
+                        ", ".join(str(x) for x in f[3]) if len(f) > 3 and isinstance(f[3], list) else "",
+                    ]
+                )
+            return Markdown(_md_table(["name", "kind", "value", "lenses"], rows))
+        parts = [str(self.render_form(f)) for f in forms]
+        return Markdown("\n\n".join(parts))
+
     @staticmethod
     def _inputs_md(inputs: list[ConsumerInput]) -> str:
         rows = []

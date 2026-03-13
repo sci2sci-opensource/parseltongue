@@ -1,0 +1,30 @@
+; hologram.pltg — hologram result form and accessors
+;
+; hn — tagged hologram node:
+;   (hn name kind value lens0 lens1 ...)
+;
+; Lenses are spread as variadic args — each is a lens index (0-based)
+; where this node appears. Common nodes carry all indices,
+; divergent nodes carry a subset.
+;
+; Accessors via rewrite axioms:
+;   (hn-name result)   => node name
+;   (hn-kind result)   => node kind
+;   (hn-value result)  => node value
+;   (hn-lenses result) => list of lens indices (via ?...lenses splat)
+
+(defterm hn :origin "hologram node constructor")
+
+(defterm hn-name :origin "hn accessor: node name")
+(defterm hn-kind :origin "hn accessor: node kind")
+(defterm hn-value :origin "hn accessor: node value")
+(defterm hn-lenses :origin "hn accessor: lens indices (variadic)")
+
+(axiom hn-name-rule (= (hn-name (hn ?name ?kind ?val ?...lenses)) ?name)
+    :origin "rewrite: extract name from hn")
+(axiom hn-kind-rule (= (hn-kind (hn ?name ?kind ?val ?...lenses)) ?kind)
+    :origin "rewrite: extract kind from hn")
+(axiom hn-value-rule (= (hn-value (hn ?name ?kind ?val ?...lenses)) ?val)
+    :origin "rewrite: extract value from hn")
+(axiom hn-lenses-rule (= (hn-lenses (hn ?name ?kind ?val ?...lenses)) (quote (?...lenses)))
+    :origin "rewrite: collect spread lenses into list")
