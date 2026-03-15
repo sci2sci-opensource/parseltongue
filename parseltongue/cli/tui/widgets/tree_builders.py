@@ -13,8 +13,9 @@ from typing import Any
 
 from rich.markup import escape as rich_escape
 
-from parseltongue.core.atoms import Evidence, Symbol, to_sexp
+from parseltongue.core.atoms import Evidence, Symbol
 from parseltongue.core.engine import Fact
+from parseltongue.core.grammar import to_sexp
 
 # ------------------------------------------------------------------
 # Color helpers

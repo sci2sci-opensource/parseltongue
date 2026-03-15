@@ -26,8 +26,8 @@ from textual.containers import Container, Horizontal, Vertical, VerticalScroll
 from textual.screen import Screen
 from textual.widgets import Label, Markdown, Static, TabbedContent, TabPane
 
-from parseltongue.core.companion import CompanionTracker
-from parseltongue.core.companion_integrity import BlockStatus
+from parseltongue.core.notebooks.companion import CompanionTracker
+from parseltongue.core.notebooks.companion_integrity import BlockStatus
 
 from ..widgets.hints_bar import HintsBar
 from ..widgets.pass_viewer import _safe_highlight, pv_escape
@@ -105,10 +105,10 @@ class _TabState:
 
     __slots__ = ("path", "source", "tracker", "system", "loader")
 
-    def __init__(self, path: Path, source: str) -> None:
+    def __init__(self, path: Path, source: str, companion_path: Path) -> None:
         self.path = path
         self.source = source
-        self.tracker = CompanionTracker(path)
+        self.tracker = CompanionTracker(path, companion_path)
         self.system = self.tracker.system
         self.loader = self.tracker.loader
 
@@ -154,6 +154,7 @@ class ViewerScreen(ResizableSplitMixin, Screen):
         self._tabs: dict[str, _TabState] = {}
         self._pending_update = False
         self._repair_modal_open = False
+        self._repair_dismissed: set[str] = set()
 
     def compose(self) -> ComposeResult:
         with Horizontal(id="viewer-layout"):
@@ -182,13 +183,14 @@ class ViewerScreen(ResizableSplitMixin, Screen):
         ]
         yield HintsBar(hints)
 
-    def update(self, pgmd_files: dict[str, tuple[Path, str]]) -> None:
-        """Update with pgmd files.  name → (path, source)."""
+    def update(self, pgmd_files: dict[str, tuple[Path, Path, str]]) -> None:
+        """Update with pgmd files.  name → (path, companion_path, source)."""
         log.info("Viewer: update called with %d pgmd files", len(pgmd_files))
         self._tabs.clear()
-        for name, (path, source) in pgmd_files.items():
+        self._repair_dismissed.clear()
+        for name, (path, companion_path, source) in pgmd_files.items():
             tab_id = f"vt-{re.sub(r'[^a-zA-Z0-9_-]', '-', name)}"
-            state = _TabState(path, source)
+            state = _TabState(path, source, companion_path)
             # CompanionTracker.__init__ already checks integrity and loads valid blocks
             self._tabs[tab_id] = state
             integrity_summary = {n: bi.status.name for n, bi in state.integrity.items()}
@@ -214,61 +216,81 @@ class ViewerScreen(ResizableSplitMixin, Screen):
 
     def on_screen_resume(self) -> None:
         """Re-check companion integrity when returning to this screen."""
-        self.check_companion_integrity()
+        if self._pending_update:
+            self._pending_update = False
+            self.app.call_later(self._rebuild_tabs)
+            self.check_companion_integrity()
+        else:
+            self.check_companion_integrity()
 
     def check_companion_integrity(self) -> None:
-        """Re-check integrity for all tabs and update block headers if changed.
+        """Re-check integrity for all tabs by reading disk and comparing.
 
-        Called by the app-level file watcher when companion files change,
-        and on screen resume.  Detects external modifications to either
-        the pgmd source or the companion file.
-
-        Structural issues are detected and reported:
-        - Misordered blocks
-        - Duplicate block numbers
-        All repairs require user confirmation.
+        Called periodically by the app-level file watcher and on screen resume.
+        Pure read-from-disk → check → update UI.
         """
+        from parseltongue.core.notebooks.companion_integrity import check_corruption, check_integrity
+
         for tab_id, state in self._tabs.items():
-            old_valid = set(state.executed_blocks)
-            old_statuses = {n: bi.status for n, bi in state.integrity.items()}
-
-            # Reload both source and companion from disk
-            state.tracker.reload_source()
-            state.tracker.reload_companion()
-            state.source = state.tracker.source
-            state.system = state.tracker.system
-            state.loader = state.tracker.loader
-
-            ir = state.tracker.integrity
-
-            # Structural issues → push repair modal (once)
-            if (ir.misordered or ir.duplicates) and not self._repair_modal_open:
-                self._show_repair_modal(tab_id, state)
-
-            new_statuses = {n: bi.status for n, bi in state.integrity.items()}
-            if new_statuses == old_statuses and state.executed_blocks == old_valid:
+            # Read current state from disk
+            try:
+                source = state.path.read_text()
+                comp_text = state.companion.read_text() if state.companion.exists() else ""
+            except Exception:
                 continue
 
-            # Integrity changed — update block headers and code content
+            ir = check_integrity(source, comp_text)
+            ir.corrupted = check_corruption(comp_text)
+
+            # Structural issues → push repair modal
+            if (
+                (ir.misordered or ir.duplicates or ir.corrupted)
+                and not self._repair_modal_open
+                and tab_id not in self._repair_dismissed
+            ):
+                # Sync tracker state before showing modal
+                state.tracker.reload_source()
+                state.tracker.reload_companion()
+                state.source = source
+                self._show_repair_modal(tab_id, state)
+
+            # If not the active screen, just flag for rebuild
+            try:
+                is_active = self.is_current
+            except Exception:
+                is_active = False
+            if not is_active:
+                self._pending_update = True
+                continue
+
+            # Update all block widgets from fresh integrity
             pltg_blocks = self._pltg_blocks(state)
+            log.info(
+                "check_companion_integrity [%s]: is_active=%s, %d pltg blocks, ir.valid=%s",
+                tab_id,
+                is_active,
+                len(pltg_blocks),
+                ir.valid,
+            )
             for bn, (block_i, block) in enumerate(pltg_blocks):
                 wid = f"{tab_id}-b{block_i}"
-                bh = state.chain_hashes[bn][:8] if bn < len(state.chain_hashes) else "????????"
+                bh = ir.chain[bn][:8] if bn < len(ir.chain) else "????????"
                 title = self._block_summary(block)
-                integrity = state.integrity.get(bn)
-                executed = bn in state.executed_blocks
+                integrity = ir.blocks.get(bn)
+                executed = bn in ir.valid
+                status_name = integrity.status.name if integrity else "NONE"
                 try:
                     self.query_one(f"#{wid}-run", Static).update(
                         _block_left(tab_id, bn, wid, title, integrity, executed)
                     )
                     self.query_one(f"#{wid}-status", Static).update(_block_right(tab_id, bn, bh, integrity, executed))
-                except Exception:
-                    pass
-                # Update code content (diff vs syntax highlight)
+                    log.info("  block %d [%s]: header updated, status=%s", bn, wid, status_name)
+                except Exception as e:
+                    log.warning("  block %d [%s]: header update FAILED: %s", bn, wid, e)
                 try:
                     code_widget = self.query_one(f"#{wid}-code", Static)
                     if integrity and integrity.status == BlockStatus.INVALID:
-                        expected_h = state.chain_hashes[bn] if bn < len(state.chain_hashes) else ""
+                        expected_h = ir.chain[bn] if bn < len(ir.chain) else ""
                         code_widget.update(
                             self._render_block_diff(
                                 integrity.source_content,
@@ -277,10 +299,12 @@ class ViewerScreen(ResizableSplitMixin, Screen):
                                 stored_hash=integrity.stored_hash,
                             )
                         )
+                        log.info("  block %d [%s]: code updated to DIFF", bn, wid)
                     else:
                         code_widget.update(_safe_highlight(block.content, "scheme"))
-                except Exception:
-                    pass
+                        log.info("  block %d [%s]: code updated to syntax", bn, wid)
+                except Exception as e:
+                    log.warning("  block %d [%s]: code update FAILED: %s", bn, wid, e)
 
     def _show_repair_modal(self, tab_id: str, state: _TabState) -> None:
         """Push the companion repair modal for structural issues."""
@@ -294,6 +318,7 @@ class ViewerScreen(ResizableSplitMixin, Screen):
         def _on_repair(new_text: str | None) -> None:
             self._repair_modal_open = False
             if new_text is None:
+                self._repair_dismissed.add(tab_id)
                 return
 
             # Write the repaired text and re-check
@@ -327,6 +352,7 @@ class ViewerScreen(ResizableSplitMixin, Screen):
                 filename=state.path.name,
                 companion_text=state.tracker.companion_text,
                 source_blocks=source_blocks,
+                pgmd_source=state.source,
             ),
             callback=_on_repair,
         )
@@ -401,7 +427,7 @@ class ViewerScreen(ResizableSplitMixin, Screen):
 
     def _pltg_blocks(self, state: _TabState) -> list[tuple[int, Any]]:
         """Return [(block_index, PgmdBlock), ...] for pltg blocks."""
-        from parseltongue.core.pgmd import parse_pgmd
+        from parseltongue.core.notebooks.pgmd import parse_pgmd
 
         blocks = parse_pgmd(state.source)
         return [(i, b) for i, b in enumerate(blocks) if b.kind == "pltg"]
@@ -424,7 +450,7 @@ class ViewerScreen(ResizableSplitMixin, Screen):
         return "..."
 
     def _populate_tab(self, tab_id: str) -> None:
-        from parseltongue.core.pgmd import parse_pgmd
+        from parseltongue.core.notebooks.pgmd import parse_pgmd
 
         state = self._tabs.get(tab_id)
         if not state:
@@ -639,7 +665,7 @@ class ViewerScreen(ResizableSplitMixin, Screen):
             return
 
         # Replace the block content in the pgmd source file
-        from parseltongue.core.pgmd import parse_pgmd
+        from parseltongue.core.notebooks.pgmd import parse_pgmd
 
         blocks = parse_pgmd(state.source)
         pltg_idx = 0
@@ -855,6 +881,23 @@ class ViewerScreen(ResizableSplitMixin, Screen):
                 self.query_one(f"#{wid}-status", Static).update(
                     _block_right(tab_id, block_num, bh, integrity, executed)
                 )
+            except Exception:
+                pass
+            # Update code content (diff vs syntax highlight)
+            try:
+                code_widget = self.query_one(f"#{wid}-code", Static)
+                if integrity and integrity.status == BlockStatus.INVALID:
+                    expected_h = state.chain_hashes[block_num] if block_num < len(state.chain_hashes) else ""
+                    code_widget.update(
+                        self._render_block_diff(
+                            integrity.source_content,
+                            integrity.companion_content,
+                            expected_hash=expected_h,
+                            stored_hash=integrity.stored_hash,
+                        )
+                    )
+                else:
+                    code_widget.update(_safe_highlight(block.content, "scheme"))
             except Exception:
                 pass
 

@@ -1,6 +1,6 @@
-# CLI and LLM packages — not indexed yet
-parseltongue/cli/
-parseltongue/llm/
+# CLI and LLM packages — now indexed
+# parseltongue/cli/
+# parseltongue/llm/
 
 # Virtual env & dependencies
 venv/

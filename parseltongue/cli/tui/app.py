@@ -29,6 +29,7 @@ class ParseltongueApp(App):
     CSS_PATH = CSS_PATH
     BINDINGS = [
         Binding("f7", "main_menu", "Menu", show=False),
+        Binding("ctrl+q", "request_quit", "Quit", show=False),
     ]
 
     def __init__(
@@ -251,17 +252,27 @@ class ParseltongueApp(App):
         import asyncio
 
         from parseltongue.core.loader import LazyLoader
-        from parseltongue.core.pgmd import extract_pltg
 
         entry_path = str(entry_point)
 
         def do_run():
+            from parseltongue.core.notebooks.companion import CompanionTracker, companion_path_for
+            from parseltongue.core.notebooks.companion_integrity import check_corruption
+            from parseltongue.core.notebooks.pgmd import parse_pgmd
+
             loader = LazyLoader()
             if entry_path.endswith(".pgmd"):
                 source = entry_point.read_text()
-                pltg_source = extract_pltg(source)
-                companion = entry_point.parent / f".{entry_point.stem}.pltg"
-                companion.write_text(pltg_source)
+                companion = companion_path_for(entry_point)
+                companion_text = companion.read_text() if companion.exists() else ""
+
+                # If no companion or corrupted, write all blocks with proper markers
+                if not companion_text.strip() or check_corruption(companion_text):
+                    tracker = CompanionTracker(entry_point, companion)
+                    pltg_blocks = [b for b in parse_pgmd(source) if b.kind == "pltg"]
+                    for bn, block in enumerate(pltg_blocks):
+                        tracker.execute(bn, block.content)
+
                 load_path = str(companion)
             else:
                 load_path = entry_path
@@ -290,7 +301,9 @@ class ParseltongueApp(App):
             self._modules_screen.update(system, loader)
 
         if getattr(self, "_viewer_screen", None) is not None:
-            pgmd_files: dict[str, tuple[Path, str]] = {}
+            from parseltongue.core.notebooks.companion import companion_path_for
+
+            pgmd_files: dict[str, tuple[Path, Path, str]] = {}
             project_dir = getattr(self, "_project_dir", None)
             entry_stem = (
                 self._editor_screen._entry_point.stem
@@ -304,7 +317,7 @@ class ParseltongueApp(App):
                     paths.sort(key=lambda p: p.stem != entry_stem)
                 for p in paths:
                     try:
-                        pgmd_files[p.stem] = (p, p.read_text())
+                        pgmd_files[p.stem] = (p, companion_path_for(p), p.read_text())
                     except Exception:
                         pass
             self._viewer_screen.update(pgmd_files)  # type: ignore[union-attr]
@@ -341,12 +354,14 @@ class ParseltongueApp(App):
             self._save_project_state()
 
     def on_configure_requested(self, event) -> None:
-        """Main menu → Configure → suspend TUI, run terminal wizard."""
-        from ..config import run_wizard
+        """Main menu → Configure → open settings screen."""
+        from .screens.configure import ConfigureScreen
 
-        with self.suspend():
-            config = run_wizard()
-        self._standalone_config = config
+        self.push_screen(ConfigureScreen())
+
+    def on_quit_requested(self, event) -> None:
+        """Main menu → Quit → show quit confirmation."""
+        self.action_request_quit()
 
     # ------------------------------------------------------------------
     # Standalone mode: doc picker → query input → pipeline
@@ -531,6 +546,16 @@ class ParseltongueApp(App):
 
         self.push_screen(HistoryBrowser())
 
+    def action_request_quit(self) -> None:
+        """Show quit confirmation modal."""
+        from .screens.quit_modal import QuitModal
+
+        def on_quit(confirmed: bool | None) -> None:
+            if confirmed:
+                self.exit()
+
+        self.push_screen(QuitModal(), callback=on_quit)
+
     def action_main_menu(self) -> None:
         if self._mode != "standalone":
             return
@@ -658,8 +683,10 @@ class ParseltongueApp(App):
         """Compare current files against snapshot, prompt to reload on changes."""
         # Check companion integrity separately (dot-files excluded from general snapshot)
         viewer = getattr(self, "_viewer_screen", None)
-        if viewer and viewer.is_mounted:
+        if viewer and viewer._tabs:
             viewer.check_companion_integrity()
+        elif viewer:
+            log.debug("Watcher: viewer exists but _tabs empty (%d tabs)", len(viewer._tabs))
 
         current = self._snapshot_project()
         old = getattr(self, "_file_snapshot", {})

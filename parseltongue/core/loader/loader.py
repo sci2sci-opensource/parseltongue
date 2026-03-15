@@ -463,6 +463,9 @@ class Loader:
             self._file_stack.pop()
         self._imported.add(abs_path)
 
+        # Sync name→module mapping from engine so callers (TUI, etc.) can see it
+        self.names_to_modules = self._engine.names_to_modules
+
         return system
 
     def prepare_script(self, expr, system: "System"):

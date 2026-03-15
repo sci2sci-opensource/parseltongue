@@ -355,6 +355,8 @@ class EditorScreen(ResizableSplitMixin, Screen):
                 # TabPane doesn't have a direct label setter, so we update via
                 # the internal tab widget
                 tab_widget = tabs.get_tab(tab_id)
-                tab_widget.label = name  # type: ignore[assignment]
+                from textual.content import Content
+
+                tab_widget.label = Content(name)
             except Exception:
                 pass
