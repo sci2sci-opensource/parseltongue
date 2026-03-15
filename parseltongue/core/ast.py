@@ -39,7 +39,7 @@ from .lang import (
     AnnotatedSentence,
     SentenceMorphism,
     _sm,
-    get_keyword,
+    get_keyword, Sentence,
 )
 from .morphism import Morphism
 
@@ -69,7 +69,7 @@ class DirectiveNode:
     """
 
     name: str | None
-    expr: list
+    expr: Any
     dep_names: set[str]
     kind: DirectiveKind
     source_file: str = ""
@@ -288,7 +288,7 @@ class ASTMorphism(Morphism[str, list[AnnotatedDirective]]):
         self._base = base
 
     @property
-    def grammar_str(self) -> Grammar[str]:
+    def grammar(self) -> Grammar[str]:
         return self._base.grammar
 
     def transform(self, source: str) -> list[AnnotatedDirective]:

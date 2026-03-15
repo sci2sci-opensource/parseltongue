@@ -4,7 +4,6 @@ Parseltongue Core — public API.
 Import the DSL primitives directly from this package::
 
     from core import System, load_source, Symbol, Evidence
-    from core import parse, parse_all, to_sexp
 """
 
 # Types
@@ -14,13 +13,28 @@ from .atoms import (  # noqa: F401
     Symbol,
     Term,
     Theorem,
+)
+
+# Language functions (canonical home: lang.py)
+from .lang import (  # noqa: F401
+    PGStringParser,
     free_vars,
     get_keyword,
     match,
-    parse,
-    parse_all,
     substitute,
 )
+
+# Backward-compat aliases — canonical is PGStringParser.translate
+parse = PGStringParser.translate
+
+
+def parse_all(source: str) -> list:
+    """Parse source into a list of top-level expressions."""
+    result = PGStringParser.translate(source)
+    if isinstance(result, (list, tuple)) and result and isinstance(result[0], (list, tuple)):
+        return list(result)
+    return [result] if result else []
+
 
 # Default operators & docs
 from .default_system_settings import (  # noqa: F401

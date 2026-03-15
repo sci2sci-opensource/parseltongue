@@ -36,7 +36,8 @@ class Morphism(Protocol[R, T]):
     inverse:    T → R   (extract WFF from T → encode back to R)
     """
 
-    grammar: Grammar[R]
+    @property
+    def grammar(self) -> Grammar[R]: ...
 
     def transform(self, source: R) -> T: ...
     def inverse(self, target: T) -> R: ...

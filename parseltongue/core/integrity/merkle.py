@@ -75,7 +75,8 @@ from __future__ import annotations
 import hashlib
 from dataclasses import dataclass, field
 
-from ..atoms import parse_all, to_sexp
+from ..grammar import to_sexp
+from ..lang import PGStringParser
 
 # ── SHA-256 (Bitcoin-compatible) ──
 
@@ -205,7 +206,11 @@ def build_merkle(block_content: str) -> MerkleNode:
     # Strip pltg marker if present
     lines = block_content.splitlines()
     cleaned = "\n".join(ln for ln in lines if not ln.strip().startswith(";; pltg"))
-    exprs = parse_all(cleaned)
+    result = PGStringParser.translate(cleaned)
+    if isinstance(result, (list, tuple)) and result and isinstance(result[0], (list, tuple)):
+        exprs = result
+    else:
+        exprs = [result] if result else []
     if not exprs:
         return MerkleNode(hash=_sha256(""))
     leaves = [merkle_leaf(e) for e in exprs]

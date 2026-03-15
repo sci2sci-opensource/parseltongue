@@ -1429,10 +1429,9 @@ class Engine(Rewriter, Executor):
         elif name in self.theorems:
             template = self.theorems[name].wff
         elif name in self.terms:
-            term_def = self.terms[name].definition
-            # if term_def is None:
-            #     raise KeyError(f"Cannot instantiate forward-declared term: {name}")
-            template = term_def
+            template = self.terms[name].definition
+            if template is None:
+                raise KeyError(f"Cannot instantiate forward-declared term: {name}")
         else:
             raise KeyError(f"Unknown axiom, theorem, or term: {name}")
 

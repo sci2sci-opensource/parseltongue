@@ -16,7 +16,7 @@ is pure: reuses or creates a translator, translates, returns frozen analysis
 import os
 
 from ..atoms import SILENCE, Silence
-from ..lang import Executor, Rewriter
+from ..lang import Executor, Sentence
 
 
 class _UnionKnown:
@@ -96,6 +96,7 @@ from .loader_morphism import (
     LoaderMorphismV2,
     ModuleSource,
     MorphismReport,
+    PatchContext,
     _lm_v2,
     patch_context,
     patch_definition_name,
@@ -108,7 +109,7 @@ from .loader_translator import (
 )
 
 
-class LoaderEngine(Rewriter, Executor):
+class LoaderEngine(Executor[LoaderTranslationResult]):
     """Namespace-aware engine: translates then patches then delegates.
 
     Owns the shared namespace state (names_to_modules, names_to_lines,
@@ -118,7 +119,7 @@ class LoaderEngine(Rewriter, Executor):
     execute() mutates — applies patches, delegates to inner engine.
     """
 
-    def __init__(self, inner: Executor, morphism: LoaderMorphismV2 | None = None, lib_modules: list[str] | None = None):
+    def __init__(self, inner: Executor[Sentence], morphism: LoaderMorphismV2 | None = None, lib_modules: list[str] | None = None):
         self._inner = inner
         self._morphism = morphism or _lm_v2
         # Propagate engine name for log context
@@ -143,7 +144,7 @@ class LoaderEngine(Rewriter, Executor):
         """Mark a module as imported."""
         self._imported.add(module_name)
 
-    def register_module(self, module_name: str, parent: str = "") -> bool:
+    def register_module(self, module_name: str, parent: str = "") -> tuple[str, bool]:
         """Register a module. Auto-registers aliases for dotted names.
 
         For lib modules: plain imports from a lib parent get qualified

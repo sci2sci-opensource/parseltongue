@@ -347,7 +347,7 @@ def _validate_sexp(query: str) -> tuple[str, str | None]:
     Auto-fixes: stray shell quotes, unclosed parens, trailing extra parens.
     Shows roundtrip on fix so user sees what was actually parsed.
     """
-    from parseltongue.core.atoms import read_tokens, to_sexp, tokenize
+    from parseltongue.core.grammar import read_tokens, to_sexp, tokenize
 
     q = query.strip()
     if not q or not q.startswith("("):
@@ -573,7 +573,7 @@ def _format_eval_result(result, bench=None) -> str:
 
 def _format_eval_raw(result) -> str:
     """Format an eval result as raw S-expression."""
-    from parseltongue.core.atoms import to_sexp
+    from parseltongue.core.grammar import to_sexp
 
     return to_sexp(result)
 

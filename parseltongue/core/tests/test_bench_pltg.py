@@ -22,7 +22,7 @@ def _frozen():
 
 def _eval(frozen, expr_str):
     """Evaluate a pltg expression string in the frozen system."""
-    from parseltongue.core.atoms import read_tokens, tokenize
+    from parseltongue.core.grammar import read_tokens, tokenize
 
     tokens = tokenize(expr_str)
     expr = read_tokens(tokens)
@@ -31,10 +31,16 @@ def _eval(frozen, expr_str):
 
 def _exec(frozen, expr_str):
     """Execute a directive (defterm, axiom, etc.) in the frozen system."""
-    from parseltongue.core.atoms import parse_all
     from parseltongue.core.engine import _execute_directive
+    from parseltongue.core.lang import PGStringParser
 
-    for expr in parse_all(expr_str):
+    result = PGStringParser.translate(expr_str)
+    exprs = (
+        result
+        if isinstance(result, (list, tuple)) and result and isinstance(result[0], (list, tuple))
+        else [result] if result else []
+    )
+    for expr in exprs:
         if isinstance(expr, (list, tuple)) and expr:
             _execute_directive(frozen.system.engine, expr)
 

@@ -1,20 +1,18 @@
 """
 Parseltongue Loader Morphism — file-aware morphism for namespace patching.
 
-Wraps ASTMorphism, adds file/module context and namespace resolution.
-The loader consumes this artifact — gets navigable, patchable directives
-with module awareness.
+    ASTMorphism        (ast):     str → list[AnnotatedDirective]   per-string
+    LoaderMorphismV2   (loader):  ModuleSource → list[LoaderAnnotatedDirective]
+                                  pure analysis — no patching
 
-    ASTMorphism     (ast):     str → list[AnnotatedDirective]   per-string
-    LoaderMorphism  (loader):  (module, str) → list[AnnotatedDirective]
-                               + source_file + namespace patching + reporting
-
-Patching uses NavList parent refs for O(1) positional writes — no isinstance
-guessing, no recursive walks for simple cases.
+Patching functions (patch_symbols, patch_context, patch_definition_name) are
+standalone — the engine calls them with a PatchContext after analysis.
+NavList parent refs give O(1) positional writes.
 """
 
 import logging
 from dataclasses import dataclass, field
+from typing import Any
 
 from ..ast import (
     AnnotatedDirective,
@@ -83,7 +81,7 @@ class PatchContext:
 
     module_name: str = ""
     source_file: str = ""
-    known_names: set[str] | dict = field(default_factory=set)
+    known_names: Any = field(default_factory=set)  # set[str] | dict | EngineKnown — anything with __contains__
     aliases: dict[str, str] = field(default_factory=dict)
     names_to_modules: dict[str, str] = field(default_factory=dict)
     report: MorphismReport | None = None
@@ -105,6 +103,15 @@ class PatchContext:
 # ============================================================
 
 
+def _patch_in_parent(expr: Any, index: int, value: Any) -> None:
+    """Replace expr[index] with value. If expr is a tuple, rebuild and replace in parent."""
+    if isinstance(expr, list):
+        expr[index] = value
+    elif isinstance(expr, tuple) and hasattr(expr, 'parent') and expr.parent is not None:
+        new = expr[:index] + (value,) + expr[index + 1:]
+        expr.parent[expr.pos] = new
+
+
 def patch_context(expr, ctx: PatchContext, line: int = 0) -> None:
     """Recursively patch (context :key) → (context "module.:key")."""
     if not isinstance(expr, (list, tuple)) or not expr:
@@ -112,12 +119,12 @@ def patch_context(expr, ctx: PatchContext, line: int = 0) -> None:
     if expr[0] == Symbol("context") and len(expr) >= 2:
         old = str(expr[1])
         patched = f"{ctx.module_name}.{old}"
-        expr[1] = patched
+        _patch_in_parent(expr, 1, patched)
         ctx.names_to_modules[patched] = ctx.module_name
         ctx.log_resolution(old, patched, "context", line)
         return
     for item in expr:
-        if isinstance(item, NavList):
+        if isinstance(item, (NavList, list, tuple)):
             patch_context(item, ctx, line)
 
 
@@ -163,14 +170,14 @@ def patch_symbols(expr, ctx: PatchContext, line: int = 0, skip_index: int | None
             if "." in s:
                 resolved = _resolve_dotted(s, ctx, line)
                 if resolved:
-                    expr[i] = Symbol(resolved)
+                    _patch_in_parent(expr, i, Symbol(resolved))
                 else:
                     ctx.log_warning(f"Dotted symbol '{s}' did not resolve", line, s)
             else:
                 resolved = _resolve_bare(s, ctx, line)
                 if resolved:
-                    expr[i] = Symbol(resolved)
-        elif isinstance(item, (NavList, list)):
+                    _patch_in_parent(expr, i, Symbol(resolved))
+        elif isinstance(item, (NavList, list, tuple)):
             if head_is_import and item and item[0] == Symbol("quote"):
                 continue
             patch_symbols(item, ctx, line)
@@ -182,103 +189,14 @@ def patch_definition_name(ad: AnnotatedDirective, ctx: PatchContext) -> None:
     if idx.name is not None:
         old_name = str(ad.sentence.expr[idx.name])
         new_name = f"{ctx.module_name}.{old_name}"
-        ad.sentence.expr[idx.name] = new_name
+        _patch_in_parent(ad.sentence.expr, idx.name, new_name)
         ad.node.name = new_name
         ctx.names_to_modules[new_name] = ctx.module_name
         ctx.log_resolution(old_name, new_name, "definition", ad.sentence.line)
 
 
 # ============================================================
-# LoaderMorphism — file-aware morphism
-# ============================================================
-
-
-class LoaderMorphism:
-    """Loader-level morphism: (module_context, str) → list[AnnotatedDirective].
-
-    Wraps ASTMorphism.  For each AnnotatedDirective:
-      1. Tags with source_file
-      2. Namespaces definition names (for non-main modules)
-      3. Patches context keys
-      4. Patches bare symbols to namespaced versions
-
-    All patching uses NavList — direct positional writes via parent refs.
-    """
-
-    def __init__(self, base: ASTMorphism):
-        self._base = base
-
-    def transform(
-        self,
-        source: str,
-        *,
-        source_file: str = "",
-        module_name: str = "",
-        is_main: bool = True,
-        known_names: set[str] | dict | None = None,
-        module_aliases: dict[str, str] | None = None,
-        names_to_modules: dict[str, str] | None = None,
-        names_to_lines: dict[str, int] | None = None,
-        report: MorphismReport | None = None,
-    ) -> list[AnnotatedDirective]:
-        """Parse, annotate, and namespace-patch a source string."""
-        directives = self._base.transform(source)
-        n2l = names_to_lines if names_to_lines is not None else {}
-
-        ctx = PatchContext(
-            module_name=module_name,
-            source_file=source_file,
-            known_names=known_names or set(),
-            aliases=module_aliases or {},
-            names_to_modules=names_to_modules if names_to_modules is not None else {},
-            report=report,
-        )
-
-        for ad in directives:
-            ad.node.source_file = source_file
-            ad.node.source_line = ad.sentence.line
-
-            expr = ad.sentence.expr
-            idx = ad.sentence.index
-
-            # Namespace definition names for non-main modules
-            if not is_main and isinstance(expr, (list, tuple)) and len(expr) >= 2:
-                head = expr[0] if idx.head is not None else None
-                if head in DSL_KEYWORDS or head in SPECIAL_FORMS:
-                    patch_definition_name(ad, ctx)
-
-            # Track name → line
-            if ad.node.name:
-                n2l[ad.node.name] = ad.sentence.line
-
-            # Patch context keys
-            patch_context(expr, ctx, ad.sentence.line)
-
-            # Patch symbols to namespaced versions
-            if known_names is not None:
-                if not is_main:
-                    head = expr[0] if idx.head is not None else None
-                    skip = idx.name if (head in DSL_KEYWORDS or head in SPECIAL_FORMS) else None
-                    patch_symbols(expr, ctx, ad.sentence.line, skip_index=skip)
-                elif ctx.aliases:
-                    patch_symbols(expr, ctx, ad.sentence.line)
-
-        return directives
-
-    def inverse(self, target: list[AnnotatedDirective]) -> str:
-        return self._base.inverse(target)
-
-
-# ============================================================
-# Singleton + static access
-# ============================================================
-
-
-_lm = LoaderMorphism(base=_am)
-
-
-# ============================================================
-# V2 — proper Morphism protocol (pure, no mutation)
+# LoaderMorphismV2 — proper Morphism protocol (pure, no mutation)
 # ============================================================
 
 
@@ -329,7 +247,7 @@ class LoaderMorphismV2:
     @property
     def parse_errors(self) -> list[tuple[int, SyntaxError]]:
         """Walk the morphism chain to find parse errors from the last transform."""
-        m = self._base
+        m: Any = self._base
         while hasattr(m, '_base'):
             m = m._base
         return getattr(m, 'parse_errors', [])
@@ -374,17 +292,3 @@ class LoaderMorphismV2:
 
 
 _lm_v2 = LoaderMorphismV2(base=_am)
-
-
-class ParseltongueLoaderMorphism:
-    """Parseltongue loader morphism — file-aware namespace patching."""
-
-    morphism = _lm_v2
-
-    @staticmethod
-    def transform(source: str, **kwargs) -> list[AnnotatedDirective]:
-        return _lm.transform(source, **kwargs)
-
-    @staticmethod
-    def inverse(target: list[AnnotatedDirective]) -> str:
-        return _lm.inverse(target)

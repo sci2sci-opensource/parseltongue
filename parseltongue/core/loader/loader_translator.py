@@ -1,28 +1,22 @@
 """
 Parseltongue Loader Translator — stateful wrapper for progressive loading.
 
-Accumulates context across morphism calls so the loader can delegate
-its patching methods one at a time without changing signatures.
-
-    LoaderMorphism:    stateless — one transform() per source string
-    LoaderTranslator:  stateful — accumulates known names, aliases, mappings
-                       across multiple transform() calls
-
-Each method mirrors a loader method signature for drop-in replacement.
+LoaderTranslatorV2 wraps LoaderMorphismV2 with persistent state (known names,
+aliases, name registries).  translate() calls the pure morphism for structural
+analysis, then bundles it with a PatchContext built from accumulated knowledge.
 """
+
+from dataclasses import dataclass as _dataclass
+from dataclasses import field as _dataclass_field
 
 from ..lang import Translator
 from .loader_morphism import (
-    LoaderMorphism,
+    LoaderAnnotatedDirective,
+    LoaderMorphismV2,
     MorphismReport,
+    ModuleSource,
     PatchContext,
-    _lm,
-)
-from .loader_morphism import (
-    patch_context as _patch_context,
-)
-from .loader_morphism import (
-    patch_symbols as _patch_symbols,
+    _lm_v2,
 )
 
 # ============================================================
@@ -47,86 +41,8 @@ class EngineKnown:
 
 
 # ============================================================
-# LoaderTranslator
-# ============================================================
-
-
-class LoaderTranslator:
-    """Stateful translator that accumulates context across morphism calls.
-
-    Wraps LoaderMorphism with persistent state matching what the loader
-    tracks: known names, module aliases, name→module mappings, name→line mappings.
-
-    Each method mirrors a loader method signature so the loader can delegate
-    one method at a time without changing its own interface.
-    """
-
-    def __init__(self, morphism: LoaderMorphism | None = None):
-        self._morphism = morphism or _lm
-        self._report = MorphismReport()
-
-    def patch_context(self, expr, module_name: str, names_to_modules: dict[str, str]):
-        """Drop-in for Loader._patch_context."""
-        ctx = PatchContext(
-            module_name=module_name,
-            names_to_modules=names_to_modules,
-            report=self._report,
-        )
-        _patch_context(expr, ctx)
-
-    def patch_symbols_against_engine(
-        self,
-        expr,
-        engine,
-        module_name: str,
-        module_aliases: dict[str, str],
-        skip_index: int | None = None,
-    ):
-        """Drop-in for Loader._patch_symbols(expr, engine, skip_index)."""
-        ctx = PatchContext(
-            module_name=module_name,
-            known_names=EngineKnown(engine),
-            aliases=module_aliases,
-            report=self._report,
-        )
-        _patch_symbols(expr, ctx, skip_index=skip_index)
-
-    def patch_symbols_against_names(
-        self,
-        expr,
-        known_names: set[str],
-        module_name: str,
-        module_aliases: dict[str, str],
-        skip_index: int | None = None,
-    ):
-        """Drop-in for LazyLoader._patch_symbols_from_names(expr, known_names, skip_index)."""
-        ctx = PatchContext(
-            module_name=module_name,
-            known_names=known_names,
-            aliases=module_aliases,
-            report=self._report,
-        )
-        _patch_symbols(expr, ctx, skip_index=skip_index)
-
-    @property
-    def report(self) -> MorphismReport:
-        return self._report
-
-
-# ============================================================
 # LoaderTranslatorV2 — translate via LoaderMorphismV2
 # ============================================================
-
-
-from dataclasses import dataclass as _dataclass
-from dataclasses import field as _dataclass_field
-
-from .loader_morphism import (
-    LoaderAnnotatedDirective,
-    LoaderMorphismV2,
-    ModuleSource,
-    _lm_v2,
-)
 
 
 @_dataclass(frozen=True)

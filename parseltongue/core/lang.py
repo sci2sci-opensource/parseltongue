@@ -35,7 +35,7 @@ See LANG_DOCS below for full syntax and examples drawn from real demos.
 """
 
 from dataclasses import dataclass, field
-from typing import Protocol
+from typing import Protocol, TypeVar
 
 from .atoms import (  # noqa: F401 — re-export
     SILENCE,
@@ -47,8 +47,6 @@ from .atoms import (  # noqa: F401 — re-export
     Symbol,
     Term,
     Theorem,
-    parse,
-    parse_all,
 )
 from .grammar import (  # noqa: F401 — deprecated re-export
     Grammar,
@@ -59,7 +57,7 @@ from .grammar import (  # noqa: F401 — deprecated re-export
     to_sexp,
     tokenize,
 )
-from .morphism import Morphism, StringMorphism, _pm
+from .morphism import StringMorphism, _pm
 
 # ============================================================
 # Clause & Sentence Types
@@ -74,10 +72,14 @@ Sentence = Clause | list["Sentence"]
 # ============================================================
 
 
-class Translator(Protocol):
-    """str → Sentence. Allows the caller to obtain structured meaning from raw text."""
+_T_co = TypeVar("_T_co", covariant=True)
+_T_contra = TypeVar("_T_contra", contravariant=True)
 
-    def translate(self, source: str) -> Sentence: ...
+
+class Translator(Protocol[_T_co]):
+    """str → T. Allows the caller to obtain structured meaning from raw text."""
+
+    def translate(self, source: str) -> _T_co: ...
 
 
 class Rewriter(Protocol):
@@ -86,10 +88,10 @@ class Rewriter(Protocol):
     def evaluate(self, expr: Sentence, local_env: dict | None = None) -> Sentence: ...
 
 
-class Executor(Protocol):
-    """Sentence → Silence. Executes a parsed directive for its side effects."""
+class Executor(Protocol[_T_contra]):
+    """T → Silence. Executes a parsed directive for its side effects."""
 
-    def execute(self, directive: Sentence) -> Silence: ...
+    def execute(self, directive: _T_contra) -> Silence: ...
 
 
 class Listener(Protocol):
@@ -284,9 +286,17 @@ LANG_DOCS = {
         "(delegate (delegate body)) increases depth. The DELEGATE handler counts "
         "nesting depth and picks the Nth non-[] entry from closest.\n\n"
         "Conditional form: (delegate pattern body) — each scope binds ?-vars from "
-        "its env (?name → env[name], ?_level → stack position). If pattern evaluates "
-        "to true, body is evaluated and posted; otherwise [] is posted. The DELEGATE "
-        "handler picks the first non-[] proposal from closest.\n\n"
+        "its env (?name → env[name], ?_level → stack position, ?_self → result of "
+        "evaluating body in the current engine). If pattern evaluates to true, body "
+        "is evaluated and posted; otherwise [] is posted. The DELEGATE handler picks "
+        "the first non-[] proposal from closest.\n\n"
+        "?_self — self-resolution: at the innermost scope (where the delegate handler "
+        "runs), ?_self is bound to the result of evaluating the body in the current "
+        "engine. If the pattern references ?_self and the pattern passes, the delegate "
+        "returns ?_self directly (self-resolution) before checking parent proposals. "
+        "This allows a scope to handle the request itself when no parent can.\n\n"
+        "Use (self expr) in delegate bodies to protect expr from the parent's rewriter. "
+        "Each scope then evaluates the original expression in its own engine.\n\n"
         "The :bind stack is appended to the delegate expression as :bind (r1 r2 ...). "
         "Each scope adds one entry. [] means no match / not applicable.",
         "example": "(delegate (project store val))",
@@ -305,6 +315,11 @@ LANG_DOCS = {
             ";; Conditional with ?_level — binds to stack position\n"
             ";; routes to a specific depth in the scope chain\n"
             "(delegate (= ?_level 3) (scope signer (sign data)))",
+            ";; ?_self gate — self-protected delegate routing\n"
+            ";; each scope evaluates (self (solve ...)) in its own engine;\n"
+            ";; ?_self = result. Closest scope where ?_self != unknown wins.\n"
+            ";; If the innermost scope passes the gate, returns ?_self directly.\n"
+            "(delegate (not (= ?_self unknown)) (self (solve ?domain ?x)))",
             ";; Delegation through isolated scope — ZK-style proof\n"
             ";; prover scope sees fact via delegate+project, only boolean crosses out\n"
             "(delegate (project age))",
@@ -315,12 +330,19 @@ LANG_DOCS = {
         "description": "Evaluate expressions in the current engine. "
         "All arguments are evaluated normally in the calling engine's "
         "environment. Acts as the identity scope — useful inside "
-        "scope-aware contexts where you want to stay in the current system.",
+        "scope-aware contexts where you want to stay in the current system.\n\n"
+        "Rewriter boundary: the rewriter treats (self ...) as opaque and does "
+        "not recurse into its contents. This makes (self expr) an evaluation "
+        "boundary — expr is preserved until _eval processes it. Inside delegate "
+        "bodies, (self expr) protects expr from the parent's rewriter so each "
+        "scope evaluates the original expression in its own engine.",
         "example": '(self (and "def" "class"))',
         "expected": "result of evaluating (and \"def\" \"class\") in the current engine",
         "patterns": [
             ';; Evaluate in current engine\n' '(self (+ a b))',
             ';; Use self inside scope to stay in current system\n' '(scope self (and "def" "class"))',
+            ';; Protect delegate body from parent rewriter — each scope evaluates in its own engine\n'
+            '(delegate (not (= ?_self unknown)) (self (solve ?domain ?x)))',
         ],
     },
     SCOPE: {
@@ -744,7 +766,7 @@ def substitute(expr: Sentence, bindings: dict) -> Sentence:
     if isinstance(expr, Symbol) and expr in bindings:
         return bindings[expr]
     if isinstance(expr, (list, tuple)):
-        result = []
+        result: list = []
         for sub in expr:
             if isinstance(sub, Symbol) and str(sub).startswith("?...") and sub in bindings:
                 val = bindings[sub]
@@ -908,7 +930,7 @@ _sm = SentenceMorphism(base=_pm)
 class ParseltongueSentenceMorphism:
     """Parseltongue sentence morphism — mutable sentences with structural index."""
 
-    morphism: Morphism[str, list[AnnotatedSentence]] = _sm
+    morphism = _sm
 
     @staticmethod
     def transform(source: str) -> list[AnnotatedSentence]:

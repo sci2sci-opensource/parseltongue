@@ -134,12 +134,18 @@ class TestScopedMapReduce(unittest.TestCase):
 
     def _exec_pltg(self, pltg_text):
         """Execute pltg directives in the bench eval system."""
-        from parseltongue.core.atoms import parse_all
         from parseltongue.core.engine import _execute_directive
+        from parseltongue.core.lang import PGStringParser
 
         path = str(Path(self._pltg_path).resolve())
         _, system = self.bench._ensure_eval_system(path)
-        for expr in parse_all(pltg_text):
+        result = PGStringParser.translate(pltg_text)
+        exprs = (
+            result
+            if isinstance(result, (list, tuple)) and result and isinstance(result[0], (list, tuple))
+            else [result] if result else []
+        )
+        for expr in exprs:
             if isinstance(expr, (list, tuple)) and expr:
                 _execute_directive(system.engine, expr)
 

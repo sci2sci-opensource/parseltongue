@@ -5,7 +5,7 @@ Parseltongue System — composes Engine with defaults, serialization, and intros
 import logging
 from typing import Callable, Self
 
-from .atoms import SILENCE, Evidence, Symbol, parse_all
+from .atoms import SILENCE, Evidence, Symbol
 from .default_system_settings import DEFAULT_OPERATORS, ENGINE_DOCS
 from .engine import Engine, Fact
 from .engine import load_source as _engine_load_source
@@ -13,6 +13,7 @@ from .lang import (
     LANG_DOCS,
     Axiom,
     Interpreter,
+    PGStringParser,
     Rewriter,
     Sentence,
     Term,
@@ -84,7 +85,11 @@ class AbstractSystem(Rewriter, Interpreter):
 
     def interpret(self, source: str) -> tuple["AbstractSystem", Sentence]:
         _engine_load_source(self.engine, source)
-        exprs = parse_all(source)
+        result = PGStringParser.translate(source)
+        if isinstance(result, (list, tuple)) and result and isinstance(result[0], (list, tuple)):
+            exprs = result
+        else:
+            exprs = [result] if result else []
         if not exprs:
             return (self, SILENCE)
         return (self, self.engine.evaluate(exprs[-1]))
