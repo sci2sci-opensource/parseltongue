@@ -20,9 +20,9 @@ import unittest
 from parseltongue.core import System, load_source
 from parseltongue.core.atoms import Symbol
 from parseltongue.core.lang import PGStringParser
+from parseltongue.core.loader import Loader
 
 parse = PGStringParser.translate
-from parseltongue.core.loader import Loader
 
 CORE_PLTG = os.path.join(os.path.dirname(__file__), "..", "validation", "core_clean.pltg")
 STD_DIR = os.path.join(os.path.dirname(__file__), "..", "std", "std.pltg")

@@ -37,7 +37,7 @@ def parse_all(source: str) -> list:
 
 
 # Default operators & docs
-from .default_system_settings import (  # noqa: F401
+from .default_system_settings import (  # noqa: F401, E402
     ADD,
     AND,
     ARITHMETIC_OPS,
@@ -60,7 +60,7 @@ from .default_system_settings import (  # noqa: F401
 )
 
 # Engine types
-from .engine import (  # noqa: F401
+from .engine import (  # noqa: F401,  E402
     ConsistencyIssue,
     ConsistencyReport,
     ConsistencyWarning,
@@ -69,10 +69,10 @@ from .engine import (  # noqa: F401
 )
 
 # Grammar
-from .grammar import atom, read_tokens, to_sexp, tokenize  # noqa: F401
+from .grammar import atom, read_tokens, to_sexp, tokenize  # noqa: F401, E402
 
 # Language constants & evidence parsing
-from .lang import (  # noqa: F401
+from .lang import (  # noqa: F401, E402
     AXIOM,
     DEFTERM,
     DERIVE,
@@ -96,7 +96,7 @@ from .lang import (  # noqa: F401
     SPECIAL_FORMS,
     parse_evidence,
 )
-from .loader import Context, Loader, LoaderContext, ModuleContext, load_pltg  # noqa: F401
+from .loader import Context, Loader, LoaderContext, ModuleContext, load_pltg  # noqa: F401, E402
 
 # System & loader
-from .system import AbstractSystem, DefaultSystem, EmptySystem, System, load_source  # noqa: F401
+from .system import AbstractSystem, DefaultSystem, EmptySystem, System, load_source  # noqa: F401, E402

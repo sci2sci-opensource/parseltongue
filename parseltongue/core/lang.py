@@ -95,13 +95,17 @@ class Executor(Protocol[_T_contra]):
 
 
 class Listener(Protocol):
-    """str → (Listener, Silence). Allows the caller to speak and receive an updated listener to continue the conversation."""
+    """str → (Listener, Silence). Allows the caller
+    to speak and receive an updated listener to continue the conversation."""
 
     def listen(self, source: str) -> tuple["Listener", Silence]: ...
 
 
 class Interpreter(Listener, Protocol):
-    """str → (Interpreter, Sentence). Allows the caller to speak and receive both a response and an updated interpreter to continue the conversation."""
+    """str → (Interpreter, Sentence).
+    Allows the caller to speak and receive both a response
+    and an updated interpreter to continue the conversation."""
+
 
     def interpret(self, source: str) -> tuple["Interpreter", Sentence]: ...
 
