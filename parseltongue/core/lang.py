@@ -34,31 +34,102 @@ between their sides is itself a system-level issue.
 See LANG_DOCS below for full syntax and examples drawn from real demos.
 """
 
+from dataclasses import dataclass, field
+from typing import Protocol, TypeVar
+
 from .atoms import (  # noqa: F401 — re-export
+    SILENCE,
+    WFF,
     Axiom,
     Evidence,
+    Primitive,
+    Silence,
     Symbol,
     Term,
     Theorem,
+)
+from .grammar import (  # noqa: F401 — deprecated re-export
+    Grammar,
+    ParseltongueGrammar,
+    _pg,
     atom,
-    get_keyword,
-    parse,
-    parse_all,
     read_tokens,
     to_sexp,
     tokenize,
 )
+from .morphism import StringMorphism, _pm
+
+# ============================================================
+# Clause & Sentence Types
+# ============================================================
+
+Clause = WFF | Evidence | Axiom | Theorem | Term
+Sentence = Clause | list["Sentence"]
+
+
+# ============================================================
+# Interfaces — Translator, Rewriter, Listener, Interpreter
+# ============================================================
+
+
+_T_co = TypeVar("_T_co", covariant=True)
+_T_contra = TypeVar("_T_contra", contravariant=True)
+
+
+class Translator(Protocol[_T_co]):
+    """str → T. Allows the caller to obtain structured meaning from raw text."""
+
+    def translate(self, source: str) -> _T_co: ...
+
+
+class Rewriter(Protocol):
+    """Sentence → Sentence. Allows the caller to reduce or transform expressions."""
+
+    def evaluate(self, expr: Sentence, local_env: dict | None = None) -> Sentence: ...
+
+
+class Executor(Protocol[_T_contra]):
+    """T → Silence. Executes a parsed directive for its side effects."""
+
+    def execute(self, directive: _T_contra) -> Silence: ...
+
+
+class Listener(Protocol):
+    """str → (Listener, Silence). Allows the caller
+    to speak and receive an updated listener to continue the conversation."""
+
+    def listen(self, source: str) -> tuple["Listener", Silence]: ...
+
+
+class Interpreter(Listener, Protocol):
+    """str → (Interpreter, Sentence).
+    Allows the caller to speak and receive both a response
+    and an updated interpreter to continue the conversation."""
+
+    def interpret(self, source: str) -> tuple["Interpreter", Sentence]: ...
+
+    def listen(self, source: str) -> tuple["Interpreter", Silence]:
+        new_self, _ = self.interpret(source)
+        return (new_self, SILENCE)
+
 
 # ============================================================
 # Language-Level Symbol Constants
 # ============================================================
 
 # Special forms — evaluated directly by the interpreter, not via env
+# scope receives its args unevaluated and delegates to a registered System
+# self evaluates its args in the current engine (identity scope)
+# project evaluates in a named basis (default: self) and yields the value
 IF = Symbol("if")
 LET = Symbol("let")
 EQ = Symbol("=")
 QUOTE = Symbol("quote")
 STRICT = Symbol("strict")
+SCOPE = Symbol("scope")
+SELF = Symbol("self")
+PROJECT = Symbol("project")
+DELEGATE = Symbol("delegate")
 
 # DSL keywords — structural symbols of the language
 AXIOM = Symbol("axiom")
@@ -68,7 +139,7 @@ DERIVE = Symbol("derive")
 DIFF = Symbol("diff")
 EVIDENCE = Symbol("evidence")
 
-SPECIAL_FORMS = (IF, LET, QUOTE, STRICT)
+SPECIAL_FORMS = (IF, LET, QUOTE, STRICT, SCOPE, SELF, PROJECT, DELEGATE)
 DSL_KEYWORDS = (AXIOM, DEFTERM, FACT, DERIVE, DIFF, EVIDENCE)
 
 # Pattern variable prefixes — used in axiom ?-variables and splat patterns
@@ -138,12 +209,166 @@ LANG_DOCS = {
     },
     STRICT: {
         "category": "special",
-        "description": "Force eager evaluation of an argument in a lazy context. "
-        "When the engine encounters a non-callable head and defers arg evaluation, "
-        "(strict x) forces x to be evaluated immediately so its structure "
-        "is visible to rewrite patterns.",
+        "description": "Force eager evaluation. Within a single system, "
+        "(strict x) evaluates x immediately so its structure is visible "
+        "to rewrite patterns. Across scope boundaries, strict propagates "
+        "via scope: when scope is evaluated inside a strict context, "
+        "scope wraps the outer expression it forwards in (strict ...), "
+        "notifying the target system that eager evaluation is requested. "
+        "The target system processes strict with its own engine — "
+        "no definitions change, no ownership is violated.",
         "example": "(joint-status (strict r))",
         "expected": "r is evaluated before joint-status rewrites",
+        "patterns": [
+            ";; Force eval in lazy context (original use case)\n" "(joint-status (strict r))",
+            ";; Strict outside scope: scope wraps the forwarded expr in strict\n" "(strict (scope sieve (+ 1 2)))",
+            ";; Propagation chains: each scope boundary wraps once\n"
+            "(strict (scope sieve (scope fermat (pow-mod 2 6 7))))",
+            ";; Case 1: strict propagates through scopes but not into branches\n"
+            ";; rewritten as: (strict (scope outer (strict (scope inner (strict (if cond lazy1 lazy2))))))\n"
+            ";; → cond forced, branches stay lazy\n"
+            "(strict (scope outer (scope inner (if cond lazy1 lazy2))))",
+            ";; Case 2: strict only on branch, no outer propagation\n"
+            ";; rewritten as: (scope outer (scope inner (if true (strict lazy1) lazy2)))\n"
+            ";; → lazy1 evaluated, lazy2 never reached\n"
+            "(scope outer (scope inner (if true (strict lazy1) lazy2)))",
+            ";; Case 3: strict on dead branch\n"
+            ";; rewritten as: (scope outer (scope inner (if false (strict lazy1) lazy2)))\n"
+            ";; → lazy2 evaluated normally, (strict lazy1) never touched\n"
+            "(scope outer (scope inner (if false (strict lazy1) lazy2)))",
+            ";; Case 4: outer strict does not infect the chosen branch\n"
+            ";; rewritten as: (strict (scope outer (strict (scope inner (strict (if false (strict lazy1) lazy2))))))\n"
+            ";; → lazy2 evaluated normally despite outer strict\n"
+            "(strict (scope outer (scope inner (if false (strict lazy1) lazy2))))",
+        ],
+    },
+    PROJECT: {
+        "category": "special",
+        "description": "Evaluate an expression in a named basis and yield the value. "
+        "With one argument, projects in the current engine (self). "
+        "With two arguments, the first names the basis (a scope) and "
+        "the second is the expression to evaluate in that basis. "
+        "The result is a concrete value — it crosses scope boundaries "
+        "without carrying unresolved symbols from the source system.",
+        "example": '(scope logic (and (project (= 2 2)) (project (= 3 3))))',
+        "expected": "parent evaluates (= 2 2) → True, (= 3 3) → True; logic receives (and True True)",
+        "patterns": [
+            ";; Parent has =, logic has and. Project bridges the gap.\n"
+            ";; Parent resolves (project (= 2 2)) → True before entering logic scope.\n"
+            "(scope arithmetic (scope logic (and (project (= 2 2)) (project (= 3 3)))))",
+            ";; Project a fact from parent into child scope\n"
+            ";; Parent has my-fact=42. Child only has hash-leaf.\n"
+            ";; Parent resolves (project my-fact) → 42, child sees (hash-leaf 42).\n"
+            "(scope merkle (hash-leaf (project my-fact)))",
+            ";; Project through nested scopes — each scope resolves its own projects\n"
+            ";; arith resolves (project (+ a b)) → 10, then logic sees (and 10 True)\n"
+            "(scope arith (scope logic (and (project (+ a b)) True)))",
+            ";; Project with explicit named basis\n" '(scope evaluation (project search (in "engine.py" "def")))',
+            ";; self is the default system with basic language operators\n"
+            '(self (scope search (project (and bool1 bool2))))',
+            ";; if works outside project (in scope) — if is a special form\n"
+            '(scope search (if found (project (kind "diff")) "fallback"))',
+            ";; Chain: project from self inside nested scope\n"
+            '(scope search (and "class" (scope evaluation (project (or "query1" "query2")))))',
+            ";; Nested project: outer project triggers scope, inner project injects parent value\n"
+            ";; 1. parent hits project, evaluates its arg\n"
+            ";; 2. arg is (scope child (hash (project my-fact)))\n"
+            ";; 3. before entering child, parent resolves inner (project my-fact) → 42\n"
+            ";; 4. child receives (hash 42), returns hash value\n"
+            ";; 5. outer project yields that hash as concrete\n"
+            "(project (scope child (hash (project my-fact))))",
+        ],
+    },
+    DELEGATE: {
+        "category": "special",
+        "description": "Transport modifier — a happens-before operation where each scope "
+        "in the chain eagerly evaluates a proposal and posts it to a :bind stack "
+        "on the delegate expression. The DELEGATE handler then picks the result "
+        "by depth (bare) or pattern match (conditional).\n\n"
+        "Bare form: (delegate body) — every scope posts a proposal. Nesting "
+        "(delegate (delegate body)) increases depth. The DELEGATE handler counts "
+        "nesting depth and picks the Nth non-[] entry from closest.\n\n"
+        "Conditional form: (delegate pattern body) — each scope binds ?-vars from "
+        "its env (?name → env[name], ?_level → stack position, ?_self → result of "
+        "evaluating body in the current engine). If pattern evaluates to true, body "
+        "is evaluated and posted; otherwise [] is posted. The DELEGATE handler picks "
+        "the first non-[] proposal from closest.\n\n"
+        "?_self — self-resolution: at the innermost scope (where the delegate handler "
+        "runs), ?_self is bound to the result of evaluating the body in the current "
+        "engine. If the pattern references ?_self and the pattern passes, the delegate "
+        "returns ?_self directly (self-resolution) before checking parent proposals. "
+        "This allows a scope to handle the request itself when no parent can.\n\n"
+        "Use (self expr) in delegate bodies to protect expr from the parent's rewriter. "
+        "Each scope then evaluates the original expression in its own engine.\n\n"
+        "The :bind stack is appended to the delegate expression as :bind (r1 r2 ...). "
+        "Each scope adds one entry. [] means no match / not applicable.",
+        "example": "(delegate (project store val))",
+        "expected": "resolves store val at the caller's scope, not the current one",
+        "patterns": [
+            ";; Bare: skip one level, resolve at caller\n" "(delegate (project store val))",
+            ";; Skip two levels\n" "(delegate (delegate (project store val)))",
+            ";; At E in chain A→B→C→D→E:\n"
+            ";; (project store val) → resolves at outermost (A)\n"
+            ";; (delegate ...) → D's store (40)\n"
+            ";; (delegate (delegate ...)) → C's store (30)\n"
+            "(scope d (scope e (= (delegate (project store val)) 40)))",
+            ";; Conditional: ?-var binds from each scope's env\n"
+            ";; finds the scope where answer == 42\n"
+            "(delegate (= ?answer 42) ?answer)",
+            ";; Conditional with ?_level — binds to stack position\n"
+            ";; routes to a specific depth in the scope chain\n"
+            "(delegate (= ?_level 3) (scope signer (sign data)))",
+            ";; ?_self gate — self-protected delegate routing\n"
+            ";; each scope evaluates (self (solve ...)) in its own engine;\n"
+            ";; ?_self = result. Closest scope where ?_self != unknown wins.\n"
+            ";; If the innermost scope passes the gate, returns ?_self directly.\n"
+            "(delegate (not (= ?_self unknown)) (self (solve ?domain ?x)))",
+            ";; Delegation through isolated scope — ZK-style proof\n"
+            ";; prover scope sees fact via delegate+project, only boolean crosses out\n"
+            "(delegate (project age))",
+        ],
+    },
+    SELF: {
+        "category": "special",
+        "description": "Evaluate expressions in the current engine. "
+        "All arguments are evaluated normally in the calling engine's "
+        "environment. Acts as the identity scope — useful inside "
+        "scope-aware contexts where you want to stay in the current system.\n\n"
+        "Rewriter boundary: the rewriter treats (self ...) as opaque and does "
+        "not recurse into its contents. This makes (self expr) an evaluation "
+        "boundary — expr is preserved until _eval processes it. Inside delegate "
+        "bodies, (self expr) protects expr from the parent's rewriter so each "
+        "scope evaluates the original expression in its own engine.",
+        "example": '(self (and "def" "class"))',
+        "expected": "result of evaluating (and \"def\" \"class\") in the current engine",
+        "patterns": [
+            ';; Evaluate in current engine\n' '(self (+ a b))',
+            ';; Use self inside scope to stay in current system\n' '(scope self (and "def" "class"))',
+            ';; Protect delegate body from parent rewriter — each scope evaluates in its own engine\n'
+            '(delegate (not (= ?_self unknown)) (self (solve ?domain ?x)))',
+        ],
+    },
+    SCOPE: {
+        "category": "special",
+        "description": "Evaluate expressions in a named scope. "
+        "The first argument names the scope. If it is ``self``, "
+        "the remaining expressions are evaluated in the current engine. "
+        "Otherwise the name is resolved to a callable and the remaining "
+        "arguments are passed unevaluated — the callable decides how "
+        "to interpret them. The scope name is passed as the first "
+        "argument to the callable. "
+        "Exception: any (project ...) inside scope args is eagerly resolved "
+        "by the current engine before forwarding. This is how the parent "
+        "injects its own values into child scopes.",
+        "example": '(scope evaluation (kind "diff"))',
+        "expected": "result of calling the evaluation callable with \"evaluation\" and (kind \"diff\") unevaluated",
+        "patterns": [
+            ';; Query evaluation scope from search\n' '(scope evaluation (kind "diff"))',
+            ';; Compose search and evaluation\n' '(and "def" (scope evaluation (category "issue")))',
+            ';; Self-reference — evaluates in current engine\n' '(scope self (and "def" "class"))',
+            ';; Project resolves before scope forwards — child gets concrete value\n'
+            '(scope child (hash-leaf (project my-fact)))',
+        ],
     },
     EQ: {
         "category": "special",
@@ -449,7 +674,7 @@ def parse_evidence(expr) -> Evidence:
         :quotes ("quote 1" "quote 2")
         :explanation "why these quotes support the claim")
     """
-    if not isinstance(expr, list) or not expr:
+    if not isinstance(expr, (list, tuple)) or not expr:
         raise SyntaxError(f"Invalid evidence expression: {expr}")
 
     if expr[0] != EVIDENCE:
@@ -459,7 +684,295 @@ def parse_evidence(expr) -> Evidence:
     quotes_raw = get_keyword(expr, KW_QUOTES, [])
     explanation = get_keyword(expr, KW_EXPLANATION, "")
 
-    quotes = quotes_raw if isinstance(quotes_raw, list) else [str(quotes_raw)]
+    quotes = quotes_raw if isinstance(quotes_raw, (list, tuple)) else [str(quotes_raw)]
     quotes = [str(q) for q in quotes]
 
     return Evidence(document=document, quotes=quotes, explanation=explanation)
+
+
+# ============================================================
+# Keyword extraction
+# ============================================================
+
+
+def get_keyword(expr: Sentence, keyword: str, default=None):
+    """Extract a keyword argument from an expression."""
+    if not isinstance(expr, (list, tuple)):
+        return default
+    for i, item in enumerate(expr):
+        if item == keyword and i + 1 < len(expr):
+            return expr[i + 1]
+    return default
+
+
+# ============================================================
+# Matcher — rewriting machinery
+# ============================================================
+
+
+def match(pattern: Sentence, expr: Sentence, bindings: dict | None = None) -> dict | None:
+    """Match pattern against expr. ?-prefixed symbols are pattern variables.
+
+    A ``?...name`` symbol as the last element of a list pattern matches
+    zero or more remaining elements, bound as a list.
+    """
+    if bindings is None:
+        bindings = {}
+    if isinstance(pattern, Symbol) and str(pattern).startswith("?"):
+        if pattern in bindings:
+            return bindings if bindings[pattern] == expr else None
+        return {**bindings, pattern: expr}
+    if isinstance(pattern, (list, tuple)) and isinstance(expr, (list, tuple)):
+        if pattern and isinstance(pattern[-1], Symbol) and str(pattern[-1]).startswith("?..."):
+            splat = pattern[-1]
+            fixed = pattern[:-1]
+            if len(expr) < len(fixed):
+                return None
+            for p, e in zip(fixed, expr[: len(fixed)]):
+                bindings = match(p, e, bindings)
+                if bindings is None:
+                    return None
+            rest = expr[len(fixed) :]
+            if splat in bindings:
+                return bindings if bindings[splat] == rest else None
+            return {**bindings, splat: rest}
+        if len(pattern) != len(expr):
+            return None
+        for p, e in zip(pattern, expr):
+            bindings = match(p, e, bindings)
+            if bindings is None:
+                return None
+        return bindings
+    if pattern == expr:
+        return bindings
+    return None
+
+
+def free_vars(expr: Sentence) -> set[Symbol]:
+    """Extract all ?-prefixed symbols from an expression."""
+    if isinstance(expr, Symbol) and str(expr).startswith("?"):
+        return {expr}
+    if isinstance(expr, (list, tuple)):
+        result: set[Symbol] = set()
+        for sub in expr:
+            result |= free_vars(sub)
+        return result
+    return set()
+
+
+def substitute(expr: Sentence, bindings: dict) -> Sentence:
+    """Replace symbols with their bound values in an expression tree.
+
+    ``?...name`` bindings are spliced into the parent list rather than
+    inserted as a nested list.
+    """
+    if isinstance(expr, Symbol) and expr in bindings:
+        return bindings[expr]
+    if isinstance(expr, (list, tuple)):
+        result: list = []
+        for sub in expr:
+            if isinstance(sub, Symbol) and str(sub).startswith("?...") and sub in bindings:
+                val = bindings[sub]
+                if isinstance(val, (list, tuple)):
+                    result.extend(val)
+                else:
+                    result.append(val)
+            else:
+                result.append(substitute(sub, bindings))
+        return result
+    return expr
+
+
+# ============================================================
+# Unfreezing — WFF (immutable tuples) → Sentence (mutable lists)
+# ============================================================
+
+# Directives whose bodies stay immutable (tuples from grammar)
+_IMMUTABLE_DIRECTIVES = frozenset({AXIOM, FACT, EVIDENCE})
+# Directives whose bodies become mutable (lists for rewriter)
+_MUTABLE_DIRECTIVES = frozenset({DEFTERM, DERIVE})
+
+
+def _unfreeze(wff: WFF) -> Sentence:
+    """Convert tuple to list, recursing into children unless they must stay frozen."""
+    if not isinstance(wff, tuple):
+        return wff
+    result = list(wff)
+    for i, x in enumerate(result):
+        if isinstance(x, tuple):
+            if x and x[0] in _IMMUTABLE_DIRECTIVES:
+                continue
+            result[i] = _unfreeze(x)
+    return result
+
+
+def _unfreeze_selective(wff: WFF) -> Sentence:
+    """Selectively unfreeze a top-level directive expression.
+
+    Axioms, facts, evidence stay immutable (tuples).
+    Defterms, derives become mutable (lists).
+    Diffs are structural metadata — stay immutable.
+    """
+    if not isinstance(wff, tuple) or not wff:
+        return wff
+    head = wff[0]
+    if head in _MUTABLE_DIRECTIVES:
+        return _unfreeze(wff)
+    if head in _IMMUTABLE_DIRECTIVES:
+        return wff
+    # Unknown directive or bare expression — unfreeze for evaluation
+    return _unfreeze(wff)
+
+
+# ============================================================
+# Sentence Morphism — lang-level Morphism[str, list[AnnotatedSentence]]
+# ============================================================
+
+
+@dataclass
+class SentenceIndex:
+    """Pre-computed structural indices into a directive sentence.
+
+    For ``(fact x 42 :origin "test")``:
+        head=0, name=1, body=2, keywords={":origin": 4}
+
+    Keyword values map keyword string → index of the *value* (not the key).
+    """
+
+    head: int = 0
+    name: int | None = None
+    body: int | None = None
+    keywords: dict[str, int] = field(default_factory=dict)
+
+
+def _index_sentence(expr) -> SentenceIndex:
+    """Build a SentenceIndex from a sentence (list or tuple)."""
+    idx = SentenceIndex()
+    if not isinstance(expr, (list, tuple)) or not expr:
+        return idx
+
+    if len(expr) < 2:
+        return idx
+
+    idx.name = 1
+
+    i = 2
+    while i < len(expr):
+        item = expr[i]
+        if isinstance(item, str) and item.startswith(":"):
+            if i + 1 < len(expr):
+                idx.keywords[item] = i + 1
+            i += 2
+        else:
+            if idx.body is None:
+                idx.body = i
+            i += 1
+
+    return idx
+
+
+@dataclass
+class AnnotatedSentence:
+    """A mutable sentence with provenance and structural index.
+
+    expr:   mutable sentence (unfrozen from WFF)
+    wff:    original immutable WFF from grammar (for inverse)
+    line:   1-based source line
+    order:  parse position within source
+    index:  structural map (head, name, body, keyword positions)
+    """
+
+    expr: Sentence
+    wff: WFF
+    line: int
+    order: int
+    index: SentenceIndex
+
+
+class SentenceMorphism:
+    """Lang-level morphism: str → list[AnnotatedSentence].
+
+    Wraps a StringMorphism.  For each AnnotatedWFF:
+      1. Unfreezes the WFF into a mutable sentence
+      2. Indexes the directive structure (head, name, body, keywords)
+
+    The original immutable WFF is preserved for the inverse path.
+    """
+
+    def __init__(self, base: StringMorphism):
+        self._base = base
+
+    @property
+    def grammar(self) -> Grammar[str]:
+        return self._base.grammar
+
+    def transform(self, source: str) -> list[AnnotatedSentence]:
+        annotated_wffs = self._base.transform(source)
+        result: list[AnnotatedSentence] = []
+        for aw in annotated_wffs:
+            expr = _unfreeze(aw.wff)
+            index = _index_sentence(expr)
+            result.append(
+                AnnotatedSentence(
+                    expr=expr,
+                    wff=aw.wff,
+                    line=aw.line,
+                    order=aw.order,
+                    index=index,
+                )
+            )
+        return result
+
+    def inverse(self, target: list[AnnotatedSentence]) -> str:
+        return "\n".join(self.grammar.encode(a.wff) for a in target)
+
+
+_sm = SentenceMorphism(base=_pm)
+
+
+class ParseltongueSentenceMorphism:
+    """Parseltongue sentence morphism — mutable sentences with structural index."""
+
+    morphism = _sm
+
+    @staticmethod
+    def transform(source: str) -> list[AnnotatedSentence]:
+        return _sm.transform(source)
+
+    @staticmethod
+    def inverse(target: list[AnnotatedSentence]) -> str:
+        return _sm.inverse(target)
+
+
+# ============================================================
+# Translator Implementation — consumes SentenceMorphism
+# ============================================================
+
+
+class StringTranslator(Translator):
+    """Translator backed by a SentenceMorphism."""
+
+    def __init__(self, morphism: SentenceMorphism):
+        self._morphism = morphism
+
+    def translate(self, source: str) -> Sentence:
+        annotated = self._morphism.transform(source)
+        if not annotated:
+            raise SyntaxError("Empty input")
+        exprs = [_unfreeze_selective(a.wff) for a in annotated]
+        if len(exprs) == 1:
+            return exprs[0]
+        return exprs
+
+
+_parser = StringTranslator(morphism=_sm)
+
+
+class PGStringParser:
+    """Parseltongue string parser."""
+
+    translator: Translator = _parser
+
+    @staticmethod
+    def translate(source: str) -> Sentence:
+        return _parser.translate(source)

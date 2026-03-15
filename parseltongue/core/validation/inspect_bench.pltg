@@ -1,0 +1,55 @@
+; inspect_bench — validation stubs for Bench, Store, Technician
+; Covers: bench.py, store.py, technician.py, serialization.py
+
+(load-document "bench.py" "../inspect/bench.py")
+(load-document "store.py" "../inspect/store.py")
+(load-document "technician.py" "../inspect/technician.py")
+(load-document "serialization.py" "../inspect/serialization.py")
+(import (quote ..std.util))
+(defterm stub util.stub :origin "import")
+
+; ── Bench lifecycle ──
+(derive stub-bench-prepare stub :using (stub))
+(derive stub-bench-lens stub :using (stub))
+(derive stub-bench-evaluate stub :using (stub))
+(derive stub-bench-dissect stub :using (stub))
+(derive stub-bench-compose stub :using (stub))
+(derive stub-bench-search stub :using (stub))
+(derive stub-bench-result stub :using (stub))
+(derive stub-bench-invalidate stub :using (stub))
+(derive stub-bench-purge stub :using (stub))
+
+; ── Bench status/integrity ──
+(derive stub-status-initialized stub :using (stub))
+(derive stub-status-loading stub :using (stub))
+(derive stub-status-live stub :using (stub))
+(derive stub-integrity-verified stub :using (stub))
+(derive stub-integrity-unknown stub :using (stub))
+(derive stub-integrity-corrupted stub :using (stub))
+
+; ── Store ──
+(derive stub-store-pgz-format stub :using (stub))
+(derive stub-store-merkle-tree stub :using (stub))
+(derive stub-store-save-cache stub :using (stub))
+(derive stub-store-read-cache stub :using (stub))
+(derive stub-store-evaluation-cache stub :using (stub))
+(derive stub-store-index-cache stub :using (stub))
+(derive stub-store-pgignore stub :using (stub))
+
+; ── Technician ──
+(derive stub-technician-cold-load stub :using (stub))
+(derive stub-technician-cache-hit stub :using (stub))
+(derive stub-technician-hot-patch stub :using (stub))
+(derive stub-technician-background-reload stub :using (stub))
+
+; ── Serialization ──
+(derive stub-serialize-structure stub :using (stub))
+(derive stub-deserialize-structure stub :using (stub))
+
+; ── bench_cli.py ──
+(derive stub-bench-cli-serve stub :using (stub))
+(derive stub-bench-cli-socket-protocol stub :using (stub))
+(derive stub-bench-cli-dispatch stub :using (stub))
+(derive stub-bench-cli-search-pagination stub :using (stub))
+
+; ── TODO: exports ──

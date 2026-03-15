@@ -1,0 +1,30 @@
+; evaluation.pltg — diagnosis item form and accessors
+;
+; dx — tagged diagnosis item:
+;   (dx name category kind type detail)
+;
+; Accessors via rewrite axioms:
+;   (dx-name result)     => item name
+;   (dx-category result) => category (issue, warning, dangling, ok)
+;   (dx-kind result)     => directive kind (fact, axiom, diff, etc.)
+;   (dx-type result)     => issue type (diverge, missing, etc.)
+;   (dx-detail result)   => detail string
+
+(defterm dx :origin "diagnosis item constructor")
+
+(defterm dx-name :origin "dx accessor: item name")
+(defterm dx-category :origin "dx accessor: category")
+(defterm dx-kind :origin "dx accessor: directive kind")
+(defterm dx-type :origin "dx accessor: issue type")
+(defterm dx-detail :origin "dx accessor: detail string")
+
+(axiom dx-name-rule (= (dx-name (dx ?name ?cat ?kind ?type ?detail)) ?name)
+    :origin "rewrite: extract name from dx")
+(axiom dx-category-rule (= (dx-category (dx ?name ?cat ?kind ?type ?detail)) ?cat)
+    :origin "rewrite: extract category from dx")
+(axiom dx-kind-rule (= (dx-kind (dx ?name ?cat ?kind ?type ?detail)) ?kind)
+    :origin "rewrite: extract kind from dx")
+(axiom dx-type-rule (= (dx-type (dx ?name ?cat ?kind ?type ?detail)) ?type)
+    :origin "rewrite: extract type from dx")
+(axiom dx-detail-rule (= (dx-detail (dx ?name ?cat ?kind ?type ?detail)) ?detail)
+    :origin "rewrite: extract detail from dx")

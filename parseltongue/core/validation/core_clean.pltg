@@ -1,0 +1,695 @@
+; core.pltg — Cross-module validation of parseltongue.core
+; No facts here — only imports, cross-module derivations, diffs, and reporting.
+
+(import (quote atoms))
+(import (quote lang))
+(import (quote engine))
+(import (quote system))
+(import (quote quote_verifier))
+(import (quote default_system_settings))
+(import (quote readme))
+(import (quote demos))
+(import (quote loader))
+(import (quote ast_verifier))
+(import (quote lazy_loader))
+(import (quote pyproject))
+(import (quote verify_manual))
+(import (quote ..std.std))
+; (import (quote self_test))
+(import (quote ..std.util))
+(import (quote domain))
+(import (quote ..std.counting))
+
+(defterm count-exists counting.count-exists :origin "import")
+; verify in-place — core loads after verify_manual, so circular dep if done there
+(verify-manual (quote count-exists))
+
+(defterm stub util.stub :origin "import")
+
+
+; =====================================================================
+; Special forms: README vs lang.py
+; =====================================================================
+
+
+(diff special-forms-count
+    :replace readme.readme-documents-engine-special-forms
+    :with lang.special-forms-tuple-size)
+
+; =====================================================================
+; Verifier API format: README vs implementation
+; =====================================================================
+
+
+(diff verifier-position-key-name
+    :replace readme.readme-verifier-position-key
+    :with quote_verifier.verifier-position-key)
+
+(diff verifier-confidence-shape
+    :replace readme.readme-verifier-confidence-shape
+    :with quote_verifier.verifier-confidence-return-shape)
+
+; =====================================================================
+; Demo count: README vs reality
+; =====================================================================
+
+
+(diff demo-count
+    :replace readme.readme-demo-count
+    :with demos.demo-total-count)
+
+; =====================================================================
+; Engine docstring: module vs class
+; =====================================================================
+
+
+; =====================================================================
+; Engine retract docstring vs implementation
+; =====================================================================
+
+
+(derive engine-retract-doc-incomplete
+    (and engine.retract-handles-theorems engine.retract-handles-theorems)
+    :using (engine.retract-handles-theorems))
+
+; =====================================================================
+; Loader: load_pltg return type
+; =====================================================================
+
+
+; =====================================================================
+; README mentions loader?
+; =====================================================================
+
+
+(derive readme-omits-loader
+    (and loader.loader-provides-import loader.loader-provides-run-on-entry loader.loader-provides-document-loading loader.loader-provides-context loader.effect-print-exists)
+    :using (loader.loader-provides-import loader.loader-provides-run-on-entry loader.loader-provides-document-loading loader.loader-provides-context loader.effect-print-exists))
+
+; =====================================================================
+; System serialization vs Engine
+; =====================================================================
+
+
+(derive system-provides-serialization-engine-lacks
+    (and system.system-serializes-terms system.system-serializes-facts system.system-serializes-axioms system.system-serializes-theorems)
+    :using (system.system-serializes-terms system.system-serializes-facts system.system-serializes-axioms system.system-serializes-theorems))
+
+; =====================================================================
+; README extensibility claim
+; =====================================================================
+
+
+(derive readme-extensibility-ungrounded
+    (and readme.readme-extensibility-claim quote_verifier.normalizer-stateless)
+    :using (readme.readme-extensibility-claim quote_verifier.normalizer-stateless))
+
+; =====================================================================
+; Confirmed consistent cross-checks
+; =====================================================================
+
+
+(derive axiom-var-requirement-consistent
+    (and readme.readme-axiom-var-requirement engine.export-axiom-requires-free-vars)
+    :using (readme.readme-axiom-var-requirement engine.export-axiom-requires-free-vars))
+
+
+(derive fabrication-propagation-consistent
+    (and readme.readme-fabrication-propagation engine.derive-fabrication-propagation)
+    :using (readme.readme-fabrication-propagation engine.derive-fabrication-propagation))
+
+
+(diff normalization-steps
+    :replace readme.readme-normalization-steps
+    :with quote_verifier.normalizer-step-count)
+
+; =====================================================================
+; README loader section vs loader.py
+; =====================================================================
+
+
+(diff readme-vs-loader-effect-count
+    :replace readme.readme-loader-effect-count
+    :with loader.built-in-effect-count)
+
+
+(derive readme-loader-consistent
+    (and readme.readme-loader-section readme.readme-loader-namespacing loader.loader-namespaces-definitions readme.readme-loader-circular-detection loader.loader-detects-circular-imports)
+    :using (readme.readme-loader-section readme.readme-loader-namespacing loader.loader-namespaces-definitions readme.readme-loader-circular-detection loader.loader-detects-circular-imports))
+
+(diff consistency-default :replace readme.readme-documents-consistency-default :with loader.effect-consistency-default-prints)
+
+(diff consistency-raise :replace readme.readme-documents-consistency-raise :with loader.effect-consistency-has-raise)
+
+(diff consistency-bool :replace readme.readme-documents-consistency-bool :with loader.effect-consistency-has-bool)
+
+(diff consistency-report :replace readme.readme-documents-consistency-report :with loader.effect-consistency-has-report)
+
+
+; =====================================================================
+; Module system patterns: README coverage vs demos
+; (stubs until README is updated)
+; =====================================================================
+
+
+(diff local-aliasing :replace readme.readme-documents-local-aliasing :with demos.alias-used-in-practice)
+
+(diff forward-decl :replace readme.readme-defterm-forward-decl :with demos.forward-decl-proven-by-afternoon)
+
+(diff run-on-entry-gating :replace readme.readme-documents-run-on-entry-gating :with demos.run-on-entry-gating-proven)
+
+(diff let-mock-testing :replace readme.readme-documents-let-mock :with demos.let-mock-unit-test-proven)
+
+(diff import-chains :replace readme.readme-documents-import-chains :with demos.import-chain-proven)
+
+(diff cross-module-bind :replace readme.readme-documents-cross-module-bind :with demos.cross-module-bind-proven)
+
+; =====================================================================
+; Defterm laziness: README coverage vs proof chain
+; =====================================================================
+
+
+(diff defterm-laziness :replace readme.readme-documents-defterm-lazy :with demos.every-defterm-is-lazy)
+
+(diff lazy-count-match :replace demos.labeled-lazy-count :with demos.actual-lazy-count)
+
+; =====================================================================
+; Packaging: README coverage vs pyproject.toml
+; =====================================================================
+
+
+(diff pltg-shipped :replace readme.readme-documents-pltg-shipped :with pyproject.package-data-includes-pltg)
+
+(diff txt-shipped :replace readme.readme-documents-txt-shipped :with pyproject.package-data-includes-txt)
+
+(diff tests-configured :replace readme.readme-documents-tests-configured :with pyproject.core-tests-in-testpaths)
+
+
+; =====================================================================
+; Splat patterns: README coverage vs implementation
+; =====================================================================
+
+
+(derive splat-impl-confirmed
+    (and lang.splat-prefix-impl lang.splat-lang-docs-impl atoms.match-splat-doc atoms.substitute-splat-doc)
+    :using (lang.splat-prefix-impl lang.splat-lang-docs-impl atoms.match-splat-doc atoms.substitute-splat-doc))
+
+(diff splat-readme-vs-impl
+    :replace readme.readme-documents-splat-patterns
+    :with splat-impl-confirmed)
+
+(diff splat-readme-vs-demo
+    :replace readme.readme-documents-splat-patterns
+    :with demos.apples-splats-uses-splat-patterns)
+
+; =====================================================================
+; AST module: kind count vs lang directive count
+; =====================================================================
+
+
+; =====================================================================
+; Lazy loader: fault tolerance vs loader effects
+; =====================================================================
+
+
+; =====================================================================
+; README vs AST — numeric cross-checks
+; =====================================================================
+
+(diff readme-vs-directive-node :replace readme.readme-documents-ast-directive-node :with ast_verifier.node-field-count)
+
+(diff readme-vs-ast-kinds :replace readme.readme-documents-ast-field-kind :with ast_verifier.kind-count)
+
+; =====================================================================
+; README vs Lazy loader — numeric cross-checks
+; =====================================================================
+
+(diff readme-vs-lazy-phases :replace readme.readme-documents-lazy-loader-phases :with lazy_loader.phase-count)
+
+; =====================================================================
+; Directive Types section — README vs atoms/lang/engine
+; Stubs defined here; will be replaced with real impl facts later
+; =====================================================================
+
+; --- Stubs for Directive Types cross-checks (unresolved) ---
+
+; --- Prints for Directive Types cross-checks ---
+
+(diff readme-vs-symbolic-directives :replace readme.readme-documents-symbolic-directives :with atoms.export-core-types-confirmed)
+
+(diff readme-vs-rewrite-bind :replace readme.readme-documents-rewrite-vs-bind :with engine.export-rewrite-vs-bind)
+
+(diff readme-vs-splat-axioms :replace readme.readme-documents-splat-in-axioms :with atoms.export-splat-confirmed)
+
+(diff readme-vs-computable-directives :replace readme.readme-documents-computable-directives :with engine.export-computable-directives)
+
+(diff readme-vs-effects-in-computable :replace readme.readme-documents-effects-in-computable :with engine.export-effects-in-computable)
+
+(diff readme-vs-conditional-side-effects :replace readme.readme-documents-conditional-side-effects :with system.export-conditional-side-effects)
+
+(diff readme-vs-diffs-no-evidence :replace readme.readme-diffs-have-no-evidence :with engine.export-diffs-no-evidence)
+
+(diff readme-vs-items-x-layers :replace readme.readme-documents-items-x-layers :with engine.export-items-x-layers)
+
+(diff readme-vs-manual-verification :replace readme.readme-documents-manual-verification-modules :with loader.export-manual-verification)
+
+(diff readme-vs-qv-hypotheticals :replace readme.readme-documents-manual-hypotheticals-qv-count :with quote_verifier.export-hypothetical-axiom-count)
+
+(diff readme-vs-rewrite-functions :replace readme.readme-documents-rewrite-as-functions :with engine.export-rewrite-as-functions)
+
+(diff readme-vs-splat-variadic :replace readme.readme-documents-splat-variadic-reduce :with atoms.export-substitute-splat)
+
+(diff readme-vs-counting-pltg :replace readme.readme-documents-counting-pltg-link :with counting.export-counting-module-exists)
+
+(diff readme-vs-extensible-directives :replace readme.readme-documents-extensible-directives :with system.export-extensible-directives)
+
+; =====================================================================
+; Execution Engine section — README vs engine/system/loader/qv
+; =====================================================================
+
+
+; --- Derived for Environments/Operators/Effects ---
+(derive any-domain-confirmed
+    (and system.export-initial-env-param system.export-extensible-directives)
+    :using (system.export-initial-env-param system.export-extensible-directives))
+
+(derive env-contains-both-confirmed
+    (and engine.export-operators-plain-callables system.export-conditional-side-effects)
+    :using (engine.export-operators-plain-callables system.export-conditional-side-effects))
+
+; --- Derived from axioms ---
+(derive human-in-loop-confirmed domain.manual-control-implies-human
+    :bind ((?manual-available loader.export-manual-verification) (?human-in-loop readme.readme-documents-engine-human-in-loop))
+    :using (domain.manual-control-implies-human loader.export-manual-verification readme.readme-documents-engine-human-in-loop))
+
+(derive intersection-lookup-confirmed domain.set-implies-fast
+    :bind ((?set-indexed engine.export-document-index) (?fast-lookup readme.readme-documents-engine-intersection-lookup))
+    :using (domain.set-implies-fast engine.export-document-index readme.readme-documents-engine-intersection-lookup))
+
+(derive large-collections-confirmed domain.set-implies-fast
+    :bind ((?set-indexed engine.export-document-index) (?fast-lookup readme.readme-documents-engine-large-collections))
+    :using (domain.set-implies-fast engine.export-document-index readme.readme-documents-engine-large-collections))
+
+; --- Prints and diffs for Execution Engine cross-checks ---
+
+(diff ee-grounding-subsection :replace readme.readme-documents-engine-grounding-subsection :with readme.readme-documents-engine-grounding-subsection) ;trivial
+(diff ee-auto-grounding :replace readme.readme-documents-engine-auto-grounding :with engine.export-auto-grounding)
+(diff ee-explanation-field :replace readme.readme-documents-engine-explanation-field :with engine.export-explanation-field)
+(diff ee-origin-or-none :replace readme.readme-documents-engine-origin-or-none :with engine.export-origin-or-none)
+(diff ee-verify-manual-pltg :replace readme.readme-documents-engine-verify-manual-pltg :with loader.export-manual-verification)
+(diff ee-human-in-loop :replace readme.readme-documents-engine-human-in-loop :with human-in-loop-confirmed)
+; ^ human-in-loop derived via (implies manual-available human-in-loop)
+(diff ee-fabrication-propagation :replace readme.readme-documents-engine-fabrication-propagation :with engine.export-fabrication-propagation)
+(diff ee-provenance :replace readme.readme-documents-engine-provenance :with system.export-provenance)
+
+(diff ee-qv-subsection :replace readme.readme-documents-engine-quote-verification-subsection :with readme.readme-documents-engine-quote-verification-subsection) ;trivial
+(diff ee-document-index :replace readme.readme-documents-engine-document-index :with engine.export-document-index)
+(diff ee-word-positions :replace readme.readme-documents-engine-word-positions :with quote_verifier.bound-pipeline-order)
+(diff ee-intersection-lookup :replace readme.readme-documents-engine-intersection-lookup :with intersection-lookup-confirmed)
+(diff ee-large-collections :replace readme.readme-documents-engine-large-collections :with large-collections-confirmed)
+(diff ee-artifact-handling :replace readme.readme-documents-engine-artifact-handling :with quote_verifier.bound-flat-punctuation)
+(diff ee-light-penalties :replace readme.readme-documents-engine-light-penalties :with quote_verifier.bound-sum-lt-dangerous)
+(diff ee-semantic-penalty :replace readme.readme-documents-engine-semantic-penalty :with quote_verifier.dangerous-includes-never)
+(diff ee-binary-threshold :replace readme.readme-documents-engine-binary-threshold :with quote_verifier.bound-score-clamped)
+(diff ee-verifier-extensible :replace readme.readme-documents-engine-verifier-extensible :with quote_verifier.bound-flag-gates)
+
+(diff ee-consistency-subsection :replace readme.readme-documents-engine-consistency-subsection :with readme.readme-documents-engine-consistency-subsection) ;trivial
+(diff ee-consistency-call :replace readme.readme-documents-engine-consistency-call :with system.export-consistency-call)
+(diff ee-three-layers :replace readme.readme-documents-engine-three-layers :with engine.export-three-layers)
+(diff ee-diffs-cross-validation :replace readme.readme-documents-engine-diffs-cross-validation :with engine.export-diffs-cross-validation)
+(diff ee-consistency-code :replace readme.readme-documents-engine-consistency-code :with readme.readme-documents-engine-consistency-code) ;trivial
+(diff ee-consistency-default :replace readme.readme-documents-engine-consistency-default-mode :with loader.effect-consistency-default-prints)
+(diff ee-consistency-raise :replace readme.readme-documents-engine-consistency-raise-mode :with loader.effect-consistency-has-raise)
+(diff ee-consistency-bool :replace readme.readme-documents-engine-consistency-bool-mode :with loader.effect-consistency-has-bool)
+(diff ee-consistency-report :replace readme.readme-documents-engine-consistency-report-mode :with loader.effect-consistency-has-report)
+
+(diff ee-environments-subsection :replace readme.readme-documents-engine-environments-subsection :with readme.readme-documents-engine-environments-subsection) ;trivial
+(diff ee-env-dict :replace readme.readme-documents-engine-env-dict :with engine.export-env-dict)
+(diff ee-left-to-right :replace readme.readme-documents-engine-left-to-right :with engine.export-left-to-right)
+(diff ee-rewrite-depth :replace readme.readme-documents-engine-rewrite-depth :with engine.export-rewrite-depth)
+(diff ee-eq-rewrite-fallback :replace readme.readme-documents-engine-eq-rewrite-fallback :with engine.export-rewrite-as-functions)
+(diff ee-defaults :replace readme.readme-documents-engine-defaults :with engine.export-defaults)
+(diff ee-any-domain :replace readme.readme-documents-engine-any-domain :with any-domain-confirmed)
+(diff ee-dsl-building :replace readme.readme-documents-engine-dsl-building :with any-domain-confirmed)
+(diff ee-env-contains-both :replace readme.readme-documents-engine-env-contains-both :with env-contains-both-confirmed)
+(diff ee-no-distinction :replace readme.readme-documents-engine-no-distinction :with engine.export-fallback-evaluates)
+(diff ee-pure-impure :replace readme.readme-documents-engine-pure-impure-system-level :with system.export-conditional-side-effects)
+
+(diff ee-operators-subsection :replace readme.readme-documents-engine-operators-subsection :with readme.readme-documents-engine-operators-subsection) ;trivial
+(diff ee-operators-pure :replace readme.readme-documents-engine-operators-pure :with engine.export-operators-plain-callables)
+(diff ee-operators-callables :replace readme.readme-documents-engine-operators-plain-callables :with engine.export-operators-plain-callables)
+
+(diff ee-effects-subsection :replace readme.readme-documents-engine-effects-subsection :with readme.readme-documents-engine-effects-subsection) ;trivial
+(diff ee-effects-impure :replace readme.readme-documents-engine-effects-impure :with system.export-conditional-side-effects)
+(diff ee-effects-system-injected :replace readme.readme-documents-engine-effects-system-injected :with system.export-conditional-side-effects)
+(diff ee-effects-perspective :replace readme.readme-documents-engine-effects-perspective :with engine.export-fallback-evaluates)
+(diff ee-effects-fire :replace readme.readme-documents-engine-effects-fire :with engine.export-fallback-evaluates)
+(diff ee-effects-side-effects :replace readme.readme-documents-engine-effects-side-effects :with readme.readme-documents-engine-effects-side-effects) ;trivial
+(diff ee-effects-code-example :replace readme.readme-documents-engine-effects-code-example :with readme.readme-documents-engine-effects-code-example) ;trivial
+(diff ee-execution-engine :replace readme.readme-documents-execution-engine :with readme.readme-documents-execution-engine) ;trivial
+
+(diff ee-dependents-derivation-check :replace engine.export-dependents-derivation-check :with readme.export-diff-follows-derivation-chains)
+(diff ee-dependents-transitivity :replace engine.export-dependents-transitivity :with readme.export-diff-transitive)
+(diff ee-dependents-types :replace engine.export-dependents-types :with readme.export-diff-scan-type-count)
+(diff ee-dependents-scan-paired :replace readme.export-diff-scan-paired :with stub :using (stub))
+(diff ee-computable-directives :replace readme.export-computable-directive-count :with stub :using (stub))
+(diff ee-evidence-excluded :replace readme.bound-evidence-excludes-computation :with stub :using (stub))
+(diff ee-diff-scans-five :replace readme.readme-diff-scans-five-types :with stub :using (stub))
+
+(diff ee-eval-diff-excludes-self :replace engine.eval-diff-excludes-self :with readme.export-diff-excludes-self)
+(diff ee-eval-diff-handles-diff-contamination :replace engine.eval-diff-handles-diff-contamination :with readme.export-diff-contaminates-diffs)
+(diff ee-eval-diff-handles-theorem-contamination :replace engine.eval-diff-handles-theorem-contamination :with readme.export-diff-contaminates-theorems)
+(diff ee-eval-diff-contamination :replace engine.export-eval-diff-contamination :with readme.export-diff-behavior-count)
+
+(diff ee-expr-references-checks-symbol :replace engine.expr-references-checks-symbol :with readme.export-expr-references-checks-symbol)
+(diff ee-expr-references-recurses-lists :replace engine.expr-references-recurses-lists :with readme.export-expr-references-recurses-lists)
+(diff ee-expr-references :replace engine.export-expr-references :with readme.export-expr-references)
+
+; =====================================================================
+; System section — README vs system.py / default_system_settings.py
+; =====================================================================
+
+(diff sys-section :replace readme.readme-documents-system-section :with readme.readme-documents-system-section) ;trivial
+(diff sys-core-interface :replace readme.readme-documents-system-core-interface :with readme.readme-documents-system-core-interface) ;trivial
+(diff sys-default-env :replace readme.readme-documents-system-default-env :with readme.readme-documents-system-default-env) ;trivial
+
+(diff sys-composes-engine :replace readme.readme-documents-system-composes-engine :with system.export-docstring)
+(diff sys-standard-entry :replace readme.readme-documents-system-standard-entry :with system.export-delegates-evaluate)
+(diff sys-effect-free :replace readme.readme-documents-system-effect-free :with system.export-effects-param)
+(diff sys-properties :replace readme.readme-documents-system-properties :with system.export-exposes-properties)
+(diff sys-provenance :replace readme.readme-documents-system-provenance :with system.export-provenance)
+(diff sys-provenance-walks-stores :replace readme.readme-documents-system-provenance-walks-stores :with system.export-provenance-walks-stores)
+(diff sys-provenance-recurses :replace readme.readme-documents-system-provenance-recurses :with system.export-provenance-recurses)
+(diff sys-load-source :replace readme.readme-documents-system-load-source :with system.export-load-source)
+(diff sys-state :replace readme.readme-documents-system-state :with readme.readme-documents-system-state) ;trivial
+(diff sys-doc :replace readme.readme-documents-system-doc :with system.export-docs-default)
+(derive default-operators-confirmed (= default_system_settings.total-default-operators 15) :using (default_system_settings.total-default-operators))
+(diff sys-default-operators :replace readme.readme-documents-system-default-operators :with default-operators-confirmed)
+(diff sys-operator-total :replace readme.readme-documents-system-operator-total :with default_system_settings.total-default-operators)
+(diff sys-engine-docs :replace readme.readme-documents-system-engine-docs :with system.export-docs-default)
+(diff sys-override-env :replace readme.readme-documents-system-override-env :with system.export-initial-env-param)
+(diff sys-docs-param :replace readme.readme-documents-system-docs-param :with system.export-docs-default)
+
+(diff sys-serialization :replace readme.readme-documents-serialization :with system.export-serialization)
+(diff sys-effects-injection :replace readme.readme-documents-effects-injection :with system.export-conditional-side-effects)
+(diff sys-load-source-detail :replace readme.readme-documents-load-source :with engine.export-fallback-evaluates)
+(diff sys-retract :replace readme.readme-documents-retract :with engine.export-retract)
+(diff sys-rederive :replace readme.readme-documents-rederive :with engine.export-rederive)
+(diff sys-initial-env-described :replace readme.readme-initial-env-described :with system.export-initial-env-param)
+(diff sys-docs-param-described :replace readme.readme-docs-param-described :with system.export-docs-default)
+(diff sys-consistency-modes :replace readme.readme-documents-consistency-modes :with loader.effect-consistency-has-raise)
+
+; =====================================================================
+; Modules: Loader — README vs loader.py
+; =====================================================================
+
+(diff mod-loader-context-namespaced :replace readme.readme-loader-context-namespaced :with loader.export-namespaces)
+(diff mod-loader-context-onion :replace readme.readme-loader-context-onion :with loader.export-context-onion)
+(diff mod-loader-dot-resolution :replace readme.readme-loader-dot-resolution :with loader.export-dot-resolution)
+(diff mod-loader-duplicate-skipped :replace readme.readme-loader-duplicate-skipped :with loader.export-deduplicates)
+(diff mod-loader-load-pltg :replace readme.readme-loader-load-pltg :with loader.export-load-pltg)
+
+; =====================================================================
+; Modules: Lazy Loader — README vs lazy_loader.py
+; =====================================================================
+
+(diff mod-lazy-section :replace readme.readme-documents-lazy-loader-section :with readme.readme-documents-lazy-loader-section) ;trivial
+(diff mod-lazy-fault-tolerant :replace readme.readme-documents-lazy-loader-fault-tolerant :with lazy_loader.export-fault-tolerant)
+(diff mod-lazy-load-pltg-entry :replace readme.readme-documents-lazy-load-pltg-entry :with lazy_loader.export-has-lazy-load-pltg)
+(diff mod-lazy-result-ok :replace readme.readme-documents-lazy-result-ok :with lazy_loader.export-result-ok)
+(diff mod-lazy-result-partial :replace readme.readme-documents-lazy-result-partial :with lazy_loader.export-result-partial)
+(diff mod-lazy-result-errors :replace readme.readme-documents-lazy-result-errors :with lazy_loader.export-result-errors)
+(diff mod-lazy-result-skipped :replace readme.readme-documents-lazy-result-skipped :with lazy_loader.export-result-skipped)
+(diff mod-lazy-result-loaded :replace readme.readme-documents-lazy-result-loaded :with lazy_loader.export-result-loaded)
+(diff mod-lazy-root-cause :replace readme.readme-documents-lazy-root-cause :with lazy_loader.export-root-cause)
+(diff mod-lazy-error-trees :replace readme.readme-documents-lazy-error-trees :with lazy_loader.export-error-trees)
+(diff mod-lazy-summary :replace readme.readme-documents-lazy-summary :with lazy_loader.export-summary)
+
+; =====================================================================
+; Modules: AST — README vs ast.py
+; =====================================================================
+
+(diff mod-ast-section :replace readme.readme-documents-ast-section :with readme.readme-documents-ast-section) ;trivial
+(diff mod-ast-dependency-graph :replace readme.readme-documents-ast-dependency-graph :with ast_verifier.export-dependency-graph)
+(diff mod-ast-identity-hashing :replace readme.readme-documents-ast-identity-hashing :with ast_verifier.export-identity-hashing)
+(diff mod-ast-resolve-graph :replace readme.readme-documents-ast-resolve-graph-details :with ast_verifier.export-resolve-graph)
+
+; =====================================================================
+; Misc provable README cross-checks
+; =====================================================================
+
+(diff misc-frozen-dataclasses :replace readme.readme-documents-frozen-dataclasses :with atoms.export-frozen-dataclasses)
+(diff misc-symbol-class :replace readme.readme-documents-symbol-class :with atoms.export-symbol-is-str)
+(diff misc-to-sexp :replace readme.readme-documents-to-sexp :with atoms.export-to-sexp)
+(diff misc-match-substitute :replace readme.readme-documents-match-substitute :with atoms.export-match-substitute)
+(diff misc-parse-evidence :replace readme.readme-documents-parse-evidence :with lang.export-parse-evidence)
+(diff misc-lang-docs :replace readme.readme-documents-lang-docs :with lang.export-lang-docs)
+(diff misc-relative-imports :replace readme.readme-documents-relative-imports :with loader.export-dot-resolution)
+(diff misc-import-aliasing :replace readme.readme-documents-import-aliasing :with loader.export-import-deduplicates)
+
+(derive namespacing-three-stages-confirmed
+    (and loader.export-namespaces loader.export-patches-symbols loader.export-patches-context)
+    :using (loader.export-namespaces loader.export-patches-symbols loader.export-patches-context))
+(diff misc-namespacing-three-stages :replace readme.readme-documents-namespacing-three-stages :with namespacing-three-stages-confirmed)
+
+(diff misc-splat-match :replace readme.readme-documents-splat-match :with atoms.export-match-substitute)
+(diff misc-splat-substitute :replace readme.readme-documents-splat-substitute :with atoms.export-substitute-splat)
+(diff misc-splat-builtins :replace readme.readme-documents-splat-builtins :with atoms.export-match-substitute)
+(diff misc-splat-vs-single :replace readme.readme-documents-splat-vs-single :with atoms.export-match-substitute)
+
+(diff misc-apples-splats-demo :replace readme.readme-documents-apples-splats-demo-link :with demos.export-apples-splats-confirmed)
+(diff misc-self-healing-demo :replace readme.readme-documents-self-healing-demo-link :with demos.export-self-healing-topic)
+(diff misc-extensibility-demo :replace readme.readme-documents-extensibility-demo-link :with demos.export-extensibility-topic)
+(diff misc-self-healing-six-effects :replace readme.readme-demo-self-healing-six-effects :with demos.export-self-healing-effect-count)
+
+(diff misc-evidence-first-class :replace readme.readme-evidence-first-class :with atoms.export-frozen-dataclasses)
+(diff misc-llm-doc :replace readme.readme-documents-llm-doc :with lang.export-lang-docs)
+(diff misc-md-shipped :replace readme.readme-documents-md-shipped :with pyproject.export-md-shipped)
+(diff misc-binary-threshold :replace readme.readme-binary-threshold :with quote_verifier.bound-score-clamped)
+(diff misc-grounding-rule :replace readme.readme-documents-grounding-rule :with loader.export-manual-verification)
+(diff misc-manual-reusables-avoid-defterms :replace readme.readme-documents-manual-reusables-avoid-defterms :with readme.readme-documents-manual-reusables-avoid-defterms) ;trivial
+
+(diff misc-ixl-matrix :replace readme.readme-documents-items-x-layers-matrix :with readme.readme-documents-items-x-layers-matrix) ;trivial
+(diff misc-ixl-not-only-boolean :replace readme.readme-documents-items-x-layers-not-only-boolean :with default_system_settings.export-arithmetic-count)
+(diff misc-ixl-paired :replace readme.readme-documents-items-x-layers-paired :with default_system_settings.export-paired-count)
+(diff misc-ixl-qv-link :replace readme.readme-documents-items-x-layers-qv-link :with quote_verifier.bound-flag-gates)
+
+(diff misc-title :replace readme.readme-title :with readme.readme-title) ;trivial
+(diff misc-tagline :replace readme.readme-tagline :with readme.readme-tagline) ;trivial
+(diff misc-ouroboros :replace readme.readme-has-ouroboros-icon :with readme.readme-has-ouroboros-icon) ;trivial
+(diff misc-pltg-format :replace readme.readme-documents-pltg-format-hint :with readme.readme-documents-pltg-format-hint) ;trivial
+
+(diff misc-engine-collapsed-fallback :replace readme.readme-documents-engine-collapsed-fallback :with verifier-collapsed-fallback-confirmed)
+(diff misc-engine-six-step-pipeline :replace readme.readme-documents-engine-six-step-pipeline :with quote_verifier.normalizer-step-count)
+
+; --- Remaining dangling: demos.apples-topic ---
+(diff misc-apples-topic :replace demos.apples-topic :with demos.apples-topic) ;trivial
+
+; =====================================================================
+; atoms/lang top-level danglings
+; =====================================================================
+
+
+(diff lang-evidence-kw-paired :replace lang.evidence-keyword-exists :with readme.readme-evidence-first-class)
+
+(diff atoms-term-display-paired :replace atoms.term-display-doc-count :with readme.export-defterm-forms-count)
+
+(diff lang-directive-kw-paired :replace lang.directive-equals-keyword-count :with readme.export-directive-count-confirmed)
+
+; =====================================================================
+; engine top-level danglings
+; =====================================================================
+
+
+(diff engine-derive-inherits-paired :replace engine.bound-derive-inherits :with readme.readme-fabrication-propagation)
+(diff engine-evidence-attachable-paired :replace engine.bound-evidence-attachable :with readme.readme-evidence-first-class)
+
+; =====================================================================
+; quote_verifier top-level danglings
+; =====================================================================
+
+; --- Verifier README cross-checks (consuming qv danglings) ---
+
+(derive case-sensitive-is-false (= quote_verifier.verifier-default-case-sensitive false) :using (quote_verifier.verifier-default-case-sensitive))
+(derive verifier-config-flags-confirmed
+    (and case-sensitive-is-false quote_verifier.verifier-default-ignore-punctuation quote_verifier.bound-flag-gates)
+    :using (case-sensitive-is-false quote_verifier.verifier-default-ignore-punctuation quote_verifier.bound-flag-gates))
+
+(derive verifier-dangerous-words-confirmed
+    (and quote_verifier.dangerous-includes-without quote_verifier.dangerous-includes-never)
+    :using (quote_verifier.dangerous-includes-without quote_verifier.dangerous-includes-never))
+
+(derive verifier-dangerous-rejects-confirmed
+    (and quote_verifier.bound-dangerous-fixed quote_verifier.bound-dangerous-below-threshold)
+    :using (quote_verifier.bound-dangerous-fixed quote_verifier.bound-dangerous-below-threshold))
+
+(derive verifier-edge-cases-confirmed
+    (and quote_verifier.bound-empty-fixed quote_verifier.bound-normalized-empty quote_verifier.bound-single-stopword quote_verifier.bound-no-match)
+    :using (quote_verifier.bound-empty-fixed quote_verifier.bound-normalized-empty quote_verifier.bound-single-stopword quote_verifier.bound-no-match))
+
+(derive verifier-penalty-values-confirmed
+    (and quote_verifier.bound-score-starts quote_verifier.bound-sum-lt-dangerous quote_verifier.bound-score-clamped quote_verifier.bound-regular-fixed quote_verifier.bound-all-stopwords-fixed quote_verifier.bound-all-stopwords-scaled)
+    :using (quote_verifier.bound-score-starts quote_verifier.bound-sum-lt-dangerous quote_verifier.bound-score-clamped quote_verifier.bound-regular-fixed quote_verifier.bound-all-stopwords-fixed quote_verifier.bound-all-stopwords-scaled))
+
+(derive verifier-collapsed-fallback-confirmed
+    (and quote_verifier.bound-collapsed-fallback quote_verifier.bound-flat-collapsed)
+    :using (quote_verifier.bound-collapsed-fallback quote_verifier.bound-flat-collapsed))
+
+(derive verifier-handles-artifacts-confirmed
+    (and quote_verifier.bound-flat-punctuation quote_verifier.bound-flat-hyphenation quote_verifier.bound-flat-whitespace quote_verifier.bound-flat-whitespace-trim quote_verifier.bound-flat-case quote_verifier.bound-flat-list)
+    :using (quote_verifier.bound-flat-punctuation quote_verifier.bound-flat-hyphenation quote_verifier.bound-flat-whitespace quote_verifier.bound-flat-whitespace-trim quote_verifier.bound-flat-case quote_verifier.bound-flat-list))
+
+(derive verifier-penalty-semantics-confirmed
+    (and quote_verifier.bound-dangerous-fixed quote_verifier.bound-confidence-level)
+    :using (quote_verifier.bound-dangerous-fixed quote_verifier.bound-confidence-level))
+
+(diff qv-config-flags :replace readme.readme-documents-verifier-config-flags :with verifier-config-flags-confirmed)
+(diff qv-dangerous-words :replace readme.readme-documents-verifier-dangerous-words :with verifier-dangerous-words-confirmed)
+(diff qv-dangerous-rejects :replace readme.readme-documents-verifier-dangerous-rejects :with verifier-dangerous-rejects-confirmed)
+(diff qv-edge-cases :replace readme.readme-documents-verifier-edge-cases :with verifier-edge-cases-confirmed)
+(diff qv-penalty-values :replace readme.readme-documents-verifier-penalty-values :with verifier-penalty-values-confirmed)
+(diff qv-collapsed-fallback :replace readme.readme-verifier-collapsed-fallback :with verifier-collapsed-fallback-confirmed)
+(diff qv-handles-artifacts :replace readme.readme-verifier-handles-artifacts :with verifier-handles-artifacts-confirmed)
+(diff qv-penalty-semantics :replace readme.readme-verifier-penalty-semantics :with verifier-penalty-semantics-confirmed)
+(diff qv-inverted-index :replace readme.readme-verifier-inverted-index :with engine.export-document-index)
+(diff qv-verify-manual :replace readme.readme-verify-manual-described :with loader.export-manual-verification)
+(diff qv-medium-threshold :replace quote_verifier.medium-equals-verification-threshold :with quote_verifier.medium-equals-verification-threshold) ;trivial
+(diff qv-threshold-count :replace quote_verifier.threshold-count :with quote_verifier.threshold-count) ;trivial
+
+; =====================================================================
+; Dangling theorem consumption
+; =====================================================================
+
+; --- ast_verifier theorems ---
+(derive readme-ast-children-and-dependents
+    (and readme.readme-documents-ast-field-children readme.readme-documents-ast-field-dependents)
+    :using (readme.readme-documents-ast-field-children readme.readme-documents-ast-field-dependents))
+
+(derive stub-ast-effects-no-name stub :using (stub))
+(derive stub-ast-extract-behavior stub :using (stub))
+(derive stub-ast-graph-behavior stub :using (stub))
+(derive stub-ast-identity-paired stub :using (stub))
+(derive stub-ast-node-identity stub :using (stub))
+(derive stub-ast-walk-behavior stub :using (stub))
+
+(diff thm-ast-children-dependents :replace ast_verifier.bound-children-dependents :with readme-ast-children-and-dependents)
+(diff thm-ast-effects-no-name :replace ast_verifier.bound-effects-no-name :with stub-ast-effects-no-name)
+(diff thm-ast-extract-behavior :replace ast_verifier.extract-behavior-count :with stub-ast-extract-behavior)
+(diff thm-ast-graph-behavior :replace ast_verifier.graph-behavior-count :with stub-ast-graph-behavior)
+(diff thm-ast-identity-paired :replace ast_verifier.identity-paired :with stub-ast-identity-paired)
+(diff thm-ast-node-identity :replace ast_verifier.node-identity-paired :with stub-ast-node-identity)
+(diff thm-ast-walk-behavior :replace ast_verifier.walk-behavior-count :with stub-ast-walk-behavior)
+
+; --- lazy_loader theorems ---
+(derive readme-lazy-result-count
+    (count-exists readme.readme-documents-lazy-result-ok
+                  readme.readme-documents-lazy-result-partial
+                  readme.readme-documents-lazy-result-errors
+                  readme.readme-documents-lazy-result-skipped
+                  readme.readme-documents-lazy-result-loaded)
+    :using (count-exists readme.readme-documents-lazy-result-ok
+                         readme.readme-documents-lazy-result-partial
+                         readme.readme-documents-lazy-result-errors
+                         readme.readme-documents-lazy-result-skipped
+                         readme.readme-documents-lazy-result-loaded))
+
+(derive stub-lazy-entry-points stub :using (stub))
+(derive stub-lazy-fault-tolerance stub :using (stub))
+(derive stub-lazy-patch-paired stub :using (stub))
+(derive stub-lazy-pre-effects stub :using (stub))
+(derive stub-lazy-post-effects stub :using (stub))
+(derive stub-lazy-effect-rank stub :using (stub))
+(derive stub-lazy-line-tracking stub :using (stub))
+
+(diff thm-lazy-entry-points :replace lazy_loader.entry-point-count :with stub-lazy-entry-points)
+(diff thm-lazy-fault-tolerance :replace lazy_loader.fault-tolerance-count :with stub-lazy-fault-tolerance)
+(diff thm-lazy-name-collection :replace lazy_loader.name-collection-enables-patching :with readme.readme-documents-lazy-loader-phase-patch)
+(diff thm-lazy-patch-paired :replace lazy_loader.patch-paired :with stub-lazy-patch-paired)
+(diff thm-lazy-pre-effects :replace lazy_loader.export-pre-directive-effects :with stub-lazy-pre-effects)
+(diff thm-lazy-post-effects :replace lazy_loader.export-post-directive-effects :with stub-lazy-post-effects)
+(diff thm-lazy-effect-rank :replace lazy_loader.export-effect-rank :with stub-lazy-effect-rank)
+(diff thm-lazy-line-tracking :replace lazy_loader.export-line-tracking :with stub-lazy-line-tracking)
+(diff thm-lazy-result-methods :replace lazy_loader.result-method-count :with readme-lazy-result-count)
+
+; --- other module theorems ---
+(diff thm-splats-topic :replace demos.splats-topic-confirms-usage :with readme.readme-documents-splat-patterns)
+(diff thm-import-circular :replace loader.export-import-checks-circular :with readme.readme-loader-circular-detection)
+(diff thm-packaging :replace pyproject.packaging-consistent :with pyproject.export-md-shipped)
+
+; --- core.pltg internal theorems ---
+(diff thm-axiom-var :replace axiom-var-requirement-consistent :with readme.export-bound-axioms-require-vars)
+(diff thm-fabrication :replace fabrication-propagation-consistent :with readme.export-bound-fabrication)
+(diff thm-fact-cites-quote :replace readme.export-bound-fact-cites-quote :with engine.export-auto-grounding)
+(diff thm-diffs-detect :replace readme.export-bound-diffs-detect :with engine.export-diffs-cross-validation)
+
+(diff thm-retract :replace engine-retract-doc-incomplete :with readme.readme-documents-retract)
+(diff thm-extensibility :replace readme-extensibility-ungrounded :with demos.export-extensibility-topic)
+(diff thm-loader-consistent :replace readme-loader-consistent :with loader.export-load-pltg)
+(diff thm-omits-loader :replace readme-omits-loader :with loader.export-import-checks-circular)
+(diff thm-serialization :replace system-provides-serialization-engine-lacks :with readme.readme-documents-serialization)
+
+; --- README internal counts cross-checked against impl ---
+; 3 manual verification categories proven by existence
+(derive manual-category-reusables-confirmed
+    (= counting.export-counting-module-exists true)
+    :using (counting.export-counting-module-exists))
+
+(derive manual-category-aliases-confirmed
+    (= count-exists counting.count-exists)
+    :using (count-exists counting.count-exists))
+
+(derive manual-category-hypotheticals-confirmed
+    (= readme.readme-documents-manual-hypotheticals-qv-count quote_verifier.export-hypothetical-axiom-count)
+    :using (readme.readme-documents-manual-hypotheticals-qv-count quote_verifier.export-hypothetical-axiom-count))
+
+(derive manual-categories-count
+    (count-exists manual-category-reusables-confirmed
+                  manual-category-aliases-confirmed
+                  manual-category-hypotheticals-confirmed)
+    :using (count-exists manual-category-reusables-confirmed
+                         manual-category-aliases-confirmed
+                         manual-category-hypotheticals-confirmed))
+
+(diff thm-readme-ast-fields :replace readme.export-ast-fields-count :with ast_verifier.node-field-count)
+(diff thm-readme-demo-paired :replace readme.export-demo-paired-count :with demos.demo-total-count)
+(diff thm-readme-lazy-phases :replace readme.export-lazy-phases-count :with lazy_loader.phase-count)
+(diff thm-readme-special-forms :replace readme.export-special-forms-count :with lang.special-forms-tuple-size)
+(diff thm-readme-ast-api :replace readme.readme-ast-api-listing-count :with ast_verifier.public-api-count)
+(diff thm-readme-consistency-layers :replace readme.readme-consistency-layers-listing-count :with engine.consistency-layers-doc-count)
+(diff thm-readme-engine-flags :replace readme.readme-engine-flags-listing-count :with engine.export-defaults-doc-count)
+(diff thm-readme-operator-categories :replace readme.readme-operator-category-count :with default_system_settings.export-operator-category-count)
+(diff thm-readme-parser-stages :replace readme.readme-parser-stages-listing-count :with atoms.export-parser-stages-count)
+(diff thm-readme-issue-types :replace readme.export-issue-types-count :with engine.issue-types-impl-count)
+(diff thm-readme-warning-types :replace readme.export-warning-types-count :with engine.warning-type-count)
+(diff thm-engine-error-cross-check :replace engine.export-error-cross-check :with readme.export-issue-types-count)
+(diff thm-engine-warning-cross-check :replace engine.export-warning-cross-check :with readme.export-warning-types-count)
+(diff thm-consistency-states-total :replace engine.export-consistency-states-total :with readme.export-consistency-states-total)
+(diff thm-epistemics-cross-check :replace engine.isomorphism-hallucinations-errors-unknowns-warnings :with readme.parseltongue-makes-axioms-exemplifiable)
+(diff thm-readme-manual-categories :replace readme.export-manual-categories-count :with manual-categories-count)
+
+
+; --- TODO: inspect/lens module coverage ---
+
+(defterm stub-probe-structure
+    :origin "TODO: probe(term, engine) → CoreToConsequenceStructure — graph, layers, depths, max_depth")
+
+(defterm stub-lens-api
+    :origin "TODO: Lens class — view, view_layer, view_consumer, view_node, view_inputs, view_subgraph, view_kinds, view_roots, focus")
+
+(defterm stub-perspective-instances
+    :origin "TODO: Perspective instances (not types) — MarkdownPerspective, AsciiPerspective, MDebuggerPerspective")
+
+(defterm stub-mdebugger-perspective
+    :origin "TODO: MDebuggerPerspective takes LazyLoader, annotates output with file:line from AST, uses os.path.relpath")
+
+(defterm stub-inspect-loaded
+    :origin "TODO: inspect_loaded(term, loader) — convenience combining probe + Lens with MDebuggerPerspective")
+
+(defterm stub-brief-vs-detailed
+    :origin "TODO: fmt_dsl(brief=True) truncates quotes in structure view; fmt_origin_rows(detailed=True) shows QV line + confidence in detail view")
+
+; =====================================================================
+; Full
+; =====================================================================
+
+

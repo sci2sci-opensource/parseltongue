@@ -482,3 +482,8 @@
 (derive export-resolve-graph
     (util.export has-resolve-graph-fn)
     :using (util.export has-resolve-graph-fn))
+
+; --- TODO: new functionality ---
+
+(defterm stub-source-line-field
+    :origin "TODO: DirectiveNode gained source_line: int = 0 field — quote ast.py and add paired diff")

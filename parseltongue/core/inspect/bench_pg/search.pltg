@@ -1,0 +1,31 @@
+
+; search.pltg — search result form and accessors
+;
+; sr — tagged search result:
+;   (sr doc line column context ((caller_name overlap) ...))
+;
+; Accessors via rewrite axioms:
+;   (sr-doc result)     => document name
+;   (sr-line result)    => line number
+;   (sr-column result)  => column number
+;   (sr-context result) => line content
+;   (sr-callers result) => caller pairs list ((name overlap) ...)
+
+(defterm sr :origin "search result constructor")
+
+(defterm sr-doc :origin "sr accessor: document name")
+(defterm sr-line :origin "sr accessor: line number")
+(defterm sr-column :origin "sr accessor: column number")
+(defterm sr-context :origin "sr accessor: line content")
+(defterm sr-callers :origin "sr accessor: pltg callers with overlap")
+
+(axiom sr-doc-rule (= (sr-doc (sr ?doc ?line ?col ?ctx ?callers)) ?doc)
+    :origin "rewrite: extract document from sr")
+(axiom sr-line-rule (= (sr-line (sr ?doc ?line ?col ?ctx ?callers)) ?line)
+    :origin "rewrite: extract line from sr")
+(axiom sr-column-rule (= (sr-column (sr ?doc ?line ?col ?ctx ?callers)) ?col)
+    :origin "rewrite: extract column from sr")
+(axiom sr-context-rule (= (sr-context (sr ?doc ?line ?col ?ctx ?callers)) ?ctx)
+    :origin "rewrite: extract context from sr")
+(axiom sr-callers-rule (= (sr-callers (sr ?doc ?line ?col ?ctx ?callers)) ?callers)
+    :origin "rewrite: extract callers from sr")

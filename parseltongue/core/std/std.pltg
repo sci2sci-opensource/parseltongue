@@ -6,5 +6,7 @@
 (import (quote counting))
 (import (quote epistemics))
 (import (quote unquote))
+(import (quote higher_order))
+(import (quote predicates))
 (import (quote lists))
 (import (quote verify_manual))

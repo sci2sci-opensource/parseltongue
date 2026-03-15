@@ -1,0 +1,58 @@
+; bench.pltg — bench package entry point
+;
+; Imports all bench result forms and re-exports as unprefixed aliases.
+; Axioms live in the sub-modules (bench_pg/*.pltg) using namespaced symbols.
+; Python constructors emit namespaced tags (bench_pg.search.sr, etc.)
+; so the axioms match. Users type alias names (sr-doc, ln-kind, etc.)
+; which resolve at head position.
+;
+; Usage: (sr-doc result), (ln-kind node), (dx-category item), etc.
+
+(import (quote std.std))
+(import (quote bench_pg.view))
+
+; ── view aliases ──
+(defterm fmt bench_pg.view.fmt :origin "alias")
+(defterm sr-fmt bench_pg.view.sr-fmt :origin "alias")
+(defterm ln-fmt bench_pg.view.ln-fmt :origin "alias")
+(defterm dx-fmt bench_pg.view.dx-fmt :origin "alias")
+(defterm hn-fmt bench_pg.view.hn-fmt :origin "alias")
+
+(import (quote bench_pg.search))
+(import (quote bench_pg.lens))
+(import (quote bench_pg.evaluation))
+(import (quote bench_pg.hologram))
+
+
+
+; ── sr aliases ──
+(defterm sr bench_pg.search.sr :origin "alias")
+(defterm sr-doc bench_pg.search.sr-doc :origin "alias")
+(defterm sr-line bench_pg.search.sr-line :origin "alias")
+(defterm sr-column bench_pg.search.sr-column :origin "alias")
+(defterm sr-context bench_pg.search.sr-context :origin "alias")
+(defterm sr-callers bench_pg.search.sr-callers :origin "alias")
+
+; ── ln aliases ──
+(defterm ln bench_pg.lens.ln :origin "alias")
+(defterm ln-name bench_pg.lens.ln-name :origin "alias")
+(defterm ln-kind bench_pg.lens.ln-kind :origin "alias")
+(defterm ln-value bench_pg.lens.ln-value :origin "alias")
+(defterm ln-depth bench_pg.lens.ln-depth :origin "alias")
+(defterm ln-inputs bench_pg.lens.ln-inputs :origin "alias")
+
+; ── dx aliases ──
+(defterm dx bench_pg.evaluation.dx :origin "alias")
+(defterm dx-name bench_pg.evaluation.dx-name :origin "alias")
+(defterm dx-category bench_pg.evaluation.dx-category :origin "alias")
+(defterm dx-kind bench_pg.evaluation.dx-kind :origin "alias")
+(defterm dx-type bench_pg.evaluation.dx-type :origin "alias")
+(defterm dx-detail bench_pg.evaluation.dx-detail :origin "alias")
+
+; ── hn aliases ──
+(defterm hn bench_pg.hologram.hn :origin "alias")
+(defterm hn-name bench_pg.hologram.hn-name :origin "alias")
+(defterm hn-kind bench_pg.hologram.hn-kind :origin "alias")
+(defterm hn-value bench_pg.hologram.hn-value :origin "alias")
+(defterm hn-lenses bench_pg.hologram.hn-lenses :origin "alias")
+

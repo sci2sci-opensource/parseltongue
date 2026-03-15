@@ -1,0 +1,54 @@
+; inspect_search — validation stubs for Search and SearchSystem
+; Covers: search.py, searchable.py, store.py (SearchStore)
+
+(load-document "search.py" "../inspect/search.py")
+(load-document "searchable.py" "../inspect/searchable.py")
+(import (quote ..std.util))
+(defterm stub util.stub :origin "import")
+
+; ── SearchSystem operators ──
+(derive stub-search-and stub :using (stub))
+(derive stub-search-or stub :using (stub))
+(derive stub-search-not stub :using (stub))
+(derive stub-search-in stub :using (stub))
+(derive stub-search-count stub :using (stub))
+(derive stub-search-near stub :using (stub))
+(derive stub-search-seq stub :using (stub))
+(derive stub-search-re stub :using (stub))
+(derive stub-search-lines stub :using (stub))
+(derive stub-search-scope stub :using (stub))
+(derive stub-search-before stub :using (stub))
+(derive stub-search-after stub :using (stub))
+(derive stub-search-context stub :using (stub))
+
+; ── SearchSystem core ──
+(derive stub-search-system-evaluate stub :using (stub))
+(derive stub-search-system-register-scope stub :using (stub))
+(derive stub-search-system-unregister-scope stub :using (stub))
+(derive stub-search-system-non-strict stub :using (stub))
+
+; ── Search engine ──
+(derive stub-search-query stub :using (stub))
+(derive stub-search-collect stub :using (stub))
+(derive stub-search-index-dir stub :using (stub))
+(derive stub-search-reindex stub :using (stub))
+
+; ── Ranking ──
+(derive stub-ranking-callers stub :using (stub))
+(derive stub-ranking-coverage stub :using (stub))
+(derive stub-ranking-document stub :using (stub))
+
+; ── SearchStore ──
+(derive stub-search-store-incremental stub :using (stub))
+(derive stub-search-store-pgignore stub :using (stub))
+(derive stub-search-store-exclude stub :using (stub))
+
+; ── TODO: search needs its own S-expression language system ──
+; The search query language uses a pltg System with posting-set operators.
+; This should be formalized as a proper language definition with:
+; - LANG_DOCS entries for each operator (and, or, not, in, near, etc.)
+; - A searchable.pltg std module defining operator semantics
+; - Cross-check: operator count in SearchSystem vs language definition
+(derive stub-todo-search-language-system stub :using (stub))
+
+; ── TODO: exports ──

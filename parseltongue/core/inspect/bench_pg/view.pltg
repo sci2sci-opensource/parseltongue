@@ -1,0 +1,48 @@
+; view.pltg — display formatting via rewrite axioms
+;
+; fmt — rewrites bench forms into display forms with perspective selection:
+;   (fmt ?p (sr ...)) => (sr-fmt ?p doc line ctx callers)
+;   (fmt ?p (ln ...)) => (ln-fmt ?p name kind value depth inputs)
+;   (fmt ?p (dx ...)) => (dx-fmt ?p name category kind type detail)
+;   (fmt ?p (hn ...)) => (hn-fmt ?p name kind value lenses)
+;
+; ?p is a perspective tag ("md", "ascii", etc.). Users can define
+; perspective-specific rewrites that further transform *-fmt forms.
+;
+; Python passes the perspective tag and dispatches the result through
+; the matching Perspective.render_form method.
+
+(import (quote bench_pg.search))
+(import (quote bench_pg.lens))
+(import (quote bench_pg.evaluation))
+(import (quote bench_pg.hologram))
+
+(defterm fmt :origin "format a bench form for display")
+
+; ── sr display ──
+(defterm sr-fmt :origin "sr display form: perspective doc line ctx callers")
+(axiom fmt-sr-rule
+    (= (fmt ?p (bench_pg.search.sr ?doc ?line ?col ?ctx ?callers))
+       (sr-fmt ?p ?doc ?line ?ctx ?callers))
+    :origin "sr display: drop column, carry perspective")
+
+; ── ln display ──
+(defterm ln-fmt :origin "ln display form: perspective name kind value depth inputs")
+(axiom fmt-ln-rule
+    (= (fmt ?p (bench_pg.lens.ln ?name ?kind ?value ?depth ?inputs))
+       (ln-fmt ?p ?name ?kind ?value ?depth ?inputs))
+    :origin "ln display: carry perspective")
+
+; ── dx display ──
+(defterm dx-fmt :origin "dx display form: perspective name category kind type detail")
+(axiom fmt-dx-rule
+    (= (fmt ?p (bench_pg.evaluation.dx ?name ?cat ?kind ?type ?detail))
+       (dx-fmt ?p ?name ?cat ?kind ?type ?detail))
+    :origin "dx display: carry perspective")
+
+; ── hn display ──
+(defterm hn-fmt :origin "hn display form: perspective name kind value lenses")
+(axiom fmt-hn-rule
+    (= (fmt ?p (bench_pg.hologram.hn ?name ?kind ?value ?...lenses))
+       (hn-fmt ?p ?name ?kind ?value (quote (?...lenses))))
+    :origin "hn display: collect spread lenses, carry perspective")

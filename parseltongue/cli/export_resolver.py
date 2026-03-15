@@ -92,7 +92,8 @@ def resolve_export_names(
         - patched_sources: {module_name: original source with cross-refs namespaced}
         - bare_to_ns: {bare_name: module_name} ownership map (latest wins)
     """
-    from parseltongue.core.atoms import Symbol, read_tokens, tokenize
+    from parseltongue.core.atoms import Symbol
+    from parseltongue.core.grammar import read_tokens, tokenize
     from parseltongue.core.lang import DSL_KEYWORDS, SPECIAL_FORMS
 
     bare_to_ns: dict[str, str] = {}
@@ -106,7 +107,7 @@ def resolve_export_names(
                 expr = read_tokens(tokens)
             except SyntaxError:
                 continue
-            if isinstance(expr, list) and len(expr) >= 2:
+            if isinstance(expr, (list, tuple)) and len(expr) >= 2:
                 if expr[0] in DSL_KEYWORDS or expr[0] in SPECIAL_FORMS:
                     names.add(str(expr[1]))
         return names

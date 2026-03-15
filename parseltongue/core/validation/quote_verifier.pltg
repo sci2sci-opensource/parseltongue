@@ -1404,3 +1404,8 @@
 (derive export-hypothetical-axiom-count
     (util.export hypothetical-axiom-count)
     :using (util.export hypothetical-axiom-count))
+
+; --- TODO: new functionality ---
+
+(defterm stub-original-line
+    :origin "TODO: original_line added to verification result dict — 1-based line number computed from char offset")

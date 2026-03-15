@@ -208,7 +208,7 @@ class TestAstFromPltg(_TmpDirMixin, unittest.TestCase):
     """Parse .pltg files through the real tokenizer and verify AST structure."""
 
     def _parse_nodes(self, source):
-        from ..atoms import read_tokens, tokenize
+        from ..grammar import read_tokens, tokenize
 
         tokens = tokenize(source)
         nodes = []

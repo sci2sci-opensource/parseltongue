@@ -778,3 +778,8 @@
 (derive export-import-deduplicates
     (util.export effect-import-deduplicates)
     :using (util.export effect-import-deduplicates))
+
+; --- TODO: new functionality ---
+
+(defterm stub-pltg-error
+    :origin "TODO: PltgError exception class added — wraps errors with file:line and import stack trace")

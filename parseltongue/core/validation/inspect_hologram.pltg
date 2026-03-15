@@ -1,0 +1,32 @@
+; inspect_hologram — validation stubs for Hologram (multi-lens views)
+; Covers: optics/hologram.py
+
+(load-document "hologram.py" "../inspect/optics/hologram.py")
+(import (quote ..std.util))
+(defterm stub util.stub :origin "import")
+
+; ── Hologram API ──
+(derive stub-hologram-init stub :using (stub))
+(derive stub-hologram-view stub :using (stub))
+(derive stub-hologram-labels stub :using (stub))
+(derive stub-hologram-lenses stub :using (stub))
+(derive stub-hologram-name stub :using (stub))
+
+; ── Hologram use cases ──
+(derive stub-hologram-diff-dissect stub :using (stub))
+(derive stub-hologram-compose-names stub :using (stub))
+(derive stub-hologram-side-by-side stub :using (stub))
+
+; ── TODO: hologram needs its own language system ──
+; Hologram composition and bias selection should be S-expressions:
+; - (diff "name") → dissect into two-lens hologram
+; - (compose "a" "b" "c") → N-lens hologram
+; - (bias left "name") → weight one lens in overlay
+; - (align "name") → align matching nodes across lenses
+; The Hologram is a container of Lenses — its language would
+; orchestrate multi-lens operations, select perspectives,
+; and control how views merge. This parallels how SearchSystem
+; composes posting sets but across structural views.
+(derive stub-todo-hologram-language-system stub :using (stub))
+
+; ── TODO: exports ──

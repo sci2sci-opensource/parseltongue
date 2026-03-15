@@ -2,6 +2,7 @@
 
 (load-document "README" "../README.md")
 (import (quote ..std.counting))
+(import (quote ..std.epistemics))
 (import (quote ..std.util))
 (defterm count-exists counting.count-exists :origin "import")
 
@@ -130,11 +131,44 @@
         :explanation "Universal rule: diffs expose contradictions between independent paths"))
 
 ; Axiom 6: Evidence grounding inverts classical axiomatics
-(axiom evidence-inverts-classical-plan
-    (implies ?has-evidence (not ?assumed-without-justification))
+;
+; An axiom's epistemic status is indeterminate until observed.
+; Classical: observed as hypothesised → collapses to unknown (trusted, unwitnessed).
+; Parseltongue: observed as witnessed → collapses to exemplifiable (grounded in evidence).
+; The inversion is a change of observation on the same superposed claim.
+
+(defterm axiom-status (epistemics.superpose epistemics.exemplifiable epistemics.hallucinated epistemics.unknown)
+    :origin "any axiom starts in epistemic superposition — its status depends on observation")
+
+(defterm classical-axiom-status (epistemics.collapse (strict axiom-status) epistemics.hypothesised)
     :evidence (evidence "README"
-        :quotes ("Parseltongue inverts this. Every axiom, every fact, every primitive term must cite its justification")
-        :explanation "Core departure: axioms are justified, not assumed"))
+        :quotes ("In a standard formal system (Peano arithmetic, ZFC, etc.), axioms are taken as given. You declare them and reason from there. The system's strength is measured by its proof-theoretic ordinal — how far its induction principles can reach. But the axioms themselves are unjustified within the system; you simply trust them.")
+        :explanation "Classical axioms are hypothesised — collapse(superpose, hypothesised) → unknown"))
+
+(defterm parseltongue-axiom-status (epistemics.collapse (strict axiom-status) epistemics.witnessed)
+    :evidence (evidence "README"
+        :quotes ("Parseltongue inverts this. Every axiom, every fact, every primitive term must cite its justification — a verbatim quote from a source document.")
+        :explanation "Parseltongue axioms are witnessed — collapse(superpose, witnessed) → exemplifiable"))
+
+(fact evidence-is-departure true
+    :evidence (evidence "README"
+        :quotes ("Parseltongue is a formal system in the classical sense — primitives, axioms, inference rules — but with one crucial departure from traditional mathematical logic: **the axiomatic basis is not assumed, it is grounded in evidence.**")
+        :explanation "README explicitly calls evidence grounding a crucial departure"))
+
+(axiom evidence-inverts-classical-plan
+    (implies (= ?classical epistemics.unknown)
+             (= ?parseltongue epistemics.exemplifiable))
+    :evidence (evidence "README"
+        :quotes ("Parseltongue inverts this. Every axiom, every fact, every primitive term must cite its justification — a verbatim quote from a source document." "the axiomatic basis is not assumed, it is grounded in evidence." "But the axioms themselves are unjustified within the system; you simply trust them.")
+        :explanation "Evidence inverts epistemic outcome: unknown (classical) → exemplifiable (parseltongue)"))
+
+(derive evidence-inversion-theorem evidence-inverts-classical-plan
+    :bind ((?classical classical-axiom-status) (?parseltongue parseltongue-axiom-status))
+    :using (evidence-inverts-classical-plan classical-axiom-status parseltongue-axiom-status))
+
+(derive parseltongue-makes-axioms-exemplifiable
+    (and evidence-is-departure (= parseltongue-axiom-status epistemics.exemplifiable))
+    :using (evidence-is-departure parseltongue-axiom-status))
 
 ; Axiom 7: System extension unlocks new derivations
 (axiom extension-unlocks-derivations-plan
@@ -1584,10 +1618,10 @@
         :quotes ("with an = -rewrite fallback for structural equality")
         :explanation "README documents =-rewrite fallback for structural equality"))
 
-(fact readme-documents-engine-special-forms 3
+(fact readme-documents-engine-special-forms 4
     :evidence (evidence "README"
-        :quotes ("Three special forms are handled directly by the engine")
-        :explanation "README documents 3 special forms in engine"))
+        :quotes ("Four special forms are handled directly by the engine")
+        :explanation "README documents 4 special forms in engine"))
 
 (fact readme-documents-engine-special-if true
     :evidence (evidence "README"
@@ -1603,6 +1637,11 @@
     :evidence (evidence "README"
         :quotes ("quote" "(quote expr) — returns expression unevaluated")
         :explanation "README documents quote special form with behavior"))
+
+(fact readme-documents-engine-special-strict true
+    :evidence (evidence "README"
+        :quotes ("strict" "(strict expr) — forces eager evaluation, overriding default lazy strategy")
+        :explanation "README documents strict special form with behavior"))
 
 (fact readme-documents-engine-strict-derive true
     :evidence (evidence "README"
@@ -1911,10 +1950,12 @@
 (derive readme-special-forms-listing-count
     (count-exists readme-documents-engine-special-if
                   readme-documents-engine-special-let
-                  readme-documents-engine-special-quote)
+                  readme-documents-engine-special-quote
+                  readme-documents-engine-special-strict)
     :using (count-exists readme-documents-engine-special-if
                          readme-documents-engine-special-let
-                         readme-documents-engine-special-quote))
+                         readme-documents-engine-special-quote
+                         readme-documents-engine-special-strict))
 
 (diff readme-special-forms-vs-stated :replace readme-special-forms-listing-count :with readme-documents-engine-special-forms)
 

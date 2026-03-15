@@ -1,0 +1,24 @@
+; ops.pltg — unified operations module
+;
+; Imports general and specialized ops, provides standard aliases:
+;   or    → or-forms
+;   and   → and-forms
+;   not   → not-forms
+;   count → count-forms
+;   limit → limit-forms
+
+(import (quote .general_ops))
+(import (quote .specialized_ops))
+
+; ── tag constructor aliases (bare names matching scope output) ──
+(defterm ln specialized_ops.lens.ln :origin "alias")
+(defterm sr specialized_ops.search.sr :origin "alias")
+(defterm dx specialized_ops.evaluation.dx :origin "alias")
+(defterm hn specialized_ops.hologram.hn :origin "alias")
+
+; ── operation aliases ──
+(defterm or-forms general_ops.or-forms-call :origin "alias — callable entry point")
+(defterm and-forms specialized_ops.and-forms :origin "alias")
+(defterm not-forms specialized_ops.not-forms :origin "alias")
+(defterm count-forms general_ops.count-forms :origin "alias")
+(defterm limit-forms general_ops.limit-forms :origin "alias")

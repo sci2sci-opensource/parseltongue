@@ -77,8 +77,8 @@
 
 (fact phase-1b-executes-effects true
     :evidence (evidence "lazy_loader.py"
-        :quotes ("# Phase 1b: Execute all effects (load-document, import, print, etc.)\n        # in source order BEFORE symbol patching, so that:")
-        :explanation "Phase 1b executes effects early so documents and aliases are available"))
+        :quotes ("# Phase 1b: Separate effects into pre/post-directive, execute pre now.")
+        :explanation "Phase 1b separates effects by priority and executes pre-directive effects early"))
 
 (fact phase-1c-patches-from-names true
     :evidence (evidence "lazy_loader.py"
@@ -92,8 +92,8 @@
 
 (fact phase-3-separates-effects true
     :evidence (evidence "lazy_loader.py"
-        :quotes ("# Phase 3: Separate effects from named directives")
-        :explanation "Phase 3 separates and executes remaining effects"))
+        :quotes ("# Phase 3: Named directives only (effects already executed in Phase 1b)")
+        :explanation "Phase 3 filters to named directives only, effects already ran in phase 1b"))
 
 (fact phase-4-topological-exec true
     :evidence (evidence "lazy_loader.py"
@@ -110,13 +110,13 @@
 
 (fact catches-parse-errors true
     :evidence (evidence "lazy_loader.py"
-        :quotes ("try:\n                expr = read_tokens(tokens)\n            except SyntaxError as e:\n                err_node = DirectiveNode(\n                    name=None, expr=[], dep_names=set(),\n                    kind=\"error\", source_file=self._current.current_file,\n                    source_order=order,\n                )")
-        :explanation "Parse errors create error nodes instead of crashing"))
+        :quotes ("try:\n                pre_len = len(tokens)\n                expr = read_tokens(tokens)" "except SyntaxError as e:\n                err_node = DirectiveNode(\n                    name=None,\n                    expr=[],\n                    dep_names=set(),\n                    kind=\"error\",\n                    source_file=self._current.current_file,\n                    source_order=order,\n                    source_line=expr_line,\n                )")
+        :explanation "Parse errors create error nodes with source_line instead of crashing"))
 
 (fact catches-effect-errors true
     :evidence (evidence "lazy_loader.py"
-        :quotes ("for node in effect_nodes:\n            try:\n                _execute_directive(system.engine, node.expr)\n            except Exception as e:")
-        :explanation "Effect execution errors are caught and recorded"))
+        :quotes ("for expr, ord_idx, line in pre_effects:\n            try:\n                _execute_directive(system.engine, expr)\n            except Exception as e:")
+        :explanation "Pre-directive effect execution errors are caught and recorded"))
 
 (fact catches-directive-errors true
     :evidence (evidence "lazy_loader.py"
@@ -192,12 +192,12 @@
 
 (fact has-lazy-load-pltg true
     :evidence (evidence "lazy_loader.py"
-        :quotes ("def lazy_load_pltg(path: str, effects: dict[str, Any] | None = None, **system_kwargs) -> LazyLoadResult:")
+        :quotes ("def lazy_load_pltg(path: str, effects: dict[str, Any] | None = None,\n                    strict: bool = False, **system_kwargs) -> LazyLoadResult:")
         :explanation "Module exports lazy_load_pltg convenience function"))
 
 (fact has-load-main true
     :evidence (evidence "lazy_loader.py"
-        :quotes ("def load_main(self, path: str, effects: dict[str, Any] | None = None, **system_kwargs) -> System:")
+        :quotes ("def load_main(self, path: str, effects: dict[str, Any] | None = None,\n                   strict: bool = False, **system_kwargs) -> System:")
         :explanation "LazyLoader overrides load_main"))
 
 (fact has-ast-property true
@@ -243,8 +243,8 @@
 
 (fact doc-phase-effects true
     :evidence (evidence "lazy_loader.py"
-        :quotes ("1b. Execute effects in source order (import, load-document, print)")
-        :explanation "Docstring lists phase 1b: early effect execution"))
+        :quotes ("1b. Execute effects by priority rank (imports first, prints last)")
+        :explanation "Docstring lists phase 1b: priority-ranked effect execution"))
 
 (fact doc-phase-patch true
     :evidence (evidence "lazy_loader.py"
@@ -434,4 +434,71 @@
 (derive export-fault-tolerant
     (util.export catches-parse-errors)
     :using (util.export catches-parse-errors))
+
+; =====================================================================
+; Pre/post effect split — doc + impl layers
+; =====================================================================
+
+; Doc layer: docstring mentions priority-ranked effect execution
+; (doc-phase-effects already covers "1b. Execute effects by priority rank")
+
+; Impl layer: two class attrs define the pre/post split
+(fact has-pre-directive-effects true
+    :evidence (evidence "lazy_loader.py"
+        :quotes ("PRE_DIRECTIVE_EFFECTS: list[list[str]] = [\n        [\"context\"],\n        [\"load-document\"],\n        [\"import\"],\n    ]")
+        :explanation "Pre-directive effects ranked: context first, then load-document, then import"))
+
+(fact has-post-directive-effects true
+    :evidence (evidence "lazy_loader.py"
+        :quotes ("POST_DIRECTIVE_EFFECTS: list[list[str]] = [\n        [\"run-on-entry\"],\n        [\"verify-manual\"],\n        [\"print\", \"consistency\", \"dangerously-eval\"],\n    ]")
+        :explanation "Post-directive effects ranked: run-on-entry, verify-manual, then print/consistency/eval"))
+
+; Paired derive: docstring phase 1b + both impl attrs
+(derive effect-split-paired
+    (count-exists (and doc-phase-effects has-pre-directive-effects)
+                  (and doc-phase-effects has-post-directive-effects))
+    :using (count-exists doc-phase-effects has-pre-directive-effects has-post-directive-effects))
+
+; =====================================================================
+; Effect ranking — doc + impl layers
+; =====================================================================
+
+(fact has-effect-rank-method true
+    :evidence (evidence "lazy_loader.py"
+        :quotes ("def _effect_rank(self, head: str, ranking: list[list[str]]) -> int:\n        for rank, names in enumerate(ranking):\n            if head in names:\n                return rank\n        return len(ranking)")
+        :explanation "Effects sorted by rank within their pre/post group"))
+
+; Paired: docstring says "by priority rank", impl has the method
+(derive effect-rank-paired
+    (and doc-phase-effects has-effect-rank-method)
+    :using (doc-phase-effects has-effect-rank-method))
+
+; =====================================================================
+; Line tracking — impl only (no docstring coverage)
+; =====================================================================
+
+(fact has-line-tracking true
+    :evidence (evidence "lazy_loader.py"
+        :quotes ("tokens, token_lines = tokenize(source, track_lines=True)")
+        :explanation "Tokenizer tracks line numbers for error reporting and DirectiveNode.source_line"))
+
+; =====================================================================
+; Exports for new functionality
+; =====================================================================
+
+(derive export-pre-directive-effects
+    (util.export has-pre-directive-effects)
+    :using (util.export has-pre-directive-effects))
+
+(derive export-post-directive-effects
+    (util.export has-post-directive-effects)
+    :using (util.export has-post-directive-effects))
+
+(derive export-effect-rank
+    (util.export has-effect-rank-method)
+    :using (util.export has-effect-rank-method))
+
+(derive export-line-tracking
+    (util.export has-line-tracking)
+    :using (util.export has-line-tracking))
 

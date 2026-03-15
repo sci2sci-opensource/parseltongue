@@ -3,15 +3,20 @@ Parseltongue System — composes Engine with defaults, serialization, and intros
 """
 
 import logging
-from typing import Callable
+from typing import Callable, Self
 
-from .atoms import Evidence, Symbol
+from .atoms import SILENCE, Evidence, Symbol
 from .default_system_settings import DEFAULT_OPERATORS, ENGINE_DOCS
 from .engine import Engine, Fact
 from .engine import load_source as _engine_load_source
 from .lang import (
+    DSL_KEYWORDS,
     LANG_DOCS,
     Axiom,
+    Interpreter,
+    PGStringParser,
+    Rewriter,
+    Sentence,
     Term,
     Theorem,
     to_sexp,
@@ -30,29 +35,27 @@ from .serialization import (
 log = logging.getLogger("parseltongue")
 
 
-class System:
-    """Composes Engine with default operators, serialization, and introspection."""
+class AbstractSystem(Rewriter, Interpreter):
+    """Composes Engine with serialization and introspection. All args required — no defaults."""
 
     def __init__(
         self,
-        overridable: bool = False,
-        initial_env: dict | None = None,
-        docs: dict | None = None,
-        strict_derive: bool = True,
-        effects: dict[str, Callable] | None = None,
+        initial_env: dict,
+        docs: dict,
+        overridable: bool,
+        strict_derive: bool,
+        effects: dict[str, Callable],
+        verifier,
+        name: str | None = None,
     ):
         env: dict = {}
-        if initial_env is not None:
-            env.update(initial_env)
-        else:
-            env.update(DEFAULT_OPERATORS)
+        env.update(initial_env)
 
-        self.engine = Engine(env, overridable=overridable, strict_derive=strict_derive)
-        self._docs = docs if docs is not None else ENGINE_DOCS
+        self.engine = Engine(env, overridable=overridable, strict_derive=strict_derive, verifier=verifier, name=name)
+        self._docs = docs
 
-        if effects:
-            for name, fn in effects.items():
-                self.engine.env[Symbol(name)] = lambda *args, _fn=fn: _fn(self, *args)
+        for name, fn in effects.items():
+            self.engine.env[Symbol(name)] = lambda *args, _fn=fn: _fn(self, *args)
 
     @property
     def facts(self):
@@ -78,8 +81,22 @@ class System:
     def documents(self):
         return self.engine.documents
 
-    def evaluate(self, expr, local_env=None):
+    def evaluate(self, expr: Sentence, local_env=None) -> Sentence:
         return self.engine.evaluate(expr, local_env)
+
+    def interpret(self, source: str) -> tuple["AbstractSystem", Sentence]:
+        _engine_load_source(self.engine, source)
+        result = PGStringParser.translate(source)
+        if isinstance(result, (list, tuple)) and result and isinstance(result[0], (list, tuple)):
+            exprs = result
+        else:
+            exprs = [result] if result else []
+        if not exprs:
+            return (self, SILENCE)
+        last = exprs[-1]
+        if isinstance(last, (list, tuple)) and last and last[0] in DSL_KEYWORDS:
+            return (self, SILENCE)
+        return (self, self.engine.evaluate(last))
 
     def set_fact(self, name, value, origin):
         self.engine.set_fact(name, value, origin)
@@ -222,7 +239,7 @@ class System:
     # ----------------------------------------------------------
 
     def to_dict(self) -> dict:
-        """Serialize system state: terms, facts, axioms, theorems."""
+        """Serialize system state: terms, facts, axioms, theorems, verifier index."""
         return {
             "terms": {n: serialize_term(t) for n, t in self.engine.terms.items()},
             "facts": {n: serialize_fact(f) for n, f in self.engine.facts.items()},
@@ -230,17 +247,31 @@ class System:
             "theorems": {n: serialize_theorem(t) for n, t in self.engine.theorems.items()},
             "diffs": dict(self.engine.diffs),
             "documents": dict(self.engine.documents),
+            "verifier_index": self.engine._verifier.index.to_dict(),
         }
 
     @classmethod
-    def from_dict(cls, data: dict) -> "System":
-        system = cls()
+    def from_dict(cls, data: dict, **kwargs) -> Self:
+        from .quote_verifier import QuoteVerifier
+        from .quote_verifier.index import DocumentIndex
+
+        documents = data.get("documents", {})
+
+        # Restore verifier with pre-built index if available
+        verifier = None
+        if "verifier_index" in data:
+            index = DocumentIndex.from_dict(data["verifier_index"], documents)
+            verifier = QuoteVerifier()
+            verifier.set_index(index)
+
+        system = cls(verifier=verifier, **kwargs)
         system.engine.terms = {n: deserialize_term(n, d) for n, d in data.get("terms", {}).items()}
         system.engine.facts = {n: deserialize_fact(n, d) for n, d in data.get("facts", {}).items()}
         system.engine.axioms = {n: deserialize_axiom(n, d) for n, d in data.get("axioms", {}).items()}
         system.engine.theorems = {n: deserialize_theorem(n, d) for n, d in data.get("theorems", {}).items()}
-        system.engine.diffs = data.get("diffs", {})
-        for name, text in data.get("documents", {}).items():
+        for name, diff in data.get("diffs", {}).items():
+            system.engine.register_diff(name, diff["replace"], diff["with"])
+        for name, text in documents.items():
             system.engine.register_document(name, text)
         system._rebuild_env()
         return system
@@ -253,7 +284,7 @@ class System:
 
         for _name, axiom in self.engine.axioms.items():
             wff = axiom.wff
-            if isinstance(wff, list) and len(wff) == 3 and wff[0] == EQ and isinstance(wff[1], Symbol):
+            if isinstance(wff, (list, tuple)) and len(wff) == 3 and wff[0] == EQ and isinstance(wff[1], Symbol):
                 try:
                     self.engine.env[wff[1]] = self.engine.evaluate(wff[2])
                 except (NameError, TypeError):
@@ -264,7 +295,9 @@ class System:
             progress = False
             for name in list(remaining):
                 try:
-                    val = self.engine.evaluate(self.engine.terms[name].definition)
+                    defn = self.engine.terms[name].definition
+                    assert defn is not None  # filtered by remaining set
+                    val = self.engine.evaluate(defn)
                     self.engine.env[Symbol(name)] = val
                     remaining.discard(name)
                     progress = True
@@ -352,7 +385,7 @@ class System:
     def __repr__(self):
         e = self.engine
         return (
-            f"System({len(e.axioms)} axioms, "
+            f"System[{e.name}]({len(e.axioms)} axioms, "
             f"{len(e.theorems)} theorems, "
             f"{len(e.terms)} terms, "
             f"{len(e.facts)} facts, "
@@ -361,5 +394,57 @@ class System:
         )
 
 
-def load_source(system: System, source: str):
+class DefaultSystem(AbstractSystem):
+    """System with default operators and docs. The standard entry point."""
+
+    def __init__(
+        self,
+        overridable: bool = False,
+        initial_env: dict | None = None,
+        docs: dict | None = None,
+        strict_derive: bool = True,
+        effects: dict[str, Callable] | None = None,
+        verifier=None,
+        name: str | None = None,
+    ):
+        super().__init__(
+            initial_env=initial_env if initial_env is not None else DEFAULT_OPERATORS,
+            docs=docs if docs is not None else ENGINE_DOCS,
+            overridable=overridable,
+            strict_derive=strict_derive,
+            effects=effects or {},
+            verifier=verifier,
+            name=name,
+        )
+
+
+class EmptySystem(AbstractSystem):
+    """System with no operators — a blank slate."""
+
+    def __init__(
+        self,
+        overridable: bool = False,
+        initial_env: dict | None = None,
+        docs: dict | None = None,
+        strict_derive: bool = True,
+        effects: dict[str, Callable] | None = None,
+        verifier=None,
+        name: str | None = None,
+    ):
+        super().__init__(
+            initial_env=initial_env if initial_env is not None else {},
+            docs=docs if docs is not None else {},
+            overridable=overridable,
+            strict_derive=strict_derive,
+            effects=effects or {},
+            verifier=verifier,
+            name=name,
+        )
+
+
+# Backward-compatible alias — System() gives DefaultSystem
+System = DefaultSystem
+
+
+def load_source(system: AbstractSystem, source: str):
     _engine_load_source(system.engine, source)
