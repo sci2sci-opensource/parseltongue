@@ -310,6 +310,109 @@ def history_clear() -> None:
 
 
 # ---------------------------------------------------------------------------
+# bench — connect to pg-bench daemon
+# ---------------------------------------------------------------------------
+
+bench_app = typer.Typer(help="Connect to the pg-bench daemon for interactive inspection.")
+app.add_typer(bench_app, name="bench")
+
+
+@bench_app.callback(invoke_without_command=True)
+def bench_default(ctx: typer.Context) -> None:
+    """Launch the bench inspector TUI (connects to running pg-bench daemon)."""
+    if ctx.invoked_subcommand is not None:
+        return
+    _setup_logging(verbose=False, tui=True)
+    _launch_bench_tui()
+
+
+@bench_app.command("search")
+def bench_search(
+    query: Annotated[str, typer.Argument(help="Search query — plain text or S-expression.")],
+    limit: Annotated[int, typer.Option("-n", "--limit", help="Results per page.")] = 20,
+) -> None:
+    """Search indexed documents via the bench daemon."""
+    import asyncio
+
+    from .tui.bench_client import BenchClient
+
+    async def _run():
+        client = BenchClient()
+        lines = await client.search(query, limit=limit)
+        for line in lines:
+            typer.echo(line)
+
+    asyncio.run(_run())
+
+
+@bench_app.command("eval")
+def bench_eval(
+    expression: Annotated[str, typer.Argument(help="S-expression to evaluate.")],
+) -> None:
+    """Evaluate an S-expression via the bench daemon."""
+    import asyncio
+
+    from .tui.bench_client import BenchClient
+
+    async def _run():
+        client = BenchClient()
+        result = await client.eval(expression)
+        typer.echo(result)
+
+    asyncio.run(_run())
+
+
+@bench_app.command("view")
+def bench_view(
+    name: Annotated[str, typer.Argument(help="Node name (empty for full structure).")] = "",
+) -> None:
+    """View a node or full probe structure via the bench daemon."""
+    import asyncio
+
+    from .tui.bench_client import BenchClient
+
+    async def _run():
+        client = BenchClient()
+        result = await client.view(name)
+        typer.echo(result)
+
+    asyncio.run(_run())
+
+
+@bench_app.command("diagnose")
+def bench_diagnose(
+    focus: Annotated[Optional[str], typer.Option("--focus", help="Namespace prefix to focus on.")] = None,
+    what: Annotated[str, typer.Option("--what", help="summary, issues, or ok.")] = "summary",
+) -> None:
+    """Run consistency diagnosis via the bench daemon."""
+    import asyncio
+
+    from .tui.bench_client import BenchClient
+
+    async def _run():
+        client = BenchClient()
+        result = await client.diagnose(what=what, focus=focus)
+        typer.echo(result)
+
+    asyncio.run(_run())
+
+
+@bench_app.command("status")
+def bench_status() -> None:
+    """Check bench daemon status."""
+    import asyncio
+
+    from .tui.bench_client import BenchClient
+
+    async def _run():
+        client = BenchClient()
+        result = await client.status()
+        typer.echo(result)
+
+    asyncio.run(_run())
+
+
+# ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
@@ -372,6 +475,28 @@ def _launch_standalone_tui(config: dict) -> None:
 
     tui_app = ParseltongueApp.standalone(config)
     tui_app.run()
+
+
+def _launch_bench_tui() -> None:
+    """Launch the bench inspector TUI."""
+    try:
+        from .tui.app import ParseltongueApp
+        from .tui.bench_client import BenchClient
+        from .tui.screens.bench import BenchScreen
+    except ImportError:
+        typer.echo(
+            "TUI dependencies not installed. Run: pip install parseltongue-dsl[cli]\n",
+            err=True,
+        )
+        raise typer.Exit(1)
+
+    class BenchTUI(ParseltongueApp):
+        TITLE = "pg-bench"
+
+        def on_mount(self):
+            self.push_screen(BenchScreen(BenchClient()))
+
+    BenchTUI().run()
 
 
 def _launch_history_tui(run_data: dict) -> None:

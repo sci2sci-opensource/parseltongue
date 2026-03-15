@@ -105,6 +105,12 @@ class ParseltongueApp(App):
 
         self.push_screen(RecentProjects())
 
+    def on_bench_requested(self, event) -> None:
+        """Main menu → Bench inspector → connect to pg-bench daemon."""
+        from .screens.bench import BenchScreen
+
+        self.push_screen(BenchScreen())
+
     def on_export_run_requested(self, event) -> None:
         """History → Export run as project → show folder picker."""
         from .screens.folder_picker import FolderPicker

@@ -27,7 +27,7 @@ from textual.screen import Screen
 from textual.widgets import Label, Markdown, Static, TabbedContent, TabPane
 
 from parseltongue.core.companion import CompanionTracker
-from parseltongue.core.companion_integrity import BlockStatus
+from parseltongue.core.integrity import BlockStatus
 
 from ..widgets.hints_bar import HintsBar
 from ..widgets.pass_viewer import _safe_highlight, pv_escape
