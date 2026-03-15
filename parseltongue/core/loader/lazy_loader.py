@@ -26,9 +26,10 @@ from typing import Any
 from ..ast import DirectiveNode, parse_directive, resolve_graph
 from ..atoms import Symbol
 from ..engine import _execute_directive
+from ..lang import Sentence
 from ..system import System
 from .loader import Loader
-from .loader_morphism import ModuleSource
+from .loader_morphism import LoaderAnnotatedDirective, ModuleSource
 
 log = logging.getLogger("parseltongue")
 
@@ -324,7 +325,7 @@ class LazyLoader(Loader):
 
         Also resolves module aliases (e.g. pass1.X → sources.pass1.X)
         for cross-module references."""
-        if not isinstance(expr, (list, tuple)):
+        if not isinstance(expr, list):
             return
         for i, item in enumerate(expr):
             if i == skip_index:
@@ -340,7 +341,7 @@ class LazyLoader(Loader):
                         if s.startswith(prefix):
                             expr[i] = Symbol(canonical + s[len(alias) :])
                             break
-            elif isinstance(item, (list, tuple)):
+            elif isinstance(item, list):
                 self._patch_symbols_from_names(item, known_names)
 
     def _load_source(self, system, source):
@@ -373,12 +374,12 @@ class LazyLoader(Loader):
                     cause=err,
                 )
 
-        raw_exprs: list[tuple[list, int, int]] = []  # (expr, order, line)
+        raw_exprs: list[tuple[Sentence, int, int]] = []  # (expr, order, line)
         defined_names: set[str] = set()
         # Map order → LAD for later phases that need analysis metadata.
         # MUST be local — recursive _load_source calls (via imports) would
         # overwrite an instance variable, losing the parent module's LADs.
-        lad_by_order: dict[int, Any] = {}
+        lad_by_order: dict[int, LoaderAnnotatedDirective] = {}
 
         for lad in result.directives:
             ad = lad.directive
@@ -402,14 +403,14 @@ class LazyLoader(Loader):
             order += 1
 
         # Phase 1b: Separate effects into pre/post-directive, execute pre now.
-        directive_exprs: list[tuple[list, int, int]] = []
-        pre_effects: list[tuple[list, int, int]] = []
-        post_effects: list[tuple[list, int, int]] = []
+        directive_exprs: list[tuple[list | tuple, int, int]] = []
+        pre_effects: list[tuple[list | tuple, int, int]] = []
+        post_effects: list[tuple[list | tuple, int, int]] = []
         for expr, ord_idx, line in raw_exprs:
             if not isinstance(expr, (list, tuple)) or len(expr) < 2:
                 continue
-            lad = lad_by_order.get(ord_idx)
-            if lad and lad.is_definition:
+            maybe_lad = lad_by_order.get(ord_idx)
+            if maybe_lad and maybe_lad.is_definition:
                 directive_exprs.append((expr, ord_idx, line))
             elif self._is_pre_directive(str(expr[0])):
                 pre_effects.append((expr, ord_idx, line))
@@ -420,11 +421,11 @@ class LazyLoader(Loader):
 
         ctx = result.context
         for expr, ord_idx, line in pre_effects:
-            lad = lad_by_order.get(ord_idx)
+            maybe_lad = lad_by_order.get(ord_idx)
             try:
-                if lad:
-                    self._engine.patch_one(lad, ctx)
-                    self._engine.delegate_one(lad)
+                if maybe_lad:
+                    self._engine.patch_one(maybe_lad, ctx)
+                    self._engine.delegate_one(maybe_lad)
                 else:
                     _execute_directive(system.engine, expr)
             except Exception as e:
@@ -439,11 +440,11 @@ class LazyLoader(Loader):
         # Include cross-module failed names so dotted refs resolve for dep tracking
         # (e.g. base.base-fail → sources.base.base-fail matches _failed_names).
         patch_names = defined_names | set(self._failed_names)
-        lad_by_node: dict[int, Any] = {}  # id(node) → LAD
+        lad_by_node: dict[int, LoaderAnnotatedDirective] = {}  # id(node) → LAD
         for expr, ord_idx, line in directive_exprs:
-            lad = lad_by_order.get(ord_idx)
-            if lad:
-                self._engine.patch_one(lad, ctx, extra_names=patch_names)
+            maybe_lad = lad_by_order.get(ord_idx)
+            if maybe_lad:
+                self._engine.patch_one(maybe_lad, ctx, extra_names=patch_names)
 
         nodes: list[DirectiveNode] = []
         for expr, ord_idx, line in directive_exprs:
@@ -451,9 +452,9 @@ class LazyLoader(Loader):
             node.source_file = self._current.current_file
             node.source_line = line
             nodes.append(node)
-            lad = lad_by_order.get(ord_idx)
-            if lad:
-                lad_by_node[id(node)] = lad
+            maybe_lad = lad_by_order.get(ord_idx)
+            if maybe_lad:
+                lad_by_node[id(node)] = maybe_lad
 
         # Phase 2: Resolve the dependency graph
         resolve_graph(nodes)
@@ -515,11 +516,11 @@ class LazyLoader(Loader):
         # Engine is populated — patch symbols against it before executing.
         post_effects.sort(key=lambda e: self._effect_rank(str(e[0][0]), self.POST_DIRECTIVE_EFFECTS))
         for expr, ord_idx, line in post_effects:
-            lad = lad_by_order.get(ord_idx)
+            maybe_lad = lad_by_order.get(ord_idx)
             try:
-                if lad:
-                    self._engine.patch_one(lad, ctx)
-                    self._engine.delegate_one(lad)
+                if maybe_lad:
+                    self._engine.patch_one(maybe_lad, ctx)
+                    self._engine.delegate_one(maybe_lad)
                 else:
                     self._engine.patch_expr(expr, module_name=self._current.module_name)
                     _execute_directive(system.engine, expr)

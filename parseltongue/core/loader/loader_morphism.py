@@ -107,9 +107,12 @@ def _patch_in_parent(expr: Any, index: int, value: Any) -> None:
     """Replace expr[index] with value. If expr is a tuple, rebuild and replace in parent."""
     if isinstance(expr, list):
         expr[index] = value
-    elif isinstance(expr, tuple) and hasattr(expr, 'parent') and expr.parent is not None:
-        new = expr[:index] + (value,) + expr[index + 1:]
-        expr.parent[expr.pos] = new
+    elif isinstance(expr, tuple):
+        parent = getattr(expr, 'parent', None)
+        if parent is not None:
+            pos = getattr(expr, 'pos', None)
+            new = expr[:index] + (value,) + expr[index + 1 :]
+            parent[pos] = new
 
 
 def patch_context(expr, ctx: PatchContext, line: int = 0) -> None:
@@ -186,10 +189,11 @@ def patch_symbols(expr, ctx: PatchContext, line: int = 0, skip_index: int | None
 def patch_definition_name(ad: AnnotatedDirective, ctx: PatchContext) -> None:
     """Namespace the definition name at index.name for non-main modules."""
     idx = ad.sentence.index
-    if idx.name is not None:
-        old_name = str(ad.sentence.expr[idx.name])
+    expr = ad.sentence.expr
+    if idx.name is not None and isinstance(expr, (list, tuple)):
+        old_name = str(expr[idx.name])
         new_name = f"{ctx.module_name}.{old_name}"
-        _patch_in_parent(ad.sentence.expr, idx.name, new_name)
+        _patch_in_parent(expr, idx.name, new_name)
         ad.node.name = new_name
         ctx.names_to_modules[new_name] = ctx.module_name
         ctx.log_resolution(old_name, new_name, "definition", ad.sentence.line)

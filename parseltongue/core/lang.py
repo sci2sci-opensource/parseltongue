@@ -106,7 +106,6 @@ class Interpreter(Listener, Protocol):
     Allows the caller to speak and receive both a response
     and an updated interpreter to continue the conversation."""
 
-
     def interpret(self, source: str) -> tuple["Interpreter", Sentence]: ...
 
     def listen(self, source: str) -> tuple["Interpreter", Silence]:

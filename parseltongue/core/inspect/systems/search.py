@@ -1,6 +1,7 @@
 from typing import Callable
 
 from parseltongue.core.atoms import Symbol
+from parseltongue.core.lang import Rewriter
 from parseltongue.core.quote_verifier import DocumentIndex
 
 from .bench_system import BenchSubsystem, Posting
@@ -113,7 +114,7 @@ class SearchSystem:
 
         self._index = index
         self._collect = collect
-        self._scopes: dict[str, BenchSubsystem] = {}
+        self._scopes: dict[str, BenchSubsystem | Rewriter] = {}
         self.posting_morphism = SearchPostingMorphism()
 
         sys = self  # capture
@@ -369,7 +370,7 @@ class SearchSystem:
     def unregister_scope(self, name: str):
         """Unregister a scope."""
         scope = self._scopes.pop(name, None)
-        if scope is not None:
+        if scope is not None and hasattr(scope, "tag"):
             self.posting_morphism.unregister(scope.tag)
         self._pltg_system.engine.env.pop(Symbol(name), None)
 
