@@ -15,14 +15,13 @@ from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
 from textual.message import Message
 from textual.screen import Screen
-from textual.widgets import Label, Static, TabbedContent, TabPane, TextArea, Tree
+from textual.widgets import Label, Static, TabbedContent, TabPane, Tree
 
 from ..bench_client import BenchClient, BenchClientError
 from ..pltg_highlight import PygmentsTextArea
 from ..widgets import FocusedTree
 from ..widgets.highlighted_log import HighlightedLog
 from ..widgets.hints_bar import HintsBar
-
 
 # ── Query input: scheme-highlighted, single-line, Enter submits ──
 
