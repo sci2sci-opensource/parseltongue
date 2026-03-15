@@ -1,0 +1,72 @@
+; predicates.pltg — Structural predicates over lists
+;
+; Recursive traversal of bare lists via splat-peel pattern.
+; These operate on structural data — arguments must be
+; pre-evaluated for equality checks to work correctly.
+;
+; Examples:
+;   (all (true true true))        => true
+;   (all (true false true))       => false  (short-circuits at false)
+;   (any-true (false false true)) => true   (short-circuits at true)
+;   (none false false)            => true
+;   (member 3 (1 2 3 4))         => true
+;   (member 5 (1 2 3 4))         => false
+
+; --- all: universal predicate ---
+;
+; True iff every element of the list is truthy.
+; Short-circuits on the first falsy element.
+
+(defterm all :origin "universal predicate — true iff all elements truthy")
+
+(axiom all-base (= (all (?x)) ?x)
+    :origin "base: single element is its own truth value")
+
+(axiom all-step (= (all (?x ?y ?...rest)) (if ?x (all (?y ?...rest)) false))
+    :origin "step: short-circuit on first falsy")
+
+; --- any-true: existential predicate ---
+;
+; True iff at least one element is truthy.
+; Short-circuits on the first truthy element.
+
+(defterm any-true :origin "existential predicate — true iff any element truthy")
+
+(axiom any-true-base (= (any-true (?x)) ?x)
+    :origin "base: single element is its own truth value")
+
+(axiom any-true-step (= (any-true (?x ?y ?...rest)) (if ?x true (any-true (?y ?...rest))))
+    :origin "step: short-circuit on first truthy")
+
+; --- none: negated existential ---
+;
+; True iff no elements are truthy. Variadic args (not a list).
+
+(defterm none :origin "negated existential — true iff no elements truthy")
+
+(axiom none-rule (= (none ?x ?...rest) (not (any-true (?x ?...rest))))
+    :origin "none is negated any-true")
+
+; --- member: structural list membership ---
+;
+; Tests whether an element is structurally present in a list.
+; Uses = for comparison — this is structural equality on
+; pre-evaluated values, not semantic equivalence.
+;
+; IMPORTANT: (member (+ 2 3) (5 3)) will NOT match because
+; (+ 2 3) and 5 are structurally different. Evaluate first.
+
+(defterm member :origin "structural list membership test")
+
+(axiom member-base (= (member ?x (?y)) (= ?x ?y))
+    :origin "base: single-element list — compare directly")
+
+(axiom member-step (= (member ?x (?y ?z ?...rest)) (if (= ?x ?y) true (member ?x (?z ?...rest))))
+    :origin "step: check head, recurse tail on miss")
+
+; Self-proof
+(import (quote util))
+(derive predicates-module-exists (= true true) :using (all member))
+(derive export-predicates-module-exists
+    (util.export predicates-module-exists)
+    :using (util.export predicates-module-exists))

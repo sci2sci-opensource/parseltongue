@@ -140,7 +140,7 @@ class TestScopedMapReduce(unittest.TestCase):
         path = str(Path(self._pltg_path).resolve())
         _, system = self.bench._ensure_eval_system(path)
         for expr in parse_all(pltg_text):
-            if isinstance(expr, list) and expr:
+            if isinstance(expr, (list, tuple)) and expr:
                 _execute_directive(system.engine, expr)
 
     # ── 1. Parametric reducer axiom ──

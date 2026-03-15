@@ -35,7 +35,7 @@ from parseltongue.core.system import System
 if TYPE_CHECKING:
     from parseltongue.core.quote_verifier.index import DocumentIndex
 
-    from .probe_core_to_consequence import CoreToConsequenceStructure
+    from ..probe_core_to_consequence import CoreToConsequenceStructure
 
 
 def _node_text(node) -> str:
@@ -54,6 +54,8 @@ class LensSearchSystem:
     Each node becomes a document in a DocumentIndex. Operators filter/select
     nodes and return posting sets ``{(doc_name, line): hit_dict}``.
     """
+
+    tag = Symbol("ln")
 
     def __init__(self, structure: CoreToConsequenceStructure):
         from parseltongue.core.quote_verifier.index import DocumentIndex
@@ -174,7 +176,8 @@ class LensSearchSystem:
             Symbol("terms"): _terms,
             Symbol("quotes"): _quotes,
         }
-        self._system = System(initial_env=ops, docs={}, strict_derive=False)
+        self._system = System(initial_env=ops, docs={}, strict_derive=False, name="LensSearch")
+        self.posting_morphism = self._LnPostingMorphism(structure)
 
         # Wrap evaluate: internal operators use posting sets,
         # but the system produces s-expressions at the boundary
@@ -221,30 +224,60 @@ class LensSearchSystem:
         scored.sort()
         return [name for _, _, name in scored[:max_results]]
 
-    def evaluate(self, query_str: str):
-        """Parse and evaluate an S-expression query. Returns raw pltg result."""
-        from parseltongue.core.atoms import read_tokens, tokenize
-
-        tokens = tokenize(query_str)
-        expr = read_tokens(tokens)
-
+    def evaluate(self, expr, local_env=None):
+        """Evaluate a query — string or s-expression."""
         if isinstance(expr, str):
-            results = self._idx.search(expr)
-            return {(r["document"], r["line"]): r for r in results}
+            from parseltongue.core.lang import PGStringParser
 
+            parsed = PGStringParser.translate(expr)
+            if isinstance(parsed, str):
+                results = self._idx.search(parsed)
+                return {(r["document"], r["line"]): r for r in results}
+            return self._system.evaluate(parsed)
         return self._system.evaluate(expr)
 
-    def _posting_to_ln(self, posting: dict) -> list:
-        """Convert a posting set to a list of ln forms."""
-        from parseltongue.core.atoms import Symbol
+    class _LnPostingMorphism:
+        """PostingMorphism: posting ↔ ln forms."""
 
-        tag = Symbol("ln")
-        result = []
-        for name, _line in posting:
-            node = self._structure.graph.get(name)
-            if not node:
-                continue
-            depth = self._structure.depths.get(name, 0)
-            value = str(node.value) if node.value is not None else ""
-            result.append([tag, name, node.kind, value, depth, list(node.inputs)])
-        return result
+        def __init__(self, structure):
+            self._structure = structure
+
+        def transform(self, posting: dict) -> list:
+            from parseltongue.core.atoms import Symbol
+
+            tag = Symbol("ln")
+            result = []
+            for name, _line in posting:
+                node = self._structure.graph.get(name)
+                if not node:
+                    continue
+                depth = self._structure.depths.get(name, 0)
+                value = str(node.value) if node.value is not None else ""
+                result.append([tag, name, node.kind, value, depth, list(node.inputs)])
+            return result
+
+        def inverse(self, forms: list) -> dict:
+            from parseltongue.core.atoms import Symbol
+
+            tag = Symbol("ln")
+            posting: dict = {}
+            for item in forms:
+                if not isinstance(item, (list, tuple)) or len(item) < 2:
+                    continue
+                if not (isinstance(item[0], Symbol) and item[0] == tag):
+                    continue
+                name = str(item[1])
+                kind = str(item[2]) if len(item) > 2 else ""
+                value = str(item[3]) if len(item) > 3 else ""
+                posting[(name, 1)] = {
+                    "document": name,
+                    "line": 1,
+                    "column": 1,
+                    "context": f"{kind}: {value}" if value else kind,
+                    "callers": [],
+                    "total_callers": 0,
+                }
+            return posting
+
+    def _posting_to_ln(self, posting: dict) -> list:
+        return self.posting_morphism.transform(posting)

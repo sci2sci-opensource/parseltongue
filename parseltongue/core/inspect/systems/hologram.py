@@ -30,6 +30,8 @@ if TYPE_CHECKING:
 class HologramSearchSystem:
     """Parseltongue System with operators over N lenses combined."""
 
+    tag = Symbol("hn")
+
     def __init__(self, hologram: "Hologram"):
         self._hologram = hologram
         self._lens_systems: list[LensSearchSystem] = []
@@ -122,7 +124,8 @@ class HologramSearchSystem:
             Symbol("common"): _common,
             Symbol("only"): _only,
         }
-        self._system = System(initial_env=ops, docs={}, strict_derive=False)
+        self._system = System(initial_env=ops, docs={}, strict_derive=False, name="HologramSearch")
+        self.posting_morphism = self._HnPostingMorphism(self._lens_systems)
 
     def find(self, pattern: str, max_results: int = 50) -> list[str]:
         """Regex search over node names across all lenses."""
@@ -161,25 +164,40 @@ class HologramSearchSystem:
         scored.sort()
         return [name for _, _, name in scored[:max_results]]
 
-    def evaluate(self, query_str: str) -> dict:
-        """Parse and evaluate an S-expression query. Returns posting set."""
-        from parseltongue.core.atoms import read_tokens, tokenize
+    class _HnPostingMorphism:
+        """PostingMorphism: delegates to child lens morphisms."""
 
-        tokens = tokenize(query_str)
-        expr = read_tokens(tokens)
+        def __init__(self, lens_systems):
+            self._lens_systems = lens_systems
 
-        if isinstance(expr, str):
-            # Plain text: search across all lens indexes
-            merged: dict = {}
+        def transform(self, posting: dict) -> list:
+            if self._lens_systems:
+                return self._lens_systems[0].posting_morphism.transform(posting)
+            return []
+
+        def inverse(self, forms: list) -> dict:
+            # Try each child lens morphism
             for ls in self._lens_systems:
-                results = ls.index.search(expr)
-                for r in results:
-                    key = (r["document"], r["line"])
-                    if key not in merged:
-                        merged[key] = r
-            return merged
+                result = ls.posting_morphism.inverse(forms)
+                if result:
+                    return result
+            return {}
 
-        result = self._system.evaluate(expr)
-        if isinstance(result, dict):
-            return result
-        return {}
+    def evaluate(self, expr, local_env=None):
+        """Evaluate a query — string or s-expression."""
+        if isinstance(expr, str):
+            from parseltongue.core.lang import PGStringParser
+
+            parsed = PGStringParser.translate(expr)
+            if isinstance(parsed, str):
+                merged: dict = {}
+                for ls in self._lens_systems:
+                    results = ls.index.search(parsed)
+                    for r in results:
+                        key = (r["document"], r["line"])
+                        if key not in merged:
+                            merged[key] = r
+                return merged
+            return self._system.evaluate(parsed)
+
+        return self._system.evaluate(expr)

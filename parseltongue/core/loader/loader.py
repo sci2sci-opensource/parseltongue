@@ -24,10 +24,11 @@ from abc import ABC
 from dataclasses import dataclass
 from typing import Any
 
-from ..atoms import Symbol, read_tokens, tokenize
+from ..atoms import Symbol
 from ..engine import _execute_directive
-from ..lang import DSL_KEYWORDS, SPECIAL_FORMS
 from ..system import System
+from .loader_engine import LoaderEngine
+from .loader_morphism import ModuleSource
 
 log = logging.getLogger("parseltongue")
 
@@ -105,6 +106,7 @@ class Loader:
         self.names_to_modules: dict[str, str] = {}
         self.names_to_lines: dict[str, int] = {}
         self._lib_paths: list[str] = lib_paths or []
+        self._engine: LoaderEngine = None  # type: ignore[assignment]  # created in load_main
 
     def create_md_ctx(self, abs_path, module_name):
         """Create and register a ModuleContext for a file."""
@@ -124,95 +126,46 @@ class Loader:
         return self.modules_contexts[module_name]
 
     # ----------------------------------------------------------
-    # Source loading with definition tracking
+    # Source loading with definition tracking which we patch
     # ----------------------------------------------------------
 
+    #
     def _patch_context(self, expr):
         """Recursively patch (context :key) → (context "module.:key")."""
-        if not isinstance(expr, list) or not expr:
-            return
-        if expr[0] == Symbol("context") and len(expr) >= 2:
-            patched = f"{self._current.module_name}.{expr[1]}"
-            expr[1] = patched
-            self.names_to_modules[patched] = self._current.module_name
-            return
-        for item in expr:
-            self._patch_context(item)
+        self._engine.patch_context_expr(expr, module_name=self._current.module_name)
 
     def _patch_symbols(self, expr, engine, skip_index=None):
-        """Recursively namespace bare symbols in expression bodies.
-
-        For each Symbol, if ``module.symbol`` is already registered in
-        the engine (terms, axioms, facts, theorems), replace it with
-        the namespaced version.  *skip_index* can exclude a position
-        (e.g. 1 for the definition name which is patched separately).
-        """
-        if not isinstance(expr, list):
-            return
-        for i, item in enumerate(expr):
-            if i == skip_index:
-                continue
-            if isinstance(item, Symbol) and not str(item).startswith(("?", ":")):
-                s = str(item)
-                candidate = f"{self._current.module_name}.{s}"
-                eng = engine
-                if (
-                    candidate in eng.terms
-                    or candidate in eng.axioms
-                    or candidate in eng.facts
-                    or candidate in eng.theorems
-                ):
-                    expr[i] = Symbol(candidate)
-                else:
-                    # Resolve module aliases (e.g. "primitives.X" → "src.primitives.X")
-                    for alias, canonical in self._module_aliases.items():
-                        prefix = alias + "."
-                        if s.startswith(prefix):
-                            resolved = canonical + s[len(alias) :]
-                            if (
-                                resolved in eng.terms
-                                or resolved in eng.axioms
-                                or resolved in eng.facts
-                                or resolved in eng.theorems
-                            ):
-                                expr[i] = Symbol(resolved)
-                                break
-            elif isinstance(item, list):
-                self._patch_symbols(item, engine)
+        """Recursively namespace bare symbols in expression bodies."""
+        self._engine.patch_expr(expr, module_name=self._current.module_name)
 
     def _load_source(self, system, source):
         """Parse and execute directives, namespacing definitions and context keys."""
-        tokens, token_lines = tokenize(source, track_lines=True)
-        while tokens:
-            expr_line: int = token_lines[0] if token_lines else 0
-            pre_len = len(tokens)
-            expr = read_tokens(tokens)
-            consumed = pre_len - len(tokens)
-            del token_lines[:consumed]
-            if isinstance(expr, list) and len(expr) >= 2:
-                head = expr[0]
-                # Namespace definition names for non-main modules
-                if head in DSL_KEYWORDS or head in SPECIAL_FORMS:
-                    if not self._current.is_main:
-                        expr[1] = f"{self._current.module_name}.{expr[1]}"
-                        self.names_to_modules[str(expr[1])] = self._current.module_name
-                    self.names_to_lines[str(expr[1])] = expr_line
-                # Patch (context :key) everywhere in the expression tree
-                self._patch_context(expr)
-                # Patch bare symbol references to their namespaced versions
-                if not self._current.is_main:
-                    skip = 1 if (head in DSL_KEYWORDS or head in SPECIAL_FORMS) else None
-                    self._patch_symbols(expr, system.engine, skip_index=skip)
-                elif self._module_aliases:
-                    # Main module: still resolve aliases (e.g. counting.X → std.counting.X)
-                    self._patch_symbols(expr, system.engine)
+        ms = ModuleSource(
+            source="",
+            source_file=self._current.current_file,
+            module_name=self._current.module_name,
+            is_main=self._current.is_main,
+        )
+        result = self._engine.evaluate(source, local_env=ms)
+        if result.parse_errors:
+            line, err = result.parse_errors[0]
+            raise PltgError(
+                str(err),
+                file=self._current.current_file,
+                line=line,
+                stack=list(self._file_stack),
+                cause=err,
+            )
+        ctx = result.context
+        for lad in result.directives:
             try:
-                _execute_directive(system.engine, expr)
+                self._engine.patch_one(lad, ctx)
+                self._engine.delegate_one(lad)
             except PltgError as e:
                 raise PltgError(
                     e.args[0] if e.args else str(e),
                     file=self._current.current_file,
-                    line=expr_line,
+                    line=lad.directive.sentence.line,
                     stack=list(self._file_stack),
                     cause=e,
                 ) from e
@@ -220,7 +173,7 @@ class Loader:
                 raise PltgError(
                     str(e),
                     file=self._current.current_file,
-                    line=expr_line,
+                    line=lad.directive.sentence.line,
                     stack=list(self._file_stack),
                     cause=e,
                 ) from e
@@ -241,61 +194,52 @@ class Loader:
               (import (quote ...pkg.mod))     →  ../../pkg/mod.pltg
             Without leading dots, resolves relative to current directory.
             """
+            from .loader_engine import module_to_path, parse_module_name
+
             raw_name = str(module_sym)
-            # Count leading dots for relative traversal (Python convention)
-            dots = 0
-            while dots < len(raw_name) and raw_name[dots] == ".":
-                dots += 1
-            if dots > 0:
-                # First dot = current dir, each additional dot = one parent
-                ups = ".." + os.sep
-                prefix = ups * (dots - 1)
-                # Canonical module name strips leading dots
-                module_name = raw_name[dots:]
-            else:
-                prefix = ""
-                module_name = raw_name
-            rel_path = prefix + module_name.replace(".", os.sep) + ".pltg"
-            abs_path = os.path.normpath(os.path.join(self._current.current_dir, rel_path))
+            module_name, dots = parse_module_name(raw_name)
+            abs_path = module_to_path(module_name, dots, self._current.current_dir)
 
-            if abs_path in self._imported:
-                original = self._path_to_module.get(abs_path)
-                if original and original != module_name:
-                    self._module_aliases[module_name] = original
-                    log.debug(
-                        "Module '%s' already imported as '%s', registered alias",
-                        module_name,
-                        original,
-                    )
-                else:
-                    log.debug("Module '%s' already imported, skipping", module_name)
-                return True
-
+            # Circular check MUST come before _path_to_module check:
+            # a module currently being loaded is in _path_to_module
+            # (registered by create_md_ctx) but not yet finished.
             if abs_path in self._file_stack:
                 chain = " -> ".join(self._file_stack + [abs_path])
                 raise ImportError(f"Circular import detected: {chain}")
 
-            if not os.path.isfile(abs_path):
-                # Fall back to lib_paths
-                for lib_dir in self._lib_paths:
-                    candidate = os.path.normpath(os.path.join(lib_dir, module_name.replace(".", os.sep) + ".pltg"))
-                    if os.path.isfile(candidate):
-                        abs_path = candidate
-                        break
-                else:
-                    raise FileNotFoundError(f"Module '{module_name}' not found at {abs_path}")
+            if abs_path in self._path_to_module:
+                original = self._path_to_module[abs_path]
+                if self._engine.register_or_alias(module_name, original):
+                    if module_name != original:
+                        log.debug(
+                            "Module '%s' already imported as '%s', registered alias",
+                            module_name,
+                            original,
+                        )
+                    else:
+                        log.debug("Module '%s' already imported, skipping", module_name)
+                return True
+
+            from .loader_engine import resolve_module_path
+
+            lib_dirs = [
+                os.path.dirname(os.path.abspath(lp)) if os.path.isfile(lp) else os.path.abspath(lp)
+                for lp in self._lib_paths
+            ]
+            abs_path = resolve_module_path(module_name, abs_path, lib_dirs)
+
+            # Mark as lib if resolved from a lib path
+            lib_dirs = [
+                os.path.dirname(os.path.abspath(lp)) if os.path.isfile(lp) else os.path.abspath(lp)
+                for lp in self._lib_paths
+            ]
+            if any(abs_path.startswith(ld) for ld in lib_dirs):
+                self._engine.register_lib_module(module_name)
+
+            # Register module + auto-alias dotted names (may qualify name for lib sub-modules)
+            module_name, _ = self._engine.register_module(module_name, parent=self._current.module_name)
 
             child_ctx = self.create_md_ctx(abs_path, module_name)
-
-            # Register short-name alias when canonical name is dotted.
-            # e.g. importing "..std.counting" → canonical "std.counting"
-            #   → alias "counting" → "std.counting"
-            # This lets downstream files reference counting.X and have
-            # _patch_symbols resolve it to std.counting.X.
-            if "." in module_name:
-                short = module_name.rsplit(".", 1)[-1]
-                if short not in self._module_aliases:
-                    self._module_aliases[short] = module_name
 
             saved = self._current
             self._current = child_ctx
@@ -339,7 +283,7 @@ class Loader:
             the actual property.
             """
             key_str = str(key)
-            module = self.names_to_modules.get(key_str)
+            module = self._engine.names_to_modules.get(key_str)
             if module is not None:
                 ctx = self.modules_contexts[module]
                 prop = key_str[len(module) + 1 :]  # strip "module." prefix
@@ -378,10 +322,10 @@ class Loader:
                 file, line = self._current.current_file, 0
                 for diff_name, diff_def in system.engine.diffs.items():
                     if diff_def["replace"] == sym or diff_def["with"] == sym:
-                        mod = self.names_to_modules.get(diff_name)
+                        mod = self._engine.names_to_modules.get(diff_name)
                         if mod:
                             file = self.modules_contexts[mod].current_file
-                        line = self.names_to_lines.get(diff_name, 0)
+                        line = self._engine.names_to_lines.get(diff_name, 0)
                         break
                 raise PltgError(
                     str(e),
@@ -454,7 +398,9 @@ class Loader:
     # Entry point
     # ----------------------------------------------------------
 
-    def load_main(self, path: str, effects: dict[str, Any] | None = None, **system_kwargs) -> System:
+    def load_main(
+        self, path: str, effects: dict[str, Any] | None = None, strict: bool = False, **system_kwargs
+    ) -> System:
         """Load a .pltg file as a standalone entry point.
 
         Args:
@@ -484,11 +430,37 @@ class Loader:
         all_effects = {**loader_effects, **(effects or {})}
 
         system = System(effects=all_effects, **system_kwargs)
+        self._engine = LoaderEngine(inner=system.engine)
+        self._engine.register_module(module_name)  # main module, no parent
+
+        # Auto-load lib entry points before main
+        for lib_path in self._lib_paths:
+            lib_abs = os.path.abspath(lib_path)
+            if os.path.isfile(lib_abs):
+                lib_name = os.path.splitext(os.path.basename(lib_abs))[0]
+                self._engine.register_lib_module(lib_name)
+                self._engine.register_module(lib_name)
+                lib_ctx = self.create_md_ctx(lib_abs, lib_name)
+                saved = self._current
+                self._current = lib_ctx
+                try:
+                    self._file_stack.append(lib_abs)
+                    with open(lib_abs) as f:
+                        lib_source = f.read()
+                    self._load_source(system, lib_source)
+                    self._imported.add(lib_abs)
+                finally:
+                    self._current = saved
+                    self._file_stack.pop()
 
         with open(abs_path) as f:
             source = f.read()
 
-        self._load_source(system, source)
+        self._file_stack.append(abs_path)
+        try:
+            self._load_source(system, source)
+        finally:
+            self._file_stack.pop()
         self._imported.add(abs_path)
 
         return system
@@ -499,8 +471,8 @@ class Loader:
         Resolves module aliases (counting.X → std.counting.X) and
         namespaces bare symbols to their registered names.
         """
-        if isinstance(expr, list):
-            self._patch_symbols(expr, system.engine)
+        if isinstance(expr, (list, tuple)):
+            self._engine.patch_expr(expr, module_name=self._current.module_name if self._current else "")
         return expr
 
     def load_module(self, system: "System", module_name: str):
@@ -508,7 +480,6 @@ class Loader:
 
         Resolves via lib_paths, same as (import (quote module_name)).
         """
-        from ..atoms import Symbol
 
         effects = self._make_loader_effects()
         import_effect = effects["import"]

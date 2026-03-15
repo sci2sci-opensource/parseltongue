@@ -7,23 +7,19 @@ Import the DSL primitives directly from this package::
     from core import parse, parse_all, to_sexp
 """
 
-# Types & reader
+# Types
 from .atoms import (  # noqa: F401
     Axiom,
     Evidence,
     Symbol,
     Term,
     Theorem,
-    atom,
     free_vars,
     get_keyword,
     match,
     parse,
     parse_all,
-    read_tokens,
     substitute,
-    to_sexp,
-    tokenize,
 )
 
 # Default operators & docs
@@ -57,6 +53,9 @@ from .engine import (  # noqa: F401
     DiffResult,
     Fact,
 )
+
+# Grammar
+from .grammar import atom, read_tokens, to_sexp, tokenize  # noqa: F401
 
 # Language constants & evidence parsing
 from .lang import (  # noqa: F401

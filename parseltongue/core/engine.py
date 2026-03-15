@@ -5,14 +5,18 @@ Accepts an env dict and provides: evaluation, rewriting, derivation,
 diffs, consistency checking, document management (direct registration,
 loading from files, and ground-truth indexing for evidence verification),
 evidence verification, and DSL loading.
+
+TODO: Engine uses isinstance(x, (list, tuple)) throughout as a mechanical
+fix for grammar returning tuples. Should instantiate lang-level rewriters
+(match/substitute/free_vars) properly instead of duck-typing both containers.
 """
 
 import logging
 from dataclasses import dataclass, field, replace
 from enum import StrEnum
-from typing import Any
+from typing import Callable
 
-from .atoms import Evidence, Symbol, free_vars, match, substitute
+from .atoms import SILENCE, WFF, Evidence, Silence, Symbol
 from .lang import (
     AXIOM,
     DEFTERM,
@@ -36,13 +40,18 @@ from .lang import (
     SPECIAL_FORMS,
     STRICT,
     Axiom,
+    Executor,
+    PGStringParser,
+    Rewriter,
+    Sentence,
     Term,
     Theorem,
+    free_vars,
     get_keyword,
+    match,
     parse_evidence,
-    read_tokens,
+    substitute,
     to_sexp,
-    tokenize,
 )
 from .quote_verifier import QuoteVerifier
 
@@ -88,8 +97,8 @@ class DiffResult:
     name: str
     replace: str
     with_: str
-    value_a: Any
-    value_b: Any
+    value_a: Sentence
+    value_b: Sentence
     divergences: dict[str, list] = field(default_factory=dict)
 
     @property
@@ -283,12 +292,18 @@ class ConsistencyReport:
 # ============================================================
 
 
-class Engine:
+class Engine(Rewriter, Executor):
     """Evaluation engine with document management. No serialization."""
 
     def __init__(
-        self, env: dict, overridable: bool = False, strict_derive: bool = True, verifier: QuoteVerifier | None = None
+        self,
+        env: dict,
+        overridable: bool = False,
+        strict_derive: bool = True,
+        verifier: QuoteVerifier | None = None,
+        name: str | None = None,
     ):
+        self.name: str = name or self._infer_name()
         self.axioms: dict[str, Axiom] = {}
         self.theorems: dict[str, Theorem] = {}
         self.terms: dict[str, Term] = {}
@@ -300,6 +315,33 @@ class Engine:
         self._verifier = verifier or QuoteVerifier()
         self.overridable = overridable
         self.strict_derive = strict_derive
+
+    @staticmethod
+    def _infer_name() -> str:
+        """Infer engine name from instantiation site."""
+        import inspect
+
+        for frame in inspect.stack()[2:]:  # skip _infer_name + __init__
+            module = frame.filename.rsplit("/", 1)[-1].removesuffix(".py")
+            # Skip generic infrastructure — find the real caller
+            if module not in ("system", "engine", "abc"):
+                cls_name = ""
+                local_self = frame[0].f_locals.get("self")
+                if local_self is not None:
+                    cls_name = type(local_self).__name__
+                if cls_name:
+                    return f"{cls_name}@{module}:{frame.lineno}"
+                return f"{module}:{frame.lineno}"
+        return "engine"
+
+    # ----------------------------------------------------------
+    # Executor protocol
+    # ----------------------------------------------------------
+
+    def execute(self, directive: Sentence) -> Silence:
+        """Execute a parsed directive for its side effects."""
+        _execute_directive(self, directive)
+        return SILENCE
 
     # ----------------------------------------------------------
     # Document Registry
@@ -382,7 +424,7 @@ class Engine:
     # Evaluation
     # ----------------------------------------------------------
 
-    def evaluate(self, expr, local_env=None) -> Any:
+    def evaluate(self, expr: Sentence, local_env=None) -> Sentence:
         """Evaluate an s-expression in the current system."""
         env = {**self.env, **(local_env or {})}
         return self._eval(expr, env)
@@ -390,7 +432,7 @@ class Engine:
     def _eval_rewritten(self, expr, env, axiom_scope, restricted):
         """Rewrite an expression then re-evaluate the result."""
         rewritten = self._rewrite(expr, axiom_scope=axiom_scope)
-        if rewritten != expr and isinstance(rewritten, list):
+        if rewritten != expr and isinstance(rewritten, (list, tuple)):
             return self._eval(rewritten, env, axiom_scope, restricted)
         return rewritten
 
@@ -406,7 +448,12 @@ class Engine:
         log.debug("_rewrite depth=%d expr=%r", depth, expr)
         if depth > 100:
             return expr
-        if not isinstance(expr, list):
+        if not isinstance(expr, (list, tuple)):
+            return expr
+
+        # (self ...) is an evaluation boundary — contents are evaluated
+        # by _eval in the current engine, not rewritten here.
+        if expr and expr[0] == SELF:
             return expr
 
         # Reduce subexpressions first (innermost-first)
@@ -419,10 +466,10 @@ class Engine:
             rules = list(self.axioms.values()) + list(self.theorems.values())
         for rule in rules:
             wff = rule.wff
-            if not (isinstance(wff, list) and len(wff) == 3 and wff[0] == EQ):
+            if not (isinstance(wff, (list, tuple)) and len(wff) == 3 and wff[0] == EQ):
                 continue
             lhs, rhs = wff[1], wff[2]
-            if not isinstance(lhs, list):
+            if not isinstance(lhs, (list, tuple)):
                 continue
             bindings = match(lhs, expr)
             if bindings is not None:
@@ -434,7 +481,7 @@ class Engine:
 
         return expr
 
-    def _eval(self, expr, env, axiom_scope=None, restricted=False) -> Any:
+    def _eval(self, expr: Sentence, env, axiom_scope=None, restricted=False) -> Sentence:
         log.debug("_eval expr=%r restricted=%s", expr, restricted)
         if isinstance(expr, Symbol):
             if expr in env:
@@ -456,11 +503,14 @@ class Engine:
                     if restricted
                     else f"Unresolved symbol: {expr} — not in current system"
                 )
-        if not isinstance(expr, list):
+        if not isinstance(expr, (list, tuple)):
             return expr
+        #
+        # if expr == SILENCE:
+        #     return expr
 
         if not expr:
-            return None
+            return []
 
         head = expr[0]
 
@@ -473,9 +523,11 @@ class Engine:
             )
 
         if head == LET:
-            _, bindings, body = expr
+            _, bindings_expr, body = expr
+            assert isinstance(bindings_expr, (list, tuple)), f"let bindings must be a list, got {type(bindings_expr)}"
             new_env = env.copy()
-            for binding in bindings:
+            for binding in bindings_expr:
+                assert isinstance(binding, (list, tuple)), f"let binding must be a list, got {type(binding)}"
                 new_env[binding[0]] = self._eval(binding[1], new_env, axiom_scope, restricted)
             return self._eval(body, new_env, axiom_scope, restricted)
 
@@ -486,14 +538,14 @@ class Engine:
             inner = expr[1]
             # Propagate strict through scope boundaries:
             # (strict (scope name expr ...)) → (scope name (strict expr) ...)
-            if isinstance(inner, list) and inner and inner[0] == SCOPE and len(inner) > 2:
+            if isinstance(inner, (list, tuple)) and inner and inner[0] == SCOPE and len(inner) > 2:
                 wrapped = [SCOPE, inner[1]] + [[STRICT, arg] for arg in inner[2:]]
                 return self._eval(wrapped, env, axiom_scope, restricted)
             return self._eval(inner, env, axiom_scope, restricted)
 
         if head == SELF:
             # (self expr ...) — evaluate all args in the current engine
-            result = None
+            result: Sentence = []
             for arg in expr[1:]:
                 result = self._eval(arg, env, axiom_scope, restricted)
             return result
@@ -515,11 +567,46 @@ class Engine:
             # (delegate body :bind (...)) or (delegate pattern body :bind (...))
             # Count nesting depth — each delegate layer = +1 level.
             depth = 0
-            e = expr
-            while isinstance(e, list) and e and e[0] == DELEGATE:
+            delegate_pattern: Sentence | None = None
+            e: Sentence = expr
+            while isinstance(e, (list, tuple)) and e and e[0] == DELEGATE:
                 depth += 1
-                e = e[1]
+                if len(e) > 2 and e[2] != KW_BIND:
+                    delegate_pattern = e[1]
+                    e = e[2]
+                else:
+                    e = e[1]
+            delegate_body: Sentence = e
             binds = get_keyword(expr, KW_BIND, [])
+
+            # Self-proposal: resolve body in this engine, expose as ?_self
+            # but do NOT append to binds — delegate depth counts parent scopes only.
+            def _resolve_proj_delegate(ex: Sentence) -> Sentence:
+                if not isinstance(ex, (list, tuple)) or not ex:
+                    return ex
+                if ex[0] == PROJECT:
+                    return self._eval(ex, env, axiom_scope, restricted)
+                return [_resolve_proj_delegate(x) for x in ex]
+
+            self_proposal: Sentence = []
+            try:
+                resolved_body: Sentence = _resolve_proj_delegate(delegate_body)
+                self_proposal = self._eval(resolved_body, env, axiom_scope, restricted)
+            except (NameError, TypeError):
+                pass
+            log.debug("_delegate self_proposal=%r", self_proposal)
+            env[Symbol("?_self")] = self_proposal
+
+            # Self-resolution: if pattern references ?_self, check it now.
+            # If it passes, self can handle this — return ?_self directly.
+            if delegate_pattern is not None and self_proposal != [] and Symbol("?_self") in free_vars(delegate_pattern):
+                try:
+                    pattern_result = self._eval(delegate_pattern, env, axiom_scope, restricted)
+                    if pattern_result:
+                        return self_proposal
+                except (NameError, TypeError):
+                    pass
+
             # Pick the depth-th non-[] entry from closest (end)
             found = 0
             for proposal in reversed(binds):
@@ -533,14 +620,34 @@ class Engine:
             # (scope name expr ...) — resolve name to callable, pass args with:
             #   - (project ...) eagerly evaluated by THIS engine
             #   - (delegate ...) pattern evaluated, proposal posted to :bind
-            name = expr[1]
-            if name == SELF:
-                result = None
-                for arg in expr[2:]:
-                    result = self._eval(arg, env, axiom_scope, restricted)
-                return result
-            scope_val = self._eval(name, env, axiom_scope, restricted)
+            scope_name: Sentence = expr[1]
+            if scope_name == SELF:
+                # self is a proper scope — process delegate proposals
+                # and evaluate args in the current engine, just like
+                # any external scope would.
+                def _self_scope(_name, *args):
+                    result = None
+                    for arg in args:
+                        if isinstance(arg, (list, tuple)):
+                            result = self._eval(arg, env, axiom_scope, restricted)
+                        else:
+                            result = arg
+                    return result
+
+                scope_val: Sentence | Callable = _self_scope
+            else:
+                scope_val = self._eval(scope_name, env, axiom_scope, restricted)
             if callable(scope_val):
+
+                def _resolve_projects(expr):
+                    """Eagerly resolve (project ...) anywhere in expr."""
+                    if not isinstance(expr, (list, tuple)) or not expr:
+                        return expr
+                    if expr[0] == PROJECT:
+                        resolved = self._eval(expr, env, axiom_scope, restricted)
+                        log.debug("_resolve_projects %r -> %r", expr, resolved)
+                        return resolved
+                    return [_resolve_projects(x) for x in expr]
 
                 def _delegate_proposal(delegate_expr):
                     """Post a proposal for this scope level.
@@ -554,7 +661,7 @@ class Engine:
                     # Peel to innermost body, collect any patterns
                     pattern = None
                     e = delegate_expr
-                    while isinstance(e, list) and e and e[0] == DELEGATE:
+                    while isinstance(e, (list, tuple)) and e and e[0] == DELEGATE:
                         # Check for conditional: e[2] exists and isn't :bind
                         if len(e) > 2 and e[2] != KW_BIND:
                             pattern = e[1]
@@ -562,9 +669,11 @@ class Engine:
                         else:
                             e = e[1]
                     body = e
+                    log.debug("_delegate_proposal body=%r pattern=%r", body, pattern)
 
                     existing = get_keyword(delegate_expr, KW_BIND, [])
                     level = len(existing) + 1
+                    log.debug("_delegate_proposal level=%d existing=%d", level, len(existing))
 
                     # Collect ?-vars from pattern + body
                     all_vars = set()
@@ -572,13 +681,19 @@ class Engine:
                         all_vars |= free_vars(pattern)
                     all_vars |= free_vars(body)
 
-                    # Bind ?name → resolved(name), ?...name → resolved(name), ?_level → stack position
-                    bindings = {}
+                    # Bind ?name → resolved(name), ?...name → resolved(name),
+                    # ?_level → stack position, ?_self → body evaluated in this engine.
+                    bindings: dict[Symbol, Sentence] = {}
+                    self_var = Symbol("?_self")
+                    needs_self = self_var in all_vars
+
                     for var in all_vars:
                         vname = str(var)
                         if vname == "?_level":
                             bindings[var] = level
                             continue
+                        if vname == "?_self":
+                            continue  # bound after body evaluation below
                         if vname.startswith("?..."):
                             plain = Symbol(vname[4:])
                         else:
@@ -588,21 +703,32 @@ class Engine:
                         except (NameError, TypeError):
                             return []
 
+                    # Substitute ?-vars first, THEN resolve (project ...) so
+                    # projects see concrete values instead of unbound ?-vars.
+                    bound_body = substitute(body, bindings)
+                    bound_body = _resolve_projects(bound_body)
+
+                    # Evaluate body → this is what this scope produces.
+                    # If ?_self is referenced, bind it for pattern evaluation.
+                    result = self._eval(bound_body, env, axiom_scope, restricted)
+                    if needs_self:
+                        bindings[self_var] = result
+
                     if pattern is not None:
                         bound_pattern = substitute(pattern, bindings)
+                        bound_pattern = _resolve_projects(bound_pattern)
                         try:
-                            result = self._eval(bound_pattern, env, axiom_scope, restricted)
+                            pattern_ok = self._eval(bound_pattern, env, axiom_scope, restricted)
                         except (NameError, TypeError):
                             return []
-                        if not result:
+                        if not pattern_ok:
                             return []
-
-                    bound_body = substitute(body, bindings)
-                    return self._eval(bound_body, env, axiom_scope, restricted)
+                    log.debug("_delegate_proposal result=%r", result)
+                    return result
 
                 def _rp(e):
                     """Resolve (project ...) and build delegate proposals."""
-                    if not isinstance(e, list) or not e:
+                    if not isinstance(e, (list, tuple)) or not e:
                         return e
                     if e[0] == PROJECT:
                         return self._eval(e, env, axiom_scope, restricted)
@@ -621,10 +747,12 @@ class Engine:
                                 break
                             base.append(x)
                         return base + [KW_BIND, new_binds]
+                    log.debug("_rp recurse head=%r len=%d", e[0], len(e))
                     return [_rp(x) for x in e]
 
                 resolved = [_rp(a) for a in expr[2:]]
-                return scope_val(name, *resolved)
+                log.debug("_rp scope=%r resolved=%r", scope_name, resolved)
+                return scope_val(scope_name, *resolved)
             raise TypeError(f"scope target is not callable: {scope_val!r}")
 
         head_val = self._eval(head, env, axiom_scope, restricted)
@@ -634,7 +762,7 @@ class Engine:
             # Bang: force-eval any (strict ...) args before rewrite
             lazy_args = []
             for arg in expr[1:]:
-                if isinstance(arg, list) and arg and arg[0] == STRICT:
+                if isinstance(arg, (list, tuple)) and arg and arg[0] == STRICT:
                     lazy_args.append(self._eval(arg[1], env, axiom_scope, restricted))
                 else:
                     lazy_args.append(arg)
@@ -642,14 +770,24 @@ class Engine:
             rewritten = self._rewrite(formal_expr, axiom_scope=axiom_scope)
             if rewritten != formal_expr:
                 # Only re-eval if the head changed (avoids infinite recursion)
-                new_head = rewritten[0] if isinstance(rewritten, list) and rewritten else rewritten
+                new_head = rewritten[0] if isinstance(rewritten, (list, tuple)) and rewritten else rewritten
                 if new_head != head_val:
                     log.debug("_eval lazy rewrite %r -> %r", formal_expr, rewritten)
                     return self._eval(rewritten, env, axiom_scope, restricted)
             # No rewrite or same head — evaluate args and return as formal result
             args = [self._eval(arg, env, axiom_scope, restricted) for arg in expr[1:]]
-            log.debug("_eval formal result=%r", [head_val] + args)
-            return [head_val] + args
+            evaluated = [head_val] + args
+            # Args may have reduced (e.g. (- 2 1) → 1), enabling rewrites
+            # that couldn't match the unevaluated form. Try once more.
+            if evaluated != formal_expr:
+                rewritten2 = self._rewrite(evaluated, axiom_scope=axiom_scope)
+                if rewritten2 != evaluated:
+                    new_head2 = rewritten2[0] if isinstance(rewritten2, (list, tuple)) and rewritten2 else rewritten2
+                    if new_head2 != head_val:
+                        log.debug("_eval post-arg rewrite %r -> %r", evaluated, rewritten2)
+                        return self._eval(rewritten2, env, axiom_scope, restricted)
+            log.debug("_eval formal result=%r", evaluated)
+            return evaluated
 
         args = [self._eval(arg, env, axiom_scope, restricted) for arg in expr[1:]]
         log.debug("_eval head_val=%r callable=%s args=%r", head_val, callable(head_val), args)
@@ -658,7 +796,7 @@ class Engine:
         log.debug("_eval callable result=%r", result)
         # For equality: if direct comparison fails on formal (list) args,
         # try axiom rewriting — e.g. commutativity can't be checked structurally
-        if result is False and head == EQ and any(isinstance(a, list) for a in args):
+        if result is False and head == EQ and any(isinstance(a, (list, tuple)) for a in args):
             left_rw = self._rewrite(args[0], axiom_scope=axiom_scope)
             right_rw = self._rewrite(args[1], axiom_scope=axiom_scope)
             log.debug("_eval EQ rewrite fallback: left_rw=%r right_rw=%r args=%r", left_rw, right_rw, args)
@@ -677,12 +815,14 @@ class Engine:
                 return
             if expr in SPECIAL_FORMS:
                 return
+            # if expr == SILENCE:
+            #     return
             if len(expr) == 1 and expr.isalpha():
                 return
             if expr.startswith("?"):
                 return
             raise NameError(f"Symbol '{expr}' not in current system. Introduce it first.")
-        if isinstance(expr, list):
+        if isinstance(expr, (list, tuple)):
             for sub in expr:
                 self._check_wff(sub)
 
@@ -703,7 +843,7 @@ class Engine:
 
     def _register_if_definition(self, name: str, wff):
         """If the axiom defines a value, register it."""
-        if isinstance(wff, list) and len(wff) == 3 and wff[0] == EQ and isinstance(wff[1], Symbol):
+        if isinstance(wff, (list, tuple)) and len(wff) == 3 and wff[0] == EQ and isinstance(wff[1], Symbol):
             try:
                 val = self.evaluate(wff[2])
                 self.env[wff[1]] = val
@@ -744,7 +884,7 @@ class Engine:
         """Extract all non-?-prefixed symbol names from an expression."""
         if isinstance(expr, Symbol) and not str(expr).startswith("?"):
             return {str(expr)}
-        if isinstance(expr, list):
+        if isinstance(expr, (list, tuple)):
             result: set[str] = set()
             for sub in expr:
                 result |= Engine._expr_symbols(sub)
@@ -822,10 +962,8 @@ class Engine:
         If any source has unverified evidence, the theorem is
         marked as 'potential fabrication' with a trace to the unverified sources.
         """
-        from .lang import parse
-
         if isinstance(wff, str):
-            wff = parse(wff)
+            wff = PGStringParser.translate(wff)
 
         for ax_name in using:
             if (
@@ -882,7 +1020,7 @@ class Engine:
         """Check if an expression tree contains a Symbol matching name."""
         if isinstance(expr, Symbol):
             return str(expr) == name
-        if isinstance(expr, list):
+        if isinstance(expr, (list, tuple)):
             return any(Engine._expr_references(sub, name) for sub in expr)
         return False
 
@@ -998,10 +1136,13 @@ class Engine:
 
         affected = self._dependents(replace, exclude_diff=name)
 
-        divergences = {}
+        divergences: dict[str, list] = {}
         for dep_name, dep_kind in affected:
             if dep_kind == "term":
-                defn = self.terms[dep_name].definition
+                term_def = self.terms[dep_name].definition
+                if term_def is None:
+                    continue  # forward-declared primitive — no definition to diverge
+                defn = term_def
             elif dep_kind == "fact":
                 defn = self.facts[dep_name].wff
             elif dep_kind == "axiom":
@@ -1234,10 +1375,8 @@ class Engine:
 
     def introduce_axiom(self, name: str, wff, origin) -> Axiom:
         """Introduce a new axiom. Validates WFF and checks consistency."""
-        from .lang import parse
-
         if isinstance(wff, str):
-            wff = parse(wff)
+            wff = PGStringParser.translate(wff)
 
         if isinstance(origin, Evidence):
             origin = self._verify_evidence(origin, caller=name)
@@ -1258,10 +1397,8 @@ class Engine:
 
     def introduce_term(self, name: str, definition, origin) -> Term:
         """Introduce a new term/concept."""
-        from .lang import parse
-
         if isinstance(definition, str):
-            definition = parse(definition)
+            definition = PGStringParser.translate(definition)
 
         if isinstance(origin, Evidence):
             origin = self._verify_evidence(origin, caller=name)
@@ -1270,7 +1407,7 @@ class Engine:
         self.terms[name] = term
         return term
 
-    def set_fact(self, name: str, value: Any, origin):
+    def set_fact(self, name: str, value: WFF, origin):
         """Set a ground truth value with evidence."""
         if isinstance(origin, Evidence):
             origin = self._verify_evidence(origin, caller=name)
@@ -1292,7 +1429,10 @@ class Engine:
         elif name in self.theorems:
             template = self.theorems[name].wff
         elif name in self.terms:
-            template = self.terms[name].definition
+            term_def = self.terms[name].definition
+            # if term_def is None:
+            #     raise KeyError(f"Cannot instantiate forward-declared term: {name}")
+            template = term_def
         else:
             raise KeyError(f"Unknown axiom, theorem, or term: {name}")
 
@@ -1304,11 +1444,14 @@ class Engine:
 # ============================================================
 
 
-def load_source(engine: Engine, source: str):
-    tokens = tokenize(source)
-    while tokens:
-        expr = read_tokens(tokens)
-        _execute_directive(engine, expr)
+def load_source(engine: Engine, source: str) -> Silence:
+    result = PGStringParser.translate(source)
+    if isinstance(result, (list, tuple)) and result and isinstance(result[0], (list, tuple)):
+        for expr in result:
+            _execute_directive(engine, expr)
+    elif isinstance(result, (list, tuple)) and result:
+        _execute_directive(engine, result)
+    return SILENCE
 
 
 def _resolve_origin(expr) -> "str | Evidence":
@@ -1321,7 +1464,7 @@ def _resolve_origin(expr) -> "str | Evidence":
 def _parse_bindings(bind_raw):
     bindings = {}
     for pair in bind_raw:
-        if not isinstance(pair, list) or len(pair) < 2:
+        if not isinstance(pair, (list, tuple)) or len(pair) < 2:
             log.warning("Skipping malformed bind pair: %s", pair)
             continue
         bindings[pair[0]] = pair[1]
@@ -1329,7 +1472,7 @@ def _parse_bindings(bind_raw):
 
 
 def _execute_directive(engine: Engine, expr):
-    if not isinstance(expr, list) or not expr:
+    if not isinstance(expr, (list, tuple)) or not expr:
         return
 
     head = expr[0]
@@ -1364,7 +1507,7 @@ def _execute_directive(engine: Engine, expr):
     elif head == DERIVE:
         name = str(expr[1])
         using = get_keyword(expr, KW_USING, [])
-        if isinstance(using, list):
+        if isinstance(using, (list, tuple)):
             using = [str(s) for s in using]
         bind_raw = get_keyword(expr, KW_BIND, None)
         if bind_raw is not None:
@@ -1389,7 +1532,9 @@ def _execute_directive(engine: Engine, expr):
                 if u in engine.axioms:
                     ax = engine.axioms[u]
                     w = ax.wff
-                    is_rewrite = isinstance(w, list) and len(w) == 3 and w[0] == EQ and isinstance(w[1], list)
+                    is_rewrite = (
+                        isinstance(w, (list, tuple)) and len(w) == 3 and w[0] == EQ and isinstance(w[1], (list, tuple))
+                    )
                     if not is_rewrite:
                         ax_vars = free_vars(w)
                         raise ValueError(

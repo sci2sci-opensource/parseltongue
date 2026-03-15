@@ -47,7 +47,26 @@ class _Base(unittest.TestCase):
         path = self._write("main.pltg", _pltg(source))
         bench = Bench(bench_dir=self.bench_dir)
         bench.prepare(path)
+        self._stub_sample(bench)
         return bench
+
+    @staticmethod
+    def _stub_sample(bench):
+        path = bench._require_current()
+        live = bench._technician._live.get(path)
+        if not live:
+            return
+        sample_engine = live.result.system.engine
+        live_engine = live.system.engine
+        live_engine.facts.update(sample_engine.facts)
+        live_engine.terms.update(sample_engine.terms)
+        live_engine.axioms.update(sample_engine.axioms)
+        live_engine.theorems.update(sample_engine.theorems)
+        live_engine.diffs.update(sample_engine.diffs)
+        live_engine.documents.update(sample_engine.documents)
+        for sym, val in sample_engine.env.items():
+            if sym not in live_engine.env:
+                live_engine.env[sym] = val
 
 
 class TestStdCounting(_Base):

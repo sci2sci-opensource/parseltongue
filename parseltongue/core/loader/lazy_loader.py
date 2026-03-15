@@ -23,12 +23,12 @@ import logging
 from dataclasses import dataclass, field
 from typing import Any
 
-from ..ast import DirectiveKind, DirectiveNode, parse_directive, resolve_graph
-from ..atoms import Symbol, read_tokens, tokenize
+from ..ast import DirectiveNode, parse_directive, resolve_graph
+from ..atoms import Symbol
 from ..engine import _execute_directive
-from ..lang import DSL_KEYWORDS, SPECIAL_FORMS
 from ..system import System
 from .loader import Loader
+from .loader_morphism import ModuleSource
 
 log = logging.getLogger("parseltongue")
 
@@ -138,7 +138,7 @@ class LocatedConsistencyReport:
 
         if isinstance(expr, Symbol):
             return {str(expr)}
-        if isinstance(expr, list):
+        if isinstance(expr, (list, tuple)):
             result: set[str] = set()
             for item in expr:
                 result |= LocatedConsistencyReport._collect_symbols(item)
@@ -324,7 +324,7 @@ class LazyLoader(Loader):
 
         Also resolves module aliases (e.g. pass1.X → sources.pass1.X)
         for cross-module references."""
-        if not isinstance(expr, list):
+        if not isinstance(expr, (list, tuple)):
             return
         for i, item in enumerate(expr):
             if i == skip_index:
@@ -340,59 +340,65 @@ class LazyLoader(Loader):
                         if s.startswith(prefix):
                             expr[i] = Symbol(canonical + s[len(alias) :])
                             break
-            elif isinstance(item, list):
+            elif isinstance(item, (list, tuple)):
                 self._patch_symbols_from_names(item, known_names)
 
     def _load_source(self, system, source):
         """Parse all directives, build dep graph, execute with fault tolerance."""
-        tokens, token_lines = tokenize(source, track_lines=True)
         order = len(self._all_nodes)
 
-        # Phase 1a: Parse all expressions, namespace definition names,
-        # but DON'T patch body symbols yet (engine is empty).
+        # Phase 1a: Parse via engine — get analyzed directives with
+        # source metadata, definition analysis, and skip indices.
+        ms = ModuleSource(
+            source="",
+            source_file=self._current.current_file,
+            module_name=self._current.module_name,
+            is_main=self._current.is_main,
+        )
+        result = self._engine.evaluate(source, local_env=ms)
+
+        # Record any parse errors — the morphism recovered what it could
+        if self._result and result.parse_errors:
+            from .loader import PltgError
+
+            for err_line, err in result.parse_errors:
+                node = parse_directive([], order)
+                node.source_file = self._current.current_file
+                node.source_line = err_line
+                self._result.errors[node] = PltgError(
+                    str(err),
+                    file=self._current.current_file,
+                    line=err_line,
+                    stack=list(self._file_stack),
+                    cause=err,
+                )
+
         raw_exprs: list[tuple[list, int, int]] = []  # (expr, order, line)
         defined_names: set[str] = set()
+        # Map order → LAD for later phases that need analysis metadata.
+        # MUST be local — recursive _load_source calls (via imports) would
+        # overwrite an instance variable, losing the parent module's LADs.
+        lad_by_order: dict[int, Any] = {}
 
-        while tokens:
-            expr_line: int = token_lines[0] if token_lines else 0
-            try:
-                pre_len = len(tokens)
-                expr = read_tokens(tokens)
-                consumed = pre_len - len(tokens)
-                del token_lines[:consumed]
-            except SyntaxError as e:
-                err_node = DirectiveNode(
-                    name=None,
-                    expr=[],
-                    dep_names=set(),
-                    kind=DirectiveKind.ERROR,
-                    source_file=self._current.current_file,
-                    source_order=order,
-                    source_line=expr_line,
-                )
-                if self._result:
-                    self._result.errors[err_node] = e
-                log.warning("Parse error at %s:%d: %s", self._current.current_file, expr_line, e)
-                order += 1
-                continue
+        for lad in result.directives:
+            ad = lad.directive
+            expr = ad.sentence.expr
+            line = ad.sentence.line
 
-            if isinstance(expr, list) and len(expr) >= 2:
-                head = expr[0]
-                if head in DSL_KEYWORDS or head in SPECIAL_FORMS:
-                    if not self._current.is_main:
-                        expr[1] = f"{self._current.module_name}.{expr[1]}"
-                        self.names_to_modules[str(expr[1])] = self._current.module_name
-                    name = str(expr[1])
-                    if name in defined_names:
-                        log.warning("Duplicate name '%s' at %s:%d", name, self._current.current_file, expr_line)
-                        if self._result:
-                            self._result.loader_warnings.append(
-                                (f"Duplicate name '{name}'", self._current.current_file, expr_line)
-                            )
-                    defined_names.add(name)
-                self._patch_context(expr)
+            if lad.is_definition and ad.node.name:
+                # Collect the namespaced name (what it will be after patching)
+                bare_name = str(ad.node.name)
+                name = f"{self._current.module_name}.{bare_name}" if lad.needs_namespace else bare_name
+                if name in defined_names:
+                    log.warning("Duplicate name '%s' at %s:%d", name, self._current.current_file, line)
+                    if self._result:
+                        self._result.loader_warnings.append(
+                            (f"Duplicate name '{name}'", self._current.current_file, line)
+                        )
+                defined_names.add(name)
 
-            raw_exprs.append((expr, order, expr_line))
+            lad_by_order[order] = lad
+            raw_exprs.append((expr, order, line))
             order += 1
 
         # Phase 1b: Separate effects into pre/post-directive, execute pre now.
@@ -400,22 +406,27 @@ class LazyLoader(Loader):
         pre_effects: list[tuple[list, int, int]] = []
         post_effects: list[tuple[list, int, int]] = []
         for expr, ord_idx, line in raw_exprs:
-            if not isinstance(expr, list) or len(expr) < 2:
+            if not isinstance(expr, (list, tuple)) or len(expr) < 2:
                 continue
-            head = expr[0]
-            is_named = head in DSL_KEYWORDS or head in SPECIAL_FORMS
-            if is_named:
+            lad = lad_by_order.get(ord_idx)
+            if lad and lad.is_definition:
                 directive_exprs.append((expr, ord_idx, line))
-            elif self._is_pre_directive(str(head)):
+            elif self._is_pre_directive(str(expr[0])):
                 pre_effects.append((expr, ord_idx, line))
             else:
                 post_effects.append((expr, ord_idx, line))
 
         pre_effects.sort(key=lambda e: self._effect_rank(str(e[0][0]), self.PRE_DIRECTIVE_EFFECTS))
 
+        ctx = result.context
         for expr, ord_idx, line in pre_effects:
+            lad = lad_by_order.get(ord_idx)
             try:
-                _execute_directive(system.engine, expr)
+                if lad:
+                    self._engine.patch_one(lad, ctx)
+                    self._engine.delegate_one(lad)
+                else:
+                    _execute_directive(system.engine, expr)
             except Exception as e:
                 log.warning("Effect at %s:%d failed: %s", self._current.current_file, line, e)
                 if self._result:
@@ -424,20 +435,25 @@ class LazyLoader(Loader):
                     node.source_line = line
                     self._result.errors[node] = e
 
-        # Phase 1c: Now patch body symbols using collected names + aliases,
-        # then build DirectiveNodes.
+        # Phase 1c: Patch all directives via engine, then build DirectiveNodes.
+        # Include cross-module failed names so dotted refs resolve for dep tracking
+        # (e.g. base.base-fail → sources.base.base-fail matches _failed_names).
+        patch_names = defined_names | set(self._failed_names)
+        lad_by_node: dict[int, Any] = {}  # id(node) → LAD
+        for expr, ord_idx, line in directive_exprs:
+            lad = lad_by_order.get(ord_idx)
+            if lad:
+                self._engine.patch_one(lad, ctx, extra_names=patch_names)
+
         nodes: list[DirectiveNode] = []
         for expr, ord_idx, line in directive_exprs:
-            if isinstance(expr, list) and len(expr) >= 2:
-                if not self._current.is_main:
-                    self._patch_symbols_from_names(expr, defined_names, skip_index=1)
-                elif self._module_aliases:
-                    # Main module: still resolve aliases (e.g. counting.X → std.counting.X)
-                    self._patch_symbols_from_names(expr, defined_names)
             node = parse_directive(expr, ord_idx)
             node.source_file = self._current.current_file
             node.source_line = line
             nodes.append(node)
+            lad = lad_by_order.get(ord_idx)
+            if lad:
+                lad_by_node[id(node)] = lad
 
         # Phase 2: Resolve the dependency graph
         resolve_graph(nodes)
@@ -445,7 +461,7 @@ class LazyLoader(Loader):
         # Phase 3: Named directives only (effects already executed in Phase 1b)
         named_nodes = [n for n in nodes if n.name is not None]
 
-        # Phase 4: Topological execution of named directives
+        # Phase 4: Topological execution — engine patches + delegates per directive
         executed: set[str] = set()
 
         def _execute_node(node: DirectiveNode) -> bool:
@@ -475,7 +491,11 @@ class LazyLoader(Loader):
                     return False
 
             try:
-                _execute_directive(system.engine, node.expr)
+                lad = lad_by_node.get(id(node))
+                if lad:
+                    self._engine.delegate_one(lad)
+                else:
+                    _execute_directive(system.engine, node.expr)
                 executed.add(node.name)
                 if self._result:
                     self._result.loaded.add(node)
@@ -495,9 +515,14 @@ class LazyLoader(Loader):
         # Engine is populated — patch symbols against it before executing.
         post_effects.sort(key=lambda e: self._effect_rank(str(e[0][0]), self.POST_DIRECTIVE_EFFECTS))
         for expr, ord_idx, line in post_effects:
-            self._patch_symbols(expr, system.engine)
+            lad = lad_by_order.get(ord_idx)
             try:
-                _execute_directive(system.engine, expr)
+                if lad:
+                    self._engine.patch_one(lad, ctx)
+                    self._engine.delegate_one(lad)
+                else:
+                    self._engine.patch_expr(expr, module_name=self._current.module_name)
+                    _execute_directive(system.engine, expr)
             except Exception as e:
                 log.warning("Effect at %s:%d failed: %s", self._current.current_file, line, e)
                 if self._result:
@@ -541,6 +566,104 @@ class LazyLoader(Loader):
                 )
             raise SystemError(f"{len(self._result.errors)} error(s) during load:\n{''.join(parts)}")
         return system
+
+    def hot_patch(
+        self,
+        changed_files: set[str],
+        node_index: dict[str, dict],
+    ) -> set[str]:
+        """Re-process changed files through the loader pipeline.
+
+        1. Find names defined in changed files (via node_index)
+        2. Retract old names from engine
+        3. Re-parse changed .pltg files through LoaderEngine (full pipeline)
+        4. Re-register changed document files
+
+        Returns the set of changed definition names.
+        """
+        from pathlib import Path
+
+        from .loader_engine import LoaderEngine
+
+        assert self._result is not None, "hot_patch requires a prior load"
+        engine = self._result.system.engine
+
+        # Find names defined in changed files
+        changed_names: set[str] = set()
+        for name, info in node_index.items():
+            if info.get("source_file", "") in changed_files:
+                changed_names.add(name)
+
+        if not changed_names:
+            return set()
+
+        # Retract old definitions
+        for name in changed_names:
+            try:
+                engine.retract(name)
+            except KeyError:
+                pass
+
+        # Build a LoaderEngine wrapping the live engine
+        loader_engine = LoaderEngine(inner=engine)
+
+        # Restore module aliases from node_index (infer from dotted names)
+        for name in node_index:
+            if "." in name:
+                module = name.rsplit(".", 1)[0]
+                loader_engine.names_to_modules[name] = module
+
+        for f in changed_files:
+            if not f.endswith(".pltg"):
+                # Document file — re-register
+                try:
+                    content = Path(f).read_text()
+                    for doc_name in list(engine.documents):
+                        if f.endswith(doc_name) or Path(f).stem == doc_name:
+                            engine.register_document(doc_name, content)
+                            break
+                except OSError:
+                    pass
+                continue
+
+            try:
+                content = Path(f).read_text()
+            except OSError:
+                continue
+
+            # Determine module context from node_index
+            module_name = ""
+            is_main = True
+            for name, info in node_index.items():
+                if info.get("source_file") == f and "." in name:
+                    module_name = name.rsplit(".", 1)[0]
+                    is_main = False
+                    break
+
+            ms = ModuleSource(
+                source="",
+                source_file=f,
+                module_name=module_name,
+                is_main=is_main,
+            )
+
+            try:
+                result = loader_engine.evaluate(content, local_env=ms)
+                ctx = result.context
+                for lad in result.directives:
+                    # Only re-execute definitions — effects (load-document,
+                    # import, context, print, etc.) were already run
+                    if not lad.is_definition:
+                        continue
+                    try:
+                        loader_engine.patch_one(lad, ctx)
+                        loader_engine.delegate_one(lad)
+                    except Exception as e:
+                        log.warning("Hot-patch directive failed for %s: %s", lad.directive.node.name, e)
+            except Exception as e:
+                log.warning("Hot-patch failed for %s: %s", f, e)
+
+        return changed_names
 
     @property
     def last_result(self) -> LazyLoadResult | None:

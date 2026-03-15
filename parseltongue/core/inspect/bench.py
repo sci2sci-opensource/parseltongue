@@ -211,14 +211,13 @@ class Bench:
 
     def eval(self, query: str):
         """Evaluate an S-expression in the eval system (main + std + scopes)."""
-        from parseltongue.core.atoms import read_tokens, tokenize
+        from parseltongue.core.lang import PGStringParser
 
         path = self._require_current()
         if path not in self._mem:
             self.prepare(path)
         eval_loader, eval_system = self._ensure_eval_system(path)
-        tokens = tokenize(query)
-        expr = read_tokens(tokens)
+        expr = PGStringParser.translate(query)
         expr = eval_loader.prepare_script(expr, eval_system)
         return eval_system.engine.evaluate(expr)
 
@@ -239,10 +238,10 @@ class Bench:
         engine = system.engine
 
         # Register scopes
-        live.register_scope("lens", self.lens(path).search_system._system)
-        live.register_scope("evaluation", self.evaluate(path).search_system._system)
-        live.register_scope("search", self._technician.search_engine(path)._system._pltg_system)
-        engine.env[Symbol("count")] = lambda *args: len(args[0]) if args and isinstance(args[0], dict) else 0
+        live.register_scope("lens", self.lens(path).search_system)
+        live.register_scope("evaluation", self.evaluate(path).search_system)
+        live.register_scope("search", self._technician.search_engine(path)._system)
+        engine.env[Symbol("count")] = lambda *args: len(args[0]) if args and isinstance(args[0], (dict, list)) else 0
 
         self._eval_sys_mem[path] = (live._loader, system)
         return live._loader, system

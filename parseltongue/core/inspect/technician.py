@@ -15,10 +15,7 @@ import threading
 from pathlib import Path
 from typing import Callable
 
-from ..atoms import Symbol, parse_all
-from ..engine import _execute_directive
 from ..integrity.merkle import MerkleNode
-from ..lang import DSL_KEYWORDS, SPECIAL_FORMS
 from ..loader.lazy_loader import LazyLoader, LazyLoadResult
 from .probe_core_to_consequence import CoreToConsequenceStructure, probe, probe_all
 from .store import Store, _collect_tree_leaves
@@ -117,12 +114,12 @@ class Technician:
 
         # Lens scope — always available from structure
         lens = Lens(structure, [MDebuggerPerspective(loader)])
-        search.register_scope("lens", lens.search_system._system)
+        search.register_scope("lens", lens.search_system)
 
         # Evaluation scope — from cache if available
         dx = self._load_evaluate(path, sample)
         if dx is not None:
-            search.register_scope("evaluation", dx.search_system._system)
+            search.register_scope("evaluation", dx.search_system)
 
         # Populate search docs if live
         result = sample[3].last_result
@@ -323,7 +320,7 @@ class Technician:
     def _cold_load(self, path: str) -> Sample:
         """Full reload from scratch."""
         loader = LazyLoader(lib_paths=self._lib_paths)
-        loader.load_main(path)
+        loader.load_main(path, name="Technician.cold")
         load_result = loader.last_result
         assert load_result is not None
         file_list = self.collect_source_files(loader)
@@ -344,12 +341,8 @@ class Technician:
     ) -> tuple[CoreToConsequenceStructure, LazyLoader, set[str]] | None:
         """Hot-patch a cached system from changed files.
 
-        1. Deserialize cached system
-        2. Find names from changed files (via node_index)
-        3. Retract old names from engine
-        4. Re-parse changed .pltg files and execute on engine
-        5. Re-probe affected names
-        6. Return (structure, loader, affected_names)
+        Delegates all parsing/patching/execution to the loader — the
+        technician only orchestrates deserialization and re-probing.
         """
         try:
             structure, loader = self._store.deserialize(disk_raw)
@@ -357,71 +350,14 @@ class Technician:
             log.warning("Failed to deserialize cache for hot-patch")
             return None
 
-        engine = loader.last_result.system.engine  # type: ignore[union-attr]
         node_index = disk_raw.get("node_index", {})
-
-        # Find names defined in changed files
-        changed_names: set[str] = set()
-        for name, info in node_index.items():
-            sf = info.get("source_file", "")
-            if sf in changed_files:
-                changed_names.add(name)
+        changed_names = loader.hot_patch(changed_files, node_index)
 
         if not changed_names:
             return None
 
+        engine = loader.last_result.system.engine  # type: ignore[union-attr]
         log.info("Hot-patch: %d names from %d changed files", len(changed_names), len(changed_files))
-
-        # Retract old definitions
-        for name in changed_names:
-            try:
-                engine.retract(name)
-            except KeyError:
-                pass
-
-        # Re-parse changed .pltg files and execute on engine
-        for f in changed_files:
-            if not f.endswith(".pltg"):
-                # Document file changed — reload it
-                try:
-                    content = Path(f).read_text()
-                    for doc_name in list(engine.documents):
-                        if f.endswith(doc_name) or Path(f).stem == doc_name:
-                            engine.register_document(doc_name, content)
-                            break
-                except OSError:
-                    pass
-                continue
-
-            try:
-                content = Path(f).read_text()
-            except OSError:
-                continue
-
-            # Figure out the module prefix for this file
-            prefix = ""
-            for name, info in node_index.items():
-                if info.get("source_file") == f and "." in name:
-                    prefix = name.rsplit(".", 1)[0] + "."
-                    break
-
-            try:
-                exprs = parse_all(content)
-            except Exception:
-                log.warning("Failed to parse %s for hot-patch", f)
-                continue
-
-            for expr in exprs:
-                if not isinstance(expr, list) or not expr:
-                    continue
-                head = str(expr[0]) if expr else ""
-                if head in DSL_KEYWORDS or head in SPECIAL_FORMS:
-                    if prefix and len(expr) >= 2:
-                        expr[1] = Symbol(prefix + str(expr[1]))
-                    try:
-                        _execute_directive(engine, expr)
-                    except Exception as e:
-                        log.warning("Hot-patch directive failed: %s", e)
 
         # Trace affected names through probe graph
         dependents: dict[str, set[str]] = {}
@@ -481,7 +417,7 @@ class Technician:
         def _reload():
             try:
                 loader = LazyLoader(lib_paths=technician._lib_paths)
-                loader.load_main(path)
+                loader.load_main(path, name="Technician.bg_reload")
                 file_list = technician.collect_source_files(loader)
                 new_hashes = store.hash_files(file_list)
                 new_tree = store.build_file_tree(file_list, new_hashes)

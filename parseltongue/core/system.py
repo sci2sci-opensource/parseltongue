@@ -5,13 +5,16 @@ Parseltongue System — composes Engine with defaults, serialization, and intros
 import logging
 from typing import Callable, Self
 
-from .atoms import Evidence, Symbol
+from .atoms import SILENCE, Evidence, Symbol, parse_all
 from .default_system_settings import DEFAULT_OPERATORS, ENGINE_DOCS
 from .engine import Engine, Fact
 from .engine import load_source as _engine_load_source
 from .lang import (
     LANG_DOCS,
     Axiom,
+    Interpreter,
+    Rewriter,
+    Sentence,
     Term,
     Theorem,
     to_sexp,
@@ -30,7 +33,7 @@ from .serialization import (
 log = logging.getLogger("parseltongue")
 
 
-class AbstractSystem:
+class AbstractSystem(Rewriter, Interpreter):
     """Composes Engine with serialization and introspection. All args required — no defaults."""
 
     def __init__(
@@ -41,11 +44,12 @@ class AbstractSystem:
         strict_derive: bool,
         effects: dict[str, Callable],
         verifier,
+        name: str | None = None,
     ):
         env: dict = {}
         env.update(initial_env)
 
-        self.engine = Engine(env, overridable=overridable, strict_derive=strict_derive, verifier=verifier)
+        self.engine = Engine(env, overridable=overridable, strict_derive=strict_derive, verifier=verifier, name=name)
         self._docs = docs
 
         for name, fn in effects.items():
@@ -75,12 +79,15 @@ class AbstractSystem:
     def documents(self):
         return self.engine.documents
 
-    def evaluate(self, expr, local_env=None):
+    def evaluate(self, expr: Sentence, local_env=None) -> Sentence:
         return self.engine.evaluate(expr, local_env)
 
-    def interpret(self, source: str):
-        """Parse and execute pltg source (directives + expressions)."""
-        load_source(self, source)
+    def interpret(self, source: str) -> tuple["AbstractSystem", Sentence]:
+        _engine_load_source(self.engine, source)
+        exprs = parse_all(source)
+        if not exprs:
+            return (self, SILENCE)
+        return (self, self.engine.evaluate(exprs[-1]))
 
     def set_fact(self, name, value, origin):
         self.engine.set_fact(name, value, origin)
@@ -268,7 +275,7 @@ class AbstractSystem:
 
         for _name, axiom in self.engine.axioms.items():
             wff = axiom.wff
-            if isinstance(wff, list) and len(wff) == 3 and wff[0] == EQ and isinstance(wff[1], Symbol):
+            if isinstance(wff, (list, tuple)) and len(wff) == 3 and wff[0] == EQ and isinstance(wff[1], Symbol):
                 try:
                     self.engine.env[wff[1]] = self.engine.evaluate(wff[2])
                 except (NameError, TypeError):
@@ -279,7 +286,9 @@ class AbstractSystem:
             progress = False
             for name in list(remaining):
                 try:
-                    val = self.engine.evaluate(self.engine.terms[name].definition)
+                    defn = self.engine.terms[name].definition
+                    assert defn is not None  # filtered by remaining set
+                    val = self.engine.evaluate(defn)
                     self.engine.env[Symbol(name)] = val
                     remaining.discard(name)
                     progress = True
@@ -367,7 +376,7 @@ class AbstractSystem:
     def __repr__(self):
         e = self.engine
         return (
-            f"System({len(e.axioms)} axioms, "
+            f"System[{e.name}]({len(e.axioms)} axioms, "
             f"{len(e.theorems)} theorems, "
             f"{len(e.terms)} terms, "
             f"{len(e.facts)} facts, "
@@ -387,6 +396,7 @@ class DefaultSystem(AbstractSystem):
         strict_derive: bool = True,
         effects: dict[str, Callable] | None = None,
         verifier=None,
+        name: str | None = None,
     ):
         super().__init__(
             initial_env=initial_env if initial_env is not None else DEFAULT_OPERATORS,
@@ -395,6 +405,7 @@ class DefaultSystem(AbstractSystem):
             strict_derive=strict_derive,
             effects=effects or {},
             verifier=verifier,
+            name=name,
         )
 
 
@@ -409,6 +420,7 @@ class EmptySystem(AbstractSystem):
         strict_derive: bool = True,
         effects: dict[str, Callable] | None = None,
         verifier=None,
+        name: str | None = None,
     ):
         super().__init__(
             initial_env=initial_env if initial_env is not None else {},
@@ -417,6 +429,7 @@ class EmptySystem(AbstractSystem):
             strict_derive=strict_derive,
             effects=effects or {},
             verifier=verifier,
+            name=name,
         )
 
 

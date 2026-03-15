@@ -22,5 +22,8 @@ __pycache__/
 temp/
 documentation/
 
+# Claude worktrees
+.claude/
+
 # OS junk
 .DS_Store

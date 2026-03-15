@@ -34,20 +34,79 @@ between their sides is itself a system-level issue.
 See LANG_DOCS below for full syntax and examples drawn from real demos.
 """
 
+from dataclasses import dataclass, field
+from typing import Protocol
+
 from .atoms import (  # noqa: F401 — re-export
+    SILENCE,
+    WFF,
     Axiom,
     Evidence,
+    Primitive,
+    Silence,
     Symbol,
     Term,
     Theorem,
-    atom,
-    get_keyword,
     parse,
     parse_all,
+)
+from .grammar import (  # noqa: F401 — deprecated re-export
+    Grammar,
+    ParseltongueGrammar,
+    _pg,
+    atom,
     read_tokens,
     to_sexp,
     tokenize,
 )
+from .morphism import Morphism, StringMorphism, _pm
+
+# ============================================================
+# Clause & Sentence Types
+# ============================================================
+
+Clause = WFF | Evidence | Axiom | Theorem | Term
+Sentence = Clause | list["Sentence"]
+
+
+# ============================================================
+# Interfaces — Translator, Rewriter, Listener, Interpreter
+# ============================================================
+
+
+class Translator(Protocol):
+    """str → Sentence. Allows the caller to obtain structured meaning from raw text."""
+
+    def translate(self, source: str) -> Sentence: ...
+
+
+class Rewriter(Protocol):
+    """Sentence → Sentence. Allows the caller to reduce or transform expressions."""
+
+    def evaluate(self, expr: Sentence, local_env: dict | None = None) -> Sentence: ...
+
+
+class Executor(Protocol):
+    """Sentence → Silence. Executes a parsed directive for its side effects."""
+
+    def execute(self, directive: Sentence) -> Silence: ...
+
+
+class Listener(Protocol):
+    """str → (Listener, Silence). Allows the caller to speak and receive an updated listener to continue the conversation."""
+
+    def listen(self, source: str) -> tuple["Listener", Silence]: ...
+
+
+class Interpreter(Listener, Protocol):
+    """str → (Interpreter, Sentence). Allows the caller to speak and receive both a response and an updated interpreter to continue the conversation."""
+
+    def interpret(self, source: str) -> tuple["Interpreter", Sentence]: ...
+
+    def listen(self, source: str) -> tuple["Interpreter", Silence]:
+        new_self, _ = self.interpret(source)
+        return (new_self, SILENCE)
+
 
 # ============================================================
 # Language-Level Symbol Constants
@@ -590,7 +649,7 @@ def parse_evidence(expr) -> Evidence:
         :quotes ("quote 1" "quote 2")
         :explanation "why these quotes support the claim")
     """
-    if not isinstance(expr, list) or not expr:
+    if not isinstance(expr, (list, tuple)) or not expr:
         raise SyntaxError(f"Invalid evidence expression: {expr}")
 
     if expr[0] != EVIDENCE:
@@ -600,7 +659,295 @@ def parse_evidence(expr) -> Evidence:
     quotes_raw = get_keyword(expr, KW_QUOTES, [])
     explanation = get_keyword(expr, KW_EXPLANATION, "")
 
-    quotes = quotes_raw if isinstance(quotes_raw, list) else [str(quotes_raw)]
+    quotes = quotes_raw if isinstance(quotes_raw, (list, tuple)) else [str(quotes_raw)]
     quotes = [str(q) for q in quotes]
 
     return Evidence(document=document, quotes=quotes, explanation=explanation)
+
+
+# ============================================================
+# Keyword extraction
+# ============================================================
+
+
+def get_keyword(expr: Sentence, keyword: str, default=None):
+    """Extract a keyword argument from an expression."""
+    if not isinstance(expr, (list, tuple)):
+        return default
+    for i, item in enumerate(expr):
+        if item == keyword and i + 1 < len(expr):
+            return expr[i + 1]
+    return default
+
+
+# ============================================================
+# Matcher — rewriting machinery
+# ============================================================
+
+
+def match(pattern: Sentence, expr: Sentence, bindings: dict | None = None) -> dict | None:
+    """Match pattern against expr. ?-prefixed symbols are pattern variables.
+
+    A ``?...name`` symbol as the last element of a list pattern matches
+    zero or more remaining elements, bound as a list.
+    """
+    if bindings is None:
+        bindings = {}
+    if isinstance(pattern, Symbol) and str(pattern).startswith("?"):
+        if pattern in bindings:
+            return bindings if bindings[pattern] == expr else None
+        return {**bindings, pattern: expr}
+    if isinstance(pattern, (list, tuple)) and isinstance(expr, (list, tuple)):
+        if pattern and isinstance(pattern[-1], Symbol) and str(pattern[-1]).startswith("?..."):
+            splat = pattern[-1]
+            fixed = pattern[:-1]
+            if len(expr) < len(fixed):
+                return None
+            for p, e in zip(fixed, expr[: len(fixed)]):
+                bindings = match(p, e, bindings)
+                if bindings is None:
+                    return None
+            rest = expr[len(fixed) :]
+            if splat in bindings:
+                return bindings if bindings[splat] == rest else None
+            return {**bindings, splat: rest}
+        if len(pattern) != len(expr):
+            return None
+        for p, e in zip(pattern, expr):
+            bindings = match(p, e, bindings)
+            if bindings is None:
+                return None
+        return bindings
+    if pattern == expr:
+        return bindings
+    return None
+
+
+def free_vars(expr: Sentence) -> set[Symbol]:
+    """Extract all ?-prefixed symbols from an expression."""
+    if isinstance(expr, Symbol) and str(expr).startswith("?"):
+        return {expr}
+    if isinstance(expr, (list, tuple)):
+        result: set[Symbol] = set()
+        for sub in expr:
+            result |= free_vars(sub)
+        return result
+    return set()
+
+
+def substitute(expr: Sentence, bindings: dict) -> Sentence:
+    """Replace symbols with their bound values in an expression tree.
+
+    ``?...name`` bindings are spliced into the parent list rather than
+    inserted as a nested list.
+    """
+    if isinstance(expr, Symbol) and expr in bindings:
+        return bindings[expr]
+    if isinstance(expr, (list, tuple)):
+        result = []
+        for sub in expr:
+            if isinstance(sub, Symbol) and str(sub).startswith("?...") and sub in bindings:
+                val = bindings[sub]
+                if isinstance(val, (list, tuple)):
+                    result.extend(val)
+                else:
+                    result.append(val)
+            else:
+                result.append(substitute(sub, bindings))
+        return result
+    return expr
+
+
+# ============================================================
+# Unfreezing — WFF (immutable tuples) → Sentence (mutable lists)
+# ============================================================
+
+# Directives whose bodies stay immutable (tuples from grammar)
+_IMMUTABLE_DIRECTIVES = frozenset({AXIOM, FACT, EVIDENCE})
+# Directives whose bodies become mutable (lists for rewriter)
+_MUTABLE_DIRECTIVES = frozenset({DEFTERM, DERIVE})
+
+
+def _unfreeze(wff: WFF) -> Sentence:
+    """Convert tuple to list, recursing into children unless they must stay frozen."""
+    if not isinstance(wff, tuple):
+        return wff
+    result = list(wff)
+    for i, x in enumerate(result):
+        if isinstance(x, tuple):
+            if x and x[0] in _IMMUTABLE_DIRECTIVES:
+                continue
+            result[i] = _unfreeze(x)
+    return result
+
+
+def _unfreeze_selective(wff: WFF) -> Sentence:
+    """Selectively unfreeze a top-level directive expression.
+
+    Axioms, facts, evidence stay immutable (tuples).
+    Defterms, derives become mutable (lists).
+    Diffs are structural metadata — stay immutable.
+    """
+    if not isinstance(wff, tuple) or not wff:
+        return wff
+    head = wff[0]
+    if head in _MUTABLE_DIRECTIVES:
+        return _unfreeze(wff)
+    if head in _IMMUTABLE_DIRECTIVES:
+        return wff
+    # Unknown directive or bare expression — unfreeze for evaluation
+    return _unfreeze(wff)
+
+
+# ============================================================
+# Sentence Morphism — lang-level Morphism[str, list[AnnotatedSentence]]
+# ============================================================
+
+
+@dataclass
+class SentenceIndex:
+    """Pre-computed structural indices into a directive sentence.
+
+    For ``(fact x 42 :origin "test")``:
+        head=0, name=1, body=2, keywords={":origin": 4}
+
+    Keyword values map keyword string → index of the *value* (not the key).
+    """
+
+    head: int = 0
+    name: int | None = None
+    body: int | None = None
+    keywords: dict[str, int] = field(default_factory=dict)
+
+
+def _index_sentence(expr) -> SentenceIndex:
+    """Build a SentenceIndex from a sentence (list or tuple)."""
+    idx = SentenceIndex()
+    if not isinstance(expr, (list, tuple)) or not expr:
+        return idx
+
+    if len(expr) < 2:
+        return idx
+
+    idx.name = 1
+
+    i = 2
+    while i < len(expr):
+        item = expr[i]
+        if isinstance(item, str) and item.startswith(":"):
+            if i + 1 < len(expr):
+                idx.keywords[item] = i + 1
+            i += 2
+        else:
+            if idx.body is None:
+                idx.body = i
+            i += 1
+
+    return idx
+
+
+@dataclass
+class AnnotatedSentence:
+    """A mutable sentence with provenance and structural index.
+
+    expr:   mutable sentence (unfrozen from WFF)
+    wff:    original immutable WFF from grammar (for inverse)
+    line:   1-based source line
+    order:  parse position within source
+    index:  structural map (head, name, body, keyword positions)
+    """
+
+    expr: Sentence
+    wff: WFF
+    line: int
+    order: int
+    index: SentenceIndex
+
+
+class SentenceMorphism:
+    """Lang-level morphism: str → list[AnnotatedSentence].
+
+    Wraps a StringMorphism.  For each AnnotatedWFF:
+      1. Unfreezes the WFF into a mutable sentence
+      2. Indexes the directive structure (head, name, body, keywords)
+
+    The original immutable WFF is preserved for the inverse path.
+    """
+
+    def __init__(self, base: StringMorphism):
+        self._base = base
+
+    @property
+    def grammar(self) -> Grammar[str]:
+        return self._base.grammar
+
+    def transform(self, source: str) -> list[AnnotatedSentence]:
+        annotated_wffs = self._base.transform(source)
+        result: list[AnnotatedSentence] = []
+        for aw in annotated_wffs:
+            expr = _unfreeze(aw.wff)
+            index = _index_sentence(expr)
+            result.append(
+                AnnotatedSentence(
+                    expr=expr,
+                    wff=aw.wff,
+                    line=aw.line,
+                    order=aw.order,
+                    index=index,
+                )
+            )
+        return result
+
+    def inverse(self, target: list[AnnotatedSentence]) -> str:
+        return "\n".join(self.grammar.encode(a.wff) for a in target)
+
+
+_sm = SentenceMorphism(base=_pm)
+
+
+class ParseltongueSentenceMorphism:
+    """Parseltongue sentence morphism — mutable sentences with structural index."""
+
+    morphism: Morphism[str, list[AnnotatedSentence]] = _sm
+
+    @staticmethod
+    def transform(source: str) -> list[AnnotatedSentence]:
+        return _sm.transform(source)
+
+    @staticmethod
+    def inverse(target: list[AnnotatedSentence]) -> str:
+        return _sm.inverse(target)
+
+
+# ============================================================
+# Translator Implementation — consumes SentenceMorphism
+# ============================================================
+
+
+class StringTranslator(Translator):
+    """Translator backed by a SentenceMorphism."""
+
+    def __init__(self, morphism: SentenceMorphism):
+        self._morphism = morphism
+
+    def translate(self, source: str) -> Sentence:
+        annotated = self._morphism.transform(source)
+        if not annotated:
+            raise SyntaxError("Empty input")
+        exprs = [_unfreeze_selective(a.wff) for a in annotated]
+        if len(exprs) == 1:
+            return exprs[0]
+        return exprs
+
+
+_parser = StringTranslator(morphism=_sm)
+
+
+class PGStringParser:
+    """Parseltongue string parser."""
+
+    translator: Translator = _parser
+
+    @staticmethod
+    def translate(source: str) -> Sentence:
+        return _parser.translate(source)

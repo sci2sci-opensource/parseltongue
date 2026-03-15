@@ -25,7 +25,7 @@ def _print_list(items):
         if isinstance(item, dict):
             origin = item.get("origin", "")
             tag = str(origin) if hasattr(origin, "is_grounded") else f"[origin: {origin}]"
-            print(f"  {item['name']} = {item.wff} {tag}")
+            print(f"  {item['name']} = {item['wff']} {tag}")
         else:
             print(f"  {item}")
 

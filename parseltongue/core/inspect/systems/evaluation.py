@@ -29,6 +29,8 @@ if TYPE_CHECKING:
 class EvaluationSearchSystem:
     """Parseltongue System with posting-set operators over evaluation data."""
 
+    tag = Symbol("dx")
+
     def __init__(self, dx: "Evaluation"):
         from parseltongue.core.quote_verifier.index import DocumentIndex
 
@@ -134,7 +136,8 @@ class EvaluationSearchSystem:
             Symbol("consistent"): _consistent,
             Symbol("ns"): _ns,
         }
-        self._system = System(initial_env=ops)
+        self._system = System(initial_env=ops, name="EvaluationSearch")
+        self.posting_morphism = self._DxPostingMorphism(self._item_index)
 
         _raw_eval = self._system.evaluate
         _to_dx = self._posting_to_dx
@@ -174,28 +177,58 @@ class EvaluationSearchSystem:
         scored.sort()
         return [name for _, _, name in scored[:max_results]]
 
-    def evaluate(self, query_str: str):
-        """Parse and evaluate an S-expression query. Returns raw pltg result."""
-        from parseltongue.core.atoms import read_tokens, tokenize
-
-        tokens = tokenize(query_str)
-        expr = read_tokens(tokens)
-
+    def evaluate(self, expr, local_env=None):
+        """Evaluate a query — string or s-expression."""
         if isinstance(expr, str):
-            results = self._idx.search(expr)
-            return {(r["document"], r["line"]): r for r in results}
+            from parseltongue.core.lang import PGStringParser
 
+            parsed = PGStringParser.translate(expr)
+            if isinstance(parsed, str):
+                results = self._idx.search(parsed)
+                return {(r["document"], r["line"]): r for r in results}
+            return self._system.evaluate(parsed)
         return self._system.evaluate(expr)
 
-    def _posting_to_dx(self, posting: dict) -> list:
-        """Convert a posting set to a list of dx forms."""
-        from parseltongue.core.atoms import Symbol
+    class _DxPostingMorphism:
+        """PostingMorphism: posting ↔ dx forms."""
 
-        tag = Symbol("dx")
-        result = []
-        for key in posting:
-            item = self._item_index.get(key)
-            if not item:
-                continue
-            result.append([tag, item.name, item.category, item.kind or "", item.type, item.detail or ""])
-        return result
+        def __init__(self, item_index):
+            self._item_index = item_index
+
+        def transform(self, posting: dict) -> list:
+            from parseltongue.core.atoms import Symbol
+
+            tag = Symbol("dx")
+            result = []
+            for key in posting:
+                item = self._item_index.get(key)
+                if not item:
+                    continue
+                result.append([tag, item.name, item.category, item.kind or "", item.type, item.detail or ""])
+            return result
+
+        def inverse(self, forms: list) -> dict:
+            from parseltongue.core.atoms import Symbol
+
+            tag = Symbol("dx")
+            posting: dict = {}
+            for item in forms:
+                if not isinstance(item, (list, tuple)) or len(item) < 2:
+                    continue
+                if not (isinstance(item[0], Symbol) and item[0] == tag):
+                    continue
+                name = str(item[1])
+                category = str(item[2]) if len(item) > 2 else ""
+                detail = str(item[5]) if len(item) > 5 else ""
+                posting[(name, 1)] = {
+                    "document": name,
+                    "line": 1,
+                    "column": 1,
+                    "context": f"{category}: {detail}" if detail else category,
+                    "callers": [],
+                    "total_callers": 0,
+                }
+            return posting
+
+    def _posting_to_dx(self, posting: dict) -> list:
+        return self.posting_morphism.transform(posting)

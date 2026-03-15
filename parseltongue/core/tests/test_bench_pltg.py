@@ -35,7 +35,7 @@ def _exec(frozen, expr_str):
     from parseltongue.core.engine import _execute_directive
 
     for expr in parse_all(expr_str):
-        if isinstance(expr, list) and expr:
+        if isinstance(expr, (list, tuple)) and expr:
             _execute_directive(frozen.system.engine, expr)
 
 
