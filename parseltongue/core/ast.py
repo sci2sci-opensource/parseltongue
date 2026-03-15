@@ -39,7 +39,7 @@ from .lang import (
     AnnotatedSentence,
     SentenceMorphism,
     _sm,
-    get_keyword, Sentence,
+    get_keyword,
 )
 from .morphism import Morphism
 

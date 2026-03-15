@@ -914,15 +914,13 @@ class TestBenchReload(_BenchTestBase):
 
         self._write("extra.txt", "Extra data point: growth rate is 8%.")
         with open(path, "a") as f:
-            f.write(
-                """
+            f.write("""
 (load-document "extra.txt" "extra.txt")
 (fact growth 8
     :evidence (evidence "extra.txt"
         :quotes ("growth rate is 8%")
         :explanation "Growth rate"))
-"""
-            )
+""")
 
         bench.prepare(path)
         self.assertIn("growth", bench.engine.facts)

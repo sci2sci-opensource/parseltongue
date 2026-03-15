@@ -17,6 +17,22 @@ import os
 
 from ..atoms import SILENCE, Silence
 from ..lang import Executor, Sentence
+from .loader_morphism import (
+    LoaderAnnotatedDirective,
+    LoaderMorphismV2,
+    ModuleSource,
+    MorphismReport,
+    PatchContext,
+    _lm_v2,
+    patch_context,
+    patch_definition_name,
+    patch_symbols,
+)
+from .loader_translator import (
+    EngineKnown,
+    LoaderTranslationResult,
+    LoaderTranslatorV2,
+)
 
 
 class _UnionKnown:
@@ -91,24 +107,6 @@ def short_alias(module_name: str) -> str | None:
     return None
 
 
-from .loader_morphism import (
-    LoaderAnnotatedDirective,
-    LoaderMorphismV2,
-    ModuleSource,
-    MorphismReport,
-    PatchContext,
-    _lm_v2,
-    patch_context,
-    patch_definition_name,
-    patch_symbols,
-)
-from .loader_translator import (
-    EngineKnown,
-    LoaderTranslationResult,
-    LoaderTranslatorV2,
-)
-
-
 class LoaderEngine(Executor[LoaderTranslationResult]):
     """Namespace-aware engine: translates then patches then delegates.
 
@@ -119,7 +117,12 @@ class LoaderEngine(Executor[LoaderTranslationResult]):
     execute() mutates — applies patches, delegates to inner engine.
     """
 
-    def __init__(self, inner: Executor[Sentence], morphism: LoaderMorphismV2 | None = None, lib_modules: list[str] | None = None):
+    def __init__(
+        self,
+        inner: Executor[Sentence],
+        morphism: LoaderMorphismV2 | None = None,
+        lib_modules: list[str] | None = None,
+    ):
         self._inner = inner
         self._morphism = morphism or _lm_v2
         # Propagate engine name for log context

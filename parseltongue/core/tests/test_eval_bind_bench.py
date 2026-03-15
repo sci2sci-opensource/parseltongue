@@ -91,23 +91,19 @@ class TestEvalBindBench(_Base):
         self.assertEqual(result, 300)
 
     def test_bind_with_scope_lens(self):
-        b = self._bench(
-            """
+        b = self._bench("""
 (fact engine.a true :evidence (evidence "doc.txt" :quotes ("Engine handles") :explanation "x"))
 (fact engine.b true :evidence (evidence "doc.txt" :quotes ("Facts are stored") :explanation "x"))
-"""
-        )
+""")
         result = b.eval('(count (scope lens (kind "fact")))')
         self.assertGreater(result, 0)
 
     def test_bind_with_concat_scopes(self):
         """The original use case: concat results from two scopes via :bind."""
-        b = self._bench(
-            """
+        b = self._bench("""
 (fact engine.a true :evidence (evidence "doc.txt" :quotes ("Engine handles") :explanation "x"))
 (fact engine.b true :evidence (evidence "doc.txt" :quotes ("Facts are stored") :explanation "x"))
-"""
-        )
+""")
         b.interpret('(defterm or-tmpl (std.std.lists.concat (strict ?a) (strict ?b)))')
         b.interpret('(defterm or-call :origin "callable")')
         b.interpret('(axiom or-call-rule (= (or-call ?x ?y) (or-tmpl :bind ((?a ?x) (?b ?y)))))')
@@ -124,13 +120,11 @@ class TestOrFormsBindBenchPg(_Base):
     """Tests for bench_pg or-forms-call using :bind pattern end-to-end."""
 
     def _bench_with_facts(self):
-        return self._bench(
-            """
+        return self._bench("""
 (fact engine.a true :evidence (evidence "doc.txt" :quotes ("Engine handles") :explanation "x"))
 (fact engine.b true :evidence (evidence "doc.txt" :quotes ("Facts are stored") :explanation "x"))
 (fact engine.c true :evidence (evidence "doc.txt" :quotes ("Axioms define") :explanation "x"))
-"""
-        )
+""")
 
     def test_or_forms_call_two_lens_queries(self):
         """or-forms-call merges two lens queries via :bind."""

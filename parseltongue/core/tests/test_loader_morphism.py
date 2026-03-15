@@ -4,13 +4,18 @@ from parseltongue.core.ast import AnnotatedDirective, DirectiveKind, NavList
 from parseltongue.core.atoms import Symbol
 from parseltongue.core.loader.loader_morphism import (
     LoaderAnnotatedDirective,
-    LoaderMorphismV2,
-    MorphismReport,
     ModuleSource,
+    MorphismReport,
     PatchContext,
     _lm_v2,
+)
+from parseltongue.core.loader.loader_morphism import (
     patch_context as _patch_context,
+)
+from parseltongue.core.loader.loader_morphism import (
     patch_definition_name as _patch_definition_name,
+)
+from parseltongue.core.loader.loader_morphism import (
     patch_symbols as _patch_symbols,
 )
 

@@ -24,37 +24,31 @@ class TestEvalBind(unittest.TestCase):
         self.assertEqual(result, 30)
 
     def test_bind_theorem(self):
-        s = self._system(
-            """
+        s = self._system("""
 (defterm tmpl (+ ?x ?y))
 (fact a 5 :origin "test")
 (fact b 3 :origin "test")
 (derive thm (+ a b) :using (a b))
-"""
-        )
+""")
         _, result = s.interpret('(tmpl :bind ((?x 100) (?y 200)))')
         self.assertEqual(result, 300)
 
     def test_bind_via_axiom_rewrite(self):
-        s = self._system(
-            """
+        s = self._system("""
 (defterm my-sum (+ ?a ?b))
 (defterm call-sum :origin "callable")
 (axiom call-sum-rule (= (call-sum ?x ?y) (my-sum :bind ((?a ?x) (?b ?y)))))
-"""
-        )
+""")
         _, result = s.interpret('(call-sum 7 8)')
         self.assertEqual(result, 15)
 
     def test_bind_preserves_var_names(self):
         """?a in bind pairs stays as Symbol after axiom substitution."""
-        s = self._system(
-            """
+        s = self._system("""
 (defterm tmpl (if ?flag ?a ?b))
 (defterm choose :origin "callable")
 (axiom choose-rule (= (choose ?f ?x ?y) (tmpl :bind ((?flag ?f) (?a ?x) (?b ?y)))))
-"""
-        )
+""")
         _, r1 = s.interpret('(choose true "yes" "no")')
         self.assertEqual(r1, "yes")
         _, r2 = s.interpret('(choose false "yes" "no")')
