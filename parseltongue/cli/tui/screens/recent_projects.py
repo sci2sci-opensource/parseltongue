@@ -30,7 +30,7 @@ class RecentProjects(Screen):
     """Table of saved projects. Select one to re-open."""
 
     BINDINGS = [
-        ("escape", "dismiss", "Back"),
+        ("escape", "app.main_menu", "Back"),
         ("delete", "delete_project", "Delete"),
         ("backspace", "delete_project", "Delete"),
     ]
@@ -42,7 +42,7 @@ class RecentProjects(Screen):
             [
                 ("Enter", "Open"),
                 ("Del", "Delete", "screen.delete_project"),
-                ("Esc", "Back", "screen.dismiss"),
+                ("Esc", "Menu", "app.main_menu"),
             ]
         )
 

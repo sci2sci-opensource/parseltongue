@@ -54,13 +54,11 @@ define a defterm in the SearchSystem. ``(scope name expr)`` evaluates
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Callable
+from typing import Callable
 
 from .store import SearchStore
-from .systems.search import SearchSystem, _sr_to_posting
-
-if TYPE_CHECKING:
-    from parseltongue.core.system import System
+from .systems.bench_system import BenchSubsystem
+from .systems.search import SearchSystem
 
 
 class Search:
@@ -78,8 +76,8 @@ class Search:
         self._store = store
         self._system = SearchSystem(self._index, self._collect)
 
-    def register_scope(self, name: str, system: System):
-        """Register a named scope in the query system."""
+    def register_scope(self, name: str, system: BenchSubsystem):
+        """Register a BenchSubsystem as a named scope."""
         self._system.register_scope(name, system)
 
     def unregister_scope(self, name: str):
@@ -174,16 +172,15 @@ class Search:
         }
 
     def _to_display_posting(self, result) -> dict:
-        """Convert any search system result to a posting set for display."""
+        """Convert any search system result to a posting set for display.
+
+        Uses the SearchSystem's posting_morphism to dispatch tagged forms
+        (sr, ln, dx, hn) back to posting dicts by head symbol.
+        """
         if isinstance(result, dict):
             return result
         if isinstance(result, list):
-            # Could be a list of sr forms
-            posting = _sr_to_posting(result)
-            if posting:
-                return posting
-            # Fallback — treat as list of values
-            return {}
+            return self._system.posting_morphism.inverse(result)
         if isinstance(result, (int, float)):
             return {
                 ("__result__", 0): {

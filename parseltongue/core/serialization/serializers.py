@@ -13,7 +13,7 @@ from ..lang import Axiom, Term, Theorem
 
 def serialize_sexp(obj) -> Any:
     """Convert an s-expression (with Symbols) to JSON-safe form."""
-    if isinstance(obj, list):
+    if isinstance(obj, (list, tuple)):
         return [serialize_sexp(x) for x in obj]
     if isinstance(obj, Symbol):
         return {"__symbol__": str(obj)}
@@ -24,7 +24,7 @@ def serialize_sexp(obj) -> Any:
 
 def deserialize_sexp(obj) -> Any:
     """Reconstruct an s-expression from JSON-safe form."""
-    if isinstance(obj, list):
+    if isinstance(obj, (list, tuple)):
         return [deserialize_sexp(x) for x in obj]
     if isinstance(obj, dict) and "__symbol__" in obj:
         return Symbol(obj["__symbol__"])

@@ -22,7 +22,7 @@ class TestQuote(unittest.TestCase):
     def test_quote_in_fact(self):
         load_source(self.s, '(fact result (quote hello) :origin "test")')
         self.assertEqual(self.s.evaluate(self.s.facts["result"].wff), Symbol("hello"))
-        self.assertEqual(self.s.facts["result"].wff, [Symbol('quote'), Symbol("hello")])
+        self.assertEqual(self.s.facts["result"].wff, (Symbol('quote'), Symbol("hello")))
 
     def test_quote_dotted_symbol(self):
         result = self.s.evaluate([Symbol("quote"), Symbol("some.other.term")])

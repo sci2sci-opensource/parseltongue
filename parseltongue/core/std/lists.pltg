@@ -124,3 +124,98 @@
 ; ((quote s1) s1) pairs. Needs lazy eval or a self-pair axiom
 ; (= ?x ((quote ?x) ?x)) that works pre-eval.
 (defterm bare-filter util.stub :origin "TODO: filter on bare arglist without explicit quote pairs — needs lazy eval")
+
+; ============================================================
+; Structural list operations (added with higher-order discovery)
+; ============================================================
+
+; --- length: count elements via structural recursion ---
+;
+; Counts elements in a bare list. Not a quoted list — use on
+; the contents after unquote, or on bare lists from splat patterns.
+;
+; Examples:
+;   (length (a b c))    => 3
+;   (length (x))        => 1
+
+(defterm length :origin "count elements via structural recursion")
+
+(axiom length-base (= (length (?x)) 1)
+    :origin "base: singleton list has length 1")
+
+(axiom length-step (= (length (?x ?y ?...rest)) (+ 1 (length (?y ?...rest))))
+    :origin "step: 1 + length of tail")
+
+; --- nth: 0-based index access ---
+;
+; Returns the element at position n in a bare list.
+;
+; Examples:
+;   (nth 0 (a b c))  => a
+;   (nth 2 (a b c))  => c
+
+(defterm nth :origin "element at index via decrement")
+
+(axiom nth-base (= (nth 0 (?x ?...rest)) ?x)
+    :origin "base: index 0 returns head")
+
+(axiom nth-step (= (nth ?n (?x ?y ?...rest)) (if (= ?n 0) ?x (nth (- ?n 1) (?y ?...rest))))
+    :origin "step: decrement index, recurse on tail")
+
+; --- reverse: accumulator pattern ---
+;
+; Reverses a bare list using a tail-recursive accumulator.
+; O(n) depth — well within the rewrite depth limit.
+;
+; Examples:
+;   (reverse (1 2 3))  => (3 2 1)
+;   (reverse (a))      => (a)
+
+(defterm reverse :origin "reverse a list via accumulator")
+(defterm reverse-acc :origin "reverse accumulator helper")
+
+(axiom reverse-rule (= (reverse (?...xs)) (reverse-acc (?...xs) ()))
+    :origin "init: start with empty accumulator")
+
+(axiom reverse-acc-base (= (reverse-acc () (?...acc)) (?...acc))
+    :origin "base: input exhausted, return accumulator")
+
+(axiom reverse-acc-step (= (reverse-acc (?x ?...rest) (?...acc)) (reverse-acc (?...rest) (?x ?...acc)))
+    :origin "step: move head to accumulator front")
+
+; --- map: higher-order list traversal ---
+;
+; Applies an axiom-backed function to each element of a bare list.
+; Uses ?f in head position — the Turing-completeness discovery.
+; The function symbol is placed in head position by substitute,
+; and _rewrite dispatches to its axioms.
+;
+; Examples (given (axiom double-rule (= (double ?x) (* 2 ?x)))):
+;   (map double (3 4 5))  => (quote (6 8 10))
+;   (map double (7))      => (quote (14))
+
+(defterm map :origin "apply axiom-function to each element — ?-var head dispatch")
+
+(axiom map-base (= (map ?f (?x)) (cons (?f ?x)))
+    :origin "base: singleton — apply and wrap in quoted list")
+
+(axiom map-step (= (map ?f (?x ?y ?...rest)) (cons-prepend (?f ?x) (map ?f (?y ?...rest))))
+    :origin "step: apply to head, prepend to mapped tail")
+
+; --- fold: left fold with accumulator ---
+;
+; Reduces a list to a single value using a binary function
+; and an initial accumulator. ?f in head position dispatches
+; to the function's axioms.
+;
+; Examples:
+;   (fold + 0 (1 2 3))    => 6    (+ is callable, handled by _eval)
+;   (fold my-add 0 (1 2 3)) => 6  (if my-add has axioms for binary addition)
+
+(defterm fold :origin "left fold — reduce list with binary axiom-function")
+
+(axiom fold-empty (= (fold ?f ?acc ()) ?acc)
+    :origin "base: empty list returns accumulator")
+
+(axiom fold-step (= (fold ?f ?acc (?x ?...rest)) (fold ?f (?f ?acc ?x) (?...rest)))
+    :origin "step: apply f to acc and head, recurse on tail")

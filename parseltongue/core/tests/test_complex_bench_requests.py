@@ -120,7 +120,26 @@ class _Base(unittest.TestCase):
         path = self._write("main.pltg", PLTG_SOURCE)
         bench = self._bench()
         bench.prepare(path)
+        self._stub_sample(bench)
         return bench
+
+    @staticmethod
+    def _stub_sample(bench):
+        path = bench._require_current()
+        live = bench._technician._live.get(path)
+        if not live:
+            return
+        sample_engine = live.result.system.engine
+        live_engine = live.system.engine
+        live_engine.facts.update(sample_engine.facts)
+        live_engine.terms.update(sample_engine.terms)
+        live_engine.axioms.update(sample_engine.axioms)
+        live_engine.theorems.update(sample_engine.theorems)
+        live_engine.diffs.update(sample_engine.diffs)
+        live_engine.documents.update(sample_engine.documents)
+        for sym, val in sample_engine.env.items():
+            if sym not in live_engine.env:
+                live_engine.env[sym] = val
 
 
 # ── Lens Search System ──
@@ -157,7 +176,7 @@ class TestLensSearchSystem(_Base):
         bench = self._prepare()
         lens = bench.lens()
         posting = lens.search('(kind "fact")')
-        names = {k[0] for k in posting}
+        names = {item[1] for item in posting}
         self.assertIn("revenue", names)
         self.assertIn("margin", names)
         self.assertIn("headcount", names)
@@ -167,7 +186,7 @@ class TestLensSearchSystem(_Base):
         bench = self._prepare()
         lens = bench.lens()
         posting = lens.search('(kind "axiom")')
-        names = {k[0] for k in posting}
+        names = {item[1] for item in posting}
         self.assertIn("pos-rule", names)
         self.assertNotIn("revenue", names)
 
@@ -175,7 +194,7 @@ class TestLensSearchSystem(_Base):
         bench = self._prepare()
         lens = bench.lens()
         posting = lens.search('(kind "theorem")')
-        names = {k[0] for k in posting}
+        names = {item[1] for item in posting}
         self.assertIn("thm-pos-revenue", names)
 
     def test_node_single(self):
@@ -183,7 +202,7 @@ class TestLensSearchSystem(_Base):
         lens = bench.lens()
         posting = lens.search('(node "revenue")')
         self.assertEqual(len(posting), 1)
-        self.assertEqual(list(posting.keys())[0][0], "revenue")
+        self.assertEqual(posting[0][1], "revenue")
 
     def test_node_missing(self):
         bench = self._prepare()
@@ -195,14 +214,14 @@ class TestLensSearchSystem(_Base):
         bench = self._prepare()
         lens = bench.lens()
         posting = lens.search('(inputs "double-rev")')
-        names = {k[0] for k in posting}
+        names = {item[1] for item in posting}
         self.assertIn("revenue", names)
 
     def test_downstream(self):
         bench = self._prepare()
         lens = bench.lens()
         posting = lens.search('(downstream "revenue")')
-        names = {k[0] for k in posting}
+        names = {item[1] for item in posting}
         self.assertIn("double-rev", names)
         self.assertIn("revenue-per-head", names)
 
@@ -210,7 +229,7 @@ class TestLensSearchSystem(_Base):
         bench = self._prepare()
         lens = bench.lens()
         posting = lens.search("(roots)")
-        names = {k[0] for k in posting}
+        names = {item[1] for item in posting}
         # Axioms and forward terms are roots
         self.assertIn("pos-rule", names)
 
@@ -225,7 +244,7 @@ class TestLensSearchSystem(_Base):
         bench = self._prepare()
         lens = bench.lens()
         posting = lens.search('(focus "thm-")')
-        names = {k[0] for k in posting}
+        names = {item[1] for item in posting}
         for n in names:
             self.assertTrue(n.startswith("thm-"), f"{n} doesn't start with thm-")
         self.assertIn("thm-positive", names)
@@ -234,14 +253,14 @@ class TestLensSearchSystem(_Base):
         bench = self._prepare()
         lens = bench.lens()
         result = lens.search('(depth "revenue")')
-        # depth returns an int, which gets wrapped as a scalar result
-        self.assertIsInstance(result, dict)
+        # depth returns an int scalar
+        self.assertIsInstance(result, int)
 
     def test_value_scalar(self):
         bench = self._prepare()
         lens = bench.lens()
         result = lens.search('(value "revenue")')
-        self.assertIsInstance(result, dict)
+        self.assertIsInstance(result, str)
 
 
 # ── Evaluation Search System ──
@@ -274,13 +293,13 @@ class TestEvaluationSearchSystem(_Base):
         dx = bench.evaluate()
         posting = dx.search("(danglings)")
         # Some items may be dangling
-        self.assertIsInstance(posting, dict)
+        self.assertIsInstance(posting, list)
 
     def test_warnings(self):
         bench = self._prepare()
         dx = bench.evaluate()
         posting = dx.search("(warnings)")
-        self.assertIsInstance(posting, dict)
+        self.assertIsInstance(posting, list)
 
     def test_category_filter(self):
         bench = self._prepare()
@@ -301,25 +320,25 @@ class TestEvaluationSearchSystem(_Base):
         bench = self._prepare()
         dx = bench.evaluate()
         posting = dx.search('(type "diverge")')
-        self.assertIsInstance(posting, dict)
+        self.assertIsInstance(posting, list)
 
     def test_focus_namespace(self):
         bench = self._prepare()
         dx = bench.evaluate()
         posting = dx.search('(focus "diff-")')
         names_in_items = set()
-        for k in posting:
-            doc = k[0]
+        for item in posting:
+            doc = item[1]
             # Items within this category doc at this line should have diff- prefix
             # (evaluation groups by category, not name)
-        self.assertIsInstance(posting, dict)
+        self.assertIsInstance(posting, list)
 
     def test_consistent_returns_bool(self):
         bench = self._prepare()
         dx = bench.evaluate()
         result = dx.search("(consistent)")
         # Has diffs with different values → not consistent
-        self.assertIsInstance(result, dict)
+        self.assertIsInstance(result, bool)
 
 
 # ── Hologram Search System ──
@@ -391,7 +410,7 @@ class TestHologramSearchSystem(_Base):
         bench = self._prepare()
         h = bench.dissect("diff-rev-vs-income")
         posting = h.search('(left (kind "fact"))')
-        names = {k[0] for k in posting}
+        names = {item[1] for item in posting}
         self.assertIn("revenue", names)
 
     def test_compose_two_names(self):
@@ -609,14 +628,14 @@ class TestAxiomInstantiation(_Base):
         bench = self._prepare()
         lens = bench.lens()
         axiom_nodes = lens.search('(kind "axiom")')
-        names = {k[0] for k in axiom_nodes}
+        names = {item[1] for item in axiom_nodes}
         self.assertIn("pos-rule", names)
 
     def test_theorem_has_axiom_as_input(self):
         bench = self._prepare()
         lens = bench.lens()
         inputs = lens.search('(inputs "thm-pos-revenue")')
-        names = {k[0] for k in inputs}
+        names = {item[1] for item in inputs}
         self.assertIn("pos-rule", names)
 
 
@@ -661,4 +680,4 @@ class TestDiffEvaluation(_Base):
         bench = self._prepare()
         dx = bench.evaluate()
         posting = dx.search('(focus "diff-")')
-        self.assertIsInstance(posting, dict)
+        self.assertIsInstance(posting, list)

@@ -1,0 +1,62 @@
+; higher_order.pltg — Higher-order function dispatch via ?-var head position
+;
+; The rewrite engine binds ?-vars in any position, including list head.
+; substitute places the bound symbol into head position, and _rewrite
+; recurses on the result — dispatching to that symbol's axioms.
+;
+; This makes axiom-backed terms first-class: they can be passed as
+; arguments and applied dynamically.
+;
+; Examples:
+;   (apply factorial 5)          => 120   (if factorial axioms exist)
+;   (compose double inc 3)       => 8     ((double (inc 3)) = double 4 = 8)
+;   (pipe 3 inc double)          => 8     (inc first, then double)
+;   (pipe 3 inc double square)   => 64
+
+; --- apply: dispatch to axiom-function by name ---
+;
+; (apply f x) rewrites to (f x). The symbol f is placed in head
+; position, so f's axioms fire on the next rewrite pass.
+; Fixed-arity variants cover common cases.
+
+(defterm apply :origin "higher-order function application — ?-var head dispatch")
+
+(axiom apply-1 (= (apply ?f ?x) (?f ?x))
+    :origin "unary: (apply f x) → (f x)")
+
+(axiom apply-2 (= (apply ?f ?x ?y) (?f ?x ?y))
+    :origin "binary: (apply f x y) → (f x y)")
+
+(axiom apply-3 (= (apply ?f ?x ?y ?z) (?f ?x ?y ?z))
+    :origin "ternary: (apply f x y z) → (f x y z)")
+
+; --- compose: right-to-left function composition ---
+;
+; (compose f g x) applies g first, then f to the result.
+; Both f and g must be axiom-backed terms.
+
+(defterm compose :origin "function composition — apply g then f")
+
+(axiom compose-rule (= (compose ?f ?g ?x) (?f (?g ?x)))
+    :origin "(compose f g x) → (f (g x))")
+
+; --- pipe: left-to-right function pipeline ---
+;
+; (pipe x f g h) applies f to x, then g, then h.
+; Variadic via splat peel — each step applies the first
+; function and recurses on the rest.
+
+(defterm pipe :origin "left-to-right pipeline — data-first composition")
+
+(axiom pipe-base (= (pipe ?x ?f) (?f ?x))
+    :origin "base: single function application")
+
+(axiom pipe-step (= (pipe ?x ?f ?g ?...rest) (pipe (?f ?x) ?g ?...rest))
+    :origin "step: apply first function, continue pipeline")
+
+; Self-proof
+(import (quote util))
+(derive higher-order-module-exists (= true true) :using (apply))
+(derive export-higher-order-module-exists
+    (util.export higher-order-module-exists)
+    :using (util.export higher-order-module-exists))

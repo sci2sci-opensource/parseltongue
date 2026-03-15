@@ -118,7 +118,7 @@ class TestAxiomDirective(unittest.TestCase):
         s = make_system()
         quiet(load_source, s, '(axiom a1 (> ?x 0) :origin "test")')
         ax = s.axioms["a1"]
-        self.assertEqual(ax.wff, [Symbol(">"), Symbol("?x"), 0])
+        self.assertEqual(ax.wff, (Symbol(">"), Symbol("?x"), 0))
         self.assertEqual(ax.origin, "test")
 
     def test_axiom_with_evidence(self):

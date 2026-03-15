@@ -1,0 +1,83 @@
+; specialized_ops.pltg — key-aware set operations over tagged sentences
+;
+; Imports tag modules for accessor axioms. Defines form-key per tag
+; type, then and-forms (intersection) and not-forms (difference) by key.
+;
+;   (form-key (ln name ...))  => name
+;   (form-key (sr doc line ...)) => (quote (doc line))
+;   (form-key (dx name ...))  => name
+;   (form-key (hn name ...))  => name
+;
+;   (and-forms a b)  => items from a whose key appears in b
+;   (not-forms a b)  => items from a whose key does NOT appear in b
+(import (quote std.std))
+(import (quote .general_ops))
+(import (quote .search))
+(import (quote .lens))
+(import (quote .evaluation))
+(import (quote .hologram))
+
+; ── form-key: extract identity key per tag type ──
+
+(defterm form-key :origin "extract identity key from a tagged sentence")
+
+(axiom form-key-ln (= (form-key (ln ?name ?kind ?val ?depth ?inputs)) ?name)
+    :origin "ln identity is name")
+(axiom form-key-sr (= (form-key (sr ?doc ?line ?col ?ctx ?callers)) (quote (?doc ?line)))
+    :origin "sr identity is (doc line)")
+(axiom form-key-dx (= (form-key (dx ?name ?cat ?kind ?type ?detail)) ?name)
+    :origin "dx identity is name")
+(axiom form-key-hn (= (form-key (hn ?name ?kind ?val ?...lenses)) ?name)
+    :origin "hn identity is name")
+
+; ── keys: extract all keys from a list ──
+
+(defterm keys :origin "map form-key over a sentence list")
+(axiom keys-rule (= (keys ?xs) (map form-key ?xs))
+    :origin "keys is map form-key")
+
+; ── has-key: check if a form's key is in a key list ──
+
+(defterm has-key :origin "true if form's key is member of key list")
+(axiom has-key-rule (= (has-key ?form ?key-list) (member (form-key ?form) ?key-list))
+    :origin "extract key, check membership")
+
+; ── and-forms: parametric template + callable via :bind ──
+
+(defterm and-forms-tmpl (and-forms-impl (strict ?a) (strict ?b)))
+(defterm and-forms :origin "callable and-forms")
+(axiom and-forms-entry (= (and-forms ?a1 ?b1) (and-forms-tmpl :bind ((?a ?a1) (?b ?b1))))
+    :origin "and via bind — strict forces scope eval")
+
+(defterm and-forms-impl :origin "and-forms impl on concrete lists")
+(defterm and-forms-acc :origin "and-forms accumulator helper")
+
+(axiom and-forms-rule (= (and-forms-impl ?a ?b) (and-forms-acc ?a (keys ?b) (quote ())))
+    :origin "init: extract keys from b, start with empty acc")
+(axiom and-forms-acc-base (= (and-forms-acc () ?keys ?acc) ?acc)
+    :origin "base: input exhausted, return accumulator")
+(axiom and-forms-acc-step (= (and-forms-acc (?x ?...rest) ?keys ?acc)
+    (if (has-key ?x ?keys)
+        (and-forms-acc (?...rest) ?keys (concat ?acc (quote (?x))))
+        (and-forms-acc (?...rest) ?keys ?acc)))
+    :origin "step: include if key in set, skip otherwise")
+
+; ── not-forms: parametric template + callable via :bind ──
+
+(defterm not-forms-tmpl (not-forms-impl (strict ?a) (strict ?b)))
+(defterm not-forms :origin "callable not-forms")
+(axiom not-forms-entry (= (not-forms ?a1 ?b1) (not-forms-tmpl :bind ((?a ?a1) (?b ?b1))))
+    :origin "not via bind — strict forces scope eval")
+
+(defterm not-forms-impl :origin "not-forms impl on concrete lists")
+(defterm not-forms-acc :origin "not-forms accumulator helper")
+
+(axiom not-forms-rule (= (not-forms-impl ?a ?b) (not-forms-acc ?a (keys ?b) (quote ())))
+    :origin "init: extract keys from b, start with empty acc")
+(axiom not-forms-acc-base (= (not-forms-acc () ?keys ?acc) ?acc)
+    :origin "base: input exhausted, return accumulator")
+(axiom not-forms-acc-step (= (not-forms-acc (?x ?...rest) ?keys ?acc)
+    (if (not (has-key ?x ?keys))
+        (not-forms-acc (?...rest) ?keys (concat ?acc (quote (?x))))
+        (not-forms-acc (?...rest) ?keys ?acc)))
+    :origin "step: include if key NOT in set, skip otherwise")

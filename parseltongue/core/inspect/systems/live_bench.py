@@ -23,7 +23,8 @@ class LiveBench(BenchSystem):
         from parseltongue.core.loader.lazy_loader import LazyLoader
 
         self._loader = LazyLoader(lib_paths=lib_paths)
-        self._loader.load_main(bench_pg_path)
-        self.system: System = self._loader.last_result.system  # type: ignore[union-attr]
+        self._loader.load_main(bench_pg_path, name="LiveBench")
+        assert self._loader.last_result is not None, "bench_pg failed to load"
+        self.system: System = self._loader.last_result.system
         self.result = result
         self.register_scope("sample", result.system)

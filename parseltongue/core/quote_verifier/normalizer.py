@@ -88,9 +88,10 @@ def _normalize_lists(
     normalized_map = []
     list_items_removed = 0
     i = 0
+    _list_re = re.compile(r"([12]?\d)\.\s+")
 
     while i < len(text):
-        match = re.match(r"([12]?\d)\.\s+", text[i:])
+        match = _list_re.match(text, i)
         line_start = text.rfind("\n", 0, i) + 1
         prefix = text[line_start:i]
         at_line_start = prefix == "" or (len(prefix) >= 2 and prefix.strip() == "")

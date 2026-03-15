@@ -760,3 +760,52 @@ ViewerScreen #viewer-provenance-title {
 ViewerScreen #viewer-provenance-tree {
     height: 1fr;
 }
+
+/* Configure screen */
+ConfigureScreen {
+    align: center middle;
+}
+
+ConfigureScreen #config-container {
+    width: 70;
+    height: auto;
+    max-height: 80%;
+    border: round green;
+    padding: 1 2;
+}
+
+ConfigureScreen #config-title {
+    text-style: bold;
+    margin-bottom: 1;
+}
+
+ConfigureScreen #config-fields {
+    height: 1fr;
+}
+
+ConfigureScreen #config-fields Label {
+    margin-top: 1;
+    color: $text-muted;
+}
+
+ConfigureScreen #config-fields Input {
+    margin-bottom: 0;
+}
+
+ConfigureScreen #cfg-reasoning {
+    margin-top: 1;
+}
+
+ConfigureScreen #cfg-tokens-label {
+    margin-top: 0;
+}
+
+ConfigureScreen #config-buttons {
+    height: auto;
+    margin-top: 2;
+    align: center middle;
+}
+
+ConfigureScreen #config-buttons Button {
+    margin: 0 1;
+}

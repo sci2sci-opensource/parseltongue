@@ -8,6 +8,7 @@
 ;
 ; Usage: (sr-doc result), (ln-kind node), (dx-category item), etc.
 
+(import (quote std.std))
 (import (quote bench_pg.view))
 
 ; ── view aliases ──

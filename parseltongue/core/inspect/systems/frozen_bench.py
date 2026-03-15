@@ -22,5 +22,5 @@ class FrozenBench(BenchSystem):
         from parseltongue.core.loader.lazy_loader import LazyLoader
 
         self._loader = LazyLoader(lib_paths=lib_paths)
-        self._loader.load_main(bench_pg_path)
+        self._loader.load_main(bench_pg_path, name="FrozenBench")
         self.system: System = self._loader.last_result.system  # type: ignore[union-attr]

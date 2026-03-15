@@ -107,8 +107,8 @@ class ProvenanceTree(FocusedTree):
                 name=raw_name,
                 replace=prov.get("replace", "?"),
                 with_=prov.get("with", "?"),
-                value_a=prov.get("value_a"),
-                value_b=prov.get("value_b"),
+                value_a=prov.get("value_a", "?"),
+                value_b=prov.get("value_b", "?"),
                 divergences=prov.get("divergences", {}),
             )
             color = "yellow" if result.divergences else "green"

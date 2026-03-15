@@ -1264,7 +1264,7 @@ class TestRepr(unittest.TestCase):
     def test_repr(self):
         s = make_system()
         r = repr(s)
-        self.assertIn("System(", r)
+        self.assertIn("System[", r)
         self.assertIn("axioms", r)
         self.assertIn("terms", r)
         self.assertIn("facts", r)

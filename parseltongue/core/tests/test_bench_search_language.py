@@ -143,7 +143,28 @@ class _Base(unittest.TestCase):
         path = self._write("main.pltg", PLTG_SOURCE)
         bench = Bench(bench_dir=self.bench_dir)
         bench.prepare(path)
+        # Stub sample engine data into the live system so bench.eval()
+        # can resolve sample facts/axioms/terms directly.
+        self._stub_sample(bench)
         return bench
+
+    @staticmethod
+    def _stub_sample(bench):
+        path = bench._require_current()
+        live = bench._technician._live.get(path)
+        if not live:
+            return
+        sample_engine = live.result.system.engine
+        live_engine = live.system.engine
+        live_engine.facts.update(sample_engine.facts)
+        live_engine.terms.update(sample_engine.terms)
+        live_engine.axioms.update(sample_engine.axioms)
+        live_engine.theorems.update(sample_engine.theorems)
+        live_engine.diffs.update(sample_engine.diffs)
+        live_engine.documents.update(sample_engine.documents)
+        for sym, val in sample_engine.env.items():
+            if sym not in live_engine.env:
+                live_engine.env[sym] = val
 
 
 # ── 1. Scope — cross-system queries ──
@@ -667,7 +688,8 @@ class TestDelegateSplats(_Base):
         """
         b = self._bench()
         with self.assertRaises(NameError):
-            b.eval('(scope lens (delegate (> ?revenue 100) (sum-all ?...metrics)))')
+            r = b.eval('(scope lens (delegate (> ?revenue 100) (sum-all ?...metrics)))')
+            r
 
     def test_delegate_splat_with_project(self):
         """(scope lens (delegate (project (+ ?revenue ?margin))))

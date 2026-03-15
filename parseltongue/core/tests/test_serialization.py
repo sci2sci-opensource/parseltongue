@@ -5,7 +5,7 @@ import unittest
 from unittest.mock import patch
 
 from .. import Evidence, Symbol, System, load_source
-from ..atoms import to_sexp
+from ..grammar import to_sexp
 
 
 def make_system(**kwargs):

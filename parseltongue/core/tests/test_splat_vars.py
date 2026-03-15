@@ -4,8 +4,9 @@ import unittest
 from unittest.mock import patch
 
 from .. import System
-from ..atoms import Symbol, free_vars, match, substitute
+from ..atoms import Symbol
 from ..engine import load_source
+from ..lang import free_vars, match, substitute
 
 
 def make_system(**kwargs):
@@ -329,8 +330,7 @@ class TestSplatSyntactic(unittest.TestCase):
         s = make_system()
         load_source(
             s.engine,
-            COUNT_TRUE_SOURCE
-            + '''
+            COUNT_TRUE_SOURCE + '''
             (fact a true :origin "t")
             (fact b false :origin "t")
             (fact c true :origin "t")
@@ -343,8 +343,7 @@ class TestSplatSyntactic(unittest.TestCase):
         s = make_system()
         load_source(
             s.engine,
-            COUNT_TRUE_SOURCE
-            + '''
+            COUNT_TRUE_SOURCE + '''
             (fact x true :origin "t")
         ''',
         )
@@ -355,8 +354,7 @@ class TestSplatSyntactic(unittest.TestCase):
         s = make_system()
         load_source(
             s.engine,
-            COUNT_TRUE_SOURCE
-            + '''
+            COUNT_TRUE_SOURCE + '''
             (fact a true :origin "t")
             (fact b true :origin "t")
             (fact c true :origin "t")
@@ -371,8 +369,7 @@ class TestSplatSyntactic(unittest.TestCase):
         s = make_system()
         load_source(
             s.engine,
-            SUM_ALL_SOURCE
-            + '''
+            SUM_ALL_SOURCE + '''
             (fact a 10 :origin "t")
             (fact b 20 :origin "t")
             (fact c 30 :origin "t")
@@ -385,8 +382,7 @@ class TestSplatSyntactic(unittest.TestCase):
         s = make_system()
         load_source(
             s.engine,
-            SUM_ALL_SOURCE
-            + '''
+            SUM_ALL_SOURCE + '''
             (fact a 10 :origin "t")
             (fact b 20 :origin "t")
             (fact c 30 :origin "t")
@@ -401,8 +397,7 @@ class TestSplatSyntactic(unittest.TestCase):
         s = make_system()
         load_source(
             s.engine,
-            COUNT_TRUE_SOURCE
-            + '''
+            COUNT_TRUE_SOURCE + '''
             (fact p true :origin "t")
             (fact q false :origin "t")
             (fact r true :origin "t")
@@ -416,8 +411,7 @@ class TestSplatSyntactic(unittest.TestCase):
         s = make_system()
         load_source(
             s.engine,
-            SUM_ALL_SOURCE
-            + '''
+            SUM_ALL_SOURCE + '''
             (fact x 42 :origin "t")
         ''',
         )
@@ -429,8 +423,7 @@ class TestSplatSyntactic(unittest.TestCase):
         s = make_system()
         load_source(
             s.engine,
-            COUNT_TRUE_SOURCE
-            + '''
+            COUNT_TRUE_SOURCE + '''
             (fact doc-a true :origin "t")
             (fact impl-a true :origin "t")
             (fact doc-b true :origin "t")
@@ -447,8 +440,7 @@ class TestSplatSyntactic(unittest.TestCase):
         s = make_system()
         load_source(
             s.engine,
-            COUNT_TRUE_SOURCE
-            + '''
+            COUNT_TRUE_SOURCE + '''
             (fact doc-a true :origin "t")
             (fact impl-a true :origin "t")
             (fact doc-b true :origin "t")

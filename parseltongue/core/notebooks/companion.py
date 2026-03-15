@@ -29,9 +29,9 @@ Usage
 
 ::
 
-    from parseltongue.core.companion import CompanionTracker
+    from parseltongue.core.notebooks.companion import CompanionTracker, companion_path_for
 
-    tracker = CompanionTracker(pgmd_path)
+    tracker = CompanionTracker(pgmd_path, companion_path_for(pgmd_path))
 
     # Check current state
     for bn, bi in tracker.integrity.blocks.items():
@@ -68,6 +68,12 @@ from .companion_integrity import (
 log = logging.getLogger("parseltongue")
 
 
+def companion_path_for(pgmd_path: Path) -> Path:
+    """Return the companion file path for a given pgmd file."""
+    resolved = pgmd_path.resolve()
+    return resolved.parent / f".{resolved.name}.pltg"
+
+
 class CompanionTracker:
     """Manages a companion file for one pgmd source.
 
@@ -84,12 +90,10 @@ class CompanionTracker:
     def __init__(
         self,
         pgmd_path: Path,
-        companion_name: str = ".{name}.pltg",
+        companion_path: Path,
     ) -> None:
         self._pgmd_path = pgmd_path.resolve()
-        self._companion_path = self._pgmd_path.parent / companion_name.format(
-            name=self._pgmd_path.name, stem=self._pgmd_path.stem
-        )
+        self._companion_path = companion_path.resolve()
         self._source: str = self._pgmd_path.read_text()
         self._companion_text: str = self._companion_path.read_text() if self._companion_path.exists() else ""
         self._executed: set[int] = set()
@@ -230,7 +234,7 @@ class CompanionTracker:
 
     def _reload_quietly(self) -> None:
         """Load the companion through LazyLoader silently (no UI output)."""
-        from .loader import LazyLoader
+        from ..loader import LazyLoader
 
         if not self._companion_text.strip():
             return

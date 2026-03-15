@@ -134,13 +134,19 @@ class TestScopedMapReduce(unittest.TestCase):
 
     def _exec_pltg(self, pltg_text):
         """Execute pltg directives in the bench eval system."""
-        from parseltongue.core.atoms import parse_all
         from parseltongue.core.engine import _execute_directive
+        from parseltongue.core.lang import PGStringParser
 
         path = str(Path(self._pltg_path).resolve())
         _, system = self.bench._ensure_eval_system(path)
-        for expr in parse_all(pltg_text):
-            if isinstance(expr, list) and expr:
+        result = PGStringParser.translate(pltg_text)
+        exprs = (
+            result
+            if isinstance(result, (list, tuple)) and result and isinstance(result[0], (list, tuple))
+            else [result] if result else []
+        )
+        for expr in exprs:
+            if isinstance(expr, (list, tuple)) and expr:
                 _execute_directive(system.engine, expr)
 
     # ── 1. Parametric reducer axiom ──
@@ -149,13 +155,11 @@ class TestScopedMapReduce(unittest.TestCase):
         """Define (reduce-sum ?a ?b) → (+ ?a ?b) axiom, use it to sum
         search results projected from two different document queries.
         """
-        self._exec_pltg(
-            """
+        self._exec_pltg("""
 (defterm reduce-sum :origin "binary sum reducer")
 (axiom reduce-sum-rule (= (reduce-sum ?a ?b) (+ ?a ?b))
     :origin "sum two values")
-"""
-        )
+""")
         # Pick two docs with raises
         kw = "raise ValueError"
         docs_with = [d for d, p in self.corpus.doc_params.items() if p["keywords"].get(kw, 0) > 0]
@@ -180,13 +184,11 @@ class TestScopedMapReduce(unittest.TestCase):
         """Define (check-def-count ?doc ?expected) that projects a search
         count and compares to ?expected. Verifies search ↔ lens agreement.
         """
-        self._exec_pltg(
-            """
+        self._exec_pltg("""
 (defterm check-match :origin "compare two values")
 (axiom check-match-rule (= (check-match ?a ?a) true)
     :origin "equality via unification")
-"""
-        )
+""")
         # Pick a random doc
         rng = random.Random(self.SEED + 20)
         doc = rng.choice(list(self.corpus.doc_params.keys()))
@@ -230,13 +232,11 @@ class TestScopedMapReduce(unittest.TestCase):
 
         # Cross-validate: project search count into a check-match
         # with the literal expected value
-        self._exec_pltg(
-            """
+        self._exec_pltg("""
 (defterm lens-search-agree :origin "cross-scope check")
 (axiom lens-search-agree-rule (= (lens-search-agree ?v ?v) true)
     :origin "values agree if identical")
-"""
-        )
+""")
         result = self.bench.eval(
             f'(lens-search-agree (strict (scope search (count (in "{doc}" (re "^def ")))))'
             f'                   {expected})'
@@ -249,15 +249,13 @@ class TestScopedMapReduce(unittest.TestCase):
         """Define variadic (fold-sum ?x ?...rest) → (+ ?x (fold-sum ?...rest))
         with base case. Use it to sum N search counts in one expression.
         """
-        self._exec_pltg(
-            """
+        self._exec_pltg("""
 (defterm fold-sum :origin "variadic sum via splat")
 (axiom fold-sum-base (= (fold-sum ?x) ?x)
     :origin "base case: single value")
 (axiom fold-sum-step (= (fold-sum ?x ?...rest) (+ ?x (fold-sum ?...rest)))
     :origin "peel first, recurse on rest")
-"""
-        )
+""")
         kw = "raise ValueError"
         docs_with = [d for d, p in self.corpus.doc_params.items() if p["keywords"].get(kw, 0) > 0]
         if len(docs_with) < 3:
@@ -300,14 +298,12 @@ class TestScopedMapReduce(unittest.TestCase):
         Uses rewrite: (quality-gate ?r ?d ?t) → (< (* ?r 100) (* ?d ?t))
         Then feed it projected search counts.
         """
-        self._exec_pltg(
-            """
+        self._exec_pltg("""
 (defterm quality-gate :origin "raise/def ratio gate")
 (axiom quality-gate-rule
     (= (quality-gate ?raises ?defs ?threshold) (< (* ?raises 100) (* ?defs ?threshold)))
     :origin "check ratio < threshold pct")
-"""
-        )
+""")
         # Pick a doc
         rng = random.Random(self.SEED + 30)
         doc = rng.choice(list(self.corpus.doc_params.keys()))
@@ -348,13 +344,11 @@ class TestScopedMapReduce(unittest.TestCase):
         """Define (normalize ?count ?total) → (/ (* ?count 100) ?total)
         to compute percentage. Feed with search counts.
         """
-        self._exec_pltg(
-            """
+        self._exec_pltg("""
 (defterm normalize :origin "compute percentage")
 (axiom normalize-rule (= (normalize ?count ?total) (/ (* ?count 100) ?total))
     :origin "pct = count * 100 / total")
-"""
-        )
+""")
         doc = list(self.corpus.doc_params.keys())[0]
         defs = self.corpus.doc_params[doc]["defs"]
 

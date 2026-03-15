@@ -13,12 +13,12 @@ from __future__ import annotations
 import logging
 import threading
 from pathlib import Path
-from typing import Callable
+from typing import TYPE_CHECKING, Callable
 
-from ..atoms import Symbol, parse_all
-from ..engine import _execute_directive
+if TYPE_CHECKING:
+    from .systems.operations import OperationsSystem
+
 from ..integrity.merkle import MerkleNode
-from ..lang import DSL_KEYWORDS, SPECIAL_FORMS
 from ..loader.lazy_loader import LazyLoader, LazyLoadResult
 from .probe_core_to_consequence import CoreToConsequenceStructure, probe, probe_all
 from .store import Store, _collect_tree_leaves
@@ -70,6 +70,7 @@ class Technician:
         self._evaluation_mem: dict = {}  # path → Evaluation
         self._affected: dict[str, set[str]] = {}
         self._search_mem: dict = {}  # path → Search
+        self._ops: "OperationsSystem | None" = None  # shared, stateless
 
     @property
     def file_lists(self) -> dict[str, list[str]]:
@@ -85,12 +86,22 @@ class Technician:
 
     # ── Frozen / Live systems ──
 
+    def _ensure_ops(self):
+        """Create OperationsSystem lazily — shared across all scopes."""
+        if self._ops is None:
+            from .systems.operations import OperationsSystem
+
+            self._ops = OperationsSystem(lib_paths=self._lib_paths)
+        return self._ops
+
     def _ensure_frozen(self):
         """Create FrozenBench lazily on first prepare."""
         if self._frozen is None and self._bench_pg:
             from .systems.frozen_bench import FrozenBench
 
             self._frozen = FrozenBench(self._bench_pg, self._lib_paths)  # type: ignore[assignment]
+            if self._frozen is not None:
+                self._frozen.register_scope("ops", self._ensure_ops())
         return self._frozen
 
     # ── Search engine ──
@@ -117,12 +128,20 @@ class Technician:
 
         # Lens scope — always available from structure
         lens = Lens(structure, [MDebuggerPerspective(loader)])
-        search.register_scope("lens", lens.search_system._system)
+        search.register_scope("lens", lens.search_system)
 
         # Evaluation scope — from cache if available
         dx = self._load_evaluate(path, sample)
         if dx is not None:
-            search.register_scope("evaluation", dx.search_system._system)
+            search.register_scope("evaluation", dx.search_system)
+
+        # Operations scope — generic composition over tagged forms
+        ops = self._ensure_ops()
+        ops.register_scope("lens", lens.search_system)
+        if dx is not None:
+            ops.register_scope("evaluation", dx.search_system)
+        ops.register_scope("search", search._system)
+        search.register_scope("ops", ops)
 
         # Populate search docs if live
         result = sample[3].last_result
@@ -130,6 +149,7 @@ class Technician:
             from .systems.live_bench import LiveBench
 
             self._live[path] = LiveBench(result, self._bench_pg, self._lib_paths)  # type: ignore[arg-type]
+            self._live[path].register_scope("ops", ops)
             for doc_name, doc_text in result.system.engine.documents.items():
                 if doc_name not in search._index.documents:
                     search._index.add(doc_name, doc_text)
@@ -323,7 +343,7 @@ class Technician:
     def _cold_load(self, path: str) -> Sample:
         """Full reload from scratch."""
         loader = LazyLoader(lib_paths=self._lib_paths)
-        loader.load_main(path)
+        loader.load_main(path, name="Technician.cold")
         load_result = loader.last_result
         assert load_result is not None
         file_list = self.collect_source_files(loader)
@@ -344,12 +364,8 @@ class Technician:
     ) -> tuple[CoreToConsequenceStructure, LazyLoader, set[str]] | None:
         """Hot-patch a cached system from changed files.
 
-        1. Deserialize cached system
-        2. Find names from changed files (via node_index)
-        3. Retract old names from engine
-        4. Re-parse changed .pltg files and execute on engine
-        5. Re-probe affected names
-        6. Return (structure, loader, affected_names)
+        Delegates all parsing/patching/execution to the loader — the
+        technician only orchestrates deserialization and re-probing.
         """
         try:
             structure, loader = self._store.deserialize(disk_raw)
@@ -357,71 +373,14 @@ class Technician:
             log.warning("Failed to deserialize cache for hot-patch")
             return None
 
-        engine = loader.last_result.system.engine  # type: ignore[union-attr]
         node_index = disk_raw.get("node_index", {})
-
-        # Find names defined in changed files
-        changed_names: set[str] = set()
-        for name, info in node_index.items():
-            sf = info.get("source_file", "")
-            if sf in changed_files:
-                changed_names.add(name)
+        changed_names = loader.hot_patch(changed_files, node_index)
 
         if not changed_names:
             return None
 
+        engine = loader.last_result.system.engine  # type: ignore[union-attr]
         log.info("Hot-patch: %d names from %d changed files", len(changed_names), len(changed_files))
-
-        # Retract old definitions
-        for name in changed_names:
-            try:
-                engine.retract(name)
-            except KeyError:
-                pass
-
-        # Re-parse changed .pltg files and execute on engine
-        for f in changed_files:
-            if not f.endswith(".pltg"):
-                # Document file changed — reload it
-                try:
-                    content = Path(f).read_text()
-                    for doc_name in list(engine.documents):
-                        if f.endswith(doc_name) or Path(f).stem == doc_name:
-                            engine.register_document(doc_name, content)
-                            break
-                except OSError:
-                    pass
-                continue
-
-            try:
-                content = Path(f).read_text()
-            except OSError:
-                continue
-
-            # Figure out the module prefix for this file
-            prefix = ""
-            for name, info in node_index.items():
-                if info.get("source_file") == f and "." in name:
-                    prefix = name.rsplit(".", 1)[0] + "."
-                    break
-
-            try:
-                exprs = parse_all(content)
-            except Exception:
-                log.warning("Failed to parse %s for hot-patch", f)
-                continue
-
-            for expr in exprs:
-                if not isinstance(expr, list) or not expr:
-                    continue
-                head = str(expr[0]) if expr else ""
-                if head in DSL_KEYWORDS or head in SPECIAL_FORMS:
-                    if prefix and len(expr) >= 2:
-                        expr[1] = Symbol(prefix + str(expr[1]))
-                    try:
-                        _execute_directive(engine, expr)
-                    except Exception as e:
-                        log.warning("Hot-patch directive failed: %s", e)
 
         # Trace affected names through probe graph
         dependents: dict[str, set[str]] = {}
@@ -481,7 +440,7 @@ class Technician:
         def _reload():
             try:
                 loader = LazyLoader(lib_paths=technician._lib_paths)
-                loader.load_main(path)
+                loader.load_main(path, name="Technician.bg_reload")
                 file_list = technician.collect_source_files(loader)
                 new_hashes = store.hash_files(file_list)
                 new_tree = store.build_file_tree(file_list, new_hashes)

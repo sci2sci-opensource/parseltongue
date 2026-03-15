@@ -1,6 +1,6 @@
-# CLI and LLM packages — not indexed yet
-parseltongue/cli/
-parseltongue/llm/
+# CLI and LLM packages — now indexed
+# parseltongue/cli/
+# parseltongue/llm/
 
 # Virtual env & dependencies
 venv/
@@ -21,6 +21,9 @@ __pycache__/
 # Temp / scratch
 temp/
 documentation/
+
+# Claude worktrees
+.claude/
 
 # OS junk
 .DS_Store

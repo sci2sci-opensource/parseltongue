@@ -4,8 +4,9 @@ import unittest
 from unittest.mock import patch
 
 from .. import System
-from ..atoms import Symbol, free_vars, match, substitute
+from ..atoms import Symbol
 from ..engine import load_source
+from ..lang import free_vars, match, substitute
 
 
 def make_system(**kwargs):

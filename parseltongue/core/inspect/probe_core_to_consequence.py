@@ -2,10 +2,19 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, TypedDict
 
 from parseltongue.core.atoms import Axiom, Term, Theorem
 from parseltongue.core.engine import Engine, Fact
+from parseltongue.core.lang import Sentence
+
+
+class _GraphEntry(TypedDict, total=False):
+    kind: NodeKind
+    value: Sentence
+    inputs: list[str]
+    atom: Fact | Axiom | Theorem | Term | None
+
 
 if TYPE_CHECKING:
     from parseltongue.core.loader.lazy_loader import LazyLoadResult
@@ -219,7 +228,7 @@ def probe(term: str | list[str], engine: Engine) -> CoreToConsequenceStructure:
         return set()
 
     # --- Build dependency graph from engine ---
-    graph = {}
+    graph: dict[str, _GraphEntry] = {}
 
     def walk(name, visited=None):
         if visited is None:

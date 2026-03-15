@@ -145,7 +145,7 @@ def _analyze_source(
     Returns a SourceAnalysis with error and unreachable dicts.
     """
     from parseltongue.core.ast import parse_directive, resolve_graph
-    from parseltongue.core.atoms import read_tokens, tokenize
+    from parseltongue.core.grammar import read_tokens, tokenize
 
     empty = SourceAnalysis(
         errors={},

@@ -1,11 +1,62 @@
 from typing import Callable
 
-from parseltongue import System
+from parseltongue.core.atoms import Symbol
+from parseltongue.core.lang import Rewriter
 from parseltongue.core.quote_verifier import DocumentIndex
+
+from .bench_system import BenchSubsystem, Posting
 
 # ── sr: pltg-native search result form ──
 # (sr doc line column context ((caller_name overlap) ...))
 # Defined as rewrite axioms in SearchSystem.__init__.
+
+
+class SearchPostingMorphism:
+    """PostingMorphism for SearchSystem — dispatches by head symbol.
+
+    Maintains a tag → morphism table from registered scope subsystems.
+    transform: posting → sr forms (search-native).
+    inverse:   walks a list of tagged forms, dispatches each item's
+               head symbol to the correct scope morphism, merges postings.
+    """
+
+    def __init__(self):
+        self._dispatch: dict[Symbol, "BenchSubsystem"] = {}
+
+    def register(self, subsystem: BenchSubsystem):
+        self._dispatch[subsystem.tag] = subsystem
+
+    def unregister(self, tag: Symbol):
+        self._dispatch.pop(tag, None)
+
+    def transform(self, posting: Posting) -> list:
+        return _posting_to_sr(posting)
+
+    def inverse(self, forms: list) -> Posting:
+        posting: Posting = {}
+        # Group items by head tag, dispatch to correct morphism
+        by_tag: dict[Symbol, list] = {}
+        for item in forms:
+            if isinstance(item, (list, tuple)) and len(item) >= 2 and isinstance(item[0], Symbol):
+                by_tag.setdefault(item[0], []).append(item)
+            # Non-tagged items ignored
+        # sr forms handled directly (bare or canonical)
+        sr_tag = Symbol("sr")
+        for tag in list(by_tag):
+            if BenchSubsystem.matches_tag(tag, sr_tag):
+                posting.update(_sr_to_posting(by_tag[tag]))
+        # Scope forms dispatched to registered morphisms
+        for tag, items in by_tag.items():
+            if BenchSubsystem.matches_tag(tag, sr_tag):
+                continue
+            subsystem = self._dispatch.get(tag)
+            # Canonical names (e.g. specialized_ops.lens.ln) — resolve by base name
+            if subsystem is None:
+                base = Symbol(str(tag).rsplit(".", 1)[-1])
+                subsystem = self._dispatch.get(base)
+            if subsystem is not None:
+                posting.update(subsystem.posting_morphism.inverse(items))
+        return posting
 
 
 def _posting_to_sr(posting: dict) -> list:
@@ -29,7 +80,7 @@ def _sr_to_posting(sr_list: list) -> dict:
     for item in sr_list:
         if not isinstance(item, list) or len(item) < 5:
             continue
-        if not (isinstance(item[0], Symbol) and item[0] == sr_tag):
+        if not (isinstance(item[0], Symbol) and BenchSubsystem.matches_tag(item[0], sr_tag)):
             continue
         doc = item[1]
         line = item[2]
@@ -53,18 +104,23 @@ def _sr_to_posting(sr_list: list) -> dict:
 class SearchSystem:
     """Parseltongue System wired with posting-set operators for search queries.
 
+    Implements BenchSubsystem: tag=sr, posting_morphism dispatches by
+    head symbol to registered scope morphisms for mixed-form results.
+
     Operators work on posting sets (dicts keyed by (doc, line)) internally.
     ``results`` converts to pltg-native sr forms. ``evaluate`` returns
     raw pltg values — no wrapping, no formatting.
     """
 
+    tag = Symbol("sr")
+
     def __init__(self, index: DocumentIndex, collect: Callable):
-        from parseltongue.core.atoms import Symbol
         from parseltongue.core.system import System as PltgSystem
 
         self._index = index
         self._collect = collect
-        self._scopes: dict[str, PltgSystem] = {}
+        self._scopes: dict[str, BenchSubsystem | Rewriter] = {}
+        self.posting_morphism = SearchPostingMorphism()
 
         sys = self  # capture
 
@@ -99,8 +155,23 @@ class SearchSystem:
                 return result
             return {}
 
+        def _delegate_ops(op, resolved):
+            """Delegate to ops scope when args are tagged form lists."""
+            ops = sys._scopes.get("ops")
+            if ops is None:
+                raise TypeError(f"Cannot {op} tagged forms — no ops scope registered")
+            return ops.evaluate([Symbol(op + "-forms")] + resolved)
+
+        def _has_forms(resolved):
+            for r in resolved:
+                if isinstance(r, list) and r and isinstance(r[0], (list, tuple)):
+                    return True
+            return False
+
         def _and(*args):
             sets = [_as_posting(a) for a in args]
+            if _has_forms(sets):
+                return _delegate_ops("and", sets)
             result = sets[0]
             for s in sets[1:]:
                 result = {k: v for k, v in result.items() if k in s}
@@ -108,16 +179,20 @@ class SearchSystem:
 
         def _or(*args):
             sets = [_as_posting(a) for a in args]
+            if _has_forms(sets):
+                return _delegate_ops("or", sets)
             result = dict(sets[0])
             for s in sets[1:]:
                 result.update(s)
             return result
 
         def _not(*args):
-            base = _as_posting(args[0])
-            for a in args[1:]:
-                exclude = _as_posting(a)
-                base = {k: v for k, v in base.items() if k not in exclude}
+            resolved = [_as_posting(a) for a in args]
+            if _has_forms(resolved):
+                return _delegate_ops("not", resolved)
+            base = resolved[0]
+            for a in resolved[1:]:
+                base = {k: v for k, v in base.items() if k not in a}
             return base
 
         def _in(doc_pattern, query):
@@ -222,7 +297,7 @@ class SearchSystem:
             scope_system = sys._scopes[name]
             result = None
             for arg in args:
-                if isinstance(arg, list):
+                if isinstance(arg, (list, tuple)):
                     result = scope_system.evaluate(arg)
                 else:
                     result = arg
@@ -290,7 +365,7 @@ class SearchSystem:
             Symbol("limit"): _limit,
         }
 
-        self._pltg_system = PltgSystem(initial_env=ops, docs={}, strict_derive=False)
+        self._pltg_system = PltgSystem(initial_env=ops, docs={}, strict_derive=False, name="SearchIndex")
         self._resolve = _resolve
 
         # Wrap evaluate: internal operators use posting sets,
@@ -308,36 +383,33 @@ class SearchSystem:
         # Register self as a scope for recursive composition
         self._scopes["self"] = self._pltg_system
 
-    def evaluate(self, query_str: str):
-        """Parse and evaluate an S-expression query. Returns raw pltg result.
+    def evaluate(self, expr, local_env=None):
+        """Evaluate a query — string or s-expression.
 
         No wrapping, no formatting. Returns whatever the system produces:
         sr list, integer, string, etc.
         """
-        from parseltongue.core.atoms import read_tokens, tokenize
-
-        tokens = tokenize(query_str)
-        expr = read_tokens(tokens)
-
-        # Plain string → posting set → sr forms
         if isinstance(expr, str):
-            return _posting_to_sr(self._to_posting(expr))
-        # Parenthesized string literal like ("test") → plain search
-        if isinstance(expr, list) and len(expr) == 1 and isinstance(expr[0], str):
-            return _posting_to_sr(self._to_posting(expr[0]))
+            from parseltongue.core.lang import PGStringParser
+
+            parsed = PGStringParser.translate(expr)
+            if isinstance(parsed, str):
+                return _posting_to_sr(self._to_posting(parsed))
+            if isinstance(parsed, (list, tuple)) and len(parsed) == 1 and isinstance(parsed[0], str):
+                return _posting_to_sr(self._to_posting(parsed[0]))
+            return self._pltg_system.evaluate(parsed)
 
         return self._pltg_system.evaluate(expr)
 
-    def register_scope(self, name: str, system: System):
-        """Register a scope as a callable operator in the env."""
-        from parseltongue.core.atoms import Symbol
-
+    def register_scope(self, name: str, system: BenchSubsystem):
+        """Register a BenchSubsystem as a callable scope operator."""
         self._scopes[name] = system
+        self.posting_morphism.register(system)
 
         def _scope_fn(_name, *args):
             result = None
             for arg in args:
-                if isinstance(arg, list):
+                if isinstance(arg, (list, tuple)):
                     result = system.evaluate(arg)
                 else:
                     result = arg
@@ -347,9 +419,9 @@ class SearchSystem:
 
     def unregister_scope(self, name: str):
         """Unregister a scope."""
-        from parseltongue.core.atoms import Symbol
-
-        self._scopes.pop(name, None)
+        scope = self._scopes.pop(name, None)
+        if scope is not None and hasattr(scope, "tag"):
+            self.posting_morphism.unregister(scope.tag)
         self._pltg_system.engine.env.pop(Symbol(name), None)
 
     def _to_posting(self, text: str) -> dict[tuple[str, int], dict]:

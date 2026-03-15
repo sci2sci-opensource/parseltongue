@@ -70,7 +70,7 @@ class TestPerformance(unittest.TestCase):
         scenarios = [
             ("small  (~0.2 KB)", SMALL_DOC, 10),
             ("medium (~20 KB)", MEDIUM_DOC, 2),
-            ("large  (~200 KB)", LARGE_DOC, 0),
+            ("large  (~200 KB)", LARGE_DOC, 2),
             # ("huge   (~400 KB)",   HUGE_DOC,     2),
             # this one takes looong time
         ]
@@ -88,6 +88,8 @@ class TestPerformance(unittest.TestCase):
             for q_label, quotes in quote_sets:
                 old_t, new_t, speedup = self._run_comparison(doc, quotes, n_rounds, size_label)
                 print(f"{size_label:<28} {q_label:<10} {old_t:<10.4f} {new_t:<10.4f} {speedup:<10.1f}x")
+
+        self.assertGreater(speedup, 1000)
 
         print("=" * 72)
 

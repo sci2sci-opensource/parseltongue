@@ -9,6 +9,7 @@ A DSL for systems that refuse to speak falsehood.
 [![CI](https://github.com/sci2sci-opensource/parseltongue/actions/workflows/ci.yml/badge.svg)](https://github.com/sci2sci-opensource/parseltongue/actions/workflows/ci.yml)
 [![Consistency](https://github.com/sci2sci-opensource/parseltongue/actions/workflows/consistency.yml/badge.svg)](https://github.com/sci2sci-opensource/parseltongue/actions/workflows/consistency.yml)
 [![Security](https://github.com/sci2sci-opensource/parseltongue/actions/workflows/security.yml/badge.svg)](https://github.com/sci2sci-opensource/parseltongue/actions/workflows/security.yml)
+[![Code Stats](https://github.com/sci2sci-opensource/parseltongue/actions/workflows/codestats.yml/badge.svg)](https://github.com/sci2sci-opensource/parseltongue/actions/workflows/codestats.yml)
 [![PyPI](https://img.shields.io/pypi/v/parseltongue-dsl)](https://pypi.org/project/parseltongue-dsl/)
 [![Python](https://img.shields.io/pypi/pyversions/parseltongue-dsl)](https://pypi.org/project/parseltongue-dsl/)
 [![License](https://img.shields.io/github/license/sci2sci-opensource/parseltongue)](https://github.com/sci2sci-opensource/parseltongue/blob/main/LICENSE)
