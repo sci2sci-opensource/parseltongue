@@ -93,7 +93,46 @@ def _recv(sock: socket.socket) -> dict:
         header += chunk
     (length,) = struct.unpack("!I", header)
     if length > MAX_MSG:
-        raise ValueError(f"Message too large: {length}")
+        import time as _time
+
+        from .store import BENCH_DIR
+
+        dump_dir = Path(BENCH_DIR) / "dumps"
+        dump_dir.mkdir(parents=True, exist_ok=True)
+        ts = _time.strftime("%Y%m%d_%H%M%S")
+        dump_path = dump_dir / f"oversized_{ts}_{length}.txt"
+
+        # Read full payload, then pretty-print to file
+        buf = b""
+        try:
+            while len(buf) < length:
+                chunk = sock.recv(min(length - len(buf), 65536))
+                if not chunk:
+                    break
+                buf += chunk
+        except Exception:
+            pass
+        try:
+            obj = json.loads(buf)
+            # If it's a response envelope, extract the payload for readability
+            if isinstance(obj, dict) and "result" in obj:
+                payload = obj["result"]
+                if isinstance(payload, str):
+                    text = payload
+                else:
+                    text = json.dumps(payload, indent=2, ensure_ascii=False)
+            else:
+                text = json.dumps(obj, indent=2, ensure_ascii=False)
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            text = buf.decode("utf-8", errors="replace")
+        # Normalize: strip trailing whitespace per line, collapse 3+ blank lines to 2
+        import re
+
+        lines = [line.rstrip() for line in text.splitlines()]
+        text = re.sub(r"\n{3,}", "\n\n", "\n".join(lines))
+        dump_path.write_text(text + "\n")
+        log.error("Oversized message (%d bytes) dumped to %s", length, dump_path)
+        raise ValueError(f"Message too large: {length} bytes — written to {dump_path}")
     buf = b""
     while len(buf) < length:
         chunk = sock.recv(min(length - len(buf), 65536))

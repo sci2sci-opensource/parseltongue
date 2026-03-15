@@ -24,3 +24,5 @@ documentation/
 
 # OS junk
 .DS_Store
+
+.claude

@@ -1,11 +1,28 @@
-from typing import Callable
+"""SearchSystem v2 — backed by DocumentSearchIndex.
+
+Same S-expression interface as SearchSystem, but uses the search package
+(line-level indices, stemmer, n-grams, strategy cascade) instead of
+DocumentIndex.trace() for the core lookup path.
+
+Key differences from v1:
+- _to_posting uses search_index.search() (strategy + enrich) instead of _collect
+- _re uses pre-split SearchDocument.lines instead of splitlines() per call
+- _context_lines uses SearchDocument.lines
+- New (strategy ...) operator for explicit strategy selection
+"""
+
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
 
 from parseltongue import System
-from parseltongue.core.quote_verifier import DocumentIndex
+
+if TYPE_CHECKING:
+    from parseltongue.core.inspect.search.index import DocumentSearchIndex
+
 
 # ── sr: pltg-native search result form ──
 # (sr doc line column context ((caller_name overlap) ...))
-# Defined as rewrite axioms in SearchSystem.__init__.
 
 
 def _posting_to_sr(posting: dict) -> list:
@@ -50,20 +67,22 @@ def _sr_to_posting(sr_list: list) -> dict:
     return posting
 
 
-class SearchSystem:
+class SearchSystem2:
     """Parseltongue System wired with posting-set operators for search queries.
+
+    Backed by DocumentSearchIndex — line-level indices with stemming,
+    n-grams, and strategy cascade. Quote provenance via enrich().
 
     Operators work on posting sets (dicts keyed by (doc, line)) internally.
     ``results`` converts to pltg-native sr forms. ``evaluate`` returns
     raw pltg values — no wrapping, no formatting.
     """
 
-    def __init__(self, index: DocumentIndex, collect: Callable):
+    def __init__(self, search_index: "DocumentSearchIndex"):
         from parseltongue.core.atoms import Symbol
         from parseltongue.core.system import System as PltgSystem
 
-        self._index = index
-        self._collect = collect
+        self._search_index = search_index
         self._scopes: dict[str, PltgSystem] = {}
 
         sys = self  # capture
@@ -79,24 +98,7 @@ class SearchSystem:
             if isinstance(val, dict):
                 return val
             if isinstance(val, list):
-                result = {}
-                for item in val:
-                    if isinstance(item, (list, tuple)) and len(item) >= 2:
-                        doc = str(item[1]) if len(item) > 1 else ""
-                        line = int(item[2]) if len(item) > 2 else 0
-                        col = int(item[3]) if len(item) > 3 else 1
-                        ctx = str(item[4]) if len(item) > 4 else ""
-                        callers = item[5] if len(item) > 5 else []
-                        total = int(item[6]) if len(item) > 6 else 0
-                        result[(doc, line)] = {
-                            "document": doc,
-                            "line": line,
-                            "column": col,
-                            "context": ctx,
-                            "callers": callers,
-                            "total_callers": total,
-                        }
-                return result
+                return _sr_to_posting(val)
             return {}
 
         def _and(*args):
@@ -130,9 +132,7 @@ class SearchSystem:
 
         def _count(*args):
             v = _resolve(args[0])
-            if isinstance(v, list):
-                return len(v)
-            if isinstance(v, dict):
+            if isinstance(v, (list, dict)):
                 return len(v)
             return 0
 
@@ -163,8 +163,8 @@ class SearchSystem:
 
             rx = _re_mod.compile(pattern)
             result = {}
-            for doc_name, doc in sys._index.documents.items():
-                for i, line_text in enumerate(doc.original_text.splitlines(), 1):
+            for doc_name, sdoc in sys._search_index.documents.items():
+                for i, line_text in enumerate(sdoc.lines, 1):
                     if rx.search(line_text):
                         key = (doc_name, i)
                         result[key] = {
@@ -188,12 +188,11 @@ class SearchSystem:
             n = int(n)
             expanded = dict(posting)
             for (doc, line), _ in posting.items():
-                doc_obj = sys._index.documents.get(doc)
-                if not doc_obj:
+                sdoc = sys._search_index.documents.get(doc)
+                if not sdoc:
                     continue
-                all_lines = doc_obj.original_text.splitlines()
                 start = max(0, line - 1 - (n if before else 0))
-                end = min(len(all_lines), line + (n if after else 0))
+                end = min(len(sdoc.lines), line + (n if after else 0))
                 for i in range(start, end):
                     key = (doc, i + 1)
                     if key not in expanded:
@@ -201,7 +200,7 @@ class SearchSystem:
                             "document": doc,
                             "line": i + 1,
                             "column": 1,
-                            "context": all_lines[i],
+                            "context": sdoc.lines[i],
                             "callers": [],
                             "total_callers": 0,
                         }
@@ -227,6 +226,11 @@ class SearchSystem:
                 else:
                     result = arg
             return result
+
+        def _strategy(name, query):
+            """Explicit strategy selection: (strategy "stemmed" "query")."""
+            posting = sys._search_index.search(str(query), strategy=str(name))
+            return posting
 
         def _rank(strategy, query):
             posting = _as_posting(query)
@@ -264,7 +268,7 @@ class SearchSystem:
             """Take first N entries from a posting set or sr list."""
             val = _resolve(query)
             n = int(n)
-            if isinstance(val, list | tuple):
+            if isinstance(val, (list, tuple)):
                 return val[:n]
             if isinstance(val, dict):
                 keys = list(val.keys())[:n]
@@ -285,6 +289,7 @@ class SearchSystem:
             Symbol("after"): _after,
             Symbol("context"): _context,
             Symbol("scope"): _scope,
+            Symbol("strategy"): _strategy,
             Symbol("rank"): _rank,
             Symbol("results"): _results,
             Symbol("limit"): _limit,
@@ -319,7 +324,7 @@ class SearchSystem:
         tokens = tokenize(query_str)
         expr = read_tokens(tokens)
 
-        # Plain string → posting set → sr forms
+        # Plain string → search (cascade + enrich) → sr forms
         if isinstance(expr, str):
             return _posting_to_sr(self._to_posting(expr))
         # Parenthesized string literal like ("test") → plain search
@@ -353,5 +358,5 @@ class SearchSystem:
         self._pltg_system.engine.env.pop(Symbol(name), None)
 
     def _to_posting(self, text: str) -> dict[tuple[str, int], dict]:
-        lines, _ = self._collect(text, 100_000, 50)
-        return {(ln["document"], ln["line"]): ln for ln in lines}
+        """Default lookup: cascade strategy + quote enrichment."""
+        return self._search_index.search(text)
