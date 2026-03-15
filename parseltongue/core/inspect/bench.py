@@ -221,6 +221,15 @@ class Bench:
         expr = eval_loader.prepare_script(expr, eval_system)
         return eval_system.engine.evaluate(expr)
 
+    def interpret(self, query: str):
+        """Interpret a directive or evaluate an expression in the eval system."""
+        path = self._require_current()
+        if path not in self._mem:
+            self.prepare(path)
+        _, eval_system = self._ensure_eval_system(path)
+        _, result = eval_system.interpret(query)
+        return result
+
     def _ensure_eval_system(self, path: str):
         """Build or return cached eval system: live bench + scopes."""
         if not hasattr(self, "_eval_sys_mem"):

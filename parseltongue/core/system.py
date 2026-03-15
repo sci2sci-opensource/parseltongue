@@ -10,6 +10,7 @@ from .default_system_settings import DEFAULT_OPERATORS, ENGINE_DOCS
 from .engine import Engine, Fact
 from .engine import load_source as _engine_load_source
 from .lang import (
+    DSL_KEYWORDS,
     LANG_DOCS,
     Axiom,
     Interpreter,
@@ -92,7 +93,10 @@ class AbstractSystem(Rewriter, Interpreter):
             exprs = [result] if result else []
         if not exprs:
             return (self, SILENCE)
-        return (self, self.engine.evaluate(exprs[-1]))
+        last = exprs[-1]
+        if isinstance(last, (list, tuple)) and last and last[0] in DSL_KEYWORDS:
+            return (self, SILENCE)
+        return (self, self.engine.evaluate(last))
 
     def set_fact(self, name, value, origin):
         self.engine.set_fact(name, value, origin)

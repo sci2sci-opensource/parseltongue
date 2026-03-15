@@ -1,0 +1,37 @@
+; general_ops.pltg — generic list operations for sentence composition
+;
+; Pure list ops over sentence lists, no tag awareness.
+; Uses std: concat, length.
+;
+;   (or-forms a b)       => concat (union, preserving order) — via :bind
+;   (count-forms xs)     => length
+;   (limit-forms n xs)   => first n elements
+
+(import (quote std.std))
+
+; ── or-forms: parametric template + callable via :bind ──
+(defterm or-forms (std.lists.concat (strict ?a) (strict ?b)))
+(defterm or-forms-call :origin "callable or-forms")
+(axiom or-forms-rule (= (or-forms-call ?a1 ?b1) (or-forms :bind ((?a ?a1) (?b ?b1))))
+    :origin "or is concat via bind — strict forces scope eval before concat")
+
+; ── count-forms: parametric template + callable via :bind ──
+(defterm count-forms-tmpl (std.lists.length (strict ?xs)))
+(defterm count-forms :origin "callable count-forms")
+(axiom count-forms-rule (= (count-forms ?x1) (count-forms-tmpl :bind ((?xs ?x1))))
+    :origin "count is length via bind — strict forces scope eval")
+
+; ── limit-forms: parametric entry + recursive impl on concrete lists ──
+(defterm limit-forms-tmpl (limit-forms-impl ?n (strict ?xs)))
+(defterm limit-forms :origin "callable limit-forms")
+(axiom limit-forms-entry (= (limit-forms ?n1 ?xs1) (limit-forms-tmpl :bind ((?n ?n1) (?xs ?xs1))))
+    :origin "entry via bind — strict forces scope eval")
+
+(defterm limit-forms-impl :origin "limit-forms recursive impl on concrete lists")
+(axiom limit-forms-base (= (limit-forms-impl 0 ?xs) (quote ()))
+    :origin "base: zero returns empty")
+(axiom limit-forms-empty (= (limit-forms-impl ?n ()) (quote ()))
+    :origin "base: empty list returns empty regardless of n")
+(axiom limit-forms-step (= (limit-forms-impl ?n (?x ?...rest))
+    (cons-prepend ?x (limit-forms-impl (- ?n 1) (?...rest))))
+    :origin "step: take head, decrement, recurse")

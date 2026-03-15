@@ -32,6 +32,8 @@ from typing import TYPE_CHECKING
 from parseltongue.core.atoms import Symbol
 from parseltongue.core.system import System
 
+from .bench_system import BenchSubsystem
+
 if TYPE_CHECKING:
     from parseltongue.core.quote_verifier.index import DocumentIndex
 
@@ -134,7 +136,8 @@ class LensSearchSystem:
             if posting is None:
                 matches = [n for n in sys._structure.graph if n != "__output__" and n.startswith(prefix)]
                 return _multi_posting(matches)
-            return {k: v for k, v in posting.items() if k[0].startswith(prefix)}
+            prefix_ = {k: v for k, v in posting.items() if k[0].startswith(prefix)}
+            return prefix_
 
         def _depth(name):
             return sys._structure.depths.get(name, -1)
@@ -264,7 +267,7 @@ class LensSearchSystem:
             for item in forms:
                 if not isinstance(item, (list, tuple)) or len(item) < 2:
                     continue
-                if not (isinstance(item[0], Symbol) and item[0] == tag):
+                if not (isinstance(item[0], Symbol) and BenchSubsystem.matches_tag(item[0], tag)):
                     continue
                 name = str(item[1])
                 kind = str(item[2]) if len(item) > 2 else ""

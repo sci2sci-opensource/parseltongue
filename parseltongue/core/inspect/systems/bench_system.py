@@ -47,6 +47,14 @@ class BenchSubsystem(Protocol):
 
     def evaluate(self, expr: Sentence, local_env: dict | None = None) -> Sentence: ...
 
+    @staticmethod
+    def matches_tag(head: Symbol, tag: Symbol) -> bool:
+        """Check if head symbol matches tag, accounting for canonical namespacing.
+
+        Matches both bare (ln) and canonical (specialized_ops.lens.ln) forms.
+        """
+        return head == tag or str(head).endswith("." + str(tag))
+
 
 class BenchSystem:
     """Base for bench systems. Provides scope registration."""

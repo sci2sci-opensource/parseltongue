@@ -22,6 +22,8 @@ from typing import TYPE_CHECKING
 from parseltongue.core.atoms import Symbol
 from parseltongue.core.system import System
 
+from .bench_system import BenchSubsystem
+
 if TYPE_CHECKING:
     from ..evaluation import Evaluation, EvaluationItem
 
@@ -215,7 +217,7 @@ class EvaluationSearchSystem:
             for item in forms:
                 if not isinstance(item, (list, tuple)) or len(item) < 2:
                     continue
-                if not (isinstance(item[0], Symbol) and item[0] == tag):
+                if not (isinstance(item[0], Symbol) and BenchSubsystem.matches_tag(item[0], tag)):
                     continue
                 name = str(item[1])
                 category = str(item[2]) if len(item) > 2 else ""

@@ -158,6 +158,18 @@ class BenchServer:
                     text = f"⚠ {sexp_warn}\n\n{text}"
                 return {"ok": True, "text": text}
 
+            elif action == "interpret":
+                query = cmd.get("query", "")
+                query, sexp_warn = _validate_sexp(query)
+                result = self.bench.interpret(query)
+                if cmd.get("raw"):
+                    text = _format_eval_raw(result)
+                else:
+                    text = _format_eval_result(result, bench=self.bench)
+                if sexp_warn:
+                    text = f"⚠ {sexp_warn}\n\n{text}"
+                return {"ok": True, "text": text}
+
             elif action == "find":
                 results = self.bench.lens().find(cmd.get("pattern", ""), cmd.get("max", 50))
                 return {"ok": True, "results": results}
@@ -997,6 +1009,25 @@ def eval_cmd(expression: str, raw: bool):
           (> raises (* total 0.3)))
     """
     _print_result(_query({"action": "eval", "query": expression, "raw": raw}))
+
+
+@cli.command("interpret")
+@click.argument("expression")
+@click.option("--raw", is_flag=True, help="Output raw S-expression (to_sexp).")
+def interpret_cmd(expression: str, raw: bool):
+    """Interpret a directive or expression in the bench engine.
+
+    \b
+    Like eval, but also accepts directives (defterm, fact, axiom, derive).
+    Directives are executed in the eval system, then the last expression
+    is evaluated. Useful for defining terms interactively.
+
+    \b
+    Examples:
+      pg-bench interpret '(defterm or-test (lists.concat (strict ?a) (strict ?b)))'
+      pg-bench interpret '(fact my-val 42 :origin "test")'
+    """
+    _print_result(_query({"action": "interpret", "query": expression, "raw": raw}))
 
 
 @cli.command()

@@ -13,7 +13,10 @@ from __future__ import annotations
 import logging
 import threading
 from pathlib import Path
-from typing import Callable
+from typing import TYPE_CHECKING, Callable
+
+if TYPE_CHECKING:
+    from .systems.operations import OperationsSystem
 
 from ..integrity.merkle import MerkleNode
 from ..loader.lazy_loader import LazyLoader, LazyLoadResult
@@ -67,6 +70,7 @@ class Technician:
         self._evaluation_mem: dict = {}  # path → Evaluation
         self._affected: dict[str, set[str]] = {}
         self._search_mem: dict = {}  # path → Search
+        self._ops: "OperationsSystem | None" = None  # shared, stateless
 
     @property
     def file_lists(self) -> dict[str, list[str]]:
@@ -82,12 +86,22 @@ class Technician:
 
     # ── Frozen / Live systems ──
 
+    def _ensure_ops(self):
+        """Create OperationsSystem lazily — shared across all scopes."""
+        if self._ops is None:
+            from .systems.operations import OperationsSystem
+
+            self._ops = OperationsSystem(lib_paths=self._lib_paths)
+        return self._ops
+
     def _ensure_frozen(self):
         """Create FrozenBench lazily on first prepare."""
         if self._frozen is None and self._bench_pg:
             from .systems.frozen_bench import FrozenBench
 
             self._frozen = FrozenBench(self._bench_pg, self._lib_paths)  # type: ignore[assignment]
+            if self._frozen is not None:
+                self._frozen.register_scope("ops", self._ensure_ops())
         return self._frozen
 
     # ── Search engine ──
@@ -121,12 +135,21 @@ class Technician:
         if dx is not None:
             search.register_scope("evaluation", dx.search_system)
 
+        # Operations scope — generic composition over tagged forms
+        ops = self._ensure_ops()
+        ops.register_scope("lens", lens.search_system)
+        if dx is not None:
+            ops.register_scope("evaluation", dx.search_system)
+        ops.register_scope("search", search._system)
+        search.register_scope("ops", ops)
+
         # Populate search docs if live
         result = sample[3].last_result
         if result is not None and hasattr(result.system, "engine") and result.system.engine.facts:
             from .systems.live_bench import LiveBench
 
             self._live[path] = LiveBench(result, self._bench_pg, self._lib_paths)  # type: ignore[arg-type]
+            self._live[path].register_scope("ops", ops)
             for doc_name, doc_text in result.system.engine.documents.items():
                 if doc_name not in search._index.documents:
                     search._index.add(doc_name, doc_text)

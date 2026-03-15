@@ -436,6 +436,69 @@ class Engine(Rewriter, Executor):
             return self._eval(rewritten, env, axiom_scope, restricted)
         return rewritten
 
+    def _axiom_heads(self, axiom_scope=None) -> tuple[set, set]:
+        """(head_symbols, var_head_arities) from axiom/theorem LHS patterns.
+
+        Used to skip _rewrite recursion into data whose head has no rules.
+        var_head_arities: set of LHS lengths for axioms with ?-var in head
+        position (e.g. (map ?f (?x)) has length 3). An expression can only
+        match these if its length is in this set.
+        Cached per engine; invalidated when axioms/theorems change.
+        """
+        if axiom_scope is not None:
+            heads: set[Symbol] = set()
+            var_arities: set[int] = set()
+            for rule in axiom_scope:
+                wff = rule.wff
+                if isinstance(wff, (list, tuple)) and len(wff) == 3 and wff[0] == EQ:
+                    lhs = wff[1]
+                    if isinstance(lhs, (list, tuple)) and lhs:
+                        h = lhs[0]
+                        if isinstance(h, Symbol) and str(h).startswith("?"):
+                            var_arities.add(len(lhs))
+                        else:
+                            heads.add(h)
+            return heads, var_arities
+        cache_key = (len(self.axioms), len(self.theorems))
+        if getattr(self, "_axiom_heads_cache_key", None) != cache_key:
+            heads = set()
+            var_arities = set()
+            for rule in list(self.axioms.values()) + list(self.theorems.values()):
+                wff = rule.wff
+                if isinstance(wff, (list, tuple)) and len(wff) == 3 and wff[0] == EQ:
+                    lhs = wff[1]
+                    if isinstance(lhs, (list, tuple)) and lhs:
+                        h = lhs[0]
+                        if isinstance(h, Symbol) and str(h).startswith("?"):
+                            var_arities.add(len(lhs))
+                        else:
+                            heads.add(h)
+            self._axiom_heads_cache = (heads, var_arities)
+            self._axiom_heads_cache_key = cache_key
+        return self._axiom_heads_cache
+
+    def _rewrite_eval_callables(self, expr):
+        """Evaluate callable subexpressions in a rewrite result.
+
+        After axiom substitution, expressions like (- 2 1) remain symbolic
+        because _rewrite doesn't consult env.  Recurse and evaluate any
+        subexpression whose head is a Python callable in self.env with
+        fully concrete args.
+        """
+        if not isinstance(expr, (list, tuple)):
+            return expr
+        # Recurse first so inner callables reduce before outer ones
+        resolved = [self._rewrite_eval_callables(sub) for sub in expr]
+        # Now check if this expression itself is a callable with concrete args
+        if resolved and isinstance(resolved[0], Symbol) and resolved[0] in self.env and callable(self.env[resolved[0]]):
+            args = resolved[1:]
+            if all(isinstance(a, (int, float, bool)) for a in args):
+                try:
+                    return self.env[resolved[0]](*args)
+                except Exception:
+                    pass
+        return resolved
+
     def _rewrite(self, expr, depth=0, axiom_scope=None, _prev=None):
         """Reduce an expression by applying axioms as rewrite rules.
 
@@ -456,7 +519,17 @@ class Engine(Rewriter, Executor):
         if expr and expr[0] == SELF:
             return expr
 
-        # Reduce subexpressions first (innermost-first)
+        # Reduce subexpressions first (innermost-first).
+        # Skip entirely if head has no axioms — pure data, nothing to rewrite.
+        # No axiom LHS starts with a non-Symbol head, so lists/ints/strings
+        # as head mean this expression is data — skip immediately.
+        heads, var_arities = self._axiom_heads(axiom_scope)
+        head = expr[0] if expr else None
+        if not isinstance(head, Symbol):
+            return list(expr) if isinstance(expr, tuple) else expr
+        if head not in heads:
+            if not var_arities or len(expr) not in var_arities:
+                return list(expr) if isinstance(expr, tuple) else expr
         expr = [self._rewrite(sub, depth + 1, axiom_scope) for sub in expr]
 
         # Try axioms and theorems as rewrite rules
@@ -477,6 +550,7 @@ class Engine(Rewriter, Executor):
                 if result == expr or result == _prev:
                     continue  # 1-cycle or 2-cycle — skip
                 log.debug("_rewrite rule %s: %r -> %r", rule.name, expr, result)
+                result = self._rewrite_eval_callables(result)
                 return self._rewrite(result, depth + 1, axiom_scope, _prev=expr)
 
         return expr
@@ -513,6 +587,35 @@ class Engine(Rewriter, Executor):
             return []
 
         head = expr[0]
+
+        # :bind — eval-time parameterisation of terms/theorems
+        # Must check before head resolution, which eagerly evaluates definitions.
+        # Evaluates binding values. Simple values (non-list) are substituted
+        # directly into the body so axiom patterns see concrete values (e.g. 0).
+        # Complex values (lists) go into env only — substitute would inline them
+        # as raw data that _eval would re-interpret as code.
+        if isinstance(head, Symbol) and not str(head).startswith(("?", ":")):
+            # O(1) check: :bind is always second-to-last in the expression.
+            # Avoids O(n) get_keyword scan on large rewritten expressions.
+            bind_raw = expr[-1] if len(expr) >= 3 and expr[-2] == KW_BIND else None
+            if bind_raw is not None:
+                name = str(head)
+                defn = None
+                if name in self.terms and self.terms[name].definition is not None:
+                    defn = self.terms[name].definition
+                elif name in self.theorems:
+                    defn = self.theorems[name].wff
+                if defn is not None and isinstance(bind_raw, (list, tuple)):
+                    sub_bindings = {}  # simple values → substitute into body
+                    bind_env = env.copy()
+                    for pair in bind_raw:
+                        if isinstance(pair, (list, tuple)) and len(pair) >= 2:
+                            val = self._eval(pair[1], env, axiom_scope, restricted)
+                            bind_env[pair[0]] = val
+                            if not isinstance(val, (list, tuple)):
+                                sub_bindings[pair[0]] = val
+                    bound = substitute(defn, sub_bindings) if sub_bindings else defn
+                    return self._eval(bound, bind_env, axiom_scope, restricted)
 
         if head == IF:
             _, cond, then, else_ = expr
@@ -774,7 +877,12 @@ class Engine(Rewriter, Executor):
                 if new_head != head_val:
                     log.debug("_eval lazy rewrite %r -> %r", formal_expr, rewritten)
                     return self._eval(rewritten, env, axiom_scope, restricted)
-            # No rewrite or same head — evaluate args and return as formal result
+            # No rewrite or same head — evaluate args and return as formal result.
+            # Data guard: if head_val is a list (not a symbol/callable), this is
+            # a data expression (e.g. splat-expanded ((ln ...) (ln ...) ×1000)).
+            # Skip arg evaluation to avoid O(n) recursion into data.
+            if isinstance(head_val, (list, tuple)):
+                return formal_expr
             args = [self._eval(arg, env, axiom_scope, restricted) for arg in expr[1:]]
             evaluated = [head_val] + args
             # Args may have reduced (e.g. (- 2 1) → 1), enabling rewrites
