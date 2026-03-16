@@ -58,7 +58,7 @@ from typing import Callable
 
 from .store import SearchStore
 from .systems.bench_system import BenchSubsystem
-from .systems.search import SearchSystem
+from .systems.search_system_2 import SearchSystem2 as SearchSystem
 
 
 class Search:
@@ -93,6 +93,7 @@ class Search:
     ) -> int:
         self._index, count = self._store.index_incremental(self._index, directory, extensions, exclude, on_progress)
         self._system._index = self._index
+        self._system.refresh()
         return count
 
     def reindex(
@@ -102,6 +103,7 @@ class Search:
         """Re-read known files, update stale entries, remove deleted."""
         self._index, count = self._store.reindex(self._index, on_progress)
         self._system._index = self._index
+        self._system.refresh()
         return count
 
     def evaluate(self, expression: str):
@@ -132,15 +134,9 @@ class Search:
 
         Each line: {document, line, column, context, callers, total_callers}.
         """
-        result = self._system.evaluate(text.strip()) if text.strip().startswith("(") else None
-
-        if result is not None:
-            # S-expression result — could be posting set, sr list, or scalar
-            posting = self._to_display_posting(result)
-        else:
-            # Plain text — collect with provenance
-            lines, _ = self._collect(text, max_lines + offset, max_callers)
-            posting = {(ln["document"], ln["line"]): ln for ln in lines}
+        # All queries go through SearchSystem2 — RRF + BM25 pipeline
+        result = self._system.evaluate(text.strip())
+        posting = self._to_display_posting(result)
 
         # Context/before/after queries need line-order ranking to keep
         # surrounding lines grouped with their matches.

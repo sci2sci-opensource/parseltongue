@@ -17,6 +17,8 @@ from textual.message import Message
 from textual.screen import Screen
 from textual.widgets import Label, Static, TabbedContent, TabPane, Tree
 
+from rich.markup import escape as rich_escape
+
 from ..bench_client import BenchClient, BenchClientError
 from ..pltg_highlight import PygmentsTextArea
 from ..widgets import FocusedTree
@@ -42,6 +44,7 @@ class QueryBox(PygmentsTextArea):
     QueryBox {
         height: 3;
         margin: 0 0 1 0;
+        border-title-color: $text-muted;
     }
     """
 
@@ -51,7 +54,7 @@ class QueryBox(PygmentsTextArea):
         self._placeholder = placeholder
 
     def on_mount(self) -> None:
-        self.border_title = self._placeholder
+        self.border_title = f"[dim]{self._placeholder}[/dim]"
 
     def _on_key(self, event: events.Key) -> None:
         if event.key == "enter":
@@ -184,11 +187,7 @@ class BenchScreen(Screen):
         """Load initial data into panels."""
         try:
             names = await self._client.find("", max_results=200)
-            tree = self.query_one("#lens-names", FocusedTree)
-            tree.clear()
-            tree.root.expand()
-            for name in names:
-                tree.root.add_leaf(name)
+            self._populate_name_tree(self.query_one("#lens-names", FocusedTree), names)
 
             dx_text = await self._client.diagnose()
             self.query_one("#dx-results", HighlightedLog).set_content(dx_text)
@@ -197,6 +196,41 @@ class BenchScreen(Screen):
             self.query_one("#lens-results", HighlightedLog).set_content(kinds_text)
         except BenchClientError:
             pass
+
+    # ── Tree helpers ──
+
+    @staticmethod
+    def _populate_name_tree(tree: FocusedTree, names: list[str]) -> None:
+        """Group names by dotted namespace prefix into expandable branches."""
+        tree.clear()
+        tree.root.expand()
+        if not names:
+            tree.root.add_leaf("[dim]empty[/dim]")
+            return
+
+        # Group by namespace (first dotted component)
+        groups: dict[str, list[str]] = {}
+        for name in names:
+            if "." in name:
+                ns, leaf = name.rsplit(".", 1)
+            else:
+                ns, leaf = "", name
+            groups.setdefault(ns, []).append(name)
+
+        if len(groups) == 1:
+            # Single namespace — flat list
+            for name in names:
+                tree.root.add_leaf(rich_escape(name))
+        else:
+            # Multiple namespaces — grouped branches
+            for ns in sorted(groups):
+                if ns:
+                    branch = tree.root.add(f"[bold]{rich_escape(ns)}[/bold] [dim]({len(groups[ns])})[/dim]")
+                else:
+                    branch = tree.root.add(f"[bold](root)[/bold] [dim]({len(groups[ns])})[/dim]")
+                for name in sorted(groups[ns]):
+                    branch.add_leaf(rich_escape(name))
+                branch.expand()
 
     # ── Input handlers ──
 
@@ -215,20 +249,29 @@ class BenchScreen(Screen):
 
     # ── Tree clicks ──
 
+    @staticmethod
+    def _tree_node_name(node) -> str | None:
+        """Extract the plain name from a tree node, ignoring branches."""
+        if node.children:
+            return None  # branch node — don't navigate
+        import re
+        plain = re.sub(r"\[/?[^\]]*\]", "", str(node.label)).strip()
+        return plain if plain and plain != "empty" else None
+
     def on_tree_node_selected(self, event: Tree.NodeSelected) -> None:
-        """Click a name in a tree panel to view it."""
-        label = str(event.node.label).strip()
-        if not label:
+        """Click a name in a tree panel to view it in the lens."""
+        name = self._tree_node_name(event.node)
+        if not name:
             return
         tree_id = event.node.tree.id
         if tree_id == "search-names":
             tabs = self.query_one("#bench-tabs", TabbedContent)
             tabs.active = "lens"
-            self.query_one("#lens-input", QueryBox).load_text(label)
-            self._do_lens(label)
+            self.query_one("#lens-input", QueryBox).load_text(name)
+            self._do_lens(name)
         elif tree_id == "lens-names":
-            self.query_one("#lens-input", QueryBox).load_text(label)
-            self._do_lens(label)
+            self.query_one("#lens-input", QueryBox).load_text(name)
+            self._do_lens(name)
 
     # ── Search ──
 
@@ -250,9 +293,8 @@ class BenchScreen(Screen):
             else:
                 out.set_info("No results.")
             # Populate names tree from [name1, name2] in results
-            names_tree.clear()
-            names_tree.root.expand()
             seen: set[str] = set()
+            extracted: list[str] = []
             for line in lines:
                 if "[" in line and "]" in line:
                     bracket = line[line.index("[") + 1 : line.index("]")]
@@ -260,7 +302,8 @@ class BenchScreen(Screen):
                         name = name.strip()
                         if name and name not in seen:
                             seen.add(name)
-                            names_tree.root.add_leaf(name)
+                            extracted.append(name)
+            self._populate_name_tree(names_tree, extracted)
         except BenchClientError as e:
             out.set_error(str(e))
 

@@ -40,7 +40,7 @@ class HighlightedLog(RichLog):
         wrap: bool = True,
         **kwargs,
     ) -> None:
-        super().__init__(wrap=wrap, markup=True, **kwargs)
+        super().__init__(wrap=wrap, markup=True, auto_scroll=False, **kwargs)
         self._language = language
 
     def set_content(self, text: str, *, language: str | None = ...) -> None:  # type: ignore[assignment]
