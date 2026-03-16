@@ -20,7 +20,7 @@ from parseltongue.core.atoms import Symbol
 from parseltongue.core.lang import Rewriter
 
 from .bench_system import BenchSubsystem, Posting
-from .search import SearchPostingMorphism, _posting_to_sr, _sr_to_posting
+from .search import SearchPostingMorphism, _posting_to_sr
 
 if TYPE_CHECKING:
     from parseltongue.core.quote_verifier import DocumentIndex

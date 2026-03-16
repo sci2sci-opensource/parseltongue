@@ -9,6 +9,7 @@ Provides tabbed access to the bench's core features:
 
 from __future__ import annotations
 
+from rich.markup import escape as rich_escape
 from textual import events, work
 from textual.app import ComposeResult
 from textual.binding import Binding
@@ -16,8 +17,6 @@ from textual.containers import Horizontal, Vertical
 from textual.message import Message
 from textual.screen import Screen
 from textual.widgets import Label, Static, TabbedContent, TabPane, Tree
-
-from rich.markup import escape as rich_escape
 
 from ..bench_client import BenchClient, BenchClientError
 from ..pltg_highlight import PygmentsTextArea
@@ -255,6 +254,7 @@ class BenchScreen(Screen):
         if node.children:
             return None  # branch node — don't navigate
         import re
+
         plain = re.sub(r"\[/?[^\]]*\]", "", str(node.label)).strip()
         return plain if plain and plain != "empty" else None
 
