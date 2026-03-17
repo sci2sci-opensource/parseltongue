@@ -57,7 +57,7 @@ from .grammar import (  # noqa: F401 — deprecated re-export
     to_sexp,
     tokenize,
 )
-from .morphism import StringMorphism, _pm
+from .morphism import Morphism, StringMorphism, _pm
 
 # ============================================================
 # Clause & Sentence Types
@@ -65,6 +65,117 @@ from .morphism import StringMorphism, _pm
 
 Clause = WFF | Evidence | Axiom | Theorem | Term
 Sentence = Clause | list["Sentence"]
+
+
+# ============================================================
+# Clause Morphism — Clause ↔ Sentence (list form)
+# ============================================================
+
+
+def _origin_to_sexp(origin) -> Sentence:
+    if isinstance(origin, Evidence):
+        return _clause_to_sexp(origin)
+    return origin if origin else ""
+
+
+def _clause_to_sexp(clause: Clause) -> Sentence:
+    """Clause → pltg tagged list. Recursive on origin.
+
+    Each branch returns a heterogeneous list whose elements are all valid
+    Sentence values — but mypy can't prove list invariance allows it, so we
+    silence the return-value errors.
+    """
+    if isinstance(clause, Evidence):
+        return [Symbol("evidence"), clause.document, list(clause.quotes), clause.verified]  # type: ignore[return-value]
+    if isinstance(clause, Theorem):
+        return [Symbol("theorem"), clause.name, clause.wff, list(clause.derivation), _origin_to_sexp(clause.origin)]
+    if isinstance(clause, Term):
+        return [
+            Symbol("defterm"),
+            clause.name,
+            clause.definition,
+            _origin_to_sexp(clause.origin),
+        ]  # type: ignore[return-value]
+    if isinstance(clause, Axiom):
+        return [Symbol(clause.__class__.__name__.lower()), clause.name, clause.wff, _origin_to_sexp(clause.origin)]
+    return clause
+
+
+def _sexp_to_clause(sentence: Sentence) -> "Clause | Sentence":
+    """Pltg tagged list → Clause. Recursive on origin."""
+    if not isinstance(sentence, list) or len(sentence) < 2:
+        return sentence
+    head = str(sentence[0])
+
+    def _inv(s: "Sentence") -> "Clause | Sentence":
+        return _sexp_to_clause(s) if isinstance(s, list) else s
+
+    if head == "evidence":
+        verified = bool(sentence[3]) if len(sentence) > 3 else False
+        return Evidence(
+            document=str(sentence[1]),
+            quotes=list(str(q) for q in sentence[2]),  # type: ignore[union-attr]
+            verified=verified,
+        )
+    if head == "theorem":
+        return Theorem(
+            name=str(sentence[1]),
+            wff=sentence[2],  # type: ignore[arg-type]
+            derivation=list(sentence[3]),  # type: ignore[arg-type]
+            origin=_inv(sentence[4]),  # type: ignore[arg-type]
+        )
+    if head == "defterm":
+        return Term(
+            name=str(sentence[1]),
+            definition=sentence[2],  # type: ignore[arg-type]
+            origin=_inv(sentence[3]),  # type: ignore[arg-type]
+        )
+    if head == "fact":
+        from .engine import Fact
+
+        return Fact(
+            name=str(sentence[1]),
+            wff=sentence[2],  # type: ignore[arg-type]
+            origin=_inv(sentence[3]),  # type: ignore[arg-type]
+        )
+    if head == "axiom":
+        return Axiom(
+            name=str(sentence[1]),
+            wff=sentence[2],  # type: ignore[arg-type]
+            origin=_inv(sentence[3]),  # type: ignore[arg-type]
+        )
+    return sentence
+
+
+class _ClauseMorphism(Morphism[Clause, Sentence]):
+    """Morphism[Clause, Sentence]. Round-trips Clause objects through pltg tagged lists."""
+
+    @property
+    def grammar(self) -> Grammar:
+        return _pg
+
+    def transform(self, source: Clause) -> Sentence:
+        return _clause_to_sexp(source)
+
+    def inverse(self, target: Sentence) -> Clause:
+        return _sexp_to_clause(target)  # type: ignore[return-value]
+
+
+_cm = _ClauseMorphism()
+
+
+class ClauseMorphism:
+    """Parseltongue clause morphism — Clause ↔ pltg tagged list."""
+
+    morphism = _cm
+
+    @staticmethod
+    def transform(source: Clause) -> Sentence:
+        return _cm.transform(source)
+
+    @staticmethod
+    def inverse(target: Sentence) -> Clause:
+        return _cm.inverse(target)
 
 
 # ============================================================
@@ -155,7 +266,6 @@ KW_USING = ":using"
 KW_REPLACE = ":replace"
 KW_WITH = ":with"
 KW_BIND = ":bind"
-
 
 # ============================================================
 # Language Documentation

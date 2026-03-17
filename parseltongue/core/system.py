@@ -116,6 +116,33 @@ class AbstractSystem(Rewriter, Interpreter):
     def introduce_term(self, name, definition, origin):
         return self.engine.introduce_term(name, definition, origin)
 
+    def copy(self, name: str | None = None, overridable: bool | None = None) -> "AbstractSystem":
+        """Shallow-copy: new system with independent dicts sharing the same values.
+
+        The copy can accumulate new defterms/axioms without mutating the original.
+        Existing entries (env, axioms, terms, theorems, facts, diffs, documents)
+        are shared by reference — cheap and correct for read-only parent state.
+        """
+        clone = object.__new__(type(self))
+        clone.engine = Engine(
+            env={},
+            overridable=overridable if overridable is not None else self.engine.overridable,
+            strict_derive=self.engine.strict_derive,
+            verifier=self.engine._verifier,
+            name=name or f"{self.engine.name}.copy",
+        )
+        clone._docs = dict(self._docs)
+        # Shallow-copy all engine data dicts
+        clone.engine.env = dict(self.engine.env)
+        clone.engine.axioms = dict(self.engine.axioms)
+        clone.engine.terms = dict(self.engine.terms)
+        clone.engine.theorems = dict(self.engine.theorems)
+        clone.engine.facts = dict(self.engine.facts)
+        clone.engine.diffs = dict(self.engine.diffs)
+        clone.engine.diff_refs = {k: set(v) for k, v in self.engine.diff_refs.items()}
+        clone.engine.documents = dict(self.engine.documents)
+        return clone
+
     def derive(self, name, wff, using):
         return self.engine.derive(name, wff, using)
 

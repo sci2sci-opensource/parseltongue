@@ -9,7 +9,7 @@ Supports pltg S-expression queries over the inverted index::
     (or "raise ValueError" "raise Syntax")      — union of posting sets
     (not "raise" "test")                        — difference (first minus second)
     (in "engine.py" "raise")                    — restrict to document (exact, suffix, or glob)
-    (near "raise" "ValueError" 3)               — proximity within N lines
+    (near 3 "raise" "ValueError")               — proximity within N lines
     (seq "def derive" "raise")                  — a before b in same document
     (re "raise (ValueError|NameError)")         — regex over all indexed lines
     (lines 400 500 (in "engine.py" (re ".")))   — restrict to line range
@@ -83,6 +83,15 @@ class Search:
     def unregister_scope(self, name: str):
         """Unregister a named scope."""
         self._system.unregister_scope(name)
+
+    def add(self, name: str, text: str) -> None:
+        """Add a document and refresh the search index."""
+        if name not in self._index.documents:
+            self._index.add(name, text)
+
+    def refresh(self) -> None:
+        """Sync search system with any documents added since last refresh."""
+        self._system.refresh()
 
     def index_dir(
         self,

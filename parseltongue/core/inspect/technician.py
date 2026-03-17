@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Callable
 
 if TYPE_CHECKING:
-    from .systems.operations import OperationsSystem
+    from .systems.operations_v2 import OperationsSystemV2 as OperationsSystem
 
 from ..integrity.merkle import MerkleNode
 from ..loader.lazy_loader import LazyLoader, LazyLoadResult
@@ -89,9 +89,9 @@ class Technician:
     def _ensure_ops(self):
         """Create OperationsSystem lazily — shared across all scopes."""
         if self._ops is None:
-            from .systems.operations import OperationsSystem
+            from .systems.operations_v2 import OperationsSystemV2
 
-            self._ops = OperationsSystem(lib_paths=self._lib_paths)
+            self._ops = OperationsSystemV2()
         return self._ops
 
     def _ensure_frozen(self):
@@ -151,8 +151,8 @@ class Technician:
             self._live[path] = LiveBench(result, self._bench_pg, self._lib_paths)  # type: ignore[arg-type]
             self._live[path].register_scope("ops", ops)
             for doc_name, doc_text in result.system.engine.documents.items():
-                if doc_name not in search._index.documents:
-                    search._index.add(doc_name, doc_text)
+                search.add(doc_name, doc_text)
+            search.refresh()
 
     # ── Evaluation ──
 

@@ -74,7 +74,7 @@ class TestLiteralSearch(unittest.TestCase):
         self.assertGreater(r["total_lines"], 0)
 
     def test_no_match_returns_empty(self):
-        r = self.search.query("xyzzy_not_here_42")
+        r = self.search.query("a1b2c3d4e5f6g7h8")
         self.assertEqual(r["total_lines"], 0)
 
     def test_finds_in_multiple_docs(self):
@@ -149,7 +149,7 @@ class TestSExprOperators(unittest.TestCase):
         self.assertIn("__result__", r["lines"][0]["document"])
 
     def test_near(self):
-        r = self.search.query('(near "def derive" "raise" 2)')
+        r = self.search.query('(near 2 (strategy "direct" "def derive") "raise")')
         self.assertGreater(r["total_lines"], 0)
         for ln in r["lines"]:
             self.assertIn("derive", ln["context"])

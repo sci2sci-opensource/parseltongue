@@ -508,7 +508,7 @@ class Engine(Rewriter, Executor):
         When *axiom_scope* is provided, only those rules are tried;
         otherwise all axioms and theorems in the system are used.
         """
-        log.debug("_rewrite depth=%d expr=%r", depth, expr)
+        log.info("_rewrite depth=%d expr=%r", depth, expr)
         if depth > 100:
             return expr
         if not isinstance(expr, (list, tuple)):
@@ -549,18 +549,18 @@ class Engine(Rewriter, Executor):
                 result = substitute(rhs, bindings)
                 if result == expr or result == _prev:
                     continue  # 1-cycle or 2-cycle — skip
-                log.debug("_rewrite rule %s: %r -> %r", rule.name, expr, result)
+                log.info("_rewrite rule %s: %r -> %r", rule.name, expr, result)
                 result = self._rewrite_eval_callables(result)
                 return self._rewrite(result, depth + 1, axiom_scope, _prev=expr)
 
         return expr
 
     def _eval(self, expr: Sentence, env, axiom_scope=None, restricted=False) -> Sentence:
-        log.debug("_eval expr=%r restricted=%s", expr, restricted)
+        log.info("_eval expr=%r restricted=%s", expr, restricted)
         if isinstance(expr, Symbol):
             if expr in env:
                 val = env[expr]
-                log.debug("_eval symbol %r -> %r", expr, val)
+                log.info("_eval symbol %r -> %r", expr, val)
                 return val
             name = str(expr)
             # In restricted mode, symbols must be in env — no global fallthrough
@@ -697,7 +697,7 @@ class Engine(Rewriter, Executor):
                 self_proposal = self._eval(resolved_body, env, axiom_scope, restricted)
             except (NameError, TypeError):
                 pass
-            log.debug("_delegate self_proposal=%r", self_proposal)
+            log.info("_delegate self_proposal=%r", self_proposal)
             env[Symbol("?_self")] = self_proposal
 
             # Self-resolution: if pattern references ?_self, check it now.
@@ -748,7 +748,7 @@ class Engine(Rewriter, Executor):
                         return expr
                     if expr[0] == PROJECT:
                         resolved = self._eval(expr, env, axiom_scope, restricted)
-                        log.debug("_resolve_projects %r -> %r", expr, resolved)
+                        log.info("_resolve_projects %r -> %r", expr, resolved)
                         return resolved
                     return [_resolve_projects(x) for x in expr]
 
@@ -772,11 +772,11 @@ class Engine(Rewriter, Executor):
                         else:
                             e = e[1]
                     body = e
-                    log.debug("_delegate_proposal body=%r pattern=%r", body, pattern)
+                    log.info("_delegate_proposal body=%r pattern=%r", body, pattern)
 
                     existing = get_keyword(delegate_expr, KW_BIND, [])
                     level = len(existing) + 1
-                    log.debug("_delegate_proposal level=%d existing=%d", level, len(existing))
+                    log.info("_delegate_proposal level=%d existing=%d", level, len(existing))
 
                     # Collect ?-vars from pattern + body
                     all_vars = set()
@@ -826,7 +826,7 @@ class Engine(Rewriter, Executor):
                             return []
                         if not pattern_ok:
                             return []
-                    log.debug("_delegate_proposal result=%r", result)
+                    log.info("_delegate_proposal result=%r", result)
                     return result
 
                 def _rp(e):
@@ -850,11 +850,11 @@ class Engine(Rewriter, Executor):
                                 break
                             base.append(x)
                         return base + [KW_BIND, new_binds]
-                    log.debug("_rp recurse head=%r len=%d", e[0], len(e))
+                    log.info("_rp recurse head=%r len=%d", e[0], len(e))
                     return [_rp(x) for x in e]
 
                 resolved = [_rp(a) for a in expr[2:]]
-                log.debug("_rp scope=%r resolved=%r", scope_name, resolved)
+                log.info("_rp scope=%r resolved=%r", scope_name, resolved)
                 return scope_val(scope_name, *resolved)
             raise TypeError(f"scope target is not callable: {scope_val!r}")
 
@@ -875,7 +875,7 @@ class Engine(Rewriter, Executor):
                 # Only re-eval if the head changed (avoids infinite recursion)
                 new_head = rewritten[0] if isinstance(rewritten, (list, tuple)) and rewritten else rewritten
                 if new_head != head_val:
-                    log.debug("_eval lazy rewrite %r -> %r", formal_expr, rewritten)
+                    log.info("_eval lazy rewrite %r -> %r", formal_expr, rewritten)
                     return self._eval(rewritten, env, axiom_scope, restricted)
             # No rewrite or same head — evaluate args and return as formal result.
             # Data guard: if head_val is a list (not a symbol/callable), this is
@@ -892,22 +892,22 @@ class Engine(Rewriter, Executor):
                 if rewritten2 != evaluated:
                     new_head2 = rewritten2[0] if isinstance(rewritten2, (list, tuple)) and rewritten2 else rewritten2
                     if new_head2 != head_val:
-                        log.debug("_eval post-arg rewrite %r -> %r", evaluated, rewritten2)
+                        log.info("_eval post-arg rewrite %r -> %r", evaluated, rewritten2)
                         return self._eval(rewritten2, env, axiom_scope, restricted)
-            log.debug("_eval formal result=%r", evaluated)
+            log.info("_eval formal result=%r", evaluated)
             return evaluated
 
         args = [self._eval(arg, env, axiom_scope, restricted) for arg in expr[1:]]
-        log.debug("_eval head_val=%r callable=%s args=%r", head_val, callable(head_val), args)
+        log.info("_eval head_val=%r callable=%s args=%r", head_val, callable(head_val), args)
 
         result = head_val(*args)
-        log.debug("_eval callable result=%r", result)
+        log.info("_eval callable result=%r", result)
         # For equality: if direct comparison fails on formal (list) args,
         # try axiom rewriting — e.g. commutativity can't be checked structurally
         if result is False and head == EQ and any(isinstance(a, (list, tuple)) for a in args):
             left_rw = self._rewrite(args[0], axiom_scope=axiom_scope)
             right_rw = self._rewrite(args[1], axiom_scope=axiom_scope)
-            log.debug("_eval EQ rewrite fallback: left_rw=%r right_rw=%r args=%r", left_rw, right_rw, args)
+            log.info("_eval EQ rewrite fallback: left_rw=%r right_rw=%r args=%r", left_rw, right_rw, args)
             if left_rw == right_rw or left_rw == args[1] or right_rw == args[0]:
                 return True
         return result
@@ -1028,7 +1028,7 @@ class Engine(Rewriter, Executor):
         and term definitions are automatically included.
         """
         expanded = self._expand_using(using)
-        log.debug("_build_restricted_env: %r expanded to %r", using, expanded)
+        log.info("_build_restricted_env: %r expanded to %r", using, expanded)
         env: dict = {}
         # Include callable operators (arithmetic, comparison, logic)
         for sym, val in self.env.items():
@@ -1334,7 +1334,7 @@ class Engine(Rewriter, Executor):
             del self.env[Symbol(name)]
         if not removed:
             raise KeyError(f"Unknown: {name}")
-        log.info("'%s' retracted from system", name)
+        log.debug("'%s' retracted from system", name)
 
     def rederive(self, name: str):
         """Re-run a derivation to refresh its fabrication status.

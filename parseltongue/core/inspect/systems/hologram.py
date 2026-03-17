@@ -126,6 +126,7 @@ class HologramSearchSystem:
         }
         self._system = System(initial_env=ops, docs={}, strict_derive=False, name="HologramSearch")
         self.posting_morphism = self._HnPostingMorphism(self._lens_systems)
+        self.ops_morphism = self._HnOpsMorphism()
 
     def find(self, pattern: str, max_results: int = 50) -> list[str]:
         """Regex search over node names across all lenses."""
@@ -163,6 +164,14 @@ class HologramSearchSystem:
                 scored.append((score, len(name), name))
         scored.sort()
         return [name for _, _, name in scored[:max_results]]
+
+    class _HnOpsMorphism:
+        """OpsMorphism: hn identity is name (form[1])."""
+
+        __slots__ = ()
+
+        def key(self, form):
+            return form[1]
 
     class _HnPostingMorphism:
         """PostingMorphism: delegates to child lens morphisms."""

@@ -70,16 +70,16 @@ class TestEvalBindBench(_Base):
         result = b.interpret('(defterm my-val (+ 1 2))')
         self.assertIsNotNone(result)
 
-    def test_interpret_then_eval(self):
+    def test_interpret_then_query(self):
         b = self._bench('(fact x 1 :origin "test")')
         b.interpret('(defterm my-val (+ 10 20))')
-        result = b.eval('my-val')
+        result = b.interpret('my-val')
         self.assertEqual(result, 30)
 
     def test_bind_direct(self):
         b = self._bench('(fact x 1 :origin "test")')
         b.interpret('(defterm tmpl (+ ?a ?b))')
-        result = b.eval('(tmpl :bind ((?a 3) (?b 4)))')
+        result = b.interpret('(tmpl :bind ((?a 3) (?b 4)))')
         self.assertEqual(result, 7)
 
     def test_bind_via_axiom(self):
@@ -87,7 +87,7 @@ class TestEvalBindBench(_Base):
         b.interpret('(defterm tmpl (+ ?a ?b))')
         b.interpret('(defterm add-call :origin "callable")')
         b.interpret('(axiom add-call-rule (= (add-call ?x ?y) (tmpl :bind ((?a ?x) (?b ?y)))))')
-        result = b.eval('(add-call 100 200)')
+        result = b.interpret('(add-call 100 200)')
         self.assertEqual(result, 300)
 
     def test_bind_with_scope_lens(self):
@@ -111,7 +111,7 @@ class TestEvalBindBench(_Base):
         lens_count = b.eval('(count (scope lens (kind "fact")))')
         eval_count = b.eval('(count (scope evaluation (issues)))')
 
-        result = b.eval('(or-call (scope lens (kind "fact")) (scope evaluation (issues)))')
+        result = b.interpret('(or-call (scope lens (kind "fact")) (scope evaluation (issues)))')
         self.assertIsInstance(result, list)
         self.assertEqual(len(result), lens_count + eval_count)
 

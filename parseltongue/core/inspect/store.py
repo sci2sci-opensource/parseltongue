@@ -447,6 +447,13 @@ class SearchStore:
     ) -> tuple[DocumentIndex, int]:
         """Diff hashes, update index for changed files, remove deleted. Save cache."""
         changed = {f for f in set(old_hashes) | set(new_hashes) if old_hashes.get(f) != new_hashes.get(f)}
+        deleted = set(old_hashes) - set(new_hashes)
+        log.debug(
+            "search _update_index: %d total, %d changed, %d deleted",
+            len(new_hashes),
+            len(changed),
+            len(deleted),
+        )
 
         if not changed and old_hashes:
             # Nothing changed — restore from cache

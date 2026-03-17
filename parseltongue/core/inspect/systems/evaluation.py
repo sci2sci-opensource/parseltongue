@@ -140,6 +140,7 @@ class EvaluationSearchSystem:
         }
         self._system = System(initial_env=ops, name="EvaluationSearch")
         self.posting_morphism = self._DxPostingMorphism(self._item_index)
+        self.ops_morphism = self._DxOpsMorphism()
 
         _raw_eval = self._system.evaluate
         _to_dx = self._posting_to_dx
@@ -190,6 +191,14 @@ class EvaluationSearchSystem:
                 return {(r["document"], r["line"]): r for r in results}
             return self._system.evaluate(parsed)
         return self._system.evaluate(expr)
+
+    class _DxOpsMorphism:
+        """OpsMorphism: dx identity is name (form[1])."""
+
+        __slots__ = ()
+
+        def key(self, form):
+            return form[1]
 
     class _DxPostingMorphism:
         """PostingMorphism: posting ↔ dx forms."""

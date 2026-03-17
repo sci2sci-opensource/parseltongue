@@ -14,13 +14,13 @@ Key differences from v1:
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Callable
 
 from parseltongue.core.atoms import Symbol
-from parseltongue.core.lang import Rewriter
+from parseltongue.core.lang import Rewriter, Sentence
 
 from .bench_system import BenchSubsystem, Posting
-from .search import SearchPostingMorphism, _posting_to_sr
+from .search import SearchPostingMorphism, _posting_to_sr, _SrOpsMorphism
 
 if TYPE_CHECKING:
     from parseltongue.core.quote_verifier import DocumentIndex
@@ -54,16 +54,17 @@ class SearchSystem2:
         self._collect = collect  # kept for interface compat; unused internally
         self._scopes: dict[str, BenchSubsystem | Rewriter] = {}
         self.posting_morphism = SearchPostingMorphism()
+        self.ops_morphism = _SrOpsMorphism()
 
         sys = self  # capture
 
-        def _resolve(x):
+        def _resolve(x: str | Posting | Sentence) -> Posting | Sentence:
             if isinstance(x, str):
                 return sys._to_posting(x)
             return x
 
-        def _as_posting(x):
-            """Ensure x is a posting dict — convert tagged forms via morphism."""
+        def _as_posting(x: str | Posting | Sentence) -> Posting:
+            """Ensure x is a Posting — resolve str, convert Sentence via morphism."""
             val = _resolve(x)
             if isinstance(val, dict):
                 return val
@@ -71,63 +72,80 @@ class SearchSystem2:
                 return sys.posting_morphism.inverse(val)
             return {}
 
-        def _delegate_ops(op, resolved):
+        def _delegate_ops(op: str, resolved: list[Sentence]) -> Sentence:
             """Delegate to ops scope when args are tagged form lists."""
             ops = sys._scopes.get("ops")
             if ops is None:
                 raise TypeError(f"Cannot {op} tagged forms — no ops scope registered")
             return ops.evaluate([Symbol(op + "-forms")] + resolved)
 
-        def _has_forms(resolved):
+        def _has_forms(resolved: list[Posting]) -> bool:
+            # NOTE: currently dead — _as_posting always returns dict, never list.
+            # Was intended for when args are Sentence (tagged form lists) not yet
+            # converted to Posting, to delegate to ops scope instead.
             for r in resolved:
                 if isinstance(r, list) and r and isinstance(r[0], (list, tuple)):
                     return True
             return False
 
-        def _and(*args):
+        def _and(*args: str | Posting | Sentence) -> Posting:
             sets = [_as_posting(a) for a in args]
             if _has_forms(sets):
-                return _delegate_ops("and", sets)
+                return _delegate_ops("and", sets)  # type: ignore[return-value,arg-type]
             result = sets[0]
             for s in sets[1:]:
                 result = {k: v for k, v in result.items() if k in s}
             return result
 
-        def _or(*args):
+        def _or(*args: str | Posting | Sentence) -> Posting:
             sets = [_as_posting(a) for a in args]
             if _has_forms(sets):
-                return _delegate_ops("or", sets)
+                return _delegate_ops("or", sets)  # type: ignore[return-value,arg-type]
             result = dict(sets[0])
             for s in sets[1:]:
                 result.update(s)
             return result
 
-        def _not(*args):
+        def _not(*args: str | Posting | Sentence) -> Posting:
             resolved = [_as_posting(a) for a in args]
             if _has_forms(resolved):
-                return _delegate_ops("not", resolved)
+                return _delegate_ops("not", resolved)  # type: ignore[return-value,arg-type]
             base = resolved[0]
             for a in resolved[1:]:
                 base = {k: v for k, v in base.items() if k not in a}
             return base
 
-        def _match_doc(doc_name, pattern):
+        def _match_doc(doc_name: str, source: str | Posting | Sentence) -> bool:
             import fnmatch
 
-            d, p = str(doc_name), str(pattern)
+            if isinstance(source, dict):
+                return (doc_name, 0) in source
+            if isinstance(source, list):
+                return (doc_name, 0) in _as_posting(source)
+            d, p = str(doc_name), str(source)
             if "*" in p or "?" in p:
                 return fnmatch.fnmatch(d, p) or fnmatch.fnmatch(d, "*/" + p)
             return d == p or d.endswith("/" + p) or d.endswith(p)
 
-        def _in(doc_pattern, query):
-            posting = _as_posting(query)
-            return {k: v for k, v in posting.items() if _match_doc(k[0], doc_pattern)}
+        def _in(source: str | Posting | Sentence, query: str | Posting | Sentence | None = None) -> Posting:
+            def pred(d):
+                return _match_doc(d, source)
 
-        def _not_in(doc_pattern, query):
+            if query is None:
+                return sys._search_index.match_docs(pred)
             posting = _as_posting(query)
-            return {k: v for k, v in posting.items() if not _match_doc(k[0], doc_pattern)}
+            return {k: v for k, v in posting.items() if pred(k[0])}
 
-        def _count(*args):
+        def _not_in(source: str | Posting | Sentence, query: str | Posting | Sentence | None = None) -> Posting:
+            def pred(d):
+                return not _match_doc(d, source)
+
+            if query is None:
+                return sys._search_index.match_docs(pred)
+            posting = _as_posting(query)
+            return {k: v for k, v in posting.items() if pred(k[0])}
+
+        def _count(*args: str | Posting | Sentence) -> int:
             v = _resolve(args[0])
             if isinstance(v, list):
                 return len(v)
@@ -135,13 +153,13 @@ class SearchSystem2:
                 return len(v)
             return 0
 
-        def _near(a, b, distance=5):
+        def _near(distance: int, a: str | Posting | Sentence, b: str | Posting | Sentence) -> Posting:
             sa, sb = _as_posting(a), _as_posting(b)
-            n = int(distance) if not isinstance(distance, dict) else 5
+            n = int(distance)
             b_by_doc: dict[str, set[int]] = {}
             for doc, line in sb:
                 b_by_doc.setdefault(doc, set()).add(line)
-            result = {}
+            result: Posting = {}
             for k, v in sa.items():
                 doc, line = k
                 b_lines = b_by_doc.get(doc, set())
@@ -149,7 +167,7 @@ class SearchSystem2:
                     result[k] = v
             return result
 
-        def _seq(a, b):
+        def _seq(a: str | Posting | Sentence, b: str | Posting | Sentence) -> Posting:
             sa, sb = _as_posting(a), _as_posting(b)
             b_by_doc: dict[str, int] = {}
             for doc, line in sb:
@@ -157,12 +175,19 @@ class SearchSystem2:
                     b_by_doc[doc] = line
             return {k: v for k, v in sa.items() if k[0] in b_by_doc and k[1] < b_by_doc[k[0]]}
 
-        def _re(pattern):
+        def _re(pattern: str, source: str | Posting | Sentence | None = None) -> Posting:
             import re as _re_mod
 
             rx = _re_mod.compile(pattern)
-            result = {}
+            if source is not None:
+                posting = _as_posting(source)
+                doc_names = {k[0] for k in posting}
+            else:
+                doc_names = None
+            result: Posting = {}
             for doc_name, sdoc in sys._search_index.documents.items():
+                if doc_names is not None and doc_name not in doc_names:
+                    continue
                 for i, line_text in enumerate(sdoc.lines, 1):
                     if rx.search(line_text):
                         key = (doc_name, i)
@@ -176,12 +201,12 @@ class SearchSystem2:
                         }
             return result
 
-        def _lines(start, end, query):
+        def _lines(start: int, end: int, query: str | Posting | Sentence) -> Posting:
             posting = _as_posting(query)
             s, e = int(start), int(end)
             return {k: v for k, v in posting.items() if s <= k[1] <= e}
 
-        def _context_lines(n, query, before=True, after=True):
+        def _context_lines(n: int, query: str | Posting | Sentence, before: bool = True, after: bool = True) -> Posting:
             """Expand matches to include surrounding lines."""
             posting = _as_posting(query)
             n = int(n)
@@ -205,20 +230,20 @@ class SearchSystem2:
                         }
             return expanded
 
-        def _before(n, query):
+        def _before(n: int, query: str | Posting | Sentence) -> Posting:
             return _context_lines(n, query, before=True, after=False)
 
-        def _after(n, query):
+        def _after(n: int, query: str | Posting | Sentence) -> Posting:
             return _context_lines(n, query, before=False, after=True)
 
-        def _context(n, query):
+        def _context(n: int, query: str | Posting | Sentence) -> Posting:
             return _context_lines(n, query, before=True, after=True)
 
-        def _scope(name, *args):
+        def _scope(name: str, *args: "str | Posting | Sentence") -> "Sentence | Posting | None":
             if name not in sys._scopes:
                 raise KeyError(f"Unknown scope: {name!r}. Registered: {list(sys._scopes)}")
             scope_system = sys._scopes[name]
-            result = None
+            result: Sentence | Posting | None = None
             for arg in args:
                 if isinstance(arg, (list, tuple)):
                     result = scope_system.evaluate(arg)
@@ -226,11 +251,11 @@ class SearchSystem2:
                     result = arg
             return result
 
-        def _strategy(name, query):
+        def _strategy(name: str, query: str | Posting | Sentence) -> Posting:
             """Explicit strategy selection: (strategy "stemmed" "query")."""
             return sys._search_index.search(str(query), strategy=str(name))
 
-        def _rank(strategy, query):
+        def _rank(strategy: str, query: str | Posting | Sentence) -> Posting:
             posting = _as_posting(query)
             items = list(posting.values())
             strat = str(strategy)
@@ -257,12 +282,12 @@ class SearchSystem2:
                 items.sort(key=lambda ln: (ln["document"], ln["line"]))
             return {(ln["document"], ln["line"]): ln for ln in items}
 
-        def _results(query):
+        def _results(query: str | Posting | Sentence) -> Sentence:
             """Convert a posting set to a list of sr forms."""
             posting = _as_posting(query)
             return _posting_to_sr(posting)
 
-        def _limit(n, query):
+        def _limit(n: int, query: str | Posting | Sentence) -> Posting | Sentence:
             """Take first N entries from a posting set or sr list."""
             val = _resolve(query)
             n = int(n)
@@ -319,6 +344,8 @@ class SearchSystem2:
         sr list, integer, string, etc.
         """
         if isinstance(expr, str):
+            if not expr.strip():
+                return self._pltg_system.evaluate([])
             from parseltongue.core.atoms import Symbol
             from parseltongue.core.lang import PGStringParser
 
@@ -354,6 +381,12 @@ class SearchSystem2:
 
         self._pltg_system.engine.env[Symbol(name)] = _scope_fn
 
+        # Data tags from scope results must be self-quoting in the engine
+        # so strict/eval doesn't choke on them as unresolved symbols.
+        for tag in getattr(system, "data_tags", [system.tag]):
+            if tag not in self._pltg_system.engine.env:
+                self._pltg_system.engine.env[tag] = tag
+
     def unregister_scope(self, name: str):
         """Unregister a scope."""
         scope = self._scopes.pop(name, None)
@@ -363,7 +396,7 @@ class SearchSystem2:
 
     def refresh(self):
         """Sync search index with underlying DocumentIndex after new docs added."""
-        self._search_index.refresh()
+        self._search_index.refresh(self._index)
 
     def _to_posting(self, text: str) -> Posting:
         """Default lookup: cascade strategy + quote enrichment."""

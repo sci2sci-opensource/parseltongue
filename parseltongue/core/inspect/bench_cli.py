@@ -18,7 +18,7 @@ Search (S-expression query language over indexed documents):
     pg-bench search '(and "import" "quote")'          # intersection
     pg-bench search '(or "raise" "return")'           # union
     pg-bench search '(not (in "e.py" "raise") "Key")' # difference
-    pg-bench search '(near "raise" "ValueError" 2)'  # proximity
+    pg-bench search '(near 2 "raise" "ValueError")'  # proximity
     pg-bench search '(re "def \\w+")'                 # regex
     pg-bench search '(seq "def derive" "raise")'      # a before b
     pg-bench search '(lines 400 500 (in "e.py" .))'  # line range
@@ -167,7 +167,7 @@ class BenchServer:
     def _register_hologram_scope(self, hologram):
         """Register hologram search system as a scope in the main search engine."""
         search = self.bench.index
-        search.register_scope("hologram", hologram.search_system._system)
+        search.register_scope("hologram", hologram.search_system)
 
     def dispatch(self, cmd: dict) -> dict:
         """Execute a command dict, return a result dict."""
@@ -287,6 +287,7 @@ class BenchServer:
                 offset = cmd.get("offset", 0)
                 query = cmd.get("query", "")
                 query, sexp_warn = _validate_sexp(query)
+                search_warn = _validate_search_query(query)
 
                 # next/prev with query: use that query, shift from cached offset
                 # next/prev without query: reuse last query entirely
@@ -311,23 +312,29 @@ class BenchServer:
                 )
                 self._last_search = {"query": query, "limit": limit, "offset": offset}
 
-                lines: list[str] = []
-                prev_doc = None
-                prev_line = None
-                rank = offset
+                # Group results by document, preserving first-seen order
+                from collections import OrderedDict
+
+                by_doc: OrderedDict[str, list[dict]] = OrderedDict()
                 for r in search_result.get("lines", []):
-                    doc = r["document"]
-                    line_no = r["line"]
-                    if lines and (doc != prev_doc or (prev_line and line_no - prev_line > 1)):
+                    by_doc.setdefault(r["document"], []).append(r)
+
+                lines: list[str] = []
+                for doc, entries in by_doc.items():
+                    if lines:
                         lines.append("")
-                    rank += 1
-                    callers = ", ".join(c["name"] for c in r.get("callers", []))
-                    prefix = f"[{callers}] " if callers else ""
-                    lines.append(f"{rank}. {doc}:{line_no}  {prefix}{r['context']}")
-                    prev_doc = doc
-                    prev_line = line_no
+                    lines.append(doc)
+                    prev_line = None
+                    for r in entries:
+                        line_no = r["line"]
+                        if prev_line and line_no - prev_line > 1:
+                            lines.append("")
+                        callers = ", ".join(c["name"] for c in r.get("callers", []))
+                        prefix = f"[{callers}] " if callers else ""
+                        lines.append(f"  {line_no:<6} {prefix}{r['context']}")
+                        prev_line = line_no
                 total = search_result.get("total_lines", 0)
-                shown = rank - offset
+                shown = sum(len(v) for v in by_doc.values())
                 page = offset // limit + 1 if limit else 1
                 pages = (total + limit - 1) // limit if limit else 1
                 lines.append("")
@@ -337,12 +344,18 @@ class BenchServer:
                     lines.append(f"({total} results)")
                 if sexp_warn:
                     lines.insert(0, f"⚠ {sexp_warn}")
+                if search_warn:
+                    lines.insert(0, f"⚠ {search_warn}")
                     lines.insert(1, "")
                 return {"ok": True, "results": lines}
 
             elif action == "index":
                 # Handled separately via dispatch_stream
                 return {"ok": False, "error": "use dispatch_stream for index"}
+
+            elif action == "clean":
+                self.bench.clean()
+                return {"ok": True, "text": "Eval system reset."}
 
             elif action == "reload":
                 self.bench.invalidate()
@@ -485,6 +498,47 @@ def _validate_sexp(query: str) -> tuple[str, str | None]:
     return q, warning
 
 
+def _validate_search_query(query: str) -> str | None:
+    """Check if query normalization changes string literals in ways the user should know about.
+
+    Works for both plain text queries and string arguments inside s-expressions.
+    Returns a warning if normalization alters any search term, None otherwise.
+    """
+    import re as _re
+
+    from parseltongue.core.quote_verifier.config import QuoteVerifierConfig
+    from parseltongue.core.quote_verifier.normalizer import normalize_with_mapping
+
+    q = query.strip()
+    if not q:
+        return None
+
+    config = QuoteVerifierConfig(remove_stopwords=True)
+
+    # Extract string literals to check: plain text or quoted strings in s-exprs
+    if q.startswith("("):
+        literals = _re.findall(r'"([^"]*)"', q)
+    else:
+        literals = [q]
+
+    warnings = []
+    for lit in literals:
+        if not lit:
+            continue
+        normalized, _, _ = normalize_with_mapping(lit, config)
+        tokens = normalized.split()
+        if not tokens:
+            warnings.append(f'"{lit}" → empty (all stopwords?)')
+        else:
+            rejoined = " ".join(tokens)
+            if rejoined != lit.lower():
+                warnings.append(f'"{lit}" → "{rejoined}"')
+
+    if not warnings:
+        return None
+    return "Normalized: " + ", ".join(warnings) + ' — use (re "...") for exact match'
+
+
 _BENCH_FORM_TAGS = {"sr", "ln", "dx", "hn"}
 _FMT_FORM_TAGS = {"sr-fmt", "ln-fmt", "dx-fmt", "hn-fmt"}
 
@@ -519,9 +573,7 @@ def _fmt_via_bench(bench, result, perspective="md"):
             bare = str(result[0])
             if bare in _TAG_QUALIFY:
                 result = [Symbol(_TAG_QUALIFY[bare])] + result[1:]
-        path = bench._require_current()
-        _, system = bench._ensure_eval_system(path)
-        return system.engine.evaluate([Symbol("fmt"), perspective, result])
+        return bench.eval_system.engine.evaluate([Symbol("fmt"), perspective, result])
     except Exception as e:
         import logging
 
@@ -598,11 +650,12 @@ def _format_eval_result(result, bench=None) -> str:
         # Posting set — show as doc:line  [callers] context
         if not result:
             return "(empty)"
-        lines = []
+        lines: list[str] = []
         sorted_keys = sorted(
             result.keys(),
             key=lambda k: (k[0], k[1]) if isinstance(k, tuple) else (str(k), 0),
         )
+        prev_doc = None
         for i, key in enumerate(sorted_keys[:50], 1):
             entry = result[key]
             if isinstance(entry, dict) and "context" in entry:
@@ -610,7 +663,12 @@ def _format_eval_result(result, bench=None) -> str:
                 prefix = f"[{', '.join(c['name'] for c in callers)}] " if callers else ""
                 doc = entry["document"]
                 ln = entry["line"]
-                lines.append(f"{i}. {doc}:{ln}  {prefix}{entry['context']}")
+                if doc != prev_doc:
+                    if lines:
+                        lines.append("")
+                    lines.append(doc)
+                    prev_doc = doc
+                lines.append(f"  {ln:<6} {prefix}{entry['context']}")
             elif isinstance(key, tuple) and len(key) == 2:
                 lines.append(f"{i}. {key[0]}:{key[1]}")
             else:
@@ -826,7 +884,7 @@ def cli():
 @click.option(
     "--refresh-index", "refresh_s", default=2, type=int, help="Background reindex interval in seconds (0=off)."
 )
-@click.option("--verbose", "-v", is_flag=True, help="Shorthand for --log-level INFO.")
+@click.option("--verbose", "-v", is_flag=False, help="Shorthand for --log-level INFO.")
 @click.option(
     "--log-level",
     default="ERROR",
@@ -854,11 +912,29 @@ def serve(path: str, sock: str, refresh_s: int, verbose: bool, log_level: str):
     _run_server(path, Path(sock), refresh_s=refresh_s, log_level=log_level)
 
 
+def _read_expression(expression: str | None, file: str | None) -> str:
+    """Resolve expression from arg, -f file, or stdin pipe."""
+    if file:
+        return Path(file).read_text()
+    if expression:
+        return expression
+    if not sys.stdin.isatty():
+        return sys.stdin.read()
+    raise click.UsageError("No expression provided. Pass as argument, use -f FILE, or pipe via stdin.")
+
+
 @cli.command("eval")
-@click.argument("expression")
+@click.argument("expression", required=False)
+@click.option("-f", "--file", "file", default=None, help="Read expression from file.")
 @click.option("--raw", is_flag=True, help="Output raw S-expression (to_sexp).")
-def eval_cmd(expression: str, raw: bool):
+def eval_cmd(expression: str | None, file: str | None, raw: bool):
     """Evaluate an S-expression in the bench engine (main + std + scopes).
+
+    \b
+    Expression can be provided as argument, from a file (-f), or piped via stdin:
+      pg-bench eval '(+ 1 2)'
+      pg-bench eval -f script.pltg
+      echo '(+ 1 2)' | pg-bench eval
 
     \b
     Combines the loaded .pltg system, the full std library, and three
@@ -1047,13 +1123,15 @@ def eval_cmd(expression: str, raw: bool):
               (total  (count (in "engine.py" (re "def \\w+")))))
           (> raises (* total 0.3)))
     """
-    _print_result(_query({"action": "eval", "query": expression, "raw": raw}))
+    expr = _read_expression(expression, file)
+    _print_result(_query({"action": "eval", "query": expr, "raw": raw}))
 
 
 @cli.command("interpret")
-@click.argument("expression")
+@click.argument("expression", required=False)
+@click.option("-f", "--file", "file", default=None, help="Read expression from file.")
 @click.option("--raw", is_flag=True, help="Output raw S-expression (to_sexp).")
-def interpret_cmd(expression: str, raw: bool):
+def interpret_cmd(expression: str | None, file: str | None, raw: bool):
     """Interpret a directive or expression in the bench engine.
 
     \b
@@ -1062,11 +1140,18 @@ def interpret_cmd(expression: str, raw: bool):
     is evaluated. Useful for defining terms interactively.
 
     \b
+    Expression can be provided as argument, from a file (-f), or piped via stdin:
+      pg-bench interpret '(defterm my-val 42 :origin "test")'
+      pg-bench interpret -f setup.pltg
+      cat setup.pltg | pg-bench interpret
+
+    \b
     Examples:
       pg-bench interpret '(defterm or-test (lists.concat (strict ?a) (strict ?b)))'
       pg-bench interpret '(fact my-val 42 :origin "test")'
     """
-    _print_result(_query({"action": "interpret", "query": expression, "raw": raw}))
+    expr = _read_expression(expression, file)
+    _print_result(_query({"action": "interpret", "query": expr, "raw": raw}))
 
 
 @cli.command()
@@ -1339,6 +1424,12 @@ def reindex():
         elif msg.get("done"):
             click.echo()
             _print_result(msg)
+
+
+@cli.command()
+def clean():
+    """Reset the eval system so interpret -f can run again without restart."""
+    _print_result(_query({"action": "clean"}))
 
 
 @cli.command()

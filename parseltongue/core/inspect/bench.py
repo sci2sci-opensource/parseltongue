@@ -210,50 +210,63 @@ class Bench:
         )
 
     def eval(self, query: str):
-        """Evaluate an S-expression in the eval system (main + std + scopes)."""
+        """Evaluate an S-expression. Pure — never polluted by interpret()."""
         from parseltongue.core.lang import PGStringParser
 
         path = self._require_current()
         if path not in self._mem:
             self.prepare(path)
-        eval_loader, eval_system = self._ensure_eval_system(path)
+
+        loader, system = self._ensure_eval_system(path)
         expr = PGStringParser.translate(query)
-        expr = eval_loader.prepare_script(expr, eval_system)
-        return eval_system.engine.evaluate(expr)
+        expr = loader.prepare_script(expr, system)
+        return system.engine.evaluate(expr)
 
     def interpret(self, query: str):
-        """Interpret a directive or evaluate an expression in the eval system."""
+        """Interpret a directive or expression. Accumulates state; clean() resets."""
         path = self._require_current()
         if path not in self._mem:
             self.prepare(path)
-        _, eval_system = self._ensure_eval_system(path)
-        _, result = eval_system.interpret(query)
+        _, system = self._ensure_experiment_system(path)
+        _, result = system.interpret(query)
         return result
 
-    def _ensure_eval_system(self, path: str):
-        """Build or return cached eval system: live bench + scopes."""
-        if not hasattr(self, "_eval_sys_mem"):
-            self._eval_sys_mem: dict[str, tuple] = {}
-        if path in self._eval_sys_mem:
-            return self._eval_sys_mem[path]
-
-        from parseltongue.core.atoms import Symbol
-
+    def _prepare_live(self, path: str):
+        """Register scopes on the live system. Idempotent."""
         live = self._technician._live.get(path)
         if not live:
             raise RuntimeError(f"No live system for {path} — is it loaded?")
-
-        system = live.system
-        engine = system.engine
-
-        # Register scopes
         live.register_scope("lens", self.lens(path).search_system)
         live.register_scope("evaluation", self.evaluate(path).search_system)
         live.register_scope("search", self._technician.search_engine(path)._system)
-        engine.env[Symbol("count")] = lambda *args: len(args[0]) if args and isinstance(args[0], (dict, list)) else 0
+        return live
 
-        self._eval_sys_mem[path] = (live._loader, system)
-        return live._loader, system
+    def _copy_live(self, path: str, name: str) -> tuple:
+        """Copy live system with scopes + count operator."""
+        from parseltongue.core.atoms import Symbol
+
+        live = self._prepare_live(path)
+        copy = live.system.copy(name=name, overridable=True)
+        copy.engine.env[Symbol("count")] = lambda *args: (
+            len(args[0]) if args and isinstance(args[0], (dict, list)) else 0
+        )
+        return live._loader, copy
+
+    def _ensure_eval_system(self, path: str):
+        """Cached clean copy of live. Never mutated."""
+        if not hasattr(self, "_eval_mem"):
+            self._eval_mem: dict[str, tuple] = {}
+        if path not in self._eval_mem:
+            self._eval_mem[path] = self._copy_live(path, "eval")
+        return self._eval_mem[path]
+
+    def _ensure_experiment_system(self, path: str):
+        """Cached copy of live for interpret(). clean() resets it."""
+        if not hasattr(self, "_experiment_mem"):
+            self._experiment_mem: dict[str, tuple] = {}
+        if path not in self._experiment_mem:
+            self._experiment_mem[path] = self._copy_live(path, "experiment")
+        return self._experiment_mem[path]
 
     @property
     def index(self):
@@ -273,7 +286,19 @@ class Bench:
         """The engine of the current sample."""
         return self.result().system.engine
 
+    @property
+    def eval_system(self):
+        """The eval system — clean copy of live with scopes registered."""
+        path = self._require_current()
+        _, system = self._ensure_eval_system(path)
+        return system
+
     # ── Cache management ──
+
+    def clean(self):
+        """Reset the experiment system. Eval and live stay warm."""
+        if hasattr(self, "_experiment_mem"):
+            self._experiment_mem.clear()
 
     def invalidate(self, path: str | None = None):
         """Clear cache for a path, or all if None."""

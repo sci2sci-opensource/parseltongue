@@ -147,6 +147,11 @@ class SyntheticCorpus:
         """Generate the .pltg file documenting the corpus."""
         lines = ["; synth.pltg — auto-generated synthetic corpus\n"]
 
+        # Load source documents
+        for doc_name in self.docs:
+            lines.append(f'(load-document "{doc_name}" "{doc_name}")')
+        lines.append("")
+
         # Facts for each function
         for fact_name, value, doc, quotes in self.facts:
             escaped_quotes = []
@@ -397,17 +402,16 @@ class TestBenchMapReduce(unittest.TestCase):
         c1 = self.corpus.doc_params[d1]["keywords"][kw]
         c2 = self.corpus.doc_params[d2]["keywords"][kw]
 
-        union = _search_count(self.bench, f'(or (in "{d1}" "raise ValueError") (in "{d2}" "raise ValueError"))')
+        union = _search_count(
+            self.bench,
+            f'(or (in "{d1}" (strategy "direct" "raise ValueError")) (in "{d2}" (strategy "direct" "raise ValueError")))',
+        )
         self.assertEqual(union, c1 + c2, f"OR({d1}={c1}, {d2}={c2}) = {union}, expected {c1+c2}")
 
     # ── Map-Reduce: search→sr forms + axiom classification ──
 
     def test_axiom_classify_and_count(self):
         """Classify sr forms by namespace via rewrite axioms, verify counts."""
-
-        path = str(Path(self._pltg_path).resolve())
-        loader, system = self.bench._ensure_eval_system(path)
-        engine = system.engine
 
         # Pick a namespace with known count
         rng = random.Random(self.SEED + 6)
@@ -438,11 +442,14 @@ class TestBenchMapReduce(unittest.TestCase):
 
         search_sum = 0
         for doc in sample_docs:
-            cnt = _search_count(self.bench, f'(in "{doc}" "raise ValueError")')
+            cnt = _search_count(self.bench, f'(in "{doc}" (strategy "direct" "raise ValueError"))')
             search_sum += cnt
 
         # Reduce: verify sum via engine arithmetic
-        terms = [str(_search_count(self.bench, f'(in "{doc}" "raise ValueError")')) for doc in sample_docs]
+        terms = [
+            str(_search_count(self.bench, f'(in "{doc}" (strategy "direct" "raise ValueError"))'))
+            for doc in sample_docs
+        ]
         # Build nested binary addition
         expr = terms[0]
         for t in terms[1:]:
@@ -465,7 +472,7 @@ class TestBenchMapReduce(unittest.TestCase):
             defs = params["defs"]
             if raises > 0 and defs > 0:
                 # Verify via search
-                s_raises = _search_count(self.bench, f'(in "{doc}" "raise ValueError")')
+                s_raises = _search_count(self.bench, f'(in "{doc}" (strategy "direct" "raise ValueError"))')
                 s_defs = _search_count(self.bench, f'(in "{doc}" (re "^def "))')
                 self.assertEqual(s_raises, raises, f"{doc} raise mismatch")
                 self.assertEqual(s_defs, defs, f"{doc} def mismatch")
@@ -475,7 +482,7 @@ class TestBenchMapReduce(unittest.TestCase):
 
         # Verify via engine: for each high-raise doc, (>= raises defs) is true
         for doc in high_raise_docs[:5]:  # spot check 5
-            r = _search_count(self.bench, f'(in "{doc}" "raise ValueError")')
+            r = _search_count(self.bench, f'(in "{doc}" (strategy "direct" "raise ValueError"))')
             d = _search_count(self.bench, f'(in "{doc}" (re "^def "))')
             result = self.bench.eval(f'(>= {r} {d})')
             self.assertTrue(result, f"{doc}: {r} raises < {d} defs but was in high list")

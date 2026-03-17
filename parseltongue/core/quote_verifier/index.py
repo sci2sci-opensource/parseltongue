@@ -25,6 +25,7 @@ class IndexedDocument:
         "normalized_text",
         "position_map",
         "word_positions",
+        "content_hash",
         "_collapsed_text",
         "_collapsed_to_norm",
     )
@@ -32,6 +33,7 @@ class IndexedDocument:
     def __init__(self, name: str, text: str, config: QuoteVerifierConfig):
         self.name = name
         self.original_text = text
+        self.content_hash = _content_hash(text)
         self.normalized_text, self.position_map, _ = normalize_with_mapping(text, config)
         self.word_positions = self._build_word_index()
         self._collapsed_text, self._collapsed_to_norm = self._build_collapsed()
@@ -44,6 +46,7 @@ class IndexedDocument:
         obj = object.__new__(cls)
         obj.name = name
         obj.original_text = original_text
+        obj.content_hash = _content_hash(original_text)
         obj.normalized_text = normalized_text
         obj.position_map = position_map
         obj.word_positions = obj._build_word_index()
@@ -55,6 +58,7 @@ class IndexedDocument:
             "name": self.name,
             "normalized_text": self.normalized_text,
             "position_map": self.position_map,
+            "content_hash": self.content_hash,
         }
 
     def _build_word_index(self) -> Dict[str, List[int]]:

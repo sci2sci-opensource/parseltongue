@@ -1,5 +1,7 @@
 from typing import Callable
 
+from typing_extensions import deprecated
+
 from parseltongue.core.atoms import Symbol
 from parseltongue.core.lang import Rewriter
 from parseltongue.core.quote_verifier import DocumentIndex
@@ -9,6 +11,15 @@ from .bench_system import BenchSubsystem, Posting
 # ── sr: pltg-native search result form ──
 # (sr doc line column context ((caller_name overlap) ...))
 # Defined as rewrite axioms in SearchSystem.__init__.
+
+
+class _SrOpsMorphism:
+    """OpsMorphism: sr identity is (doc, line) — form[1], form[2]."""
+
+    __slots__ = ()
+
+    def key(self, form):
+        return (form[1], form[2])
 
 
 class SearchPostingMorphism:
@@ -101,6 +112,7 @@ def _sr_to_posting(sr_list: list) -> dict:
     return posting
 
 
+@deprecated("Use NewClass instead.")
 class SearchSystem:
     """Parseltongue System wired with posting-set operators for search queries.
 
@@ -121,6 +133,7 @@ class SearchSystem:
         self._collect = collect
         self._scopes: dict[str, BenchSubsystem | Rewriter] = {}
         self.posting_morphism = SearchPostingMorphism()
+        self.ops_morphism = _SrOpsMorphism()
 
         sys = self  # capture
 

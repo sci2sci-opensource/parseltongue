@@ -125,29 +125,16 @@ class TestScopedMapReduce(unittest.TestCase):
         resolved = str(Path(cls._pltg_path).resolve())
         search = cls.bench._technician.search_engine(resolved)
         for name, content in cls.corpus.docs.items():
-            if name not in search._index.documents:
-                search._index.add(name, content)
+            search.add(name, content)
+        search.refresh()
 
     @classmethod
     def tearDownClass(cls):
         shutil.rmtree(cls._tmpdir, ignore_errors=True)
 
     def _exec_pltg(self, pltg_text):
-        """Execute pltg directives in the bench eval system."""
-        from parseltongue.core.engine import _execute_directive
-        from parseltongue.core.lang import PGStringParser
-
-        path = str(Path(self._pltg_path).resolve())
-        _, system = self.bench._ensure_eval_system(path)
-        result = PGStringParser.translate(pltg_text)
-        exprs = (
-            result
-            if isinstance(result, (list, tuple)) and result and isinstance(result[0], (list, tuple))
-            else [result] if result else []
-        )
-        for expr in exprs:
-            if isinstance(expr, (list, tuple)) and expr:
-                _execute_directive(system.engine, expr)
+        """Execute pltg directives in the bench experiment system."""
+        self.bench.interpret(pltg_text)
 
     # ── 1. Parametric reducer axiom ──
 
@@ -172,9 +159,9 @@ class TestScopedMapReduce(unittest.TestCase):
 
         # The rewrite axiom fires on (reduce-sum <search1> <search2>)
         # because search counts are concrete ints — strict is not needed.
-        result = self.bench.eval(
-            f'(reduce-sum (scope search (count (in "{d1}" "raise ValueError")))'
-            f'            (scope search (count (in "{d2}" "raise ValueError"))))'
+        result = self.bench.interpret(
+            f'(reduce-sum (scope search (count (in "{d1}" (strategy "direct" "raise ValueError"))))'
+            f'            (scope search (count (in "{d2}" (strategy "direct" "raise ValueError")))))'
         )
         self.assertEqual(result, c1 + c2)
 
@@ -204,7 +191,7 @@ class TestScopedMapReduce(unittest.TestCase):
 
         # check-match unifies: if both are the same, returns true
         # Use (strict ...) to force eager eval of search count before rewrite
-        result = self.bench.eval(
+        result = self.bench.interpret(
             f'(check-match (strict (scope search (count (in "{doc}" (re "^def ")))))' f'             {expected})'
         )
         self.assertEqual(result, True)
@@ -237,7 +224,7 @@ class TestScopedMapReduce(unittest.TestCase):
 (axiom lens-search-agree-rule (= (lens-search-agree ?v ?v) true)
     :origin "values agree if identical")
 """)
-        result = self.bench.eval(
+        result = self.bench.interpret(
             f'(lens-search-agree (strict (scope search (count (in "{doc}" (re "^def ")))))'
             f'                   {expected})'
         )
@@ -265,8 +252,8 @@ class TestScopedMapReduce(unittest.TestCase):
         truth = sum(self.corpus.doc_params[d]["keywords"][kw] for d in sample)
 
         # Build: (fold-sum (scope search (count ...)) (scope search (count ...)) ...)
-        args = " ".join(f'(scope search (count (in "{d}" "raise ValueError")))' for d in sample)
-        result = self.bench.eval(f'(fold-sum {args})')
+        args = " ".join(f'(scope search (count (in "{d}" (strategy "direct" "raise ValueError"))))' for d in sample)
+        result = self.bench.interpret(f'(fold-sum {args})')
         self.assertEqual(result, truth)
 
     # ── 5. Project bridge: search result enters evaluation scope ──
@@ -310,9 +297,9 @@ class TestScopedMapReduce(unittest.TestCase):
         defs = self.corpus.doc_params[doc]["defs"]
         raises = self.corpus.doc_params[doc]["keywords"].get("raise ValueError", 0)
 
-        result = self.bench.eval(
+        result = self.bench.interpret(
             f'(quality-gate'
-            f'  (scope search (count (in "{doc}" "raise ValueError")))'
+            f'  (scope search (count (in "{doc}" (strategy "direct" "raise ValueError"))))'
             f'  (scope search (count (in "{doc}" (re "^def "))))'
             f'  50)'  # threshold: raises must be < 50% of defs
         )
@@ -352,7 +339,7 @@ class TestScopedMapReduce(unittest.TestCase):
         doc = list(self.corpus.doc_params.keys())[0]
         defs = self.corpus.doc_params[doc]["defs"]
 
-        result = self.bench.eval(
+        result = self.bench.interpret(
             f'(normalize'
             f'  (scope search (count (in "{doc}" (re "^def "))))'
             f'  (scope search (count (re "^def "))))'

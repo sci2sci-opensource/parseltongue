@@ -59,6 +59,10 @@ class LensSearchSystem:
 
     tag = Symbol("ln")
 
+    @property
+    def data_tags(self) -> list["Symbol"]:
+        return [Symbol("ln"), Symbol("ln-ev")]
+
     def __init__(self, structure: CoreToConsequenceStructure):
         from parseltongue.core.quote_verifier.index import DocumentIndex
 
@@ -108,7 +112,12 @@ class LensSearchSystem:
             return _posting(name)
 
         def _kind(kind_pattern):
-            matches = [n for n, node in sys._structure.graph.items() if n != "__output__" and kind_pattern in node.kind]
+            if kind_pattern == "all":
+                matches = [n for n in sys._structure.graph if n != "__output__"]
+            else:
+                matches = [
+                    n for n, node in sys._structure.graph.items() if n != "__output__" and kind_pattern in node.kind
+                ]
             return _multi_posting(matches)
 
         def _inputs(name):
@@ -166,6 +175,15 @@ class LensSearchSystem:
                 return list(origin.quotes)
             return []
 
+        def _atom(name):
+            """Return atom as pltg tagged list via ClauseMorphism."""
+            node = sys._structure.graph.get(name)
+            if not node or not node.atom:
+                return []
+            from parseltongue.core.lang import ClauseMorphism
+
+            return ClauseMorphism.transform(node.atom)
+
         ops = {
             Symbol("node"): _node,
             Symbol("kind"): _kind,
@@ -178,9 +196,11 @@ class LensSearchSystem:
             Symbol("value"): _value,
             Symbol("terms"): _terms,
             Symbol("quotes"): _quotes,
+            Symbol("atom"): _atom,
         }
         self._system = System(initial_env=ops, docs={}, strict_derive=False, name="LensSearch")
         self.posting_morphism = self._LnPostingMorphism(structure)
+        self.ops_morphism = self._LnOpsMorphism()
 
         # Wrap evaluate: internal operators use posting sets,
         # but the system produces s-expressions at the boundary
@@ -239,6 +259,14 @@ class LensSearchSystem:
             return self._system.evaluate(parsed)
         return self._system.evaluate(expr)
 
+    class _LnOpsMorphism:
+        """OpsMorphism: ln identity is name (form[1])."""
+
+        __slots__ = ()
+
+        def key(self, form):
+            return form[1]
+
     class _LnPostingMorphism:
         """PostingMorphism: posting ↔ ln forms."""
 
@@ -246,9 +274,10 @@ class LensSearchSystem:
             self._structure = structure
 
         def transform(self, posting: dict) -> list:
-            from parseltongue.core.atoms import Symbol
+            from parseltongue.core.atoms import Evidence, Symbol
 
             tag = Symbol("ln")
+            ev_tag = Symbol("ln-ev")
             result = []
             for name, _line in posting:
                 node = self._structure.graph.get(name)
@@ -256,7 +285,13 @@ class LensSearchSystem:
                     continue
                 depth = self._structure.depths.get(name, 0)
                 value = str(node.value) if node.value is not None else ""
-                result.append([tag, name, node.kind, value, depth, list(node.inputs)])
+                # Evidence sublist
+                origin = getattr(node.atom, "origin", None) if node.atom else None
+                if isinstance(origin, Evidence):
+                    ev = [ev_tag, origin.document, list(origin.quotes), origin.explanation or "", origin.is_grounded]
+                else:
+                    ev = [ev_tag, "", [], str(origin) if origin else "", False]
+                result.append([tag, name, node.kind, value, depth, list(node.inputs), ev])
             return result
 
         def inverse(self, forms: list) -> dict:
@@ -272,6 +307,7 @@ class LensSearchSystem:
                 name = str(item[1])
                 kind = str(item[2]) if len(item) > 2 else ""
                 value = str(item[3]) if len(item) > 3 else ""
+                # ev sublist available at item[6] if needed for evidence doc
                 posting[(name, 1)] = {
                     "document": name,
                     "line": 1,
