@@ -18,7 +18,6 @@ from collections.abc import Callable, Hashable, Sequence
 from typing import TYPE_CHECKING, Protocol
 
 from parseltongue.core.atoms import Symbol
-from parseltongue.core.lang import Sentence
 
 if TYPE_CHECKING:
     from parseltongue.core.system import System
@@ -170,10 +169,7 @@ class BenchSystem:
         def _scope_fn(_name, *args):
             result = None
             for arg in args:
-                if isinstance(arg, (list, tuple)):
-                    result = scope_system.evaluate(arg)
-                else:
-                    result = arg
+                result = scope_system.evaluate(arg)
             return result
 
         self.system.engine.env[Symbol(name)] = _scope_fn
@@ -182,6 +178,20 @@ class BenchSystem:
         for tag in getattr(scope_system, "data_tags", [getattr(scope_system, "tag", None)]):
             if tag is not None and tag not in self.system.engine.env:
                 self.system.engine.env[tag] = tag
+
+    def register_hologram_scope(self, engine=None):
+        """Register (scope hologram (dissect ...) | (compose ...)).
+
+        HologramSystem owns dissect/compose as operators in its own
+        System — the engine never sees them. register_scope passes args
+        unevaluated through to hs.evaluate().
+
+        engine: the sample engine (has diffs). Falls back to self.system.engine.
+        """
+        from parseltongue.core.inspect.systems.hologram import HologramSystem
+
+        hs = HologramSystem(engine=engine or self.system.engine)
+        self.register_scope("hologram", hs)
 
     def register_renderer(self, name: str, renderer: "FormRenderer"):
         """Register a FormRenderer for (fmt "name" value)."""

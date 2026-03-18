@@ -143,17 +143,18 @@ class Technician:
         ops.register_scope("search", search._system)
         search.register_scope("ops", ops)
 
-        # Populate search docs if live
-        result = sample[3].last_result
-        if result is not None and hasattr(result.system, "engine") and result.system.engine.facts:
-            from .systems.live_bench import LiveBench
+        # Register scopes + renderers on frozen system (always available)
+        frozen = self._ensure_frozen()
+        if frozen is not None:
+            frozen.register_scope("lens", lens.search_system)
+            if dx is not None:
+                frozen.register_scope("evaluation", dx.search_system)
+            frozen.register_scope("ops", ops)
+            frozen.register_scope("search", search._system)
 
-            self._live[path] = LiveBench(result, self._bench_pg, self._lib_paths)  # type: ignore[arg-type]
-            self._live[path].register_scope("ops", ops)
-            # Register fmt renderers
             from .perspectives.viz import VizRenderer
 
-            self._live[path].register_renderer(
+            frozen.register_renderer(
                 "viz",
                 VizRenderer(
                     store=self._store,
@@ -161,9 +162,34 @@ class Technician:
                     structure=structure,
                 ),
             )
-            for doc_name, doc_text in result.system.engine.documents.items():
-                search.add(doc_name, doc_text)
-            search.refresh()
+
+        # Populate search docs + create LiveBench if result available
+        result = sample[3].last_result
+        if result is not None and hasattr(result.system, "engine") and result.system.engine.facts:
+            from .systems.live_bench import LiveBench
+
+            self._live[path] = LiveBench(result, frozen)  # type: ignore[arg-type]
+            self._live[path].register_scope("lens", lens.search_system)
+            if dx is not None:
+                self._live[path].register_scope("evaluation", dx.search_system)
+            self._live[path].register_scope("ops", ops)
+            self._live[path].register_scope("search", search._system)
+            self._live[path].register_hologram_scope(engine=result.system.engine)
+            if frozen is not None:
+                frozen.register_hologram_scope(engine=result.system.engine)
+            from .perspectives.viz import VizRenderer as _VR
+
+            self._live[path].register_renderer(
+                "viz",
+                _VR(
+                    store=self._store,
+                    merkle_root=getattr(self, "_merkle_roots", {}).get(path, ""),
+                    structure=structure,
+                ),
+            )
+            vi = result.system.engine._verifier.index
+            log.info("Refreshing search with verifier index: docs=%d, quote_ranges=%d", len(vi.documents), len(vi._quote_ranges))
+            search.refresh(vi)
 
     # ── Evaluation ──
 
@@ -259,10 +285,10 @@ class Technician:
                 structure, loader = self._store.deserialize(disk_raw)
                 sample = (path, new_tree, structure, loader)
                 self._file_hashes[path] = new_hashes
-                self._on_status(path, self.VERIFIED, self.LOADING)
-                self._background_reload(path, sample)
                 self._ensure_frozen()
                 self._register_scopes(path, sample)
+                self._on_status(path, self.VERIFIED, self.LOADING)
+                self._background_reload(path, sample)
                 return sample, None
 
             # Tree differs — hot-patch if we have a cached system
@@ -280,17 +306,16 @@ class Technician:
                             new_tree = self._store.build_file_tree(file_list, new_hashes)
                             sample = (path, new_tree, structure, loader)
                             self._file_hashes[path] = new_hashes
-                            self._on_status(path, self.UNKNOWN, self.LOADING)
-                            self._background_reload(path, sample)
                             self._affected[path] = affected
                             self._evaluation_mem.pop(path, None)
                             self._ensure_frozen()
                             self._register_scopes(path, sample)
+                            self._on_status(path, self.UNKNOWN, self.LOADING)
+                            self._background_reload(path, sample)
                             return sample, affected
 
-        # Cold — full reload (_cold_load registers live scopes)
+        # Cold — full reload (_cold_load registers live scopes + frozen)
         sample = self._cold_load(path)
-        self._ensure_frozen()
         return sample, None
 
     def ensure_live(
@@ -365,9 +390,10 @@ class Technician:
         structure = probe_all(load_result)
 
         sample: Sample = (path, new_tree, structure, loader)
-        self._on_status(path, self.VERIFIED, self.LIVE)
         self._store.save(path, new_tree, structure, loader, file_list, new_hashes)
+        self._ensure_frozen()
         self._register_scopes(path, sample)
+        self._on_status(path, self.VERIFIED, self.LIVE)
         return sample
 
     def _hot_patch(

@@ -89,8 +89,15 @@ class Search:
         if name not in self._index.documents:
             self._index.add(name, text)
 
-    def refresh(self) -> None:
-        """Sync search system with any documents added since last refresh."""
+    def refresh(self, doc_index=None) -> None:
+        """Sync search system with backing DocumentIndex.
+
+        If *doc_index* is provided, swaps the backing index (e.g. to the
+        verifier's DocumentIndex which carries quote ranges).
+        """
+        if doc_index is not None:
+            self._index = doc_index
+            self._system._index = doc_index
         self._system.refresh()
 
     def index_dir(
@@ -100,8 +107,7 @@ class Search:
         exclude: list[str] | None = None,
         on_progress: Callable[[int, int, str], None] | None = None,
     ) -> int:
-        self._index, count = self._store.index_incremental(self._index, directory, extensions, exclude, on_progress)
-        self._system._index = self._index
+        _, count = self._store.index_incremental(self._index, directory, extensions, exclude, on_progress)
         self._system.refresh()
         return count
 
@@ -109,9 +115,12 @@ class Search:
         self,
         on_progress: Callable[[int, int, str], None] | None = None,
     ) -> int:
-        """Re-read known files, update stale entries, remove deleted."""
-        self._index, count = self._store.reindex(self._index, on_progress)
-        self._system._index = self._index
+        """Re-read known files, update stale entries, remove deleted.
+
+        Works in-place on the current index. Cited documents that changed
+        get their quote positions recomputed via DocumentIndex.refresh_document.
+        """
+        _, count = self._store.reindex(self._index, on_progress)
         self._system.refresh()
         return count
 

@@ -29,7 +29,7 @@ class DocumentSearchIndex:
     and exposes the strategy dispatch for queries.
     """
 
-    __slots__ = ("_doc_index", "documents", "_quote_by_doc", "_quote_starts", "_annotators")
+    __slots__ = ("_doc_index", "documents", "_annotators")
 
     def __init__(
         self,
@@ -38,8 +38,6 @@ class DocumentSearchIndex:
     ):
         self._doc_index = doc_index
         self.documents: dict[str, SearchDocument] = {}
-        self._quote_by_doc: dict[str, list[tuple[int, int, str]]] | None = None
-        self._quote_starts: dict[str, list[int]] | None = None
         self._annotators = annotators if annotators is not None else list(DEFAULT_ANNOTATORS)
         self._build()
 
@@ -95,77 +93,38 @@ class DocumentSearchIndex:
 
     # ── Quote provenance enrichment ──
 
-    def _build_quote_index(self) -> dict[str, list[tuple[int, int, str]]]:
-        """Build per-doc sorted quote ranges from DocumentIndex._quote_ranges.
-
-        Cached — invalidated on refresh().
-        """
-        if self._quote_by_doc is not None:
-            return self._quote_by_doc
-
-        by_doc: dict[str, list[tuple[int, int, str]]] = {}
-        for doc_name, start, end, caller in self._doc_index._quote_ranges:
-            by_doc.setdefault(doc_name, []).append((start, end, caller))
-
-        # Sort by start position for binary search; cache start lists
-        starts: dict[str, list[int]] = {}
-        for doc_name, ranges in by_doc.items():
-            ranges.sort()
-            starts[doc_name] = [r[0] for r in ranges]
-
-        self._quote_by_doc = by_doc
-        self._quote_starts = starts
-        return self._quote_by_doc
-
     def enrich(self, posting: dict) -> dict:
         """Attach quote provenance (callers + overlap) to a posting set.
 
-        For each (doc, line) entry, maps the line to its char range,
-        finds overlapping quote ranges, and fills callers/total_callers.
-
-        Returns the same posting dict, mutated in place.
+        Delegates to DocumentIndex.trace() which matches text and returns
+        overlapping quotes with callers. Returns the same posting dict,
+        mutated in place.
         """
-        from bisect import bisect_right
+        log.info(
+            "enrich: _doc_index id=%s, docs=%d, quote_ranges=%d, posting=%d entries",
+            id(self._doc_index), len(self._doc_index.documents),
+            len(self._doc_index._quote_ranges), len(posting),
+        )
+        if not self._doc_index._quote_ranges:
+            return posting
 
-        quote_index = self._build_quote_index()
-        assert self._quote_starts is not None
-
-        for (doc_name, line_num), entry in posting.items():
-            sdoc = self.documents.get(doc_name)
-            if sdoc is None:
+        for (_doc_name, _line_num), entry in posting.items():
+            context = entry.get("context", "")
+            if not context or not context.strip():
                 continue
 
-            # line_ranges is 0-indexed, lines are 1-based
-            idx = line_num - 1
-            if idx < 0 or idx >= len(sdoc.line_ranges):
+            hits = self._doc_index.trace(context.strip(), max_results=50)
+            if not hits:
                 continue
 
-            line_start, line_end = sdoc.line_ranges[idx]
-            ranges = quote_index.get(doc_name)
-            if not ranges:
-                continue
+            best: dict[str, float] = {}
+            for hit in hits:
+                c, o = hit["caller"], hit["overlap"]
+                if c not in best or o > best[c]:
+                    best[c] = o
 
-            # Binary search: find first range that could overlap.
-            # Ranges sorted by start. We want ranges where start <= line_end.
-            doc_starts = self._quote_starts.get(doc_name, [])
-            hi = bisect_right(doc_starts, line_end)
-
-            callers = []
-            for i in range(hi):
-                r_start, r_end, caller = ranges[i]
-                # Range must overlap the line
-                if r_end < line_start:
-                    continue
-                # Overlap ratio: fraction of line covered by quote
-                overlap_start = max(line_start, r_start)
-                overlap_end = min(line_end, r_end)
-                line_len = line_end - line_start + 1
-                overlap_ratio = (overlap_end - overlap_start + 1) / line_len if line_len > 0 else 0
-                if overlap_ratio > 0:
-                    callers.append({"name": caller, "overlap": round(overlap_ratio, 3)})
-
-            # Sort by overlap descending
-            callers.sort(key=lambda c: -c["overlap"])  # type: ignore[operator]
+            callers = [{"name": c, "overlap": round(o, 3)} for c, o in best.items()]
+            callers.sort(key=lambda c: -c["overlap"])
             entry["callers"] = callers
             entry["total_callers"] = len(callers)
 
@@ -186,9 +145,6 @@ class DocumentSearchIndex:
         if new_set == old_set:
             return
 
-        self._quote_by_doc = None
-        self._quote_starts = None
-
         new_names = {n for n, _ in new_set}
         old_names = {n for n, _ in old_set}
         new_h = dict(new_set)
@@ -200,11 +156,11 @@ class DocumentSearchIndex:
 
         log.debug("refresh: +%d -%d ~%d docs", len(added), len(removed), len(updated))
 
-        for name in removed:
-            del self.documents[name]
-
+        # Build new dict atomically — avoids concurrent modification during iteration
+        new_docs = {n: s for n, s in self.documents.items() if n not in removed}
         for name in added | updated:
             sdoc = SearchDocument(self._doc_index.documents[name])
             for ann in self._annotators:
                 ann.annotate(sdoc)
-            self.documents[name] = sdoc
+            new_docs[name] = sdoc
+        self.documents = new_docs

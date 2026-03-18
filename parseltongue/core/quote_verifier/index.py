@@ -245,6 +245,49 @@ class DocumentIndex:
 
         return idx
 
+    def refresh_document(self, name: str, new_text: str) -> int:
+        """Re-index a document and recompute quote positions.
+
+        Extracts quote text from the old normalized content, re-indexes the
+        document with new_text, and re-finds each quote at its new position.
+        Returns the number of quotes that could not be relocated.
+        """
+        old_doc = self.documents.get(name)
+        if old_doc is None:
+            self.add(name, new_text)
+            return 0
+
+        # Extract quote text from old normalized content
+        affected = [(i, r) for i, r in enumerate(self._quote_ranges) if r[0] == name]
+        if not affected:
+            self.add(name, new_text)
+            return 0
+
+        old_quotes = []
+        for idx, (doc, start, end, caller) in affected:
+            quote_text = old_doc.normalized_text[start : end + 1]
+            old_quotes.append((idx, quote_text, caller))
+
+        # Re-index with new content
+        self.add(name, new_text)
+        new_doc = self.documents[name]
+
+        # Re-find quotes at new positions
+        lost = 0
+        for idx, quote_text, caller in old_quotes:
+            new_start, new_end, strategy = new_doc.find(quote_text)
+            if new_start == -1:
+                lost += 1
+                self._quote_ranges[idx] = (name, -1, -1, caller)
+            else:
+                self._quote_ranges[idx] = (name, new_start, new_end, caller)
+
+        # Clean up unfound quotes
+        if lost:
+            self._quote_ranges = [r for r in self._quote_ranges if r[1] != -1]
+
+        return lost
+
     # ── Quote provenance ──
 
     def register_quote(self, doc_name: str, start: int, end: int, caller: str):

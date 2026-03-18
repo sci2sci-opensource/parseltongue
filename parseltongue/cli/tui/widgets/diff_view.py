@@ -26,7 +26,7 @@ class DiffView(Static):
         width: 1fr;
         height: auto;
         max-height: 30;
-        overflow-y: auto;
+        overflow: hidden;
         border: solid $warning;
         margin: 0 0 1 0;
         padding: 0 1;

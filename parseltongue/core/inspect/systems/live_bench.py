@@ -1,8 +1,8 @@
 """LiveBench — bench_pg system with the loaded sample as a scope.
 
-Loads bench.pltg the same way FrozenBench does (own loader, own system),
-then registers the sample's live system as a "sample" scope. Has all
-bench_pg axioms/terms plus access to the real engine data.
+Copies the frozen bench system (already loaded) and registers the sample's
+live system as a "sample" scope. Has all bench_pg axioms/terms plus access
+to the real engine data.
 """
 
 from __future__ import annotations
@@ -15,16 +15,14 @@ if TYPE_CHECKING:
     from parseltongue.core.loader.lazy_loader import LazyLoadResult
     from parseltongue.core.system import System
 
+    from .frozen_bench import FrozenBench
+
 
 class LiveBench(BenchSystem):
-    """Live bench system — bench_pg loaded, sample registered as scope."""
+    """Live bench system — copied from frozen, sample registered as scope."""
 
-    def __init__(self, result: "LazyLoadResult", bench_pg_path: str, lib_paths: list[str]):
-        from parseltongue.core.loader.lazy_loader import LazyLoader
-
-        self._loader = LazyLoader(lib_paths=lib_paths)
-        self._loader.load_main(bench_pg_path, name="LiveBench")
-        assert self._loader.last_result is not None, "bench_pg failed to load"
-        self.system: System = self._loader.last_result.system
+    def __init__(self, result: "LazyLoadResult", frozen: "FrozenBench"):
+        self._loader = frozen._loader
+        self.system: System = frozen.system.copy(name="LiveBench", overridable=True)
         self.result = result
         self.register_scope("sample", result.system)

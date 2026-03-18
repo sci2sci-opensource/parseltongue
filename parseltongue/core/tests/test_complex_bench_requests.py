@@ -8,7 +8,7 @@ in the main search engine so queries can compose across domains.
 Covers:
 - LensSearchSystem: node, kind, inputs, downstream, roots, layer, focus
 - EvaluationSearchSystem: issues, warnings, danglings, focus, kind, category, type
-- HologramSearchSystem: left, right, lens, divergent, common, only
+- HologramSystem: left, right, lens, divergent, common, only
 - Cross-scope queries: (scope lens ...), (scope evaluation ...)
 - Scope + project: (scope lens (project (kind "fact")))
 - Scope + delegate: multi-level scope chains
@@ -344,8 +344,35 @@ class TestEvaluationSearchSystem(_Base):
 # ── Hologram Search System ──
 
 
-class TestHologramSearchSystem(_Base):
-    """S-expression queries over Hologram (multi-lens)."""
+class TestHologramSystem(_Base):
+    """S-expression queries over Hologram (multi-lens).
+
+    HologramSystem.evaluate() returns hn form lists:
+        [hn, ln_form_0, ln_form_1, ...]
+    where each ln_form is [ln, name, kind, value, depth, inputs, evidence]
+    or [] if absent from that lens.
+    """
+
+    @staticmethod
+    def _hn_names(forms):
+        """Extract node names from hn or ln form lists."""
+        from parseltongue.core.atoms import Symbol
+        names = set()
+        for form in forms:
+            if not isinstance(form, (list, tuple)) or len(form) < 2:
+                continue
+            tag = str(form[0]) if isinstance(form[0], Symbol) else ""
+            if tag.endswith("ln"):
+                # Bare ln form: [ln, name, kind, ...]
+                names.add(form[1])
+            elif tag.endswith("hn"):
+                # hn form: [hn, ln_sub_0, ln_sub_1, ...]
+                for sub in form[1:]:
+                    if isinstance(sub, (list, tuple)) and len(sub) >= 2:
+                        stag = str(sub[0]) if isinstance(sub[0], Symbol) else ""
+                        if stag.endswith("ln"):
+                            names.add(sub[1])
+        return names
 
     def test_find_across_lenses(self):
         bench = self._prepare()
@@ -362,28 +389,31 @@ class TestHologramSearchSystem(_Base):
     def test_divergent(self):
         bench = self._prepare()
         h = bench.dissect("diff-rev-vs-income")
-        posting = h.search("(divergent)")
-        # The two sides of the diff should have different nodes
-        self.assertIsInstance(posting, dict)
+        result = h.search("(divergent)")
+        # Returns hn form list
+        self.assertIsInstance(result, list)
+        names = self._hn_names(result)
+        self.assertTrue(len(names) > 0)
 
     def test_common(self):
         bench = self._prepare()
         h = bench.dissect("diff-rev-vs-income")
-        posting = h.search("(common)")
-        self.assertIsInstance(posting, dict)
+        result = h.search("(common)")
+        # Returns hn form list (may be empty if nothing shared)
+        self.assertIsInstance(result, list)
 
     def test_left(self):
         bench = self._prepare()
         h = bench.dissect("diff-rev-vs-income")
-        posting = h.search("(left)")
-        names = {k[0] for k in posting}
+        result = h.search("(left)")
+        names = self._hn_names(result)
         self.assertIn("revenue", names)
 
     def test_right(self):
         bench = self._prepare()
         h = bench.dissect("diff-rev-vs-income")
-        posting = h.search("(right)")
-        names = {k[0] for k in posting}
+        result = h.search("(right)")
+        names = self._hn_names(result)
         self.assertIn("net-income", names)
 
     def test_lens_index(self):
@@ -391,8 +421,8 @@ class TestHologramSearchSystem(_Base):
         h = bench.dissect("diff-rev-vs-income")
         left = h.search("(lens 0)")
         right = h.search("(lens 1)")
-        left_names = {k[0] for k in left}
-        right_names = {k[0] for k in right}
+        left_names = self._hn_names(left)
+        right_names = self._hn_names(right)
         self.assertIn("revenue", left_names)
         self.assertIn("net-income", right_names)
 
@@ -401,23 +431,23 @@ class TestHologramSearchSystem(_Base):
         h = bench.dissect("diff-rev-vs-income")
         only_left = h.search("(only 0)")
         only_right = h.search("(only 1)")
-        # Exclusive nodes shouldn't overlap
-        left_names = {k[0] for k in only_left}
-        right_names = {k[0] for k in only_right}
+        left_names = self._hn_names(only_left)
+        right_names = self._hn_names(only_right)
         self.assertEqual(left_names & right_names, set())
 
     def test_left_kind_filter(self):
         bench = self._prepare()
         h = bench.dissect("diff-rev-vs-income")
-        posting = h.search('(left (kind "fact"))')
-        names = {item[1] for item in posting}
+        # left (kind "fact") returns ln forms from lens 0
+        result = h.search('(left (kind "fact"))')
+        names = self._hn_names(result)
         self.assertIn("revenue", names)
 
     def test_compose_two_names(self):
         bench = self._prepare()
         h = bench.compose("revenue", "net-income")
-        posting = h.search("(divergent)")
-        self.assertIsInstance(posting, dict)
+        result = h.search("(divergent)")
+        self.assertIsInstance(result, list)
 
 
 # ── Cross-Scope Queries ──
@@ -657,8 +687,8 @@ class TestDiffEvaluation(_Base):
     def test_dissect_shows_both_sides(self):
         bench = self._prepare()
         h = bench.dissect("diff-rev-vs-income")
-        left_names = {k[0] for k in h.search("(left)")}
-        right_names = {k[0] for k in h.search("(right)")}
+        left_names = TestHologramSystem._hn_names(h.search("(left)"))
+        right_names = TestHologramSystem._hn_names(h.search("(right)"))
         self.assertIn("revenue", left_names)
         self.assertIn("net-income", right_names)
 

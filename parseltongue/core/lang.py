@@ -66,6 +66,10 @@ from .morphism import Morphism, StringMorphism, _pm
 Clause = WFF | Evidence | Axiom | Theorem | Term
 Sentence = Clause | list["Sentence"]
 
+# Runtime-safe isinstance tuple — same types as Sentence minus parameterized
+# generics (Sequence["WFF"], list["Sentence"]). Use instead of isinstance(x, Sentence).
+SImpl: tuple[type, ...] = (Symbol, str, int, float, bool, Silence, list, tuple, Evidence, Axiom, Theorem, Term)
+
 
 # ============================================================
 # Clause Morphism — Clause ↔ Sentence (list form)

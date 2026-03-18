@@ -328,13 +328,17 @@ class Store:
     # ── Invalidation ──
 
     def remove(self, path: str):
-        """Remove cache files for a specific path."""
+        """Remove cache files for a specific path — includes viz cache."""
         self._cache_path(path).unlink(missing_ok=True)
         self._diagnosis_cache_path(path).unlink(missing_ok=True)
         self._index_cache_path(path).unlink(missing_ok=True)
         # Clean up legacy too
         self._legacy_cache_path(path).unlink(missing_ok=True)
         self._legacy_diagnosis_cache_path(path).unlink(missing_ok=True)
+        # Viz cache depends on all other caches — clear on any invalidation
+        if self._dir.exists():
+            for f in self._dir.glob("*.viz.pgz"):
+                f.unlink(missing_ok=True)
 
     def remove_all(self):
         """Remove all cache files."""

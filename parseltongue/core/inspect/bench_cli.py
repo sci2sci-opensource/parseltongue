@@ -165,6 +165,9 @@ class BenchServer:
     def _is_ready(self) -> bool:
         return str(self.bench.status) != "Status(initialized)"
 
+    def _is_initialized(self) -> bool:
+        return str(self.bench.status) == "Status(initialized)"
+
     def _register_hologram_scope(self, hologram):
         """Register hologram search system as a scope in the main search engine."""
         search = self.bench.index
@@ -183,17 +186,44 @@ class BenchServer:
                 "text": f"path={self.pltg_path}\nstatus={self.bench.status!r}\nintegrity={self.bench.integrity!r}",
             }
 
-        if not self._is_ready():
-            return {"ok": False, "error": "Still loading, try again shortly."}
+        if self._is_initialized():
+            return {"ok": False, "error": "Still initializing, no data loaded yet."}
         try:
             if action == "eval":
                 query = cmd.get("query", "")
                 query, sexp_warn = _validate_sexp(query)
-                result = self.bench.eval(query)
-                if cmd.get("raw"):
-                    text = _format_eval_raw(result)
+                if cmd.get("profile"):
+                    import cProfile
+                    import pstats
+                    import time as _time
+
+                    prof = cProfile.Profile()
+                    prof.enable()
+                    result = self.bench.eval(query)
+                    if cmd.get("raw"):
+                        text = _format_eval_raw(result)
+                    else:
+                        text = _format_eval_result(result, bench=self.bench)
+                    prof.disable()
+                    prof_dir = BENCH_DIR / "profiles"
+                    prof_dir.mkdir(parents=True, exist_ok=True)
+                    ts = _time.strftime("%Y%m%d_%H%M%S")
+                    prof_path = prof_dir / f"eval_{ts}.prof"
+                    prof.dump_stats(str(prof_path))
+                    # Also write human-readable stats
+                    import io
+                    s = io.StringIO()
+                    ps = pstats.Stats(prof, stream=s).sort_stats("cumulative")
+                    ps.print_stats(40)
+                    txt_path = prof_dir / f"eval_{ts}.txt"
+                    txt_path.write_text(s.getvalue())
+                    text = f"[profile saved: {prof_path} + {txt_path}]\n\n{text}"
                 else:
-                    text = _format_eval_result(result, bench=self.bench)
+                    result = self.bench.eval(query)
+                    if cmd.get("raw"):
+                        text = _format_eval_raw(result)
+                    else:
+                        text = _format_eval_result(result, bench=self.bench)
                 if sexp_warn:
                     text = f"⚠ {sexp_warn}\n\n{text}"
                 return {"ok": True, "text": text}
@@ -734,13 +764,34 @@ def _handle_client(server: BenchServer, conn: socket.socket):
 BENCH_DIR = Path(".parseltongue-bench")
 
 
+class _BufferedFileHandler(logging.FileHandler):
+    """FileHandler that doesn't flush on every emit — flushes on close or every N records."""
+
+    _FLUSH_INTERVAL = 100
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._count = 0
+
+    def emit(self, record):
+        try:
+            msg = self.format(record)
+            self.stream.write(msg + self.terminator)
+            self._count += 1
+            if self._count >= self._FLUSH_INTERVAL:
+                self.flush()
+                self._count = 0
+        except Exception:
+            self.handleError(record)
+
+
 def _setup_file_logging(console_level: str):
     """Add a file handler to .parseltongue-bench/bench.log."""
     BENCH_DIR.mkdir(parents=True, exist_ok=True)
     log_path = BENCH_DIR / "bench.log"
     root = logging.getLogger("parseltongue")
-    # File: always DEBUG
-    fh = logging.FileHandler(log_path, mode="a", encoding="utf-8")
+    # File: always DEBUG, buffered to avoid per-emit flush
+    fh = _BufferedFileHandler(log_path, mode="a", encoding="utf-8")
     fh.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s"))
     fh.setLevel(logging.DEBUG)
     root.addHandler(fh)
@@ -1027,7 +1078,8 @@ def _read_expression(expression: str | None, file: str | None) -> str:
 @click.argument("expression", required=False)
 @click.option("-f", "--file", "file", default=None, help="Read expression from file.")
 @click.option("--raw", is_flag=True, help="Output raw S-expression (to_sexp).")
-def eval_cmd(expression: str | None, file: str | None, raw: bool):
+@click.option("--profile", is_flag=True, help="Profile server-side and save to .parseltongue-bench/.")
+def eval_cmd(expression: str | None, file: str | None, raw: bool, profile: bool):
     """Evaluate an S-expression in the bench engine (main + std + scopes).
 
     \b
@@ -1224,7 +1276,7 @@ def eval_cmd(expression: str | None, file: str | None, raw: bool):
           (> raises (* total 0.3)))
     """
     expr = _read_expression(expression, file)
-    _print_result(_query({"action": "eval", "query": expr, "raw": raw}))
+    _print_result(_query({"action": "eval", "query": expr, "raw": raw, "profile": profile}))
 
 
 @cli.command("interpret")

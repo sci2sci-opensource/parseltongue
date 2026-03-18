@@ -86,15 +86,25 @@ _RULES: list[tuple[str, str, int]] = [
 ]
 
 
+_CACHE: dict[str, str] = {}
+
+
 def stem(word: str) -> str:
-    """Stem a single normalized token. Returns the stem."""
+    """Stem a single normalized token. Returns the stem (cached)."""
+    cached = _CACHE.get(word)
+    if cached is not None:
+        return cached
     if len(word) <= 2:
+        _CACHE[word] = word
         return word
     for suffix, replacement, min_stem in _RULES:
         if word.endswith(suffix):
             stem_part = word[: -len(suffix)]
             if len(stem_part) >= min_stem:
-                return stem_part + replacement
+                result = stem_part + replacement
+                _CACHE[word] = result
+                return result
+    _CACHE[word] = word
     return word
 
 

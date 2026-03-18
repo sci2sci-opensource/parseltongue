@@ -304,7 +304,13 @@ class AbstractSystem(Rewriter, Interpreter):
         return system
 
     def _rebuild_env(self) -> None:
+        from .atoms import Evidence
         from .lang import EQ
+
+        # Re-verify all evidence to rebuild quote ranges for search provenance
+        for name, item in {**self.engine.facts, **self.engine.axioms, **self.engine.terms}.items():
+            if isinstance(item.origin, Evidence):
+                self.engine._verify_evidence(item.origin, caller=name)
 
         for name, fact in self.engine.facts.items():
             self.engine.env[Symbol(name)] = fact.wff
