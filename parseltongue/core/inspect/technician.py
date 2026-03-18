@@ -150,6 +150,17 @@ class Technician:
 
             self._live[path] = LiveBench(result, self._bench_pg, self._lib_paths)  # type: ignore[arg-type]
             self._live[path].register_scope("ops", ops)
+            # Register fmt renderers
+            from .perspectives.viz import VizRenderer
+
+            self._live[path].register_renderer(
+                "viz",
+                VizRenderer(
+                    store=self._store,
+                    merkle_root=getattr(self, "_merkle_roots", {}).get(path, ""),
+                    structure=structure,
+                ),
+            )
             for doc_name, doc_text in result.system.engine.documents.items():
                 search.add(doc_name, doc_text)
             search.refresh()

@@ -344,6 +344,36 @@ class Store:
             for f in self._dir.glob("*.json"):
                 f.unlink()
 
+    # ── Viz cache ──
+
+    def _viz_cache_path(self, merkle_root: str, key: str) -> Path:
+        tag = hashlib.sha256(f"{merkle_root}:{key}".encode()).hexdigest()[:16]
+        return self._dir / f"{tag}.viz.pgz"
+
+    def save_viz(self, merkle_root: str, key: str, html: str):
+        """Cache rendered viz HTML keyed by Merkle root + view key."""
+        self._ensure_dir()
+        data = json.dumps({"merkle_root": merkle_root, "key": key, "html": html}, separators=(",", ":"))
+        try:
+            _pgz_write(self._viz_cache_path(merkle_root, key), data.encode())
+        except Exception as e:
+            log.warning("Failed to save viz cache %s/%s: %s", merkle_root[:8], key, e)
+
+    def load_viz(self, merkle_root: str, key: str) -> str | None:
+        """Load cached viz HTML if Merkle root matches."""
+        path = self._viz_cache_path(merkle_root, key)
+        if not path.exists():
+            return None
+        try:
+            data = json.loads(_pgz_read(path))
+            if data.get("merkle_root") != merkle_root:
+                path.unlink(missing_ok=True)
+                return None
+            return data.get("html")
+        except Exception:
+            path.unlink(missing_ok=True)
+            return None
+
     # ── Internals ──
 
     def _ensure_dir(self):

@@ -157,6 +157,26 @@
 (axiom collapse-hypothesised (= (collapse (superpose ?...xs) hypothesised) unknown)
     :origin "hypothesised observation collapses superpose to unknown")
 
+
+; --- Joint-superposed: bundle values for a single observation ---
+;
+; joint-superposed — groups multiple values into a single superposed object.
+; Used when one observation applies to multiple values simultaneously
+; (e.g. a diff observes divergence between two sides as one event).
+; The rewrite wraps all arguments in strict and passes them to superpose.
+;
+; Examples:
+;   (joint-superposed a b)     => (superpose (strict a) (strict b))
+;   (joint-superposed a b c)   => (superpose (strict a) (strict b) (strict c))
+;   (collapse (joint-superposed a b) refuted) => hallucinated
+(defterm joint-superposed :origin "bundle values into a single superposed observation")
+
+(axiom joint-superposed-rewrite
+    (= (joint-superposed ?x ?...rest)
+       (superpose (strict ?x) (strict ?...rest)))
+    :origin "rewrite: joint-superposed wraps all args in strict and superposes them")
+
+
 ; --- Counting: count-hallucinated ---
 
 ; count-hallucinated — counts how many of its arguments are hallucinated.

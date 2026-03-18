@@ -146,9 +146,19 @@ class BenchSubsystem(Protocol):
 
 
 class BenchSystem:
-    """Base for bench systems. Provides scope registration."""
+    """Base for bench systems. Provides scope and perspective registration.
+
+    Perspectives are keyed by name ("md", "ascii", "viz", ...). The ``fmt``
+    callable in the engine env rewrites a bench form into a display form
+    (via view.pltg axioms) then dispatches to the named perspective's
+    ``render_form`` / ``render_form_list``.
+    """
 
     system: System
+
+    def __init_perspectives__(self):
+        if not hasattr(self, "_perspectives"):
+            self._perspectives: dict[str, "Perspective"] = {}
 
     def register_scope(self, name: str, scope_system):
         """Register a scope system as a callable in engine env.
@@ -172,3 +182,116 @@ class BenchSystem:
         for tag in getattr(scope_system, "data_tags", [getattr(scope_system, "tag", None)]):
             if tag is not None and tag not in self.system.engine.env:
                 self.system.engine.env[tag] = tag
+
+    def register_renderer(self, name: str, renderer: "FormRenderer"):
+        """Register a FormRenderer for (fmt "name" value)."""
+        self.__init_perspectives__()
+        self._perspectives[name] = renderer
+        self._ensure_fmt()
+
+    def get_renderer(self, name: str) -> "FormRenderer | None":
+        """Get a registered FormRenderer by name."""
+        self.__init_perspectives__()
+        return self._perspectives.get(name)
+
+    def _ensure_fmt(self):
+        """Install fmt callable + -fmt tag callables.
+
+        (fmt "viz" single-form) → axiom rewrite → (ln-fmt "viz" ...) → renderer
+        (fmt "viz" list-of-forms) → iterate, rewrite each, collect → renderer
+
+        The fmt callable handles both single forms and lists.
+        The -fmt tag callables dispatch to the registered renderer.
+        """
+        if getattr(self, "_fmt_installed", False):
+            return
+        self._fmt_installed = True
+        bench_sys = self
+
+        _BENCH_TAGS = {"sr", "ln", "dx", "hn"}
+        _FMT_TAGS = {"sr-fmt", "ln-fmt", "dx-fmt", "hn-fmt"}
+
+        def _bare_tag(item):
+            if isinstance(item, (list, tuple)) and item and isinstance(item[0], Symbol):
+                return str(item[0]).rsplit(".", 1)[-1]
+            return None
+
+        # Rewrite map mirrors view.pltg axioms:
+        #   (fmt ?p (sr ?doc ?line ?col ?ctx ?callers)) → (sr-fmt ?p ?doc ?line ?ctx ?callers)
+        #   (fmt ?p (ln ?name ?kind ?val ?depth ?inputs)) → (ln-fmt ?p ?name ?kind ?val ?depth ?inputs)
+        #   (fmt ?p (dx ?name ?cat ?kind ?type ?detail)) → (dx-fmt ?p ?name ?cat ?kind ?type ?detail)
+        #   (fmt ?p (hn ?name ?kind ?val ?lenses)) → (hn-fmt ?p ?name ?kind ?val ?lenses)
+        _TAG_TO_FMT = {
+            "sr": "sr-fmt",
+            "ln": "ln-fmt",
+            "dx": "dx-fmt",
+            "hn": "hn-fmt",
+        }
+
+        def _rewrite_one(perspective_name, form):
+            """Apply view.pltg axiom rewrite in Python — no engine call."""
+            tag = _bare_tag(form)
+            fmt_tag = _TAG_TO_FMT.get(tag)
+            if not fmt_tag:
+                return form
+            fields = list(form[1:])
+            # sr drops column (index 2): (sr doc line col ctx callers) → (sr-fmt p doc line ctx callers)
+            if tag == "sr" and len(fields) >= 5:
+                fields = [fields[0], fields[1]] + fields[3:]
+            return [Symbol(fmt_tag), perspective_name] + fields
+
+        def _fmt(renderer_name, *args):
+            bench_sys.__init_perspectives__()
+            r = bench_sys._perspectives.get(str(renderer_name))
+            if not args:
+                return []
+            val = args[0]
+            if r is None:
+                return val
+            tag = _bare_tag(val)
+            # Single bench form
+            if tag in _BENCH_TAGS:
+                fmt_result = _rewrite_one(renderer_name, val)
+                if fmt_result and _bare_tag(fmt_result) in _FMT_TAGS:
+                    return r.fmt(fmt_result)
+                return r.fmt(val)
+            # Already a -fmt form
+            if tag in _FMT_TAGS:
+                return r.fmt(val)
+            # List of bench forms
+            if isinstance(val, (list, tuple)) and val and _bare_tag(val[0]) in _BENCH_TAGS:
+                fmt_forms = []
+                for item in val:
+                    fmt_result = _rewrite_one(renderer_name, item)
+                    if fmt_result and _bare_tag(fmt_result) in _FMT_TAGS:
+                        fmt_forms.append(fmt_result)
+                    else:
+                        fmt_forms.append(item)
+                return r.fmt(fmt_forms)
+            # List of -fmt forms
+            if isinstance(val, (list, tuple)) and val and _bare_tag(val[0]) in _FMT_TAGS:
+                return r.fmt(val)
+            # Non-form value
+            return r.fmt(val)
+
+        # Override the defterm — callable takes priority in env
+        self.system.engine.env[Symbol("fmt")] = _fmt
+        self.system.engine.env[Symbol("bench_pg.view.fmt")] = _fmt
+
+        # Also install -fmt tags as callables for direct use
+        for tag_name in _FMT_TAGS:
+
+            def _make_fmt_callable(t):
+                def _fmt_tag(perspective_name, *args):
+                    bench_sys.__init_perspectives__()
+                    r = bench_sys._perspectives.get(str(perspective_name))
+                    if r is None:
+                        return [Symbol(t), perspective_name] + list(args)
+                    form = [Symbol(t), perspective_name] + list(args)
+                    return r.fmt(form)
+
+                return _fmt_tag
+
+            callable_fn = _make_fmt_callable(tag_name)
+            self.system.engine.env[Symbol(tag_name)] = callable_fn
+            self.system.engine.env[Symbol(f"bench_pg.view.{tag_name}")] = callable_fn

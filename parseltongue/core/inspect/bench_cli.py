@@ -60,6 +60,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import signal
 import socket
 import struct
@@ -591,6 +592,29 @@ def _get_perspective(bench, name="md"):
         from parseltongue.core.inspect.perspectives.ascii import AsciiPerspective
 
         return bench.lens()._get(AsciiPerspective)
+    if name == "viz":
+        from parseltongue.core.inspect.perspectives.viz import VizPerspective
+
+        lens = bench.lens()
+        loader = lens._loader
+        loc_fn = None
+        if loader:
+            index = {node.name: node for node in loader.ast if node.name}
+
+            def loc_fn(name):
+                dn = index.get(name)
+                if not dn:
+                    return ""
+                parts = []
+                if dn.source_file:
+                    parts.append(os.path.relpath(dn.source_file))
+                if dn.source_line:
+                    parts.append(str(dn.source_line))
+                return ":".join(parts)
+
+        store = getattr(bench, "_store", None)
+        merkle_root = getattr(bench, "_merkle_root", "")
+        return VizPerspective(loc_fn=loc_fn, store=store, merkle_root=merkle_root)
     return None
 
 
@@ -872,27 +896,66 @@ def cli():
 
     \b
     OPERATIONS:
-      pg-bench serve file.pltg &   pg-bench wait
+      pg-bench serve file.pltg     # foreground (blocking)
+      pg-bench start file.pltg     # daemonized (returns immediately)
+      pg-bench up file.pltg        # foreground; pg-bench up -d to detach
+      pg-bench wait                # block until ready
       pg-bench index parseltongue/core
       pg-bench ping   pg-bench status   pg-bench reload   pg-bench purge
     """
 
 
+def _serve_options(fn):
+    """Shared options for serve/start/up commands."""
+    fn = click.argument("path")(fn)
+    fn = click.option("--socket", "sock", default=str(SOCK_PATH), help="Unix socket path.")(fn)
+    fn = click.option(
+        "--refresh-index", "refresh_s", default=2, type=int, help="Background reindex interval in seconds (0=off)."
+    )(fn)
+    fn = click.option("--verbose", "-v", is_flag=False, help="Shorthand for --log-level INFO.")(fn)
+    fn = click.option(
+        "--log-level",
+        default="ERROR",
+        type=click.Choice(["DEBUG", "INFO", "WARNING", "ERROR"], case_sensitive=False),
+        help="Log level (default: ERROR).",
+    )(fn)
+    return fn
+
+
+def _resolve_log_level(verbose: bool, log_level: str) -> str:
+    if verbose and log_level != "ERROR":
+        raise click.UsageError("Cannot use --verbose and --log-level together.")
+    return "INFO" if verbose else log_level
+
+
+def _daemonize(path: str, sock: str, refresh_s: int, log_level: str):
+    """Double-fork daemonize, then exec _run_server in the grandchild."""
+    pid = os.fork()
+    if pid > 0:
+        click.echo(f"Daemon launching for {path} (pid {pid})")
+        return
+
+    os.setsid()
+
+    pid2 = os.fork()
+    if pid2 > 0:
+        os._exit(0)
+
+    # Grandchild — redirect stdio, run server
+    devnull = os.open(os.devnull, os.O_RDWR)
+    os.dup2(devnull, 0)
+    os.dup2(devnull, 1)
+    os.dup2(devnull, 2)
+    os.close(devnull)
+
+    _run_server(path, Path(sock), refresh_s=refresh_s, log_level=log_level)
+    os._exit(0)
+
+
 @cli.command()
-@click.argument("path")
-@click.option("--socket", "sock", default=str(SOCK_PATH), help="Unix socket path.")
-@click.option(
-    "--refresh-index", "refresh_s", default=2, type=int, help="Background reindex interval in seconds (0=off)."
-)
-@click.option("--verbose", "-v", is_flag=False, help="Shorthand for --log-level INFO.")
-@click.option(
-    "--log-level",
-    default="ERROR",
-    type=click.Choice(["DEBUG", "INFO", "WARNING", "ERROR"], case_sensitive=False),
-    help="Log level (default: ERROR).",
-)
+@_serve_options
 def serve(path: str, sock: str, refresh_s: int, verbose: bool, log_level: str):
-    """Start the bench server. Loads PATH and listens for queries.
+    """Start the bench server in the foreground (blocking).
 
     \b
     The server holds a Bench in memory with Merkle-cached loading (~20ms
@@ -905,11 +968,48 @@ def serve(path: str, sock: str, refresh_s: int, verbose: bool, log_level: str):
       pg-bench wait
       pg-bench index parseltongue/core
     """
-    if verbose and log_level != "ERROR":
-        raise click.UsageError("Cannot use --verbose and --log-level together.")
-    if verbose:
-        log_level = "INFO"
-    _run_server(path, Path(sock), refresh_s=refresh_s, log_level=log_level)
+    _run_server(path, Path(sock), refresh_s=refresh_s, log_level=_resolve_log_level(verbose, log_level))
+
+
+@cli.command()
+@_serve_options
+def start(path: str, sock: str, refresh_s: int, verbose: bool, log_level: str):
+    """Start the bench server as a daemon (always detached, returns immediately).
+
+    \b
+    Equivalent to `pg-bench serve PATH &` but with proper double-fork
+    daemonization — the server survives terminal close.
+
+    \b
+    Typical usage:
+      pg-bench start parseltongue/core/validation/core.pltg
+      pg-bench wait
+      pg-bench index parseltongue/core
+    """
+    _daemonize(path, sock, refresh_s, _resolve_log_level(verbose, log_level))
+
+
+@cli.command()
+@_serve_options
+@click.option("-d", "--detach", is_flag=True, help="Detach — run as daemon (like start).")
+def up(path: str, sock: str, refresh_s: int, verbose: bool, log_level: str, detach: bool):
+    """Start the bench server. Foreground by default, -d to detach.
+
+    \b
+    Combines serve and start:
+      pg-bench up file.pltg      # foreground (blocking)
+      pg-bench up -d file.pltg   # detached daemon
+
+    \b
+    After detached start:
+      pg-bench wait
+      pg-bench index parseltongue/core
+    """
+    level = _resolve_log_level(verbose, log_level)
+    if detach:
+        _daemonize(path, sock, refresh_s, level)
+    else:
+        _run_server(path, Path(sock), refresh_s=refresh_s, log_level=level)
 
 
 def _read_expression(expression: str | None, file: str | None) -> str:
