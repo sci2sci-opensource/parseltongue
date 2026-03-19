@@ -1,0 +1,49 @@
+; ==========================================================
+; Biopharma Data Governance — Cross-Layer Consistency
+; ==========================================================
+;
+; Three layers: technical catalog (CSVs), contracts (.md),
+; business catalog (.md). Facts extracted per layer, then
+; policy rules + checker derive compliance and catch drift.
+;
+; Generated .pltg modules live in src/ — run generate.py first.
+; Hand-written: policy_rules.pltg, checker.pltg
+; ==========================================================
+
+(print "================================================================")
+(print "Biopharma Data Governance — Cross-Layer Consistency")
+(print "================================================================")
+
+; --- Phase 0: Load source documents ---
+(print "\n--- Phase 0: Load source documents ---")
+
+; Technical catalogs
+(load-document "tech:discovery"      "resources/technical_catalog/discovery.csv")
+(load-document "tech:translational"  "resources/technical_catalog/translational.csv")
+(load-document "tech:clinical"       "resources/technical_catalog/clinical.csv")
+(load-document "tech:commercial"     "resources/technical_catalog/commercial.csv")
+
+; Contracts (generated — one per provider)
+(import (quote src.load_contracts))
+
+; Business catalog (generated — one per product)
+(import (quote src.load_business))
+
+(print "  Documents loaded.")
+
+; --- Phase 1: Load all facts via manifest ---
+(print "\n--- Phase 1: Load facts (manifest) ---")
+(import (quote src.manifest))
+(print "  All facts registered.")
+
+; --- Phase 2: Policy rules + checker ---
+(print "\n--- Phase 2: Policy compliance checks ---")
+(import (quote checker))
+(print "  Checker complete.")
+
+; --- Phase 3: Consistency report ---
+(print "\n--- Phase 3: Consistency report ---")
+(consistency)
+
+(print "\n================================================================")
+(print "================================================================")

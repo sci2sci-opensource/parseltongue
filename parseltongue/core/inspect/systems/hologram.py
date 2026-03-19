@@ -113,6 +113,15 @@ class HologramSystem:
                         break
             return result
 
+        def _neutral():
+            """All nodes from all lenses, side by side (no subtraction)."""
+            if not sys._names_per_lens:
+                return {}
+            result = {}
+            for i, names in enumerate(sys._names_per_lens):
+                result.update(_posting_from_lens(i, names))
+            return result
+
         def _common():
             if not sys._names_per_lens:
                 return {}
@@ -128,53 +137,101 @@ class HologramSystem:
 
         # ── Scope operators (create hologram from engine) ──
 
+        def _is_stained(val):
+            """Check if val is a stain-tagged value."""
+            return isinstance(val, (list, tuple)) and val and val[0] == _STAIN_TAG
+
+        def _unwrap_stain(val):
+            """Unwrap stain tag, return (inner_value, use_live)."""
+            if _is_stained(val):
+                inner = val[1] if len(val) == 2 else val[1:]
+                return inner, True
+            return val, False
+
+        def _do_probe(name, eng, live):
+            """Probe a name — live if requested, static otherwise."""
+            if live:
+                from ..vital import Stain, live_probe
+
+                stain_obj = Stain(eng, capture="names")
+                stain_obj.apply()
+                if name in eng.theorems:
+                    stain_obj.push_context(name)
+                    try:
+                        eng.evaluate(eng.theorems[name].wff)
+                    except Exception:
+                        pass
+                    stain_obj.pop_context()
+                stain_obj.remove()
+                return live_probe(name, eng, stain_obj, store="names")
+            from ..probe_core_to_consequence import probe as _probe
+
+            return _probe(name, eng)
+
         def _dissect(diff_name, *args):
-            """(dissect "diff-name") — dissect a diff into 2 lenses."""
+            """(dissect "diff-name") or (dissect (stain "diff-name"))."""
             from ..optics.hologram import Hologram
             from ..optics.lens import Lens
-            from ..probe_core_to_consequence import probe as _probe
 
             eng = sys._engine
             if eng is None:
                 log.warning("dissect: no engine available")
                 return {}
+            diff_name, live = _unwrap_stain(diff_name)
             diff_name = str(diff_name)
-            log.info("dissect: diff_name=%s diffs=%s", diff_name, list(eng.diffs.keys())[:10])
+            log.info("dissect: diff_name=%s live=%s", diff_name, live)
             diff = eng.diffs[diff_name]
-            log.info("dissect: replace=%s with=%s", diff["replace"], diff["with"])
-            left = Lens(_probe(diff["replace"], eng))
-            right = Lens(_probe(diff["with"], eng))
+            left = Lens(_do_probe(diff["replace"], eng, live))
+            right = Lens(_do_probe(diff["with"], eng, live))
             holo = Hologram([left, right], name=diff_name, labels=[diff["replace"], diff["with"]])
             sys._init_from_hologram(holo)
-            log.info("dissect: %d lenses, %d total names", len(sys._lens_systems), len(sys._all_names))
             if args:
                 return sys._system.evaluate(args[0] if len(args) == 1 else list(args))
             return _divergent()
 
         def _compose(*args):
-            """(compose name1 name2 ...) — compose N names into N lenses."""
+            """(compose name1 name2 ...) or (compose (stain "n1") (stain "n2") ...)."""
             from ..optics.hologram import Hologram
             from ..optics.lens import Lens
-            from ..probe_core_to_consequence import probe as _probe
 
             eng = sys._engine
             if eng is None:
                 return {}
-            names = [str(a) for a in args]
-            lenses = [Lens(_probe(n, eng)) for n in names]
-            holo = Hologram(lenses, labels=names)
+            lenses = []
+            labels = []
+            for a in args:
+                name, live = _unwrap_stain(a)
+                name = str(name)
+                labels.append(name)
+                lenses.append(Lens(_do_probe(name, eng, live)))
+            holo = Hologram(lenses, labels=labels)
             sys._init_from_hologram(holo)
             return _divergent()
+
+        _STAIN_TAG = Symbol("__stain__")
+
+        def _stain(*args):
+            """(stain expr) — marker: tag expr for live probing.
+
+            Returns [__stain__, expr] — a tagged value that dissect/compose
+            recognize and handle by using live_probe instead of static probe.
+            Pure: no side effects.
+            """
+            if len(args) == 1:
+                return [_STAIN_TAG, args[0]]
+            return [_STAIN_TAG] + list(args)
 
         ops = {
             Symbol("left"): _left,
             Symbol("right"): _right,
             Symbol("lens"): _lens,
+            Symbol("neutral"): _neutral,
             Symbol("divergent"): _divergent,
             Symbol("common"): _common,
             Symbol("only"): _only,
             Symbol("dissect"): _dissect,
             Symbol("compose"): _compose,
+            Symbol("stain"): _stain,
         }
         self._system = System(initial_env=ops, docs={}, strict_derive=False, name="HologramSearch")
         self.posting_morphism = self._HnPostingMorphism(self)

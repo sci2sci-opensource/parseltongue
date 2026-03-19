@@ -65,6 +65,7 @@ class Technician:
         self._bg_result: tuple[str, Sample] | None = None
         self._lib_paths: list[str] = lib_paths or []
         self._bench_pg = bench_pg
+        self._effects: dict[str, dict] = {}  # path → effects dict
         self._frozen = None  # FrozenBench, created lazily on first prepare
         self._live: dict = {}  # path → LiveBench
         self._evaluation_mem: dict = {}  # path → Evaluation
@@ -177,6 +178,9 @@ class Technician:
             self._live[path].register_hologram_scope(engine=result.system.engine)
             if frozen is not None:
                 frozen.register_hologram_scope(engine=result.system.engine)
+
+            # Build live-probed structure — stain all theorems, probe from roots
+            live_structure = self._live_probe_all(result)
             from .perspectives.viz import VizRenderer as _VR
 
             self._live[path].register_renderer(
@@ -184,11 +188,15 @@ class Technician:
                 _VR(
                     store=self._store,
                     merkle_root=getattr(self, "_merkle_roots", {}).get(path, ""),
-                    structure=structure,
+                    structure=live_structure,
                 ),
             )
             vi = result.system.engine._verifier.index
-            log.info("Refreshing search with verifier index: docs=%d, quote_ranges=%d", len(vi.documents), len(vi._quote_ranges))
+            log.info(
+                "Refreshing search with verifier index: docs=%d, quote_ranges=%d",
+                len(vi.documents),
+                len(vi._quote_ranges),
+            )
             search.refresh(vi)
 
     # ── Evaluation ──
@@ -376,10 +384,33 @@ class Technician:
 
     # ── Internal ──
 
+    def _live_probe_all(self, result: LazyLoadResult):
+        """Build a live-probed structure: stain all theorems, probe from __output__."""
+        from .vital import Stain, live_probe
+
+        eng = result.system.engine
+        stain_obj = Stain(eng, capture="names")
+        stain_obj.apply()
+        for tname, thm in eng.theorems.items():
+            if thm.wff is not None:
+                stain_obj.push_context(tname)
+                try:
+                    eng.evaluate(thm.wff)
+                except Exception:
+                    pass
+                stain_obj.pop_context()
+        stain_obj.remove()
+        roots = result.roots()
+        if not roots:
+            from .probe_core_to_consequence import CoreToConsequenceStructure
+
+            return CoreToConsequenceStructure(layers=[], graph={}, depths={}, max_depth=0)
+        return live_probe(["__output__"] + roots, eng, stain_obj, store="names")
+
     def _cold_load(self, path: str) -> Sample:
         """Full reload from scratch."""
         loader = LazyLoader(lib_paths=self._lib_paths)
-        loader.load_main(path, name="Technician.cold")
+        loader.load_main(path, effects=self._effects.get(path), name="Technician.cold")
         load_result = loader.last_result
         assert load_result is not None
         file_list = self.collect_source_files(loader)
@@ -477,7 +508,7 @@ class Technician:
         def _reload():
             try:
                 loader = LazyLoader(lib_paths=technician._lib_paths)
-                loader.load_main(path, name="Technician.bg_reload")
+                loader.load_main(path, effects=technician._effects.get(path), name="Technician.bg_reload")
                 file_list = technician.collect_source_files(loader)
                 new_hashes = store.hash_files(file_list)
                 new_tree = store.build_file_tree(file_list, new_hashes)

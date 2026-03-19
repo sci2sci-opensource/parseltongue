@@ -58,13 +58,16 @@ def bm25_score(
         synonyms = DEFAULT_SYNONYMS.expand(t, scope=ExpansionScope.UNIVERSAL)
         expanded_stems.append([(stem(e.term), e.weight) for e in synonyms])
 
-    # Pre-compute per-doc: name stems and meta boost per query token
-    doc_name_stems: dict[str, set[str]] = {name: _name_tokens(name) for name in index.documents}
+    # Use pre-computed name stems from index (built at index time)
+    doc_name_stems: dict[str, set[str]] = index._name_stems or {name: _name_tokens(name) for name in index.documents}
     doc_meta_boost: dict[str, float] = {}
     for name, sdoc in index.documents.items():
         matching = sdoc.meta.matches_query(query_tokens)
         if matching:
             doc_meta_boost[name] = sum(m.weight for m in matching)
+
+    # Pre-computed corpus df table — O(1) lookup instead of O(N) scan
+    stem_df = index._stem_df
 
     scores: dict[str, float] = {name: 0.0 for name in index.documents}
 
@@ -83,9 +86,7 @@ def bm25_score(
                 if tf == 0:
                     continue
 
-                df = sum(
-                    1 for s_name, s in index.documents.items() if t in s.stem_to_lines or t in doc_name_stems[s_name]
-                )
+                df = stem_df.get(t, 0)
                 idf = math.log((N - df + 0.5) / (df + 0.5) + 1.0)
 
                 numerator = tf * (k1 + 1)

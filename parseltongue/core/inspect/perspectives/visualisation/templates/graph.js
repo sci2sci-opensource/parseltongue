@@ -161,7 +161,7 @@ function renderGraph() {
   svg.call(zoomBehavior);
   svg.on("click.zoom", null);
 
-  const BAND_W = Math.max(200, (width - 160) / Math.max(maxDepth + 1, 1));
+  const BAND_W = Math.max(300, (width - 160) / Math.max(maxDepth + 1, 1));
   const PAD_LEFT = 80;
   const DANGLE_X = PAD_LEFT + (maxDepth + 2) * BAND_W;
 
@@ -179,7 +179,7 @@ function renderGraph() {
     .force("depthX", d3.forceX(d => {
       if (d.dangling) return DANGLE_X;
       return PAD_LEFT + d.depth * BAND_W;
-    }).strength(d => d.dangling ? 0.8 : 0.6))
+    }).strength(d => d.dangling ? 0.8 : 0.85))
     .force("centerY", d3.forceY(d => {
       if (d.dangling) return danglingKindY[d.kind] || height / 2;
       return height / 2;
@@ -398,9 +398,10 @@ function renderGraph() {
 
   node.on("click", (e, d) => {
     e.stopPropagation();
-    if (taintMode) return;  // no selection in taint mode
     const item = ITEM_BY_ID[d.id];
     if (item) showDetail(item);
+
+    if (taintMode) return;  // no selection visuals in taint mode
 
     const path = collectGraphPath(d.id);
     selectedPath = path;

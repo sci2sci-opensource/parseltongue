@@ -133,9 +133,16 @@ class Bench:
 
     # ── Prepare ──
 
-    def prepare(self, path: str) -> "Bench":
-        """Prepare a .pltg file for observation. Returns self for chaining."""
+    def prepare(self, path: str, effects: dict | None = None) -> "Bench":
+        """Prepare a .pltg file for observation. Returns self for chaining.
+
+        Args:
+            effects: Optional dict of effect name → callable for this path.
+                     Different paths can have different effects.
+        """
         path = str(Path(path).resolve())
+        if effects is not None:
+            self._technician._effects[path] = effects
         self._current_path = path
         sample, _ = self._technician.prepare(path, self._mem.get(path))
         self._mem[path] = sample
@@ -187,6 +194,53 @@ class Bench:
             lenses.append(Lens(structure, list(persp)))
         return Hologram(lenses, labels=list(names))
 
+    def stain(
+        self,
+        *names: str,
+        path: str | None = None,
+        perspectives: list | None = None,
+        capture: str | int = "names",
+        store: str | int = "names",
+    ) -> Hologram:
+        """Live-probe N terms with a vital stain — one lens per name.
+
+        Applies a Stain to the engine, re-evaluates each term's theorem WFF
+        to capture runtime edges, then builds lenses with live_probe.
+        The result is a Hologram comparing live dependency graphs.
+
+        Parameters:
+            names: Term names to probe (theorems are re-evaluated under stain).
+            capture: Stain capture mode ("names", "heads", "all", or int N).
+            store: live_probe store mode ("names", "heads", "all", or int N).
+        """
+        path = str(Path(path).resolve()) if path else self._require_current()
+        result = self._ensure_live_result(path)
+        engine = result.system.engine
+        _, _, _, loader = self._mem[path]
+        persp = perspectives or [MDebuggerPerspective(loader)]
+        from .vital import Stain, live_probe
+
+        stain_obj = Stain(engine, capture=capture)
+        stain_obj.apply()
+
+        # Re-evaluate theorem WFFs under the stain to capture runtime edges
+        for name in names:
+            if name in engine.theorems:
+                stain_obj.push_context(name)
+                try:
+                    engine.evaluate(engine.theorems[name].wff)
+                except Exception:
+                    pass
+                stain_obj.pop_context()
+
+        stain_obj.remove()
+
+        lenses = []
+        for name in names:
+            structure = live_probe(name, engine, stain_obj, store=store)
+            lenses.append(Lens(structure, list(persp)))
+        return Hologram(lenses, labels=list(names))
+
     # ── Observe: health ──
 
     def evaluate(self, path: str | None = None) -> Evaluation:
@@ -214,9 +268,8 @@ class Bench:
         from parseltongue.core.lang import PGStringParser
 
         path = self._require_current()
-        loader, system = self._ensure_eval_system(path)
+        _, system = self._ensure_eval_system(path)
         expr = PGStringParser.translate(query)
-        expr = loader.prepare_script(expr, system)
         return system.engine.evaluate(expr)
 
     def interpret(self, query: str):
@@ -254,7 +307,6 @@ class Bench:
             len(args[0]) if args and isinstance(args[0], (dict, list)) else 0
         )
         return bench_sys._loader, copy
-
 
     def _ensure_eval_system(self, path: str):
         """Cached clean copy of live. Never mutated."""

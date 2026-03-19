@@ -3,7 +3,11 @@ venv
 **/__pycache__
 *.egg-info
 dist
-
+bench.log
 build
 .env
 .parseltongue-bench
+temp
+parseltongue/core/demos/data_governance_pltg/resources/*/
+parseltongue/core/demos/data_governance_pltg/src/
+

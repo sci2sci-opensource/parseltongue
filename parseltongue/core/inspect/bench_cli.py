@@ -149,17 +149,20 @@ def _recv(sock: socket.socket) -> dict:
 class BenchServer:
     """Holds a Bench instance, dispatches commands from socket clients."""
 
-    def __init__(self, pltg_path: str, *, background: bool = False):
+    def __init__(self, pltg_path: str, *, background: bool = False, effects: dict | None = None):
         from .bench import Bench
 
         self.bench = Bench()
         self.pltg_path = pltg_path
+        self._effects = effects
         self._last_search: dict | None = None  # cached last search query+params
         if not background:
-            self.bench.prepare(pltg_path)
+            self.bench.prepare(pltg_path, effects=effects)
 
     def start_background_load(self):
-        t = threading.Thread(target=self.bench.prepare, args=(self.pltg_path,), daemon=True)
+        t = threading.Thread(
+            target=self.bench.prepare, args=(self.pltg_path,), kwargs={"effects": self._effects}, daemon=True
+        )
         t.start()
 
     def _is_ready(self) -> bool:
@@ -212,6 +215,7 @@ class BenchServer:
                     prof.dump_stats(str(prof_path))
                     # Also write human-readable stats
                     import io
+
                     s = io.StringIO()
                     ps = pstats.Stats(prof, stream=s).sort_stats("cumulative")
                     ps.print_stats(40)
@@ -293,6 +297,15 @@ class BenchServer:
                 elif what == "issues":
                     items = dx.issues()
                     text = "\n".join(str(i) for i in items) if items else "No issues."
+                elif what == "loader":
+                    items = dx.loader()
+                    parts = []
+                    for i in items:
+                        parts.append(f"[{i.type}] {i.name} @ {i.loc}")
+                        if i.detail:
+                            parts.append(str(i.detail))
+                        parts.append("")
+                    text = "\n".join(parts).strip() if items else "No loader errors."
                 elif what == "ok":
                     ok_items = [i for i in dx._items if i.category not in ("issue",)]
                     text = "\n".join(str(i) for i in ok_items) if ok_items else "All items have issues."
@@ -309,6 +322,13 @@ class BenchServer:
             elif action == "compose":
                 names = cmd.get("names", [])
                 h = self.bench.compose(*names)
+                self._register_hologram_scope(h)
+                text = h.view()
+                return {"ok": True, "text": str(text)}
+
+            elif action == "stain":
+                names = cmd.get("names", [])
+                h = self.bench.stain(*names)
                 self._register_hologram_scope(h)
                 text = h.view()
                 return {"ok": True, "text": str(text)}
@@ -803,7 +823,9 @@ def _setup_file_logging(console_level: str):
     root.setLevel(logging.DEBUG)
 
 
-def _run_server(pltg_path: str, sock_path: Path, refresh_s: int = 0, log_level: str = "ERROR"):
+def _run_server(
+    pltg_path: str, sock_path: Path, refresh_s: int = 0, log_level: str = "ERROR", effects: dict | None = None
+):
     _setup_file_logging(log_level)
     sock_path.parent.mkdir(parents=True, exist_ok=True)
     if sock_path.exists():
@@ -814,7 +836,7 @@ def _run_server(pltg_path: str, sock_path: Path, refresh_s: int = 0, log_level: 
     sock.bind(str(sock_path))
     sock.listen(4)
 
-    server = BenchServer(pltg_path, background=True)
+    server = BenchServer(pltg_path, background=True, effects=effects)
     click.echo(f"Listening on {sock_path}")
     click.echo(f"Loading {pltg_path} ...")
     server.start_background_load()
@@ -956,12 +978,33 @@ def cli():
     """
 
 
+def _import_effects(spec: str) -> dict:
+    """Import effects dict from 'module:attr' spec, e.g.
+    'parseltongue.core.demos.data_governance_pltg.operators:GOVERNANCE_EFFECTS'."""
+    import importlib
+
+    if ":" not in spec:
+        raise click.BadParameter(f"Effects spec must be 'module:attr', got: {spec}")
+    mod_path, attr = spec.rsplit(":", 1)
+    mod = importlib.import_module(mod_path)
+    obj = getattr(mod, attr)
+    if not isinstance(obj, dict):
+        raise click.BadParameter(f"{spec} resolved to {type(obj).__name__}, expected dict")
+    return obj
+
+
 def _serve_options(fn):
     """Shared options for serve/start/up commands."""
     fn = click.argument("path")(fn)
     fn = click.option("--socket", "sock", default=str(SOCK_PATH), help="Unix socket path.")(fn)
     fn = click.option(
         "--refresh-index", "refresh_s", default=2, type=int, help="Background reindex interval in seconds (0=off)."
+    )(fn)
+    fn = click.option(
+        "--effects",
+        "effects_spec",
+        default=None,
+        help="Effects dict as 'module:attr', e.g. 'mypackage.ops:EFFECTS'.",
     )(fn)
     fn = click.option("--verbose", "-v", is_flag=False, help="Shorthand for --log-level INFO.")(fn)
     fn = click.option(
@@ -979,7 +1022,7 @@ def _resolve_log_level(verbose: bool, log_level: str) -> str:
     return "INFO" if verbose else log_level
 
 
-def _daemonize(path: str, sock: str, refresh_s: int, log_level: str):
+def _daemonize(path: str, sock: str, refresh_s: int, log_level: str, effects: dict | None = None):
     """Double-fork daemonize, then exec _run_server in the grandchild."""
     pid = os.fork()
     if pid > 0:
@@ -999,13 +1042,13 @@ def _daemonize(path: str, sock: str, refresh_s: int, log_level: str):
     os.dup2(devnull, 2)
     os.close(devnull)
 
-    _run_server(path, Path(sock), refresh_s=refresh_s, log_level=log_level)
+    _run_server(path, Path(sock), refresh_s=refresh_s, log_level=log_level, effects=effects)
     os._exit(0)
 
 
 @cli.command()
 @_serve_options
-def serve(path: str, sock: str, refresh_s: int, verbose: bool, log_level: str):
+def serve(path: str, sock: str, refresh_s: int, effects_spec: str | None, verbose: bool, log_level: str):
     """Start the bench server in the foreground (blocking).
 
     \b
@@ -1018,13 +1061,20 @@ def serve(path: str, sock: str, refresh_s: int, verbose: bool, log_level: str):
       pg-bench serve parseltongue/core/validation/core.pltg &
       pg-bench wait
       pg-bench index parseltongue/core
+
+    \b
+    With custom effects (e.g. governance demo):
+      pg-bench serve governance/main.pltg --effects pkg.ops:EFFECTS
     """
-    _run_server(path, Path(sock), refresh_s=refresh_s, log_level=_resolve_log_level(verbose, log_level))
+    effects = _import_effects(effects_spec) if effects_spec else None
+    _run_server(
+        path, Path(sock), refresh_s=refresh_s, log_level=_resolve_log_level(verbose, log_level), effects=effects
+    )
 
 
 @cli.command()
 @_serve_options
-def start(path: str, sock: str, refresh_s: int, verbose: bool, log_level: str):
+def start(path: str, sock: str, refresh_s: int, effects_spec: str | None, verbose: bool, log_level: str):
     """Start the bench server as a daemon (always detached, returns immediately).
 
     \b
@@ -1037,13 +1087,14 @@ def start(path: str, sock: str, refresh_s: int, verbose: bool, log_level: str):
       pg-bench wait
       pg-bench index parseltongue/core
     """
-    _daemonize(path, sock, refresh_s, _resolve_log_level(verbose, log_level))
+    effects = _import_effects(effects_spec) if effects_spec else None
+    _daemonize(path, sock, refresh_s, _resolve_log_level(verbose, log_level), effects=effects)
 
 
 @cli.command()
 @_serve_options
 @click.option("-d", "--detach", is_flag=True, help="Detach — run as daemon (like start).")
-def up(path: str, sock: str, refresh_s: int, verbose: bool, log_level: str, detach: bool):
+def up(path: str, sock: str, refresh_s: int, effects_spec: str | None, verbose: bool, log_level: str, detach: bool):
     """Start the bench server. Foreground by default, -d to detach.
 
     \b
@@ -1057,10 +1108,11 @@ def up(path: str, sock: str, refresh_s: int, verbose: bool, log_level: str, deta
       pg-bench index parseltongue/core
     """
     level = _resolve_log_level(verbose, log_level)
+    effects = _import_effects(effects_spec) if effects_spec else None
     if detach:
-        _daemonize(path, sock, refresh_s, level)
+        _daemonize(path, sock, refresh_s, level, effects=effects)
     else:
-        _run_server(path, Path(sock), refresh_s=refresh_s, log_level=level)
+        _run_server(path, Path(sock), refresh_s=refresh_s, log_level=level, effects=effects)
 
 
 def _read_expression(expression: str | None, file: str | None) -> str:
@@ -1426,7 +1478,7 @@ def focus(name: str):
 
 @cli.command()
 @click.option("--focus", "focus_name", default=None, help="Focus on a subsystem prefix.")
-@click.option("--what", default="summary", type=click.Choice(["summary", "issues", "ok"]))
+@click.option("--what", default="summary", type=click.Choice(["summary", "issues", "loader", "ok"]))
 def diagnose(focus_name: str | None, what: str):
     """Run consistency diagnosis (Merkle-cached).
 
@@ -1436,8 +1488,9 @@ def diagnose(focus_name: str | None, what: str):
     only some files change.
 
     \b
-    --what summary  issue + dangling counts (default)
+    --what summary  issue + dangling + loader counts (default)
     --what issues   only failing diffs with values
+    --what loader   only loader errors (unresolved symbols, failed effects)
     --what ok       only passing diffs
     --focus         filter to a namespace prefix
     """
@@ -1474,6 +1527,24 @@ def compose(names: tuple[str, ...]):
       pg-bench compose engine.eval-bind engine.derive engine._rewrite
     """
     _print_result(_query({"action": "compose", "names": list(names)}))
+
+
+@cli.command()
+@click.argument("names", nargs=-1, required=True)
+def stain(names: tuple[str, ...]):
+    """Live-probe N terms with a vital stain — one lens per name.
+
+    \b
+    Applies a vital stain to the engine, re-evaluates each term's
+    theorem WFF to capture runtime resolution edges, then builds
+    lenses with live_probe. Shows runtime dependencies invisible
+    to static probing.
+
+    \b
+    Example:
+      pg-bench stain all-contract-facts-ok all-product-facts-ok
+    """
+    _print_result(_query({"action": "stain", "names": list(names)}))
 
 
 @cli.command()

@@ -1,7 +1,87 @@
 // ── Layers View: stacked pills with curved connections ──
 let layersInitialized = false;
-let focusMode = false;
 let focusedId = null;
+const _expandedPrefixes = new Set();  // tracks which prefix groups are expanded (persists across re-renders)
+let _taintsOn = false;
+let _taintFocusOn = false;
+const _focusStack = [];  // persists across re-renders: [{path, focusId}]
+
+const _MIN_GROUP = 10;  // minimum members to collapse a prefix group
+function _segments(label) { return label.split(/[.\-]/); }
+function _prefixAt(segs, depth) { return segs.slice(0, depth).join('.'); }
+
+// Given a list of input pills and a layer index, compute prefix assignments.
+// Returns {assignment: Map<inp, prefixKey>, members: {prefixKey: [inp]}}
+// Also takes mustShowFn(inp) — pills that must stay explicit even if groupable.
+function _computePrefixGroups(inputs, li, mustShowFn) {
+  const assignment = new Map();
+  const members = {};
+  if (!inputs.length) return {assignment, members};
+
+  const depthGroups = {};
+  inputs.forEach(inp => {
+    const segs = _segments(inp.label);
+    for (let d = 1; d < segs.length; d++) {
+      const p = _prefixAt(segs, d);
+      const key = d + ':' + p;
+      if (!depthGroups[key]) depthGroups[key] = [];
+      depthGroups[key].push(inp);
+    }
+  });
+  inputs.forEach(inp => {
+    if (mustShowFn && mustShowFn(inp)) return;  // skip must-show items
+    const segs = _segments(inp.label);
+    let bestPrefix = null;
+    for (let d = segs.length - 1; d >= 1; d--) {
+      const p = _prefixAt(segs, d);
+      const key = d + ':' + p;
+      if (depthGroups[key] && depthGroups[key].length >= _MIN_GROUP) { bestPrefix = p; break; }
+    }
+    if (bestPrefix) {
+      const pk = bestPrefix + '@' + li;
+      assignment.set(inp, pk);
+      if (!members[pk]) members[pk] = [];
+      members[pk].push(inp);
+    }
+  });
+  return {assignment, members};
+}
+
+// Build collapsedInputs array from inputs + prefix groups
+function _buildCollapsedInputs(inputs, assignment, members) {
+  const collapsed = [];
+  const groups = {};
+  const ungrouped = new Set();
+  inputs.forEach(inp => {
+    const pk = assignment.get(inp);
+    if (pk && members[pk].length >= _MIN_GROUP && !_expandedPrefixes.has(pk)) {
+      if (!groups[pk]) {
+        const grp = members[pk];
+        const allConsumers = [];
+        grp.forEach(g => allConsumers.push(...g.consumers));
+        const displayPrefix = pk.split('@')[0];
+        const cid = 'grp:' + pk;
+        const cpill = {id: cid, label: displayPrefix + '.* (' + grp.length + ')', consumers: allConsumers, type: grp[0].type, _isCollapsed: true, _prefix: pk, _children: grp};
+        groups[pk] = cpill;
+        collapsed.push(cpill);
+      }
+    } else if (pk && members[pk].length >= _MIN_GROUP && _expandedPrefixes.has(pk)) {
+      if (!groups[pk]) {
+        const displayPrefix = pk.split('@')[0];
+        const hid = 'grphdr:' + pk;
+        const hpill = {id: hid, label: displayPrefix + '.* \u25B4', consumers: [], type: members[pk][0].type, _isExpandedHeader: true, _prefix: pk};
+        groups[pk] = hpill;
+        collapsed.push(hpill);
+      }
+      ungrouped.add(inp.id);
+      collapsed.push(inp);
+    } else {
+      ungrouped.add(inp.id);
+      collapsed.push(inp);
+    }
+  });
+  return {collapsed, groups, ungrouped};
+}
 
 function renderLayers() {
   if (layersInitialized) return;
@@ -145,13 +225,22 @@ function renderLayers() {
         useSeen[d].consumers.push(n.name);
       });
     });
-    layerInputs.forEach(p => { inputPillData[p.id] = p; });
-    const hasInputs = layerInputs.length > 0;
+    // ── Collapse inputs sharing a common prefix ──
+    const {assignment: _inpAssignment, members: _prefixMembers} = _computePrefixGroups(layerInputs, li, null);
+    const {collapsed: collapsedInputs, groups: _collapsedGroups, ungrouped} = _buildCollapsedInputs(layerInputs, _inpAssignment, _prefixMembers);
+    // Replace layerInputs with collapsed version for layout
+    const displayInputs = collapsedInputs;
+    displayInputs.forEach(p => { inputPillData[p.id] = p; });
+    // Also register children for edge routing (only collapsed pills have _children)
+    Object.values(_collapsedGroups).forEach(cpill => {
+      if (cpill._children) cpill._children.forEach(ch => { inputPillData[ch.id] = ch; ch._groupId = cpill.id; });
+    });
+    const hasInputs = displayInputs.length > 0;
 
     // Measure input column width
     let inputColW = 0;
     if (hasInputs) {
-      layerInputs.forEach(inp => {
+      displayInputs.forEach(inp => {
         const short = inp.label.includes('.') ? inp.label.split('.').slice(1).join('.') : inp.label;
         inp._w = Math.min(SPW_MAX, Math.max(SPW_MIN, short.length * 5.5 + 20));
         inputColW = Math.max(inputColW, inp._w);
@@ -177,11 +266,18 @@ function renderLayers() {
 
     // Position input pills (deduped, stacked in input column)
     let inputY = PAD + LABEL_H + HEADER_GAP;
-    layerInputs.forEach(inp => {
+    displayInputs.forEach(inp => {
       pos[inp.id] = {
         x: inputX, y: inputY,
-        w: inp._w, h: SUB_PH, isInput: true, type: inp.type, depth: lay.depth
+        w: inp._w, h: SUB_PH, isInput: true, type: inp.type, depth: lay.depth,
+        _isCollapsed: !!inp._isCollapsed
       };
+      // Also position hidden children at the same spot (for edge routing)
+      if (inp._isCollapsed) {
+        inp._children.forEach(ch => {
+          pos[ch.id] = { x: inputX, y: inputY, w: inp._w, h: SUB_PH, isInput: true, type: ch.type, depth: lay.depth, _hidden: true };
+        });
+      }
       inputY += SUB_PH + SUB_GAP_Y;
     });
 
@@ -196,11 +292,19 @@ function renderLayers() {
   });
 
   // ── Taint computation (needed for stats) ──
+  // Evidence lives in STRUCTURE_DATA, not DATA — build lookup
+  const _evById = {};
+  if (typeof STRUCTURE_DATA !== 'undefined') STRUCTURE_DATA.forEach(d => { if (d.evidence) _evById[d.id] = d.evidence; });
+  const _structIds = new Set(Object.keys(_evById));
   const taintSources = new Set();
   DATA.forEach(d => {
-    const hasEv = d.evidence && d.evidence.length > 0;
+    // Only consider items that are in the structure — isolated items (e.g. diff anchors)
+    // have no connections and can't propagate taint
+    if (!_structIds.has(d.id)) return;
+    const ev = _evById[d.id] || d.evidence;
+    const hasEv = ev && ev.length > 0;
     if (!hasEv) { taintSources.add(d.id); return; }
-    const allOk = d.evidence.every(e => e.status === 'verified' || e.status === 'derived' || e.status === 'manual');
+    const allOk = ev.every(e => e.status === 'verified' || e.status === 'derived' || e.status === 'manual');
     if (!allOk) taintSources.add(d.id);
   });
   function computeTainted() {
@@ -428,8 +532,13 @@ function renderLayers() {
       // Route through deduped input pill
       const li = nodeLayerIdx[e.target];
       if (li === undefined || !tp) return;
-      const inpId = 'inp:' + e.source + '@' + li;
-      const ip = pos[inpId];
+      let inpId = 'inp:' + e.source + '@' + li;
+      let ip = pos[inpId];
+      // If this input is a hidden child of a collapsed group, route through the group pill
+      if (ip && ip._hidden) {
+        const child = inputPillData[inpId];
+        if (child && child._groupId) { inpId = child._groupId; ip = pos[inpId]; }
+      }
       if (ip) {
         // Segment 1: source → input pill (only if source is in view)
         if (sp) {
@@ -478,9 +587,11 @@ function renderLayers() {
   // ── Draw input sub-pills ──
   Object.entries(inputPillData).forEach(([id, inp]) => {
     const p = pos[id];
-    if (!p) return;
+    if (!p || p._hidden) return;  // skip hidden children of collapsed groups
     const stroke = TYPE_STROKE[inp.type] || '#585b70';
     const isDeclare = inp.type === 'declare';
+    const isCollapsed = !!inp._isCollapsed;
+    const isExpandHeader = !!inp._isExpandedHeader;
 
     const pg = g.append("g")
       .attr("transform", `translate(${p.x},${p.y})`)
@@ -488,26 +599,49 @@ function renderLayers() {
 
     pg.append("rect")
       .attr("width", p.w).attr("height", SUB_PH).attr("rx", 9)
-      .attr("fill", isDeclare ? '#1e1e2e' : '#262637')
-      .attr("stroke", stroke).attr("stroke-width", 1)
-      .attr("stroke-dasharray", isDeclare ? '3,2' : 'none');
+      .attr("fill", (isCollapsed || isExpandHeader) ? '#1e1e2e' : (isDeclare ? '#1e1e2e' : '#262637'))
+      .attr("stroke", (isCollapsed || isExpandHeader) ? '#89b4fa' : stroke).attr("stroke-width", 1)
+      .attr("stroke-dasharray", (isCollapsed || isExpandHeader) ? '4,2' : (isDeclare ? '3,2' : 'none'));
 
     const short = inp.label.includes('.') ? inp.label.split('.').slice(1).join('.') : inp.label;
     const maxCh = Math.floor((p.w - 16) / 5.2);
     pg.append("text")
       .attr("x", 8).attr("y", SUB_PH / 2 + 1).attr("dominant-baseline", "middle")
-      .attr("fill", stroke).attr("font-size", "8.5px")
-      .text((inp.type === 'use' ? ':use ' + short : ':' + short).slice(0, maxCh));
+      .attr("fill", (isCollapsed || isExpandHeader) ? '#89b4fa' : stroke).attr("font-size", "8.5px")
+      .text((isCollapsed ? short : isExpandHeader ? short : (inp.type === 'use' ? ':use ' + short : ':' + short)).slice(0, maxCh));
 
-    pg.on("mouseover", (ev) => {
-      tooltip.html(`<b>:${inp.label}</b>\ntype: ${inp.type}\nconsumer: ${inp.consumer}`)
-        .classed("hidden", false)
-        .style("left", (ev.pageX + 12) + "px").style("top", (ev.pageY - 8) + "px");
-    }).on("mouseout", () => { tooltip.classed("hidden", true); });
+    if (isCollapsed) {
+      pg.on("mouseover", (ev) => {
+        const children = inp._children.map(c => c.label).join('\n');
+        tooltip.html(`<b>${inp._prefix}.*</b> (${inp._children.length} items)\n${children}`)
+          .classed("hidden", false)
+          .style("left", (ev.pageX + 12) + "px").style("top", (ev.pageY - 8) + "px");
+      }).on("mouseout", () => { tooltip.classed("hidden", true); });
+    } else if (!isExpandHeader) {
+      pg.on("mouseover", (ev) => {
+        tooltip.html(`<b>:${inp.label}</b>\ntype: ${inp.type}\nconsumers: ${(inp.consumers||[inp.consumer]).join(', ')}`)
+          .classed("hidden", false)
+          .style("left", (ev.pageX + 12) + "px").style("top", (ev.pageY - 8) + "px");
+      }).on("mouseout", () => { tooltip.classed("hidden", true); });
+    }
     pg.on("click", (ev) => {
       ev.stopPropagation();
-      focusNode(inp.label);
+      if (isCollapsed || isExpandHeader) {
+        // Toggle expand/collapse
+        const prefix = inp._prefix;
+        if (_expandedPrefixes.has(prefix)) _expandedPrefixes.delete(prefix);
+        else _expandedPrefixes.add(prefix);
+        // Full re-render (state is module-level, restored automatically)
+        layersInitialized = false;
+        document.getElementById('layers-svg').innerHTML = '';
+        renderLayers();
+      } else {
+        selectNode(inp.label);
+      }
     });
+    if (!isCollapsed && !isExpandHeader) {
+      pg.on("contextmenu", (ev) => { ev.preventDefault(); ev.stopPropagation(); showFocusPopup(ev, inp.label); });
+    }
   });
 
   // ── Draw result pills ──
@@ -547,8 +681,9 @@ function renderLayers() {
     }).on("mouseout", () => { tooltip.classed("hidden", true); });
     pg.on("click", (ev) => {
       ev.stopPropagation();
-      focusNode(name);
+      selectNode(name);
     });
+    pg.on("contextmenu", (ev) => { ev.preventDefault(); ev.stopPropagation(); showFocusPopup(ev, name); });
   });
 
   // ── Hanging section: disconnected L0 nodes ──
@@ -679,27 +814,73 @@ function renderLayers() {
     });
   }
 
-  // ── Focus mode toggle ──
-  const btnFocus = document.getElementById('btn-focus-mode');
+  // ── Focus stack + controls ──
+  const btnBack = document.getElementById('btn-back');
   const btnUnfocus = document.getElementById('btn-unfocus');
+  const focusPopup = document.getElementById('focus-popup');
+  const focusPopupBtn = document.getElementById('focus-popup-btn');
+  const focusStack = _focusStack;  // alias to module-level stack
+  let _popupTarget = null;
 
-  function syncFocusBtnStyle() {
-    btnFocus.textContent = focusMode ? 'Focus ON' : 'Focus mode';
-    btnFocus.className = focusMode
-      ? 'px-3 py-1 rounded-lg text-xs bg-mauve text-crust font-bold border border-mauve'
-      : 'px-3 py-1 rounded-lg text-xs bg-surface0 text-subtext border border-surface2 hover:bg-surface1';
+  function syncFocusButtons() {
+    if (focusStack.length > 0) {
+      btnBack.classList.remove("hidden");
+      btnUnfocus.classList.remove("hidden");
+      btnBack.textContent = focusStack.length > 1 ? `\u2190 Back (${focusStack.length})` : '\u2190 Back';
+    } else {
+      btnBack.classList.add("hidden");
+      btnUnfocus.classList.add("hidden");
+    }
   }
-  btnFocus.onclick = () => {
-    focusMode = !focusMode;
-    syncFocusBtnStyle();
-    if (focusMode && focusedId) focusNode(focusedId);
-    else if (!focusMode) unfocusAll();
+
+  function showFocusPopup(ev, id) {
+    _popupTarget = id;
+    focusPopup.style.left = (ev.pageX + 8) + 'px';
+    focusPopup.style.top = (ev.pageY - 4) + 'px';
+    focusPopup.classList.remove("hidden");
+  }
+
+  function hideFocusPopup() {
+    focusPopup.classList.add("hidden");
+    _popupTarget = null;
+  }
+
+  focusPopupBtn.onclick = () => {
+    if (!_popupTarget) return;
+    const id = _popupTarget;
+    hideFocusPopup();
+    pushFocus(id);
   };
+
+  // Dismiss popup on click elsewhere
+  document.addEventListener('click', (ev) => {
+    if (!focusPopup.contains(ev.target)) hideFocusPopup();
+  });
+
+  function pushFocus(id) {
+    const path = collectPath(id);
+    focusStack.push({path, focusId: id});
+    rebuildFocused(path, id);
+    syncFocusButtons();
+    const d = ITEM_BY_ID[id];
+    if (d) { info.innerHTML = _infoHtml(d, path); info.classList.remove("hidden"); showDetail(d); }
+  }
+
+  btnBack.onclick = () => {
+    if (focusStack.length <= 1) { unfocusAll(); return; }
+    focusStack.pop();
+    const prev = focusStack[focusStack.length - 1];
+    rebuildFocused(prev.path, prev.focusId);
+    syncFocusButtons();
+    if (_taintsOn) applyFocusTaints();
+    const d = ITEM_BY_ID[prev.focusId];
+    if (d) { info.innerHTML = _infoHtml(d, prev.path); info.classList.remove("hidden"); showDetail(d); }
+  };
+
   btnUnfocus.onclick = () => unfocusAll();
-  svg.on("click", () => { if (!focusMode) unfocusAll(); });
+  svg.on("click", () => { hideFocusPopup(); if (!focusStack.length) unfocusAll(); });
 
   // ── Taint propagation (visual) ──
-  let taintsOn = false;
   const btnTaints = document.getElementById('btn-taints');
 
   function applyTaints() {
@@ -802,24 +983,62 @@ function renderLayers() {
   }
 
   btnTaints.onclick = () => {
-    taintsOn = !taintsOn;
-    btnTaints.textContent = taintsOn ? 'Taints ON' : 'Taints';
-    btnTaints.className = taintsOn
+    _taintsOn = !_taintsOn;
+    btnTaints.textContent = _taintsOn ? 'Taints ON' : 'Taints';
+    btnTaints.className = _taintsOn
       ? 'px-3 py-1 rounded-lg text-xs bg-red text-crust font-bold border border-red'
       : 'px-3 py-1 rounded-lg text-xs bg-surface0 text-subtext border border-surface2 hover:bg-surface1';
-    if (taintsOn) { applyTaints(); applyFocusTaints(); }
+    if (_taintsOn) { applyTaints(); applyFocusTaints(); }
     else { clearTaints(); clearFocusTaints(); }
   };
 
-  function focusNode(id) {
+  // ── Taint Focus — rebuild layout with only tainted nodes ──
+  const btnTaintFocus = document.getElementById('btn-taint-focus');
+  btnTaintFocus.onclick = () => {
+    _taintFocusOn = !_taintFocusOn;
+    btnTaintFocus.textContent = _taintFocusOn ? 'Taint Focus ON' : 'Taint Focus';
+    btnTaintFocus.className = _taintFocusOn
+      ? 'px-3 py-1 rounded-lg text-xs bg-red text-crust font-bold border border-red'
+      : 'px-3 py-1 rounded-lg text-xs bg-surface0 text-subtext border border-surface2 hover:bg-surface1';
+    if (_taintFocusOn) {
+      const tainted = computeTainted();
+      focusedId = null;
+      focusStack.push({path: tainted, focusId: null});
+      syncFocusButtons();
+      rebuildFocused(tainted, null);
+      // Apply taint colors on the focused view
+      if (focusG) {
+        focusG.selectAll(".fpill-result").each(function() {
+          const el = d3.select(this);
+          const name = el.attr("data-name");
+          const isSource = taintSources.has(name);
+          el.select("rect")
+            .attr("stroke", isSource ? "#f38ba8" : "#f9e2af")
+            .attr("stroke-width", isSource ? 2.5 : 2)
+            .attr("stroke-dasharray", isSource ? "none" : "6,2");
+        });
+        focusG.selectAll(".fpill-input").each(function() {
+          const el = d3.select(this);
+          const name = el.attr("data-name");
+          if (tainted.has(name)) {
+            el.select("rect").attr("stroke", "#f9e2af").attr("stroke-width", 1.5);
+          }
+        });
+      }
+      info.innerHTML = `<div class="font-bold text-red mb-1">Taint Focus</div>`
+        + `<div><span class="text-overlay0">sources:</span> <span class="text-red">${taintSources.size}</span> unverified</div>`
+        + `<div><span class="text-overlay0">tainted:</span> <span class="text-yellow">${tainted.size}</span> total</div>`
+        + `<div class="mt-1 text-[10px] text-overlay0">Showing only tainted nodes and their connections</div>`;
+      info.classList.remove("hidden");
+    } else {
+      unfocusAll();
+    }
+  };
+
+  // Select node: dim non-path, highlight path, show detail (never rebuilds layout)
+  function selectNode(id) {
     focusedId = id;
     const path = collectPath(id);
-    btnUnfocus.classList.remove("hidden");
-
-    if (focusMode) {
-      rebuildFocused(path, id);
-      return;
-    }
 
     // ── Dim mode: dim non-path, highlight path ──
     g.selectAll(".pill-node").each(function() {
@@ -830,7 +1049,7 @@ function renderLayers() {
         if (name === id) el.select("rect").attr("stroke", "#cba6f7").attr("stroke-width", 3);
         else el.select("rect").attr("stroke-width", el.classed("pill-input") ? 1 : 1.5);
       } else {
-        el.attr("opacity", 0.08);
+        el.attr("opacity", 0.18);
       }
     });
 
@@ -893,13 +1112,13 @@ function renderLayers() {
 
       // Deduped input pills for this layer (uses + declares)
       const useSeen = {};
-      const layerInputs = [];
+      const rawInputs = [];
       lay.nodes.forEach(n => {
         (n.uses || []).forEach(u => {
           if (path.has(u) || path.has(n.name)) {
             if (!useSeen[u]) {
               useSeen[u] = {id: 'inp:'+u+'@'+li, label: u, consumers: [], type: 'use'};
-              layerInputs.push(useSeen[u]);
+              rawInputs.push(useSeen[u]);
             }
             useSeen[u].consumers.push(n.name);
           }
@@ -908,13 +1127,21 @@ function renderLayers() {
           if (path.has(d) || path.has(n.name)) {
             if (!useSeen[d]) {
               useSeen[d] = {id: 'inp:'+d+'@'+li, label: d, consumers: [], type: 'declare'};
-              layerInputs.push(useSeen[d]);
+              rawInputs.push(useSeen[d]);
             }
             useSeen[d].consumers.push(n.name);
           }
         });
       });
+      // Prefix-collapse: same shared logic, but skip taint sources and focus target
+      const mustShowFn = (inp) => inp.label === focusId || taintSources.has(inp.label);
+      const {assignment: fInpAssignment, members: fPrefixMembers} = _computePrefixGroups(rawInputs, li, mustShowFn);
+      const {collapsed: layerInputs, groups: fCollapsedSeen, ungrouped: fUngrouped} = _buildCollapsedInputs(rawInputs, fInpAssignment, fPrefixMembers);
       layerInputs.forEach(p => { fInputPills[p.id] = p; });
+      // Register hidden children for edge routing (only collapsed pills have _children)
+      Object.values(fCollapsedSeen).forEach(cpill => {
+        if (cpill._children) cpill._children.forEach(ch => { fInputPills[ch.id] = ch; ch._groupId = cpill.id; });
+      });
       const hasInputs = layerInputs.length > 0;
 
       // Measure widths
@@ -933,17 +1160,41 @@ function renderLayers() {
 
       const inputXf = fX;
       const resultXf = hasInputs ? fX + inputColW + GAP_XI : fX;
+      const fColW = resultXf + resultColW - fX;
+      const fCx = fX + fColW / 2;
+      const labelY = PAD + LABEL_H - 4;
 
+      // "inputs" label
+      if (hasInputs) {
+        focusG.append("text")
+          .attr("x", inputXf + inputColW / 2).attr("y", labelY)
+          .attr("text-anchor", "middle")
+          .attr("fill", "#a6e3a1").attr("font-size", "8px").attr("font-style", "italic")
+          .text("inputs");
+      }
+
+      // L label
       focusG.append("text")
-        .attr("x", fX + (resultXf + resultColW - fX) / 2).attr("y", PAD + 12)
+        .attr("x", fCx).attr("y", labelY)
         .attr("text-anchor", "middle")
         .attr("fill", "#6c7086").attr("font-size", "10px").attr("font-weight", "bold")
-        .text(`L${lay.depth}`);
+        .text(`L${lay.depth} (${lay.nodes.length})`);
+
+      // Stats widget
+      const wx = fCx + 36;
+      const stats = computeLayerStats(lay, path);
+      drawStats(focusG, lay, stats, wx, labelY);
 
       // Stack input pills
       let inputY = PAD + LABEL_H + HEADER_GAP;
       layerInputs.forEach(inp => {
         fPos[inp.id] = { x: inputXf, y: inputY, w: inp._w, h: SUB_PH, isInput: true, type: inp.type };
+        // Position hidden children at same spot for edge routing
+        if (inp._isCollapsed && inp._children) {
+          inp._children.forEach(ch => {
+            fPos[ch.id] = { x: inputXf, y: inputY, w: inp._w, h: SUB_PH, isInput: true, type: ch.type, _hidden: true };
+          });
+        }
         inputY += SUB_PH + SUB_GAP_Y;
       });
       // Stack result pills
@@ -965,8 +1216,13 @@ function renderLayers() {
       if (e.type === 'use' || e.type === 'declare') {
         const li = fNodeLayerIdx[e.target];
         if (li === undefined || !tp) return;
-        const inpId = 'inp:' + e.source + '@' + li;
-        const ip = fPos[inpId];
+        let inpId = 'inp:' + e.source + '@' + li;
+        let ip = fPos[inpId];
+        // If hidden child of collapsed group, route through group pill
+        if (!ip) {
+          const child = fInputPills[inpId];
+          if (child && child._groupId) { inpId = child._groupId; ip = fPos[inpId]; }
+        }
         if (ip) {
           if (sp) {
             const seg1Key = e.source + '>' + inpId;
@@ -990,25 +1246,52 @@ function renderLayers() {
       }
     });
 
-    // Draw focused input pills
+    // Draw focused input pills (including collapsed groups + expand headers)
     Object.entries(fInputPills).forEach(([id, inp]) => {
       const p = fPos[id];
-      if (!p) return;
-      const stroke = TYPE_STROKE[inp.type] || '#585b70';
-      const pg = focusG.append("g").attr("transform", `translate(${p.x},${p.y})`).attr("class", "cursor-pointer fpill-input").attr("data-name", inp.label);
+      if (!p || p._hidden) return;
+      const isCollapsed = !!inp._isCollapsed;
+      const isExpandHeader = !!inp._isExpandedHeader;
+      const stroke = (isCollapsed || isExpandHeader) ? '#89b4fa' : (TYPE_STROKE[inp.type] || '#585b70');
+      const pg = focusG.append("g").attr("transform", `translate(${p.x},${p.y})`)
+        .attr("class", "cursor-pointer fpill-input").attr("data-name", inp.label);
       pg.append("rect").attr("width", p.w).attr("height", SUB_PH).attr("rx", 9)
-        .attr("fill", '#262637').attr("stroke", stroke).attr("stroke-width", 1);
+        .attr("fill", (isCollapsed || isExpandHeader) ? '#1e1e2e' : '#262637')
+        .attr("stroke", stroke).attr("stroke-width", 1)
+        .attr("stroke-dasharray", (isCollapsed || isExpandHeader) ? '4,2' : 'none');
       const short = inp.label.includes('.') ? inp.label.split('.').slice(1).join('.') : inp.label;
       pg.append("text").attr("x", 8).attr("y", SUB_PH / 2 + 1).attr("dominant-baseline", "middle")
         .attr("fill", stroke).attr("font-size", "8.5px")
-        .text((inp.type === 'use' ? ':use ' + short : ':' + short).slice(0, Math.floor((p.w - 16) / 5.2)));
-      pg.on("click", (ev) => {
-        ev.stopPropagation();
-        const np = collectPath(inp.label);
-        rebuildFocused(np, inp.label);
-        const d = ITEM_BY_ID[inp.label];
-        if (d) { info.innerHTML = _infoHtml(d, np); info.classList.remove("hidden"); showDetail(d); }
-      });
+        .text(((isCollapsed || isExpandHeader) ? short : (inp.type === 'use' ? ':use ' + short : ':' + short)).slice(0, Math.floor((p.w - 16) / 5.2)));
+      if (isCollapsed) {
+        pg.on("mouseover", (ev) => {
+          const children = inp._children.map(c => c.label).join('\n');
+          tooltip.html(`<b>${inp._prefix}.*</b> (${inp._children.length} items)\n${children}`)
+            .classed("hidden", false)
+            .style("left", (ev.pageX + 12) + "px").style("top", (ev.pageY - 8) + "px");
+        }).on("mouseout", () => { tooltip.classed("hidden", true); });
+        pg.on("click", (ev) => {
+          ev.stopPropagation();
+          _expandedPrefixes.add(inp._prefix);
+          // Re-render focused view with current stack top
+          const cur = focusStack[focusStack.length - 1];
+          if (cur) rebuildFocused(cur.path, cur.focusId);
+        });
+      } else if (isExpandHeader) {
+        pg.on("click", (ev) => {
+          ev.stopPropagation();
+          _expandedPrefixes.delete(inp._prefix);
+          const cur = focusStack[focusStack.length - 1];
+          if (cur) rebuildFocused(cur.path, cur.focusId);
+        });
+      } else {
+        pg.on("click", (ev) => {
+          ev.stopPropagation();
+          const d = ITEM_BY_ID[inp.label];
+          if (d) showDetail(d);
+        });
+        pg.on("contextmenu", (ev) => { ev.preventDefault(); ev.stopPropagation(); showFocusPopup(ev, inp.label); });
+      }
     });
 
     // Draw focused result pills
@@ -1029,11 +1312,10 @@ function renderLayers() {
         .text((short + (n.value ? ' =' + String(n.value).slice(0,15) : '')).slice(0, maxCh));
       pg.on("click", (ev) => {
         ev.stopPropagation();
-        const np = collectPath(n.name);
-        rebuildFocused(np, n.name);
         const d = ITEM_BY_ID[n.name];
-        if (d) { info.innerHTML = _infoHtml(d, np); info.classList.remove("hidden"); showDetail(d); }
+        if (d) showDetail(d);
       });
+      pg.on("contextmenu", (ev) => { ev.preventDefault(); ev.stopPropagation(); showFocusPopup(ev, n.name); });
       pg.on("mouseover", (ev) => {
         tooltip.html(`<b>${n.name}</b>\n${n.kind}${n.value ? '\n' + String(n.value).slice(0,80) : ''}`)
           .classed("hidden", false)
@@ -1042,7 +1324,7 @@ function renderLayers() {
     }));
 
     // Apply taints if active
-    if (taintsOn) applyFocusTaints();
+    if (_taintsOn) applyFocusTaints();
 
     // Info + zoom to fit
     const d = ITEM_BY_ID[focusId];
@@ -1062,9 +1344,11 @@ function renderLayers() {
 
   function unfocusAll() {
     focusedId = null;
-    focusMode = false;
-    syncFocusBtnStyle();
-    btnUnfocus.classList.add("hidden");
+    focusStack.length = 0;
+    _taintFocusOn = false;
+    btnTaintFocus.textContent = 'Taint Focus';
+    btnTaintFocus.className = 'px-3 py-1 rounded-lg text-xs bg-surface0 text-subtext border border-surface2 hover:bg-surface1';
+    syncFocusButtons();
     if (focusG) { focusG.remove(); focusG = null; }
     g.selectAll("*").style("display", null);
     zoomBehavior.on("zoom", (e) => g.attr("transform", e.transform));
@@ -1086,7 +1370,7 @@ function renderLayers() {
     info.classList.add("hidden");
 
     // Restore taints if active
-    if (taintsOn) applyTaints();
+    if (_taintsOn) applyTaints();
 
     requestAnimationFrame(() => {
       const bounds = g.node().getBBox();
@@ -1121,4 +1405,22 @@ function renderLayers() {
       svg.call(zoomBehavior.transform, d3.zoomIdentity.translate(tx, ty).scale(scale));
     }
   });
+
+  // ── Restore module-level state after re-render ──
+  if (_focusStack.length) {
+    const top = _focusStack[_focusStack.length - 1];
+    rebuildFocused(top.path, top.focusId);
+    syncFocusButtons();
+    if (_taintFocusOn) {
+      btnTaintFocus.textContent = 'Taint Focus ON';
+      btnTaintFocus.className = 'px-3 py-1 rounded-lg text-xs bg-red text-crust font-bold border border-red';
+      applyFocusTaints();
+    }
+  }
+  if (_taintsOn) {
+    btnTaints.textContent = 'Taints ON';
+    btnTaints.className = 'px-3 py-1 rounded-lg text-xs bg-red text-crust font-bold border border-red';
+    applyTaints();
+    if (_focusStack.length) applyFocusTaints();
+  }
 }

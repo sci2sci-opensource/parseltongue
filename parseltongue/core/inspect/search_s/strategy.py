@@ -4,23 +4,22 @@ Each strategy level produces a posting set. The cascade tries
 levels in order, returning the first non-empty result. Alternatively,
 ``merge`` runs all levels and combines with decreasing confidence weights.
 
-Synonym expansion is scoped:
-    DOCUMENTS — expanded tokens hit content indices only
-    META      — expanded tokens hit meta indices + originals get direct boost
-    UNIVERSAL — both paths
+Synonym expansion is baked into the corpus-level inverted index at build
+time (DocumentSearchIndex._rebuild_corpus). The stemmed strategy already
+covers what ``search_expanded`` used to do — no separate expanded pass.
 
 Strategies:
-    direct   — exact normalized word/phrase match via word_to_lines
-    stemmed  — stem query tokens, match against stem_to_lines
+    direct   — exact normalized word/phrase match via corpus word index
+    stemmed  — stemmed match via corpus stem index (synonyms pre-injected)
     ngram    — bigram/trigram overlap, ranked by Jaccard similarity
     meta     — match against document metadata (name, tags, etc.)
-    expanded — synonym-expanded search across content + meta
 
 The ``(strategy ...)`` operator in the search system wires into this.
 """
 
 from __future__ import annotations
 
+from functools import lru_cache
 from typing import TYPE_CHECKING, Callable
 
 from parseltongue.core.quote_verifier.config import QuoteVerifierConfig
@@ -44,10 +43,10 @@ WEIGHT_DIRECT = 1.0
 WEIGHT_STEMMED = 0.7
 WEIGHT_NGRAM = 0.4
 WEIGHT_META = 0.5
-WEIGHT_EXPANDED = 0.6
 
 
-def _tokenize_query(query: str) -> list[str]:
+@lru_cache(maxsize=128)
+def _tokenize_query(query: str) -> tuple[str, ...]:
     """Normalize and tokenize a query string.
 
     Same pipeline as document indexing: normalize, split, then expand
@@ -55,10 +54,13 @@ def _tokenize_query(query: str) -> list[str]:
     SearchDocument). Compound parts replace the original token — all
     parts must co-occur (AND via lines_with_all_words).
 
-    "errors in lang"       → ["errors", "lang"]
-    "operations_v2"        → ["operations_v2", "operations", "v2"]
-    "sys.ops_v2 raise"     → ["sys.ops_v2", "sys", "ops", "v2", "raise"]
-    "xyzzy_not_here_42"    → ["xyzzy_not_here_42", "xyzzy", "not", "here", "42"]
+    Returns tuple (hashable, cached). RRF calls this multiple times per
+    query — lru_cache makes all but the first a dict lookup.
+
+    "errors in lang"       → ("errors", "lang")
+    "operations_v2"        → ("operations_v2", "operations", "v2")
+    "sys.ops_v2 raise"     → ("sys.ops_v2", "sys", "ops", "v2", "raise")
+    "xyzzy_not_here_42"    → ("xyzzy_not_here_42", "xyzzy", "not", "here", "42")
     """
     from .document import _COMPOUND_SPLIT
 
@@ -69,7 +71,7 @@ def _tokenize_query(query: str) -> list[str]:
         parts = _COMPOUND_SPLIT.split(t)
         if len(parts) > 1:
             result.extend(p for p in parts if p)
-    return result
+    return tuple(result)
 
 
 def _make_posting(doc_name: str, line_num: int, lines: list[str], **extra) -> dict:
@@ -87,29 +89,19 @@ def _make_posting(doc_name: str, line_num: int, lines: list[str], **extra) -> di
 
 
 def search_direct(index: "DocumentSearchIndex", query: str) -> dict:
-    """Exact normalized match — word_to_lines intersection."""
+    """Exact normalized match — corpus-level word index lookup."""
     tokens = _tokenize_query(query)
     if not tokens:
         return {}
-    result = {}
-    for doc_name, sdoc in index.documents.items():
-        for line_num in sdoc.lines_with_all_words(tokens):
-            if line_num <= len(sdoc.lines):
-                result[(doc_name, line_num)] = _make_posting(doc_name, line_num, sdoc.lines)
-    return result
+    return index.corpus_lookup(tokens, stemmed=False)
 
 
 def search_stemmed(index: "DocumentSearchIndex", query: str) -> dict:
-    """Stemmed match — stem query tokens, intersect stem_to_lines."""
+    """Stemmed match — corpus-level stem index lookup (synonyms baked in)."""
     tokens = _tokenize_query(query)
     if not tokens:
         return {}
-    result = {}
-    for doc_name, sdoc in index.documents.items():
-        for line_num in sdoc.lines_with_all_stems(tokens):
-            if line_num <= len(sdoc.lines):
-                result[(doc_name, line_num)] = _make_posting(doc_name, line_num, sdoc.lines)
-    return result
+    return index.corpus_lookup(tokens, stemmed=True)
 
 
 def search_ngram(index: "DocumentSearchIndex", query: str) -> dict:
@@ -150,7 +142,7 @@ def search_meta(
     if not tokens:
         return {}
 
-    syn = synonyms or DEFAULT_SYNONYMS
+    syn = synonyms or getattr(index, "_synonyms", DEFAULT_SYNONYMS)
     expanded = syn.expand_flat(tokens, scope=ExpansionScope.META)
     expanded_terms = [e.term for e in expanded]
     expanded_weights = {e.term: e.weight for e in expanded}
@@ -207,59 +199,8 @@ def search_meta(
     return result
 
 
-def search_expanded(
-    index: "DocumentSearchIndex",
-    query: str,
-    synonyms: SynonymIndex | None = None,
-) -> dict:
-    """Synonym-expanded search — content + meta, scoped expansion.
-
-    1. DOCUMENTS scope: expand tokens, search content indices (union of per-synonym hits)
-    2. META scope: expand tokens, search meta indices
-    3. Merge with synonym weights as confidence
-    """
-    tokens = _tokenize_query(query)
-    if not tokens:
-        return {}
-
-    syn = synonyms or DEFAULT_SYNONYMS
-    result: dict = {}
-
-    # Content expansion (DOCUMENTS scope)
-    doc_expanded = syn.expand_flat(tokens, scope=ExpansionScope.DOCUMENTS)
-    for entry in doc_expanded:
-        for doc_name, sdoc in index.documents.items():
-            # Try direct word match for this synonym
-            for line_num in sdoc.lines_with_word(entry.term):
-                if line_num <= len(sdoc.lines):
-                    key = (doc_name, line_num)
-                    if key not in result or entry.weight > result[key].get("_syn_weight", 0):
-                        posting = _make_posting(doc_name, line_num, sdoc.lines)
-                        posting["_syn_weight"] = entry.weight
-                        posting["_syn_term"] = entry.term
-                        result[key] = posting
-
-            # Also try stemmed match
-            for line_num in sdoc.lines_with_stem(entry.term):
-                if line_num <= len(sdoc.lines):
-                    key = (doc_name, line_num)
-                    if key not in result:
-                        posting = _make_posting(doc_name, line_num, sdoc.lines)
-                        posting["_syn_weight"] = entry.weight * WEIGHT_STEMMED
-                        posting["_syn_term"] = entry.term
-                        result[key] = posting
-
-    # Meta expansion (META scope)
-    meta_results = search_meta(index, query, synonyms=syn)
-    for key, entry in meta_results.items():
-        if key not in result:
-            result[key] = entry
-
-    return result
-
-
 def cascade(index: "DocumentSearchIndex", query: str) -> dict:
-    """Try direct → stemmed → n-gram → expanded → meta, return first non-empty."""
+    """Try direct → stemmed → n-gram → meta, return first non-empty."""
     result = search_direct(index, query)
     if result:
         return _boost_meta(index, result, query)
@@ -267,9 +208,6 @@ def cascade(index: "DocumentSearchIndex", query: str) -> dict:
     if result:
         return _boost_meta(index, result, query)
     result = search_ngram(index, query)
-    if result:
-        return _boost_meta(index, result, query)
-    result = search_expanded(index, query)
     if result:
         return _boost_meta(index, result, query)
     return search_meta(index, query)
@@ -285,16 +223,10 @@ def merge(index: "DocumentSearchIndex", query: str) -> dict:
     stemmed = search_stemmed(index, query)
     ngram = search_ngram(index, query)
     meta = search_meta(index, query)
-    expanded = search_expanded(index, query)
 
     merged: dict = {}
 
-    # Expanded first (lowest priority)
-    for key, entry in expanded.items():
-        entry["_confidence"] = WEIGHT_EXPANDED
-        merged[key] = entry
-
-    # Meta
+    # Meta first (lowest priority)
     for key, entry in meta.items():
         entry["_confidence"] = WEIGHT_META
         merged[key] = entry
@@ -321,44 +253,48 @@ def _boost_meta(index: "DocumentSearchIndex", posting: dict, query: str = "") ->
     """Rank results by BM25 with per-hit boosting (name, meta, synonyms)."""
     from .ranking import rank_postings
 
-    tokens = _tokenize_query(query) if query else []
-    return rank_postings(index, posting, tokens)
+    tokens = _tokenize_query(query) if query else ()
+    return rank_postings(index, posting, list(tokens))
 
 
 def search_rrf(index: "DocumentSearchIndex", query: str) -> dict:
-    """Run all strategies, fuse with RRF, re-score with BM25.
+    """Run strategies, fuse with RRF, re-score with BM25.
 
-    Each strategy produces a ranked list. RRF combines ranks so a result
-    appearing in multiple strategies ranks higher than one found by only one.
-    BM25 with per-hit boosting provides the final _score on top of _rrf.
+    Short-circuit: if direct + stemmed both return results, skip ngram
+    and meta. Stemmed already includes synonym expansions (baked in at
+    index time), so 2 strategies cover what 5 used to.
     """
     from .ranking import rank_postings, rrf
 
-    strategies: list[Callable[["DocumentSearchIndex", str], dict]] = [
-        search_direct,
-        search_stemmed,
-        search_ngram,
-        search_expanded,
-        search_meta,
-    ]
-    ranked_lists = [fn(index, query) for fn in strategies]
-    ranked_lists = [r for r in ranked_lists if r]
+    tokens = _tokenize_query(query)
 
-    if not ranked_lists:
+    # Fast path: direct + stemmed (synonyms baked in)
+    direct = search_direct(index, query)
+    stemmed = search_stemmed(index, query)
+    fast = [r for r in (direct, stemmed) if r]
+
+    if len(fast) == 2 or (fast and sum(len(r) for r in fast) >= 20):
+        fused = rrf(fast)
+        return rank_postings(index, fused, list(tokens))
+
+    # Slow path: add ngram + meta
+    ngram = search_ngram(index, query)
+    meta = search_meta(index, query)
+
+    all_results = fast + [r for r in (ngram, meta) if r]
+    if not all_results:
         return {}
 
-    fused = rrf(ranked_lists)
-    tokens = _tokenize_query(query)
-    return rank_postings(index, fused, tokens)
+    fused = rrf(all_results)
+    return rank_postings(index, fused, list(tokens))
 
 
 # Strategy dispatch table
-STRATEGIES = {
+STRATEGIES: dict[str, Callable[["DocumentSearchIndex", str], dict]] = {
     "direct": search_direct,
     "stemmed": search_stemmed,
     "ngram": search_ngram,
     "meta": search_meta,
-    "expanded": search_expanded,
     "cascade": cascade,
     "merge": merge,
     "rrf": search_rrf,

@@ -101,8 +101,10 @@ class Evaluation:
 
         if result is not None:
             # Loader errors (failed directives)
+
             for node, exc in result.errors.items():
                 loc = f"{node.source_file}:{node.source_line}" if node.source_file else "?"
+                tb_str = getattr(exc, "_loader_tb", None) or str(exc)
                 items.append(
                     EvaluationItem(
                         name=node.name or str(exc)[:60],
@@ -110,7 +112,7 @@ class Evaluation:
                         type="error",
                         kind=node.kind if node.name else "effect",
                         loc=loc,
-                        detail=exc,
+                        detail=tb_str,
                     )
                 )
 
@@ -180,7 +182,8 @@ class Evaluation:
                 )
             )
 
-        return cls(items, lc.consistent)
+        has_loader_errors = any(i.category == "loader" and i.type == "error" for i in items)
+        return cls(items, lc.consistent and not has_loader_errors)
 
     # ── Filter ──
 
@@ -317,10 +320,13 @@ class Evaluation:
         lines = []
 
         # Counts
+        n_loader = len(self.loader())
         n_issues = len(self.issues())
         n_warnings = len(self.warnings())
         n_danglings = len(self.danglings())
         parts = []
+        if n_loader:
+            parts.append(f"{n_loader} loader error(s)")
         if n_issues:
             parts.append(f"{n_issues} issue(s)")
         if n_warnings:

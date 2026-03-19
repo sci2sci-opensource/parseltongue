@@ -226,10 +226,15 @@ def _extract_hn_items(forms: list[list]) -> list[dict]:
                 ln_value = str(ln[2]) if len(ln) > 2 else ""
                 ln_depth = int(ln[3]) if len(ln) > 3 and isinstance(ln[3], (int, float)) else 0
                 ln_inputs = [str(x) for x in ln[4]] if len(ln) > 4 and isinstance(ln[4], list) else []
-                lens_data.append({
-                    "name": ln_name, "kind": ln_kind, "value": ln_value,
-                    "depth": ln_depth, "inputs": ln_inputs,
-                })
+                lens_data.append(
+                    {
+                        "name": ln_name,
+                        "kind": ln_kind,
+                        "value": ln_value,
+                        "depth": ln_depth,
+                        "inputs": ln_inputs,
+                    }
+                )
                 if not name:
                     name = ln_name
                     kind = ln_kind
@@ -239,10 +244,17 @@ def _extract_hn_items(forms: list[list]) -> list[dict]:
         if not name:
             continue
         module = name.split(".")[0] if "." in name else ""
-        items.append({
-            "id": name, "kind": kind, "value": value,
-            "lenses": lens_data, "module": module,
-        })
+        depth = next((ld["depth"] for ld in lens_data if ld is not None), 0)
+        items.append(
+            {
+                "id": name,
+                "kind": kind,
+                "value": value,
+                "depth": depth,
+                "lenses": lens_data,
+                "module": module,
+            }
+        )
     return items
 
 
@@ -477,7 +489,6 @@ def _enrich_items_from_structure(items: list[dict], structure) -> None:
 def _strip_internal(structure):
     """Remove __-prefixed nodes from structure so localization doesn't traverse them."""
     from parseltongue.core.inspect.probe_core_to_consequence import (
-        Consumer,
         CoreToConsequenceStructure,
         Layer,
     )
@@ -511,9 +522,8 @@ def _localize_multi(structure, seeds: set[str]):
         Consumer,
         CoreToConsequenceStructure,
         Layer,
+        NodeKind,
     )
-
-    from parseltongue.core.inspect.probe_core_to_consequence import NodeKind
 
     # Same algorithm as CoreToConsequenceStructure.localize() but multi-seed.
     # Index consumers and reverse references
@@ -618,6 +628,7 @@ def _build_named_structure_data(names: set[str], structure) -> list[dict]:
         return []
 
     graph = getattr(structure, "graph", {})
+    depths = getattr(structure, "depths", {})
     if not graph:
         return []
 
@@ -629,18 +640,20 @@ def _build_named_structure_data(names: set[str], structure) -> list[dict]:
         if node is None:
             continue
         kind = str(node.kind) if hasattr(node, "kind") else ""
-        depth = node.depth if hasattr(node, "depth") else 0
+        depth = depths.get(name, 0)
         inputs = list(node.inputs) if hasattr(node, "inputs") else []
         module = name.split(".")[0] if "." in name else ""
-        items.append({
-            "id": name,
-            "kind": kind,
-            "value": "",
-            "depth": depth,
-            "inputs": inputs,
-            "evidence": [],
-            "module": module,
-        })
+        items.append(
+            {
+                "id": name,
+                "kind": kind,
+                "value": "",
+                "depth": depth,
+                "inputs": inputs,
+                "evidence": [],
+                "module": module,
+            }
+        )
 
     return items
 

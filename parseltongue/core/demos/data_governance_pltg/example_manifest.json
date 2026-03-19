@@ -1,0 +1,327 @@
+{
+  "seed": 42,
+  "total_datasets": 68,
+  "total_contracts": 25,
+  "total_products": 20,
+  "corruptions": [
+    {
+      "corruption_type": "path_drift",
+      "layer": "technical",
+      "file": "translational.csv",
+      "field": "storage_path",
+      "old_value": "s3://seq-lake/rnaseq/expression",
+      "new_value": "s3://migrated-seq-lake/rnaseq/expression",
+      "description": "Storage path migrated for RNA-seq Expression"
+    },
+    {
+      "corruption_type": "path_drift",
+      "layer": "technical",
+      "file": "commercial.csv",
+      "field": "storage_path",
+      "old_value": "s3://commercial-lake/medical/publications",
+      "new_value": "s3://migrated-commercial-lake/medical/publications",
+      "description": "Storage path migrated for Medical Affairs Publications"
+    },
+    {
+      "corruption_type": "path_drift",
+      "layer": "technical",
+      "file": "discovery.csv",
+      "field": "storage_path",
+      "old_value": "s3://ref-data/chemspider/compounds",
+      "new_value": "s3://migrated-ref-data/chemspider/compounds",
+      "description": "Storage path migrated for ChemSpider Compound Registry"
+    },
+    {
+      "corruption_type": "path_drift",
+      "layer": "technical",
+      "file": "discovery.csv",
+      "field": "storage_path",
+      "old_value": "s3://discovery-lake/targets/validation",
+      "new_value": "s3://migrated-discovery-lake/targets/validation",
+      "description": "Storage path migrated for Target Validation Assays"
+    },
+    {
+      "corruption_type": "path_drift",
+      "layer": "technical",
+      "file": "clinical.csv",
+      "field": "storage_path",
+      "old_value": "s3://external-feeds/ema/eudravigilance",
+      "new_value": "s3://migrated-external-feeds/ema/eudravigilance",
+      "description": "Storage path migrated for EMA EudraVigilance Reports"
+    },
+    {
+      "corruption_type": "table_rename",
+      "layer": "technical",
+      "file": "discovery.csv",
+      "field": "table_name",
+      "old_value": "target_validation",
+      "new_value": "target_validation_v2",
+      "description": "Table renamed for Target Validation Assays"
+    },
+    {
+      "corruption_type": "table_rename",
+      "layer": "technical",
+      "file": "discovery.csv",
+      "field": "table_name",
+      "old_value": "ncbi_refseq",
+      "new_value": "ncbi_refseq_v2",
+      "description": "Table renamed for NCBI RefSeq Genome"
+    },
+    {
+      "corruption_type": "table_rename",
+      "layer": "technical",
+      "file": "commercial.csv",
+      "field": "table_name",
+      "old_value": "post_market_surveillance",
+      "new_value": "post_market_surveillance_v2",
+      "description": "Table renamed for Post-Market Surveillance"
+    },
+    {
+      "corruption_type": "cadence_mismatch",
+      "layer": "technical",
+      "file": "discovery.csv",
+      "field": "refresh_cadence",
+      "old_value": "quarterly",
+      "new_value": "daily",
+      "description": "Refresh cadence changed for ZINC20 Screening Library"
+    },
+    {
+      "corruption_type": "cadence_mismatch",
+      "layer": "technical",
+      "file": "commercial.csv",
+      "field": "refresh_cadence",
+      "old_value": "monthly",
+      "new_value": "weekly",
+      "description": "Refresh cadence changed for Medical Affairs Publications"
+    },
+    {
+      "corruption_type": "cadence_mismatch",
+      "layer": "technical",
+      "file": "translational.csv",
+      "field": "refresh_cadence",
+      "old_value": "weekly",
+      "new_value": "daily",
+      "description": "Refresh cadence changed for ELISA Biomarker Results"
+    },
+    {
+      "corruption_type": "cadence_mismatch",
+      "layer": "technical",
+      "file": "discovery.csv",
+      "field": "refresh_cadence",
+      "old_value": "monthly",
+      "new_value": "hourly",
+      "description": "Refresh cadence changed for Fragment Library Inventory"
+    },
+    {
+      "corruption_type": "contract_gap",
+      "layer": "contracts",
+      "file": "ncbi_clinvar.md",
+      "field": "file",
+      "old_value": "exists",
+      "new_value": "deleted",
+      "description": "Contract deleted for provider NCBI ClinVar covering 1 datasets"
+    },
+    {
+      "corruption_type": "contract_gap",
+      "layer": "contracts",
+      "file": "illumina.md",
+      "field": "file",
+      "old_value": "exists",
+      "new_value": "deleted",
+      "description": "Contract deleted for provider Illumina covering 1 datasets"
+    },
+    {
+      "corruption_type": "sla_mismatch",
+      "layer": "contracts",
+      "file": "meddra_msso.md",
+      "field": "refresh_sla",
+      "old_value": "quarterly",
+      "new_value": "weekly",
+      "description": "Contract SLA changed for MedDRA MSSO"
+    },
+    {
+      "corruption_type": "sla_mismatch",
+      "layer": "contracts",
+      "file": "ncbi.md",
+      "field": "refresh_sla",
+      "old_value": "quarterly",
+      "new_value": "daily",
+      "description": "Contract SLA changed for NCBI"
+    },
+    {
+      "corruption_type": "sla_mismatch",
+      "layer": "contracts",
+      "file": "flatiron_health.md",
+      "field": "refresh_sla",
+      "old_value": "monthly",
+      "new_value": "real-time",
+      "description": "Contract SLA changed for Flatiron Health"
+    },
+    {
+      "corruption_type": "retention_conflict",
+      "layer": "contracts",
+      "file": "royal_society_of_chemistry.md",
+      "field": "retention_limit",
+      "old_value": "365 days",
+      "new_value": "30 days",
+      "description": "Retention limit shortened for Royal Society of Chemistry"
+    },
+    {
+      "corruption_type": "retention_conflict",
+      "layer": "contracts",
+      "file": "10x_genomics.md",
+      "field": "retention_limit",
+      "old_value": "180 days",
+      "new_value": "60 days",
+      "description": "Retention limit shortened for 10x Genomics"
+    },
+    {
+      "corruption_type": "expired_contract",
+      "layer": "contracts",
+      "file": "fda.md",
+      "field": "expiry_date",
+      "old_value": "2026-11-02",
+      "new_value": "2020-05-20",
+      "description": "Contract expiry backdated for FDA"
+    },
+    {
+      "corruption_type": "expired_contract",
+      "layer": "contracts",
+      "file": "who_icd.md",
+      "field": "expiry_date",
+      "old_value": "2028-11-21",
+      "new_value": "2024-05-18",
+      "description": "Contract expiry backdated for WHO ICD"
+    },
+    {
+      "corruption_type": "phantom_reference",
+      "layer": "business",
+      "file": "patient_360_profile.md",
+      "field": "source_datasets",
+      "old_value": "none",
+      "new_value": "DS-9902",
+      "description": "Added phantom dataset reference to Patient 360 Profile"
+    },
+    {
+      "corruption_type": "phantom_reference",
+      "layer": "business",
+      "file": "genomic_variant_panel.md",
+      "field": "source_datasets",
+      "old_value": "none",
+      "new_value": "DS-9979",
+      "description": "Added phantom dataset reference to Genomic Variant Panel"
+    },
+    {
+      "corruption_type": "phantom_reference",
+      "layer": "business",
+      "file": "clinical_trial_operations_hub.md",
+      "field": "source_datasets",
+      "old_value": "none",
+      "new_value": "DS-9919",
+      "description": "Added phantom dataset reference to Clinical Trial Operations Hub"
+    },
+    {
+      "corruption_type": "phantom_reference",
+      "layer": "business",
+      "file": "biomarker_discovery_engine.md",
+      "field": "source_datasets",
+      "old_value": "none",
+      "new_value": "DS-9930",
+      "description": "Added phantom dataset reference to Biomarker Discovery Engine"
+    },
+    {
+      "corruption_type": "owner_drift",
+      "layer": "business",
+      "file": "real_world_evidence_platform.md",
+      "field": "owner",
+      "old_value": "David Osei",
+      "new_value": "Dr. Robert Kim",
+      "description": "Owner changed for Real-World Evidence Platform"
+    },
+    {
+      "corruption_type": "owner_drift",
+      "layer": "business",
+      "file": "target_identification_suite.md",
+      "field": "owner",
+      "old_value": "Dr. Wei Zhang",
+      "new_value": "Dr. Sarah Chen",
+      "description": "Owner changed for Target Identification Suite"
+    },
+    {
+      "corruption_type": "owner_drift",
+      "layer": "business",
+      "file": "safety_signal_dashboard.md",
+      "field": "owner",
+      "old_value": "Dr. Fatima Al-Said",
+      "new_value": "Dr. Amir Hassan",
+      "description": "Owner changed for Safety Signal Dashboard"
+    },
+    {
+      "corruption_type": "classification_conflict",
+      "layer": "business",
+      "file": "competitive_intelligence_feed.md",
+      "field": "classification",
+      "old_value": "confidential",
+      "new_value": "public",
+      "description": "Classification weakened for Competitive Intelligence Feed"
+    },
+    {
+      "corruption_type": "classification_conflict",
+      "layer": "business",
+      "file": "market_share_tracker.md",
+      "field": "classification",
+      "old_value": "restricted",
+      "new_value": "public",
+      "description": "Classification weakened for Market Share Tracker"
+    },
+    {
+      "corruption_type": "classification_conflict",
+      "layer": "business",
+      "file": "compound_optimization_suite.md",
+      "field": "classification",
+      "old_value": "restricted",
+      "new_value": "public",
+      "description": "Classification weakened for Compound Optimization Suite"
+    },
+    {
+      "corruption_type": "refresh_mismatch",
+      "layer": "business",
+      "file": "launch_analytics_dashboard.md",
+      "field": "refresh_frequency",
+      "old_value": "weekly",
+      "new_value": "daily",
+      "description": "Refresh frequency changed for Launch Analytics Dashboard"
+    },
+    {
+      "corruption_type": "refresh_mismatch",
+      "layer": "business",
+      "file": "safety_signal_dashboard.md",
+      "field": "refresh_frequency",
+      "old_value": "daily",
+      "new_value": "real-time",
+      "description": "Refresh frequency changed for Safety Signal Dashboard"
+    },
+    {
+      "corruption_type": "refresh_mismatch",
+      "layer": "business",
+      "file": "compound_optimization_suite.md",
+      "field": "refresh_frequency",
+      "old_value": "weekly",
+      "new_value": "quarterly",
+      "description": "Refresh frequency changed for Compound Optimization Suite"
+    }
+  ],
+  "corruption_summary": {
+    "path_drift": 5,
+    "table_rename": 3,
+    "cadence_mismatch": 4,
+    "contract_gap": 2,
+    "sla_mismatch": 3,
+    "retention_conflict": 2,
+    "expired_contract": 2,
+    "phantom_reference": 4,
+    "owner_drift": 3,
+    "classification_conflict": 3,
+    "refresh_mismatch": 3
+  }
+}

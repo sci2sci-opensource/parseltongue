@@ -108,6 +108,9 @@ class EvaluationSearchSystem:
         def _danglings():
             return _category("dangling")
 
+        def _loader():
+            return _category("loader")
+
         def _focus(prefix, posting=None):
             if posting is None:
                 return {k: _posting(k) for k, it in item_index.items() if it.name.startswith(prefix) and _posting(k)}
@@ -134,6 +137,7 @@ class EvaluationSearchSystem:
             Symbol("issues"): _issues,
             Symbol("warnings"): _warnings,
             Symbol("danglings"): _danglings,
+            Symbol("loader"): _loader,
             Symbol("focus"): _focus,
             Symbol("consistent"): _consistent,
             Symbol("ns"): _ns,

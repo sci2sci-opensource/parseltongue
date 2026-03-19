@@ -45,9 +45,14 @@
     <div id="layers-tooltip" class="fixed bg-surface0 border border-surface2 rounded-lg px-3 py-2 text-xs pointer-events-none max-w-sm whitespace-pre-wrap hidden z-30"></div>
     <!-- Controls overlay, top-left -->
     <div id="layers-controls" class="absolute top-3 left-3 flex gap-2 z-20">
-      <button id="btn-focus-mode" class="px-3 py-1 rounded-lg text-xs bg-surface0 text-subtext border border-surface2 hover:bg-surface1">Focus mode</button>
+      <button id="btn-back" class="px-3 py-1 rounded-lg text-xs bg-surface0 text-subtext border border-surface2 hover:bg-surface1 hidden">&larr; Back</button>
       <button id="btn-unfocus" class="px-3 py-1 rounded-lg text-xs bg-surface0 text-subtext border border-surface2 hover:bg-surface1 hidden">Show all</button>
       <button id="btn-taints" class="px-3 py-1 rounded-lg text-xs bg-surface0 text-subtext border border-surface2 hover:bg-surface1">Taints</button>
+      <button id="btn-taint-focus" class="px-3 py-1 rounded-lg text-xs bg-surface0 text-subtext border border-surface2 hover:bg-surface1">Taint Focus</button>
+    </div>
+    <!-- Focus action popup -->
+    <div id="focus-popup" class="fixed bg-mantle border border-mauve rounded-lg shadow-lg z-40 hidden">
+      <button id="focus-popup-btn" class="px-4 py-2 text-xs text-mauve hover:bg-surface0 rounded-lg font-bold w-full text-left">Focus &rarr;</button>
     </div>
     <!-- Layer info overlay, bottom-left -->
     <div id="layer-info" class="fixed bottom-4 left-4 bg-mantle/95 backdrop-blur border border-surface1 rounded-lg p-3 text-xs z-20 max-w-xs hidden">

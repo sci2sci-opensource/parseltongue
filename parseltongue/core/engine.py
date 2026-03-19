@@ -557,6 +557,11 @@ class Engine(Rewriter, Executor):
 
     def _eval(self, expr: Sentence, env, axiom_scope=None, restricted=False) -> Sentence:
         log.info("_eval expr=%r restricted=%s", expr, restricted)
+        if not hasattr(self, "_eval_trace"):
+            self._eval_trace = []
+        self._eval_trace.append(expr)
+        if len(self._eval_trace) > 200:
+            self._eval_trace = self._eval_trace[-100:]
         if isinstance(expr, Symbol):
             if expr in env:
                 val = env[expr]
@@ -572,6 +577,17 @@ class Engine(Rewriter, Executor):
             if not restricted and name in self.theorems:
                 return self._eval(self.theorems[name].wff, env, axiom_scope, restricted)
             if self.strict_derive:
+                import traceback
+
+                trace_str = "\n".join(f"  [{i}] {t!r}" for i, t in enumerate(self._eval_trace[-20:]))
+                stack_str = "".join(traceback.format_stack())
+                log.error(
+                    "Unresolved symbol: %s (restricted=%s)\n" "  last 20 eval steps:\n%s\n" "  Python stack:\n%s",
+                    expr,
+                    restricted,
+                    trace_str,
+                    stack_str,
+                )
                 raise NameError(
                     f"Unresolved symbol: {expr} — not in :using"
                     if restricted
@@ -1496,7 +1512,6 @@ class Engine(Rewriter, Executor):
             )
 
         self._check_wff(wff)
-        self._check_consistency(wff)
 
         ax = Axiom(name=name, wff=wff, origin=origin)
         self.axioms[name] = ax
