@@ -268,8 +268,9 @@ class Bench:
         from parseltongue.core.lang import PGStringParser
 
         path = self._require_current()
-        _, system = self._ensure_eval_system(path)
+        loader, system = self._ensure_eval_system(path)
         expr = PGStringParser.translate(query)
+        expr = loader.prepare_script(expr, system)
         return system.engine.evaluate(expr)
 
     def interpret(self, query: str):

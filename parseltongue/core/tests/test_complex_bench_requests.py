@@ -711,3 +711,124 @@ class TestDiffEvaluation(_Base):
         dx = bench.evaluate()
         posting = dx.search('(focus "diff-")')
         self.assertIsInstance(posting, list)
+
+
+# ── Stained Holograms ──
+
+
+class TestStainedHolograms(_Base):
+    """Vital stain — runtime execution trace as a Hologram.
+
+    bench.stain(*names) applies a Stain to the live engine, re-evaluates
+    theorem WFFs to capture runtime dependency edges, then builds a
+    Hologram with live_probe structures. Hologram requires >= 2 lenses,
+    so stain always takes 2+ names (or use dissect with stain in CLI).
+    Each lens has real depths, edges, and nodes from the actual
+    evaluation path.
+    """
+
+    def test_stain_returns_hologram(self):
+        bench = self._prepare()
+        h = bench.stain("thm-positive", "thm-margin-under-100")
+        from ..inspect.optics.hologram import Hologram
+        self.assertIsInstance(h, Hologram)
+
+    def test_stain_two_theorems(self):
+        bench = self._prepare()
+        h = bench.stain("thm-positive", "thm-margin-under-100")
+        self.assertEqual(len(h._lenses), 2)
+        self.assertEqual(h._labels, ["thm-positive", "thm-margin-under-100"])
+
+    def test_stain_three_theorems(self):
+        bench = self._prepare()
+        h = bench.stain("thm-positive", "thm-margin-under-100", "thm-headcount-positive")
+        self.assertEqual(len(h._lenses), 3)
+
+    def test_stain_lens_has_structure(self):
+        bench = self._prepare()
+        h = bench.stain("thm-positive", "thm-margin-under-100")
+        for lens in h._lenses:
+            structure = lens._structure
+            self.assertTrue(len(structure.graph) > 0, "Stained lens should have graph nodes")
+            self.assertTrue(len(structure.depths) > 0, "Stained lens should have depths")
+
+    def test_stain_captures_dependencies(self):
+        """thm-positive depends on double-rev which depends on revenue."""
+        bench = self._prepare()
+        h = bench.stain("thm-positive", "thm-margin-under-100")
+        names_0 = set(h._lenses[0]._structure.graph.keys())
+        self.assertIn("double-rev", names_0)
+        self.assertIn("revenue", names_0)
+        names_1 = set(h._lenses[1]._structure.graph.keys())
+        self.assertIn("margin", names_1)
+
+    def test_stain_depths_nonzero(self):
+        """Stained structure should have nodes at depth > 0."""
+        bench = self._prepare()
+        h = bench.stain("thm-positive", "thm-margin-under-100")
+        for lens in h._lenses:
+            depths = lens._structure.depths
+            max_depth = max(depths.values()) if depths else 0
+            self.assertGreater(max_depth, 0, "Expected at least one node with depth > 0")
+
+    def test_stain_has_layers(self):
+        bench = self._prepare()
+        h = bench.stain("thm-positive", "thm-margin-under-100")
+        for lens in h._lenses:
+            layers = lens._structure.layers
+            self.assertTrue(len(layers) > 0, "Stained structure should have layers")
+
+    def test_stain_search_left_right(self):
+        """Hologram search operators work on stained holograms."""
+        bench = self._prepare()
+        h = bench.stain("thm-positive", "thm-margin-under-100")
+        left = h.search("(left)")
+        right = h.search("(right)")
+        self.assertIsInstance(left, list)
+        self.assertIsInstance(right, list)
+
+    def test_stain_divergent(self):
+        """Two different theorems should produce a divergent query result."""
+        bench = self._prepare()
+        h = bench.stain("thm-positive", "thm-margin-under-100")
+        divergent = h.search("(divergent)")
+        # divergent returns hn forms — may be empty if lenses overlap fully
+        self.assertIsInstance(divergent, list)
+
+    def test_stain_common(self):
+        """Stained theorems sharing no deps should have empty common set."""
+        bench = self._prepare()
+        h = bench.stain("thm-positive", "thm-margin-under-100")
+        common = h.search("(common)")
+        self.assertIsInstance(common, list)
+
+    def test_stain_find(self):
+        bench = self._prepare()
+        h = bench.stain("thm-positive", "thm-margin-under-100")
+        results = h.find("revenue")
+        self.assertIn("revenue", results)
+
+    def test_stain_fuzzy(self):
+        bench = self._prepare()
+        h = bench.stain("thm-positive", "thm-margin-under-100")
+        results = h.fuzzy("rev")
+        self.assertTrue(len(results) > 0)
+
+    def test_stain_viz_data_has_depth(self):
+        """Viz renderer should produce structure items with correct depths from stain."""
+        bench = self._prepare()
+        h = bench.stain("thm-positive", "thm-margin-under-100")
+        from ..inspect.perspectives.visualisation.renderer import _build_named_structure_data
+        for lens in h._lenses:
+            structure = lens._structure
+            items = _build_named_structure_data(set(structure.graph.keys()), structure)
+            depths = [item["depth"] for item in items]
+            self.assertTrue(any(d > 0 for d in depths), f"Expected depth > 0 in viz data, got {depths}")
+
+    def test_stain_pos_rule_axiom_traced(self):
+        """thm-pos-revenue uses pos-rule via :bind — stain should capture it."""
+        bench = self._prepare()
+        h = bench.stain("thm-pos-revenue", "thm-positive")
+        names_0 = set(h._lenses[0]._structure.graph.keys())
+        # pos-rule axiom and revenue should be in the dependency graph
+        self.assertIn("revenue", names_0)

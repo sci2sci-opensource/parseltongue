@@ -719,14 +719,13 @@
     :quotes ("All genomic, proteomic, and transcriptomic datasets — collectively \"omics data\" — are classified as restricted regardless of their origin.")
     :explanation "All contracts with omics data must have restricted classification"))
 
-; TEMPORARILY COMMENTED — testing ctr-fact migration
-;(derive all-omics-ok
-;  (check-all-omics (strict contract-docs))
-;  :using (contract-docs check-all-omics check-all-omics-base
-;          check-all-omics-step check-contract-omics check-contract-omics-rule
-;          ctr-fact ctr-fact-rule util.concat util.concat-one util.concat-two util.concat-many
-;          util.cons-prepend util.cons-prepend-rule
-;          omics-ok policy_rules.omics-ok-rule))
+(derive all-omics-ok
+  (check-all-omics (strict contract-docs))
+  :using (contract-docs check-all-omics check-all-omics-base
+          check-all-omics-step check-contract-omics check-contract-omics-rule
+          ctr-fact ctr-fact-rule util.concat util.concat-one util.concat-two util.concat-many
+          util.cons-prepend util.cons-prepend-rule
+          omics-ok policy_rules.omics-ok-rule))
 
 
 ; ══════════════════════════════════════════════════════════
@@ -892,12 +891,12 @@
        all-contracts-valid
        no-phantoms-ok
        all-products-class-ok
-       ; all-omics-ok  ; TEMPORARILY REMOVED — omics derive commented out
+       all-omics-ok
        all-facts-ok
        all-contract-facts-ok
        all-product-facts-ok)
   :using (contract-violations all-contracts-valid no-phantoms-ok
-          all-products-class-ok
+          all-products-class-ok all-omics-ok
           all-facts-ok all-contract-facts-ok all-product-facts-ok))
 
 (fact expected-compliant true

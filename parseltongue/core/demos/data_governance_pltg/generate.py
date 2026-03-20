@@ -1718,7 +1718,32 @@ def inject_inconsistencies(
         )
         _mutate_business_field(bp.name, "Classification", new_class)
 
-    # ── 11. Refresh mismatch (business layer) ──
+    # ── 11. Omics classification weakened (contract layer) ──
+    # Contracts covering omics data must be "restricted" — weaken to "confidential"
+    omics_contracts = [
+        c
+        for c in modifiable
+        if c.classification == "restricted"
+        and any(
+            re.search(r"(?i)genom|proteom|transcriptom|omics|crispr|rna.seq|wgs", ds["name"])
+            for ds in c.covered_datasets
+        )
+    ]
+    for ctr in random.sample(omics_contracts, min(2, len(omics_contracts))):
+        corruptions.append(
+            Corruption(
+                "omics_classification_weakened",
+                "contracts",
+                f"{_slug(ctr.provider)}.md",
+                "classification",
+                "restricted",
+                "confidential",
+                f"Omics contract classification weakened for {ctr.provider}",
+            )
+        )
+        _mutate_contract_field(ctr.provider, "Data Classification", "confidential")
+
+    # ── 12. Refresh mismatch (business layer) ──
     victims = random.sample(products, min(3, len(products)))
     for bp in victims:
         old_freq = bp.refresh_frequency

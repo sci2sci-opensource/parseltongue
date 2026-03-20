@@ -300,10 +300,10 @@ class AbstractSystem(Rewriter, Interpreter):
             system.engine.register_diff(name, diff["replace"], diff["with"])
         for name, text in documents.items():
             system.engine.register_document(name, text)
-        system._rebuild_env()
+        system._unresolved = system._rebuild_env()
         return system
 
-    def _rebuild_env(self) -> None:
+    def _rebuild_env(self) -> set[str]:
         from .atoms import Evidence
         from .lang import EQ
 
@@ -338,6 +338,11 @@ class AbstractSystem(Rewriter, Interpreter):
                     pass
             if not remaining or not progress:
                 break
+
+        if remaining:
+            log.warning("_rebuild_env: %d unresolved terms: %s", len(remaining), ", ".join(sorted(remaining)))
+
+        return remaining
 
     # ----------------------------------------------------------
     # Display

@@ -184,10 +184,33 @@ class BenchServer:
             return {"ok": True, "text": "pong" if self._is_ready() else "loading"}
 
         if action == "status":
-            return {
-                "ok": True,
-                "text": f"path={self.pltg_path}\nstatus={self.bench.status!r}\nintegrity={self.bench.integrity!r}",
-            }
+            lines = [
+                f"path={self.pltg_path}",
+                f"status={self.bench.status!r}",
+                f"integrity={self.bench.integrity!r}",
+            ]
+            # Elaborate on corrupted integrity
+            path = self.bench._current_path
+            if path and self.bench.integrity[path] == "corrupted":
+                try:
+                    dx = self.bench.evaluate()
+                    loader_items = dx.loader()
+                    if loader_items:
+                        errors = [i for i in loader_items if i.type == "error"]
+                        skipped = [i for i in loader_items if i.type == "skipped"]
+                        warnings = [i for i in loader_items if i.type == "warning"]
+                        if errors:
+                            lines.append(f"\n{len(errors)} load error(s):")
+                            for i in errors[:10]:
+                                detail = str(i.detail or i.type).strip().splitlines()[-1].strip()
+                                lines.append(f"  {i.name}: {detail}")
+                        if skipped:
+                            lines.append(f"{len(skipped)} skipped (cascading)")
+                        if warnings:
+                            lines.append(f"{len(warnings)} warning(s)")
+                except Exception:
+                    pass
+            return {"ok": True, "text": "\n".join(lines)}
 
         if self._is_initialized():
             return {"ok": False, "error": "Still initializing, no data loaded yet."}

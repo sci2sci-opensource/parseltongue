@@ -10,4 +10,6 @@ build
 temp
 parseltongue/core/demos/data_governance_pltg/resources/*/
 parseltongue/core/demos/data_governance_pltg/src/
+parseltongue/core/demos/data_governance_pltg/manifest.json
+parseltongue/core/demos/data_governance_pltg/viz-results/
 

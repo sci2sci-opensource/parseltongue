@@ -295,7 +295,9 @@ class Technician:
                 self._file_hashes[path] = new_hashes
                 self._ensure_frozen()
                 self._register_scopes(path, sample)
-                self._on_status(path, self.VERIFIED, self.LOADING)
+                load_result = loader.last_result
+                integrity = self._check_load_integrity(path, load_result) if load_result else self.VERIFIED
+                self._on_status(path, integrity, self.LOADING)
                 self._background_reload(path, sample)
                 return sample, None
 
@@ -407,6 +409,20 @@ class Technician:
             return CoreToConsequenceStructure(layers=[], graph={}, depths={}, max_depth=0)
         return live_probe(["__output__"] + roots, eng, stain_obj, store="names")
 
+    def _check_load_integrity(self, path: str, result: LazyLoadResult) -> str:
+        """Check whether a load completed fully. Returns integrity label."""
+        errors = result.errors if result else {}
+        unresolved = getattr(result.system, "_unresolved", set()) if result and result.system else set()
+        if errors or unresolved:
+            parts = []
+            if errors:
+                parts.append(f"{len(errors)} loader errors")
+            if unresolved:
+                parts.append(f"{len(unresolved)} unresolved: {', '.join(sorted(unresolved)[:10])}")
+            log.warning("Incomplete load for %s — %s", path, "; ".join(parts))
+            return self.CORRUPTED
+        return self.VERIFIED
+
     def _cold_load(self, path: str) -> Sample:
         """Full reload from scratch."""
         loader = LazyLoader(lib_paths=self._lib_paths)
@@ -424,7 +440,8 @@ class Technician:
         self._store.save(path, new_tree, structure, loader, file_list, new_hashes)
         self._ensure_frozen()
         self._register_scopes(path, sample)
-        self._on_status(path, self.VERIFIED, self.LIVE)
+        integrity = self._check_load_integrity(path, load_result)
+        self._on_status(path, integrity, self.LIVE)
         return sample
 
     def _hot_patch(
@@ -538,7 +555,8 @@ class Technician:
                 file_hashes[path] = new_hashes
                 new_sample: Sample = (path, new_tree, structure, loader)
                 technician._bg_result = (path, new_sample)
-                on_status(path, Technician.VERIFIED, Technician.LIVE)
+                integrity = technician._check_load_integrity(path, bg_result)
+                on_status(path, integrity, Technician.LIVE)
                 # Register live scopes with the fresh sample
                 technician._register_scopes(path, new_sample)
                 store.save(path, new_tree, structure, loader, file_list, new_hashes)
