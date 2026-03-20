@@ -4,7 +4,7 @@
 **Owner:** Data Platform Engineering
 
 ## Purpose
-
+ 
 This protocol defines the naming convention and mandatory registration requirements for all datasets, contracts, and data products in the enterprise data platform. Every entity must be registered as a set of named facts following the conventions below. Automated compliance checks discover and validate registrations by parsing source catalogs and matching fact names against these patterns.
 
 ## 1. Dataset Registration

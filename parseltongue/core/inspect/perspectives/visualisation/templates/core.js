@@ -1,3 +1,18 @@
+// ── Theme palette (shared, refreshed on toggle) ──
+function getColor(name) {
+  return getComputedStyle(document.documentElement).getPropertyValue('--' + name).trim();
+}
+
+const C = {};
+function refreshPalette() {
+  const names = ['base','mantle','crust','surface0','surface1','surface2',
+    'overlay0','text','subtext','green','red','yellow','blue','mauve',
+    'teal','peach','flamingo','sky','lavender'];
+  names.forEach(n => { C[n] = getColor(n); });
+  C.pill = getColor('base-light') || C.surface0;
+}
+refreshPalette();
+
 // ── Constants ──
 const KIND_COLORS = {
   fact:'bg-green',axiom:'bg-peach',defterm:'bg-blue',theorem:'bg-mauve',
@@ -10,16 +25,16 @@ const KIND_TEXT = {
   diff:'text-red',derive:'text-mauve',evidence:'text-overlay0','search-result':'text-green',
   diagnostic:'text-red',hologram:'text-teal',document:'text-sky',lens:'text-lavender'
 };
-const KIND_DOT = {
-  fact:'#a6e3a1',axiom:'#fab387',defterm:'#89b4fa',theorem:'#cba6f7',
-  diff:'#f38ba8',derive:'#cba6f7',evidence:'#6c7086','search-result':'#a6e3a1',
-  diagnostic:'#f38ba8',hologram:'#94e2d5',document:'#89dceb',input:'#585b70',
-  lens:'#b4befe'
+const KIND_DOT_VAR = {
+  fact:'green',axiom:'peach',defterm:'blue',theorem:'mauve',
+  diff:'red',derive:'mauve',evidence:'overlay0','search-result':'green',
+  diagnostic:'red',hologram:'teal',document:'sky',input:'surface2',
+  lens:'lavender'
 };
 
 function kindColor(k) { return KIND_COLORS[k] || KIND_COLORS.unknown; }
 function kindText(k) { return KIND_TEXT[k] || 'text-subtext'; }
-function kindDot(k) { return KIND_DOT[k] || '#585b70'; }
+function kindDot(k) { return getColor(KIND_DOT_VAR[k] || 'surface2'); }
 function esc(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
 // ── State ──

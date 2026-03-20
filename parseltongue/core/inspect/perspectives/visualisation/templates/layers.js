@@ -159,8 +159,8 @@ function renderLayers() {
     return pills;
   }
 
-  const TYPE_COLOR = {'use':'#a6e3a1','declare':'#6c7086','pull':'#89b4fa','axiom-ref':'#fab387'};
-  const TYPE_STROKE = {'use':'#a6e3a1','declare':'#585b70','pull':'#89b4fa'};
+  const TYPE_COLOR = {'use':C.green,'declare':C.overlay0,'pull':C.blue,'axiom-ref':C.peach};
+  const TYPE_STROKE = {'use':C.green,'declare':C.surface2,'pull':C.blue};
 
   // ── Identify hanging nodes: L0 nodes that never reach a deeper layer ──
   // A node is hanging if no path from it leads to any node in layer > 0.
@@ -391,7 +391,7 @@ function renderLayers() {
     const labelW = kindEntries.length ? Math.max(...kindEntries.map(([k, v]) => (k + ' ' + (v.main + v.input)).length)) * 3.2 + 4 : 20;
     const totalW = barChartW + labelW + 4;
     sg.append("rect").attr("width", totalW).attr("height", widgetH).attr("rx", 4)
-      .attr("fill", "#181825").attr("stroke", "#313244").attr("stroke-width", 0.5).attr("opacity", 0.85);
+      .attr("fill", C.mantle).attr("stroke", C.surface0).attr("stroke-width", 0.5).attr("opacity", 0.85);
 
     let by = 3;
     const barsMaxW = barChartW - 6;
@@ -417,7 +417,7 @@ function renderLayers() {
         const tw = Math.max(1, (kindTainted / maxCount) * barsMaxW);
         sg.append("rect")
           .attr("x", 3).attr("y", by + barH - 1.5).attr("width", tw).attr("height", 1.5).attr("rx", 0.5)
-          .attr("fill", "#f38ba8").attr("opacity", 0.7);
+          .attr("fill", C.red).attr("opacity", 0.7);
       }
 
       sg.append("text")
@@ -431,26 +431,26 @@ function renderLayers() {
     let tx = 4;
     if (allUnverified > 0) {
       sg.append("text").attr("x", tx).attr("y", ty + 7)
-        .attr("fill", "#f38ba8").attr("font-size", "7px").attr("font-weight", "bold")
+        .attr("fill", C.red).attr("font-size", "7px").attr("font-weight", "bold")
         .text(`${allUnverified}/${pct(allUnverified, allTotal)}%`);
       tx += (`${allUnverified}/${pct(allUnverified, allTotal)}%`).length * 4 + 2;
       sg.append("text").attr("x", tx).attr("y", ty + 7)
-        .attr("fill", "#f38ba8").attr("font-size", "5px").attr("opacity", 0.7)
+        .attr("fill", C.red).attr("font-size", "5px").attr("opacity", 0.7)
         .text(`unverified`);
       tx += 32;
     }
     if (allPropagated > 0) {
       sg.append("text").attr("x", tx).attr("y", ty + 7)
-        .attr("fill", "#f9e2af").attr("font-size", "7px").attr("font-weight", "bold")
+        .attr("fill", C.yellow).attr("font-size", "7px").attr("font-weight", "bold")
         .text(`${allPropagated}/${pct(allPropagated, allTotal)}%`);
       tx += (`${allPropagated}/${pct(allPropagated, allTotal)}%`).length * 4 + 2;
       sg.append("text").attr("x", tx).attr("y", ty + 7)
-        .attr("fill", "#f9e2af").attr("font-size", "5px").attr("opacity", 0.7)
+        .attr("fill", C.yellow).attr("font-size", "5px").attr("opacity", 0.7)
         .text(`tainted`);
     }
     if (allUnverified === 0 && allPropagated === 0) {
       sg.append("text").attr("x", tx).attr("y", ty + 7)
-        .attr("fill", "#a6e3a1").attr("font-size", "5.5px").attr("opacity", 0.7)
+        .attr("fill", C.green).attr("font-size", "5.5px").attr("opacity", 0.7)
         .text('\u2713 clean');
     }
   }
@@ -470,7 +470,7 @@ function renderLayers() {
     g.append("line")
       .attr("x1", lay._labelX - 6).attr("y1", PAD)
       .attr("x2", lay._labelX - 6).attr("y2", lay._colH || PAD + 40)
-      .attr("stroke", "#313244").attr("stroke-width", 1).attr("stroke-dasharray", "3,3")
+      .attr("stroke", C.surface0).attr("stroke-width", 1).attr("stroke-dasharray", "3,3")
       .attr("class", "layer-label");
 
     // "inputs" label
@@ -478,7 +478,7 @@ function renderLayers() {
       g.append("text")
         .attr("x", lay._inputX + lay._inputColW / 2).attr("y", PAD + LABEL_H - 4)
         .attr("text-anchor", "middle")
-        .attr("fill", "#a6e3a1").attr("font-size", "8px").attr("font-style", "italic")
+        .attr("fill", C.green).attr("font-size", "8px").attr("font-style", "italic")
         .attr("class", "layer-label")
         .text("inputs");
     }
@@ -488,7 +488,7 @@ function renderLayers() {
     g.append("text")
       .attr("x", cx).attr("y", labelY)
       .attr("text-anchor", "middle")
-      .attr("fill", "#6c7086").attr("font-size", "10px").attr("font-weight", "bold")
+      .attr("fill", C.overlay0).attr("font-size", "10px").attr("font-weight", "bold")
       .attr("class", "layer-label")
       .text(`L${lay.depth} (${lay.nodes.length})`);
 
@@ -526,7 +526,7 @@ function renderLayers() {
   LAYERS.edges.forEach(e => {
     const sp = pos[e.source];
     const tp = pos[e.target];
-    const color = TYPE_COLOR[e.type] || '#a6adc8';
+    const color = TYPE_COLOR[e.type] || C.subtext;
 
     if (e.type === 'use' || e.type === 'declare') {
       // Route through deduped input pill
@@ -588,7 +588,7 @@ function renderLayers() {
   Object.entries(inputPillData).forEach(([id, inp]) => {
     const p = pos[id];
     if (!p || p._hidden) return;  // skip hidden children of collapsed groups
-    const stroke = TYPE_STROKE[inp.type] || '#585b70';
+    const stroke = TYPE_STROKE[inp.type] || C.surface2;
     const isDeclare = inp.type === 'declare';
     const isCollapsed = !!inp._isCollapsed;
     const isExpandHeader = !!inp._isExpandedHeader;
@@ -599,15 +599,15 @@ function renderLayers() {
 
     pg.append("rect")
       .attr("width", p.w).attr("height", SUB_PH).attr("rx", 9)
-      .attr("fill", (isCollapsed || isExpandHeader) ? '#1e1e2e' : (isDeclare ? '#1e1e2e' : '#262637'))
-      .attr("stroke", (isCollapsed || isExpandHeader) ? '#89b4fa' : stroke).attr("stroke-width", 1)
+      .attr("fill", (isCollapsed || isExpandHeader) ? C.base : (isDeclare ? C.base : C.pill))
+      .attr("stroke", (isCollapsed || isExpandHeader) ? C.blue : stroke).attr("stroke-width", 1)
       .attr("stroke-dasharray", (isCollapsed || isExpandHeader) ? '4,2' : (isDeclare ? '3,2' : 'none'));
 
     const short = inp.label.includes('.') ? inp.label.split('.').slice(1).join('.') : inp.label;
     const maxCh = Math.floor((p.w - 16) / 5.2);
     pg.append("text")
       .attr("x", 8).attr("y", SUB_PH / 2 + 1).attr("dominant-baseline", "middle")
-      .attr("fill", (isCollapsed || isExpandHeader) ? '#89b4fa' : stroke).attr("font-size", "8.5px")
+      .attr("fill", (isCollapsed || isExpandHeader) ? C.blue : stroke).attr("font-size", "8.5px")
       .text((isCollapsed ? short : isExpandHeader ? short : (inp.type === 'use' ? ':use ' + short : ':' + short)).slice(0, maxCh));
 
     if (isCollapsed) {
@@ -656,7 +656,7 @@ function renderLayers() {
 
     pg.append("rect")
       .attr("width", p.w).attr("height", PH).attr("rx", 14)
-      .attr("fill", "#313244").attr("stroke", kindDot(n.kind)).attr("stroke-width", 1.5);
+      .attr("fill", C.surface0).attr("stroke", kindDot(n.kind)).attr("stroke-width", 1.5);
     pg.append("circle")
       .attr("cx", 12).attr("cy", PH / 2).attr("r", 4).attr("fill", kindDot(n.kind));
 
@@ -665,7 +665,7 @@ function renderLayers() {
     const maxCh = Math.floor((p.w - 28) / 6);
     pg.append("text")
       .attr("x", 22).attr("y", PH / 2 + 1).attr("dominant-baseline", "middle")
-      .attr("fill", "#cdd6f4").attr("font-size", "10px")
+      .attr("fill", C.text).attr("font-size", "10px")
       .text((short + valS).slice(0, maxCh));
 
     pg.on("mouseover", (ev) => {
@@ -695,13 +695,13 @@ function renderLayers() {
 
     g.append("text")
       .attr("x", PAD).attr("y", hangY)
-      .attr("fill", "#585b70").attr("font-size", "11px").attr("font-weight", "bold")
+      .attr("fill", C.surface2).attr("font-size", "11px").attr("font-weight", "bold")
       .attr("class", "layer-label")
       .text(`Hanging (${hangingNodes.length})`);
     g.append("line")
       .attr("x1", PAD).attr("y1", hangY + 4)
       .attr("x2", PAD + 200).attr("y2", hangY + 4)
-      .attr("stroke", "#585b70").attr("stroke-width", 0.5)
+      .attr("stroke", C.surface2).attr("stroke-width", 0.5)
       .attr("class", "layer-label");
 
     const hangSet = new Set(hangingNodes.map(n => n.name));
@@ -773,14 +773,14 @@ function renderLayers() {
           .attr("class", "cursor-pointer pill-node pill-result").attr("data-name", n.name);
         pg.append("rect")
           .attr("width", colW).attr("height", PH).attr("rx", 14)
-          .attr("fill", "#1e1e2e").attr("stroke", "#585b70").attr("stroke-width", 1)
+          .attr("fill", C.base).attr("stroke", C.surface2).attr("stroke-width", 1)
           .attr("stroke-dasharray", "4,2");
         pg.append("circle")
           .attr("cx", 12).attr("cy", PH / 2).attr("r", 4).attr("fill", kindDot(n.kind));
         const short = n.name.includes('.') ? n.name.split('.').slice(1).join('.') : n.name;
         pg.append("text")
           .attr("x", 22).attr("y", PH / 2 + 1).attr("dominant-baseline", "middle")
-          .attr("fill", "#585b70").attr("font-size", "10px")
+          .attr("fill", C.surface2).attr("font-size", "10px")
           .text(short.slice(0, Math.floor((colW - 28) / 6)));
         pg.on("mouseover", (ev) => {
           tooltip.html(`<b>${n.name}</b>\nkind: ${n.kind}\n(hanging)`)
@@ -802,7 +802,7 @@ function renderLayers() {
       const sp = pos[e.source];
       const tp = pos[e.target];
       if (!sp || !tp) return;
-      const color = TYPE_COLOR[e.type] || '#585b70';
+      const color = TYPE_COLOR[e.type] || C.surface2;
       const sameCol = sp.x === tp.x;
       const d = sameCol
         ? bezier(sp, tp, false, false)
@@ -891,7 +891,7 @@ function renderLayers() {
       if (tainted.has(name)) {
         const isSource = taintSources.has(name);
         el.select("rect")
-          .attr("stroke", isSource ? "#f38ba8" : "#f9e2af")
+          .attr("stroke", isSource ? C.red : C.yellow)
           .attr("stroke-width", isSource ? 2.5 : 2)
           .attr("stroke-dasharray", isSource ? "none" : "6,2");
       }
@@ -900,14 +900,14 @@ function renderLayers() {
       const el = d3.select(this);
       const name = el.attr("data-name");
       if (tainted.has(name)) {
-        el.select("rect").attr("stroke", "#f9e2af").attr("stroke-width", 1.5);
+        el.select("rect").attr("stroke", C.yellow).attr("stroke-width", 1.5);
       }
     });
     edgeEls.forEach(el => {
       const s = el.getAttribute("data-source");
       const t = el.getAttribute("data-target");
       if (tainted.has(s) && tainted.has(t)) {
-        el.setAttribute("stroke", "#f9e2af");
+        el.setAttribute("stroke", C.yellow);
         el.setAttribute("stroke-opacity", "0.5");
         el.setAttribute("stroke-width", "1.8");
       }
@@ -929,16 +929,16 @@ function renderLayers() {
       if (n && p && !p.hanging) {
         el.select("rect").attr("stroke", kindDot(n.kind)).attr("stroke-width", 1.5).attr("stroke-dasharray", "none");
       } else if (p && p.hanging) {
-        el.select("rect").attr("stroke", "#585b70").attr("stroke-width", 1).attr("stroke-dasharray", "4,2");
+        el.select("rect").attr("stroke", C.surface2).attr("stroke-width", 1).attr("stroke-dasharray", "4,2");
       }
     });
     g.selectAll(".pill-input").each(function() {
       const el = d3.select(this);
-      el.select("rect").attr("stroke", "#a6e3a1").attr("stroke-width", 1);
+      el.select("rect").attr("stroke", C.green).attr("stroke-width", 1);
     });
     edgeEls.forEach(el => {
       const t = el.getAttribute("data-type");
-      el.setAttribute("stroke", TYPE_COLOR[t] || '#a6adc8');
+      el.setAttribute("stroke", TYPE_COLOR[t] || C.subtext);
       el.setAttribute("stroke-opacity", t === 'axiom-ref' ? "0.35" : "0.2");
       el.setAttribute("stroke-width", "1.2");
     });
@@ -954,7 +954,7 @@ function renderLayers() {
       if (tainted.has(name)) {
         const isSource = taintSources.has(name);
         el.select("rect")
-          .attr("stroke", isSource ? "#f38ba8" : "#f9e2af")
+          .attr("stroke", isSource ? C.red : C.yellow)
           .attr("stroke-width", isSource ? 2.5 : 2)
           .attr("stroke-dasharray", isSource ? "none" : "6,2");
       }
@@ -963,7 +963,7 @@ function renderLayers() {
       const el = d3.select(this);
       const name = el.attr("data-name");
       if (tainted.has(name)) {
-        el.select("rect").attr("stroke", "#f9e2af").attr("stroke-width", 1.5);
+        el.select("rect").attr("stroke", C.yellow).attr("stroke-width", 1.5);
       }
     });
   }
@@ -978,7 +978,7 @@ function renderLayers() {
     });
     focusG.selectAll(".fpill-input").each(function() {
       const el = d3.select(this);
-      el.select("rect").attr("stroke", TYPE_STROKE[el.attr("data-type")] || '#585b70').attr("stroke-width", 1);
+      el.select("rect").attr("stroke", TYPE_STROKE[el.attr("data-type")] || C.surface2).attr("stroke-width", 1);
     });
   }
 
@@ -1013,7 +1013,7 @@ function renderLayers() {
           const name = el.attr("data-name");
           const isSource = taintSources.has(name);
           el.select("rect")
-            .attr("stroke", isSource ? "#f38ba8" : "#f9e2af")
+            .attr("stroke", isSource ? C.red : C.yellow)
             .attr("stroke-width", isSource ? 2.5 : 2)
             .attr("stroke-dasharray", isSource ? "none" : "6,2");
         });
@@ -1021,7 +1021,7 @@ function renderLayers() {
           const el = d3.select(this);
           const name = el.attr("data-name");
           if (tainted.has(name)) {
-            el.select("rect").attr("stroke", "#f9e2af").attr("stroke-width", 1.5);
+            el.select("rect").attr("stroke", C.yellow).attr("stroke-width", 1.5);
           }
         });
       }
@@ -1046,7 +1046,7 @@ function renderLayers() {
       const name = el.attr("data-name");
       if (path.has(name)) {
         el.attr("opacity", 1);
-        if (name === id) el.select("rect").attr("stroke", "#cba6f7").attr("stroke-width", 3);
+        if (name === id) el.select("rect").attr("stroke", C.mauve).attr("stroke-width", 3);
         else el.select("rect").attr("stroke-width", el.classed("pill-input") ? 1 : 1.5);
       } else {
         el.attr("opacity", 0.18);
@@ -1169,7 +1169,7 @@ function renderLayers() {
         focusG.append("text")
           .attr("x", inputXf + inputColW / 2).attr("y", labelY)
           .attr("text-anchor", "middle")
-          .attr("fill", "#a6e3a1").attr("font-size", "8px").attr("font-style", "italic")
+          .attr("fill", C.green).attr("font-size", "8px").attr("font-style", "italic")
           .text("inputs");
       }
 
@@ -1177,7 +1177,7 @@ function renderLayers() {
       focusG.append("text")
         .attr("x", fCx).attr("y", labelY)
         .attr("text-anchor", "middle")
-        .attr("fill", "#6c7086").attr("font-size", "10px").attr("font-weight", "bold")
+        .attr("fill", C.overlay0).attr("font-size", "10px").attr("font-weight", "bold")
         .text(`L${lay.depth} (${lay.nodes.length})`);
 
       // Stats widget
@@ -1211,7 +1211,7 @@ function renderLayers() {
     LAYERS.edges.forEach(e => {
       const sp = fPos[e.source];
       const tp = fPos[e.target];
-      const color = TYPE_COLOR[e.type] || '#a6adc8';
+      const color = TYPE_COLOR[e.type] || C.subtext;
 
       if (e.type === 'use' || e.type === 'declare') {
         const li = fNodeLayerIdx[e.target];
@@ -1252,11 +1252,11 @@ function renderLayers() {
       if (!p || p._hidden) return;
       const isCollapsed = !!inp._isCollapsed;
       const isExpandHeader = !!inp._isExpandedHeader;
-      const stroke = (isCollapsed || isExpandHeader) ? '#89b4fa' : (TYPE_STROKE[inp.type] || '#585b70');
+      const stroke = (isCollapsed || isExpandHeader) ? C.blue : (TYPE_STROKE[inp.type] || C.surface2);
       const pg = focusG.append("g").attr("transform", `translate(${p.x},${p.y})`)
         .attr("class", "cursor-pointer fpill-input").attr("data-name", inp.label);
       pg.append("rect").attr("width", p.w).attr("height", SUB_PH).attr("rx", 9)
-        .attr("fill", (isCollapsed || isExpandHeader) ? '#1e1e2e' : '#262637')
+        .attr("fill", (isCollapsed || isExpandHeader) ? C.base : C.pill)
         .attr("stroke", stroke).attr("stroke-width", 1)
         .attr("stroke-dasharray", (isCollapsed || isExpandHeader) ? '4,2' : 'none');
       const short = inp.label.includes('.') ? inp.label.split('.').slice(1).join('.') : inp.label;
@@ -1301,14 +1301,14 @@ function renderLayers() {
       const isFocused = n.name === focusId;
       const pg = focusG.append("g").attr("transform", `translate(${p.x},${p.y})`).attr("class", "cursor-pointer fpill-result").attr("data-name", n.name);
       pg.append("rect").attr("width", p.w).attr("height", PH).attr("rx", 14)
-        .attr("fill", isFocused ? "#45475a" : "#313244")
-        .attr("stroke", isFocused ? "#cba6f7" : kindDot(n.kind))
+        .attr("fill", isFocused ? C.surface1 : C.surface0)
+        .attr("stroke", isFocused ? C.mauve : kindDot(n.kind))
         .attr("stroke-width", isFocused ? 3 : 1.5);
       pg.append("circle").attr("cx", 12).attr("cy", PH / 2).attr("r", 4).attr("fill", kindDot(n.kind));
       const short = n.name.includes('.') ? n.name.split('.').slice(1).join('.') : n.name;
       const maxCh = Math.floor((p.w - 28) / 6);
       pg.append("text").attr("x", 22).attr("y", PH / 2 + 1).attr("dominant-baseline", "middle")
-        .attr("fill", "#cdd6f4").attr("font-size", "10px")
+        .attr("fill", C.text).attr("font-size", "10px")
         .text((short + (n.value ? ' =' + String(n.value).slice(0,15) : '')).slice(0, maxCh));
       pg.on("click", (ev) => {
         ev.stopPropagation();

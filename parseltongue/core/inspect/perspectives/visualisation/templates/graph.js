@@ -62,7 +62,7 @@ function renderGraph() {
     });
   });
 
-  const TYPE_COLOR = {'use':'#a6e3a1','declare':'#6c7086','pull':'#89b4fa','axiom-ref':'#fab387'};
+  const TYPE_COLOR = {'use':C.green,'declare':C.overlay0,'pull':C.blue,'axiom-ref':C.peach};
 
   // ── Identify dangling nodes (no edges) ──
   const connectedSet = new Set();
@@ -193,7 +193,7 @@ function renderGraph() {
       const sid = typeof l.source === 'string' ? l.source : l.source.id;
       const tid = typeof l.target === 'string' ? l.target : l.target.id;
       const t = edgeTypes[sid + '>' + tid] || edgeTypes[tid + '>' + sid];
-      return TYPE_COLOR[t] || '#585b70';
+      return TYPE_COLOR[t] || C.surface2;
     })
     .attr("stroke-opacity", 0.35)
     .attr("stroke-width", 1);
@@ -209,14 +209,14 @@ function renderGraph() {
   node.append("circle")
     .attr("r", d => d.dangling ? DANGLE_R : NODE_R)
     .attr("fill", d => d.color)
-    .attr("stroke", d => d.dangling ? '#1e1e2e' : '#313244')
+    .attr("stroke", d => d.dangling ? C.base : C.surface0)
     .attr("stroke-width", d => d.dangling ? 0.5 : 1.5)
     .attr("opacity", d => d.dangling ? 0.5 : 1);
 
   // Labels — all nodes, dimmer for dangling
   node.append("text")
     .attr("dx", d => (d.dangling ? DANGLE_R : NODE_R) + 4).attr("dy", 3)
-    .attr("fill", d => d.dangling ? '#585b70' : '#cdd6f4')
+    .attr("fill", d => d.dangling ? C.surface2 : C.text)
     .attr("font-size", d => d.dangling ? '7px' : '8px')
     .text(d => {
       const short = d.id.includes('.') ? d.id.split('.').slice(1).join('.') : d.id;
@@ -256,7 +256,7 @@ function renderGraph() {
   function applySelectionVisuals(path, focusId) {
     node.select("circle")
       .attr("opacity", n => path.has(n.id) ? 1 : 0.08)
-      .attr("stroke", n => n.id === focusId ? '#cba6f7' : (n.dangling ? '#1e1e2e' : '#313244'))
+      .attr("stroke", n => n.id === focusId ? C.mauve : (n.dangling ? C.base : C.surface0))
       .attr("stroke-width", n => n.id === focusId ? 3 : (n.dangling ? 0.5 : 1.5));
     node.select("text").attr("opacity", n => path.has(n.id) ? 1 : 0.05);
     link.attr("stroke-opacity", l => path.has(l.source.id) && path.has(l.target.id) ? 0.8 : 0.03)
@@ -267,7 +267,7 @@ function renderGraph() {
     link.attr("stroke-opacity", 0.35).attr("stroke-width", 1);
     node.select("circle")
       .attr("opacity", d => d.dangling ? 0.5 : 1)
-      .attr("stroke", d => d.dangling ? '#1e1e2e' : '#313244')
+      .attr("stroke", d => d.dangling ? C.base : C.surface0)
       .attr("stroke-width", d => d.dangling ? 0.5 : 1.5);
     node.select("text").attr("opacity", 1);
   }
@@ -276,12 +276,12 @@ function renderGraph() {
     const allTainted = new Set([...taintSources, ...taintPropagated]);
     node.select("circle")
       .attr("fill", n => {
-        if (taintSources.has(n.id)) return '#f38ba8';       // red — source
-        if (taintPropagated.has(n.id)) return '#f9e2af';     // yellow — propagated
+        if (taintSources.has(n.id)) return C.red;
+        if (taintPropagated.has(n.id)) return C.yellow;
         return n.color;
       })
       .attr("opacity", n => allTainted.has(n.id) ? 1 : 0.15)
-      .attr("stroke", n => taintSources.has(n.id) ? '#f38ba8' : (taintPropagated.has(n.id) ? '#f9e2af' : (n.dangling ? '#1e1e2e' : '#313244')))
+      .attr("stroke", n => taintSources.has(n.id) ? C.red : (taintPropagated.has(n.id) ? C.yellow : (n.dangling ? C.base : C.surface0)))
       .attr("stroke-width", n => (taintSources.has(n.id) || taintPropagated.has(n.id)) ? 2 : (n.dangling ? 0.5 : 1.5));
     node.select("text").attr("opacity", n => allTainted.has(n.id) ? 1 : 0.05);
     link.attr("stroke-opacity", l => {
@@ -289,10 +289,10 @@ function renderGraph() {
       if (s && t) return 0.7;
       return 0.03;
     }).attr("stroke", l => {
-      if (allTainted.has(l.source.id) && allTainted.has(l.target.id)) return '#f38ba8';
+      if (allTainted.has(l.source.id) && allTainted.has(l.target.id)) return C.red;
       const sid = l.source.id, tid = l.target.id;
       const t = edgeTypes[sid + '>' + tid] || edgeTypes[tid + '>' + sid];
-      return TYPE_COLOR[t] || '#585b70';
+      return TYPE_COLOR[t] || C.surface2;
     }).attr("stroke-width", l => (allTainted.has(l.source.id) && allTainted.has(l.target.id)) ? 2 : 0.5);
   }
 
@@ -300,13 +300,13 @@ function renderGraph() {
     node.select("circle")
       .attr("fill", d => d.color)
       .attr("opacity", d => d.dangling ? 0.5 : 1)
-      .attr("stroke", d => d.dangling ? '#1e1e2e' : '#313244')
+      .attr("stroke", d => d.dangling ? C.base : C.surface0)
       .attr("stroke-width", d => d.dangling ? 0.5 : 1.5);
     node.select("text").attr("opacity", 1);
     link.attr("stroke", l => {
       const sid = l.source.id, tid = l.target.id;
       const t = edgeTypes[sid + '>' + tid] || edgeTypes[tid + '>' + sid];
-      return TYPE_COLOR[t] || '#585b70';
+      return TYPE_COLOR[t] || C.surface2;
     }).attr("stroke-opacity", 0.35).attr("stroke-width", 1);
   }
 
@@ -332,8 +332,8 @@ function renderGraph() {
     let html = `<b>${d.id}</b>\nkind: ${d.kind}\ndepth: ${d.depth}`;
     if (d.value) html += `\n${d.value.slice(0, 120)}`;
     if (d.dangling) html += '\n(dangling)';
-    if (taintSources.has(d.id)) html += '\n<span style="color:#f38ba8">taint source</span>';
-    else if (taintPropagated.has(d.id)) html += '\n<span style="color:#f9e2af">taint propagated</span>';
+    if (taintSources.has(d.id)) html += '\n<span style="color:' + C.red + '">taint source</span>';
+    else if (taintPropagated.has(d.id)) html += '\n<span style="color:' + C.yellow + '">taint propagated</span>';
     tooltip.html(html).classed("hidden", false)
       .style("left", (e.pageX + 12) + "px").style("top", (e.pageY - 8) + "px");
     if (!selectedPath && !taintMode) {
@@ -463,7 +463,7 @@ function renderGraph() {
       html += `<div class="mt-2 border-t border-surface1 pt-2">`;
       html += `<div class="text-overlay0">components: <span class="text-text font-bold">${components.length}</span></div>`;
       const icPct = Math.round(interconnectivity * 100);
-      const icColor = icPct >= 80 ? '#a6e3a1' : icPct >= 50 ? '#f9e2af' : '#f38ba8';
+      const icColor = icPct >= 80 ? C.green : icPct >= 50 ? C.yellow : C.red;
       html += `<div class="text-overlay0">interconnectivity: <span style="color:${icColor}" class="font-bold">${icPct}%</span></div>`;
       html += `<div class="text-overlay0 text-[10px]">${mainLeaves.length}/${leaves.length} leaves in main</div>`;
       html += `</div>`;
@@ -495,14 +495,14 @@ function renderGraph() {
     gRoot.append("text")
       .attr("x", PAD_LEFT + d * BAND_W).attr("y", 20)
       .attr("text-anchor", "middle")
-      .attr("fill", "#6c7086").attr("font-size", "9px").attr("font-weight", "bold")
+      .attr("fill", C.overlay0).attr("font-size", "9px").attr("font-weight", "bold")
       .text(`d${d}`);
   }
   if (danglingSet.size > 0) {
     gRoot.append("text")
       .attr("x", DANGLE_X).attr("y", 20)
       .attr("text-anchor", "middle")
-      .attr("fill", "#585b70").attr("font-size", "9px").attr("font-style", "italic")
+      .attr("fill", C.surface2).attr("font-size", "9px").attr("font-style", "italic")
       .text(`dangling (${danglingSet.size})`);
     // Kind group labels for dangling column
     danglingKinds.forEach(k => {

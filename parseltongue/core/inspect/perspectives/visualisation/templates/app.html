@@ -1,13 +1,38 @@
 <!DOCTYPE html>
-<html>
+<html data-theme="dark">
 <head>
 <meta charset="utf-8">
 <title>Parseltongue — $title</title>
 <script src="https://cdn.tailwindcss.com"></script>
-<script>tailwind.config={theme:{extend:{colors:{base:'#1e1e2e',mantle:'#181825',crust:'#11111b',surface0:'#313244',surface1:'#45475a',surface2:'#585b70',overlay0:'#6c7086',text:'#cdd6f4',subtext:'#a6adc8',green:'#a6e3a1',red:'#f38ba8',yellow:'#f9e2af',blue:'#89b4fa',mauve:'#cba6f7',teal:'#94e2d5',peach:'#fab387',flamingo:'#f2cdcd',sky:'#89dceb',lavender:'#b4befe'}}}}</script>
+<script>tailwind.config={theme:{extend:{colors:{
+  base:'var(--base)',mantle:'var(--mantle)',crust:'var(--crust)',
+  surface0:'var(--surface0)',surface1:'var(--surface1)',surface2:'var(--surface2)',
+  overlay0:'var(--overlay0)',text:'var(--text)',subtext:'var(--subtext)',
+  green:'var(--green)',red:'var(--red)',yellow:'var(--yellow)',blue:'var(--blue)',
+  mauve:'var(--mauve)',teal:'var(--teal)',peach:'var(--peach)',flamingo:'var(--flamingo)',
+  sky:'var(--sky)',lavender:'var(--lavender)'
+}}}}</script>
+<style>
+:root, [data-theme="dark"] {
+  --base:#1e1e2e;--mantle:#181825;--crust:#11111b;
+  --surface0:#313244;--surface1:#45475a;--surface2:#585b70;
+  --overlay0:#6c7086;--text:#cdd6f4;--subtext:#a6adc8;
+  --green:#a6e3a1;--red:#f38ba8;--yellow:#f9e2af;--blue:#89b4fa;
+  --mauve:#cba6f7;--teal:#94e2d5;--peach:#fab387;--flamingo:#f2cdcd;
+  --sky:#89dceb;--lavender:#b4befe;--base-light:#262637;
+}
+[data-theme="light"] {
+  --base:#f9fafb;--mantle:#ffffff;--crust:#f3f4f6;
+  --surface0:#e5e7eb;--surface1:#d1d5db;--surface2:#9ca3af;
+  --overlay0:#6b7280;--text:#111827;--subtext:#4b5563;
+  --green:#16a34a;--red:#dc2626;--yellow:#ca8a04;--blue:#2563eb;
+  --mauve:#7c3aed;--teal:#0d9488;--peach:#ea580c;--flamingo:#e11d48;
+  --sky:#0284c7;--lavender:#4f46e5;--base-light:#f3f4f6;
+}
+</style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
 </head>
-<body class="bg-base text-text font-mono m-0 min-h-screen">
+<body class="bg-base text-text font-mono m-0 min-h-screen transition-colors duration-200">
 
 <div id="app">
   <!-- Header -->
@@ -25,6 +50,9 @@
         <button id="btn-layers" class="px-3 py-1 rounded-lg text-xs bg-surface0 text-subtext hover:bg-surface1">Layers</button>
         <button id="btn-graph" class="px-3 py-1 rounded-lg text-xs bg-surface0 text-subtext hover:bg-surface1">Graph</button>
       </div>
+      <button id="btn-theme" onclick="toggleTheme()" class="px-2 py-1 rounded-lg text-xs bg-surface0 text-subtext hover:bg-surface1 shrink-0" title="Toggle light/dark mode">
+        <span id="theme-icon">&#9790;</span>
+      </button>
       <span id="count" class="text-xs text-overlay0 shrink-0"></span>
     </div>
   </div>
@@ -80,6 +108,40 @@ const DATA = $data_json;
 const STRUCTURE_DATA = $structure_json;
 const LAYERS = $layers_json;
 const FORM_TYPE = "$form_type";
+
+// ── Theme toggle ──
+(function() {
+  const saved = localStorage.getItem('pltg-theme');
+  if (saved) document.documentElement.setAttribute('data-theme', saved);
+  updateThemeIcon();
+})();
+function toggleTheme() {
+  const html = document.documentElement;
+  const next = html.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+  html.setAttribute('data-theme', next);
+  localStorage.setItem('pltg-theme', next);
+  updateThemeIcon();
+  // Refresh shared palette
+  refreshPalette();
+  // Reset graph/layers so they re-render with new colors
+  graphInitialized = false;
+  layersInitialized = false;
+  const gSvg = document.getElementById('graph');
+  if (gSvg) gSvg.innerHTML = '';
+  const lSvg = document.getElementById('layers-svg');
+  if (lSvg) lSvg.innerHTML = '';
+  // Remove graph stats overlay if present
+  const gs = document.getElementById('graph-stats');
+  if (gs && gs.parentElement) gs.parentElement.remove();
+  // Re-render current view
+  if (typeof switchView === 'function') switchView(currentView);
+}
+function updateThemeIcon() {
+  const icon = document.getElementById('theme-icon');
+  if (icon) icon.innerHTML = document.documentElement.getAttribute('data-theme') === 'dark' ? '&#9790;' : '&#9788;';
+  // Update SVG logo fill
+  document.querySelectorAll('h1 svg path').forEach(p => p.setAttribute('fill', getComputedStyle(document.documentElement).getPropertyValue('--lavender').trim()));
+}
 
 $core_js
 
