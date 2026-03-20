@@ -4,6 +4,8 @@ set -e
 DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$DIR"
 
+SCALE="${1:-1}"
+
 EFFECTS="parseltongue.core.demos.data_governance_pltg.operators:GOVERNANCE_EFFECTS"
 EVAL_CMD='(fmt "viz" (scope hologram (dissect (stain policy-check))))'
 
@@ -23,8 +25,8 @@ start_bench() {
 }
 
 # ── Phase 1: Clean data estate ──
-echo "=== Phase 1: Generating consistent data estate ==="
-python generate.py --clean --consistent-only
+echo "=== Phase 1: Generating consistent data estate (scale=$SCALE) ==="
+python generate.py --clean --consistent-only --scale "$SCALE"
 
 echo "Starting bench..."
 start_bench
@@ -40,7 +42,7 @@ read -r
 
 # ── Phase 2: Corrupted data estate ──
 echo "=== Phase 2: Injecting corruptions ==="
-python generate.py --clean
+python generate.py --clean --scale "$SCALE"
 
 echo "Restarting bench with corrupted data..."
 start_bench

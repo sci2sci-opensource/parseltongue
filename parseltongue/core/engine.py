@@ -302,6 +302,7 @@ class Engine(Rewriter, Executor):
         strict_derive: bool = True,
         verifier: QuoteVerifier | None = None,
         name: str | None = None,
+        max_eval_depth: int = 10_000,
     ):
         self.name: str = name or self._infer_name()
         self.axioms: dict[str, Axiom] = {}
@@ -315,6 +316,10 @@ class Engine(Rewriter, Executor):
         self._verifier = verifier or QuoteVerifier()
         self.overridable = overridable
         self.strict_derive = strict_derive
+        self.max_eval_depth = max_eval_depth
+        import sys
+        if sys.getrecursionlimit() < max_eval_depth:
+            sys.setrecursionlimit(max_eval_depth)
 
     @staticmethod
     def _infer_name() -> str:

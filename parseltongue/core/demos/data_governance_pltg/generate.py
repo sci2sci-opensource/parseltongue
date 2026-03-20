@@ -782,6 +782,43 @@ COMMERCIAL_DATASETS = [
 ]
 
 
+# ── scale: expand template lists with combinatorial variations ──────
+
+_SUFFIXES = [
+    "Batch A", "Batch B", "Batch C", "Batch D", "Batch E",
+    "HepG2", "A549", "MCF7", "HEK293", "Jurkat",
+    "US Cohort", "EU Cohort", "APAC Cohort", "LATAM Cohort",
+    "Phase 1", "Phase 2", "v2", "v3", "Extended",
+    "QC Filtered", "Normalized", "Imputed", "Annotated",
+]
+
+
+def _scale_templates(templates: list, scale: int) -> list:
+    """Expand template list by scale factor using combinatorial suffixes.
+
+    Scale 1 = original templates (no change).
+    Scale N = original + (N-1) variations per template with suffixed names/paths/tables.
+    """
+    if scale <= 1:
+        return templates
+
+    expanded = list(templates)
+    suffixes = list(_SUFFIXES)
+    for s in range(1, scale):
+        for entry in templates:
+            name = entry[0]
+            path = entry[1]
+            table = entry[2]
+            suffix = suffixes[(s - 1 + hash(name)) % len(suffixes)]
+            new_name = f"{name} — {suffix}"
+            slug_suffix = _slug(suffix)
+            new_path = f"{path}/{slug_suffix}"
+            new_table = f"{table}_{slug_suffix}"
+            new_entry = (new_name, new_path, new_table) + entry[3:]
+            expanded.append(new_entry)
+    return expanded
+
+
 _seen_ids: set = set()
 
 
@@ -823,12 +860,12 @@ def _build_datasets(template_list, department, owners) -> List[DatasetRecord]:
     return records
 
 
-def generate_all_datasets() -> Dict[str, List[DatasetRecord]]:
+def generate_all_datasets(scale: int = 1) -> Dict[str, List[DatasetRecord]]:
     return {
-        "discovery": _build_datasets(DISCOVERY_DATASETS, "discovery", OWNERS_DISCOVERY),
-        "translational": _build_datasets(TRANSLATIONAL_DATASETS, "translational", OWNERS_TRANSLATIONAL),
-        "clinical": _build_datasets(CLINICAL_DATASETS, "clinical", OWNERS_CLINICAL),
-        "commercial": _build_datasets(COMMERCIAL_DATASETS, "commercial", OWNERS_COMMERCIAL),
+        "discovery": _build_datasets(_scale_templates(DISCOVERY_DATASETS, scale), "discovery", OWNERS_DISCOVERY),
+        "translational": _build_datasets(_scale_templates(TRANSLATIONAL_DATASETS, scale), "translational", OWNERS_TRANSLATIONAL),
+        "clinical": _build_datasets(_scale_templates(CLINICAL_DATASETS, scale), "clinical", OWNERS_CLINICAL),
+        "commercial": _build_datasets(_scale_templates(COMMERCIAL_DATASETS, scale), "commercial", OWNERS_COMMERCIAL),
     }
 
 
@@ -1033,9 +1070,25 @@ PRODUCT_TEMPLATES = [
 ]
 
 
+def _scale_product_templates(templates: list, scale: int) -> list:
+    """Expand product templates by scale factor."""
+    if scale <= 1:
+        return templates
+    expanded = list(templates)
+    region_suffixes = ["NA", "EMEA", "APAC", "LATAM", "Global"]
+    for s in range(1, scale):
+        for entry in templates:
+            name, desc, dept_sources, n_range, consumers = entry
+            suffix = region_suffixes[(s - 1 + hash(name)) % len(region_suffixes)]
+            new_name = f"{name} — {suffix}"
+            expanded.append((new_name, desc, dept_sources, n_range, consumers))
+    return expanded
+
+
 def generate_business_products(
     all_datasets: Dict[str, List[DatasetRecord]],
     contracts: List[ContractRecord],
+    scale: int = 1,
 ) -> List[BusinessProduct]:
     products = []
     # Flatten datasets by department for easy lookup
@@ -1072,7 +1125,7 @@ def generate_business_products(
         "Real-world evidence subject to selection bias inherent in claims data.",
     ]
 
-    for i, (name, desc, dept_sources, n_range, consumers) in enumerate(PRODUCT_TEMPLATES, 1):
+    for i, (name, desc, dept_sources, n_range, consumers) in enumerate(_scale_product_templates(PRODUCT_TEMPLATES, scale), 1):
         # Pick source datasets from the specified departments
         candidate_datasets = []
         for dept in dept_sources:
@@ -1515,15 +1568,20 @@ def inject_inconsistencies(
     all_datasets: Dict[str, List[DatasetRecord]],
     contracts: List[ContractRecord],
     products: List[BusinessProduct],
+    scale: int = 1,
 ) -> List[Corruption]:
     corruptions: List[Corruption] = []
+
+    def _n(base: int, pool_size: int) -> int:
+        """Scale corruption count proportionally, capped by pool size."""
+        return min(base * scale, pool_size)
 
     # Flatten all datasets
     flat_datasets = [ds for dept in all_datasets.values() for ds in dept]
     external_datasets = [ds for ds in flat_datasets if ds.source_type == "external"]
 
     # ── 1. Path drift (technical layer) ──
-    victims = random.sample(flat_datasets, min(5, len(flat_datasets)))
+    victims = random.sample(flat_datasets, _n(5, len(flat_datasets)))
     for ds in victims:
         old_path = ds.storage_path
         new_path = old_path.replace("s3://", "s3://migrated-")
@@ -1541,7 +1599,7 @@ def inject_inconsistencies(
         _mutate_csv(ds.department, ds.dataset_id, "storage_path", new_path)
 
     # ── 2. Table rename (technical layer) ──
-    victims = random.sample(flat_datasets, min(3, len(flat_datasets)))
+    victims = random.sample(flat_datasets, _n(3, len(flat_datasets)))
     for ds in victims:
         old_table = ds.table_name
         new_table = old_table + "_v2"
@@ -1559,7 +1617,7 @@ def inject_inconsistencies(
         _mutate_csv(ds.department, ds.dataset_id, "table_name", new_table)
 
     # ── 3. Cadence change (technical layer) ──
-    victims = random.sample(flat_datasets, min(4, len(flat_datasets)))
+    victims = random.sample(flat_datasets, _n(4, len(flat_datasets)))
     for ds in victims:
         old_cadence = ds.refresh_cadence
         new_cadence = _pick([c for c in CADENCES if c != old_cadence])
@@ -1578,7 +1636,7 @@ def inject_inconsistencies(
 
     # ── 4. Contract gap (delete contract for external dataset) ──
     if len(contracts) >= 3:
-        victim_contracts = random.sample(contracts, 2)
+        victim_contracts = random.sample(contracts, _n(2, len(contracts)))
         for ctr in victim_contracts:
             filepath = RESOURCES / "contracts" / f"{_slug(ctr.provider)}.md"
             if filepath.exists():
@@ -1598,7 +1656,7 @@ def inject_inconsistencies(
     # ── 5. SLA mismatch (contract layer) ──
     modifiable = [c for c in contracts if (RESOURCES / "contracts" / f"{_slug(c.provider)}.md").exists()]
     if len(modifiable) >= 3:
-        victims = random.sample(modifiable, 3)
+        victims = random.sample(modifiable, _n(3, len(modifiable)))
         for ctr in victims:
             old_sla = ctr.refresh_sla
             new_sla = _pick([c for c in CADENCES if c != old_sla])
@@ -1617,7 +1675,7 @@ def inject_inconsistencies(
 
     # ── 6. Retention conflict (contract layer) ──
     if len(modifiable) >= 2:
-        victims = random.sample(modifiable, 2)
+        victims = random.sample(modifiable, _n(2, len(modifiable)))
         for ctr in victims:
             old_ret = str(ctr.retention_limit_days)
             new_ret = str(_pick([30, 60]))  # very short
@@ -1636,7 +1694,7 @@ def inject_inconsistencies(
 
     # ── 7. Expired contract (contract layer) ──
     if len(modifiable) >= 2:
-        victims = random.sample(modifiable, 2)
+        victims = random.sample(modifiable, _n(2, len(modifiable)))
         for ctr in victims:
             old_expiry = ctr.expiry_date
             new_expiry = _past_date()
@@ -1655,7 +1713,7 @@ def inject_inconsistencies(
             _mutate_contract_field(ctr.provider, "Status", "expired")
 
     # ── 8. Phantom reference (business layer) ──
-    victims = random.sample(products, min(4, len(products)))
+    victims = random.sample(products, _n(4, len(products)))
     for bp in victims:
         if bp.source_datasets:
             phantom_id = _id("DS", random.randint(9900, 9999))
@@ -1681,7 +1739,7 @@ def inject_inconsistencies(
             _add_phantom_source(bp.name, phantom_entry)
 
     # ── 9. Owner drift (business layer) ──
-    victims = random.sample(products, min(3, len(products)))
+    victims = random.sample(products, _n(3, len(products)))
     for bp in victims:
         old_owner = bp.owner
         all_owners = OWNERS_DISCOVERY + OWNERS_TRANSLATIONAL + OWNERS_CLINICAL + OWNERS_COMMERCIAL
@@ -1700,7 +1758,7 @@ def inject_inconsistencies(
         _mutate_business_field(bp.name, "Owner", new_owner)
 
     # ── 10. Classification conflict (business layer) ──
-    victims = random.sample(products, min(3, len(products)))
+    victims = random.sample(products, _n(3, len(products)))
     for bp in victims:
         old_class = bp.classification
         # Set to "public" — likely conflicts with restricted/confidential contracts
@@ -1729,7 +1787,7 @@ def inject_inconsistencies(
             for ds in c.covered_datasets
         )
     ]
-    for ctr in random.sample(omics_contracts, min(2, len(omics_contracts))):
+    for ctr in random.sample(omics_contracts, _n(2, len(omics_contracts))):
         corruptions.append(
             Corruption(
                 "omics_classification_weakened",
@@ -1744,7 +1802,7 @@ def inject_inconsistencies(
         _mutate_contract_field(ctr.provider, "Data Classification", "confidential")
 
     # ── 12. Refresh mismatch (business layer) ──
-    victims = random.sample(products, min(3, len(products)))
+    victims = random.sample(products, _n(3, len(products)))
     for bp in victims:
         old_freq = bp.refresh_frequency
         new_freq = _pick([c for c in CADENCES if c != old_freq])
@@ -1832,6 +1890,7 @@ def main():
     parser = argparse.ArgumentParser(description="Generate synthetic data governance demo data")
     parser.add_argument("--clean", action="store_true", help="Wipe and regenerate resources/")
     parser.add_argument("--seed", type=int, default=SEED, help="Random seed")
+    parser.add_argument("--scale", type=int, default=1, help="Scale factor (1=~68 datasets, 5=~340, 10=~680)")
     parser.add_argument(
         "--consistent-only", action="store_true", help="Generate only the consistent baseline (no corruptions)"
     )
@@ -1852,7 +1911,7 @@ def main():
 
     # Phase 1: consistent baseline
     print("Phase 1: Generating consistent baseline...")
-    all_datasets = generate_all_datasets()
+    all_datasets = generate_all_datasets(scale=args.scale)
     total_ds = sum(len(v) for v in all_datasets.values())
     write_technical_catalogs(all_datasets)
     print(f"  Technical catalog: {total_ds} datasets across {len(all_datasets)} CSVs")
@@ -1861,7 +1920,7 @@ def main():
     write_contracts(contracts)
     print(f"  Contracts: {len(contracts)} agreements")
 
-    products = generate_business_products(all_datasets, contracts)
+    products = generate_business_products(all_datasets, contracts, scale=args.scale)
     write_business_products(products)
     print(f"  Business catalog: {len(products)} data products")
 
@@ -1874,7 +1933,7 @@ def main():
 
     # Phase 2: inject inconsistencies
     print("\nPhase 2: Injecting inconsistencies...")
-    corruptions = inject_inconsistencies(all_datasets, contracts, products)
+    corruptions = inject_inconsistencies(all_datasets, contracts, products, scale=args.scale)
 
     # Re-generate .pltg after corruptions (reads mutated files)
     write_all_pltg(all_datasets, contracts, products)

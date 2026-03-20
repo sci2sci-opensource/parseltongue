@@ -90,7 +90,9 @@ function showDetail(d) {
     }
     html += `<div><span class="text-overlay0">name:</span> <span class="text-text font-bold">${esc(d.id)}</span></div>`;
     html += `<div><span class="text-overlay0">kind:</span> <span class="${kindText(d.kind)} font-bold">${esc(d.kind)}</span></div>`;
-    if (d.value) html += `<div><span class="text-overlay0">value:</span><div class="mt-1 bg-surface0 rounded p-2 text-xs whitespace-pre-wrap">${esc(d.value)}</div></div>`;
+    const noVal = !d.value || d.value === '()' || d.value === "''" || d.value === '""' || d.value === "''";
+    const displayVal = noVal ? 'No value' : d.value;
+    html += `<div><span class="text-overlay0">value:</span><div class="mt-1 bg-surface0 rounded p-2 text-xs whitespace-pre-wrap ${noVal ? 'text-overlay0 italic' : ''}">${esc(displayVal)}</div></div>`;
     if (d.depth > 0) html += `<div><span class="text-overlay0">depth:</span> ${d.depth}</div>`;
 
     // ── Definition (WFF) ──
