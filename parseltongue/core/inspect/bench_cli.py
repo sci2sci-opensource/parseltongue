@@ -821,19 +821,20 @@ def _setup_file_logging(console_level: str):
     BENCH_DIR.mkdir(parents=True, exist_ok=True)
     log_path = BENCH_DIR / "bench.log"
     root = logging.getLogger("parseltongue")
-    # File: always DEBUG, rotating at 100 MB
+    file_level = getattr(logging, console_level.upper(), logging.INFO)
+    # File: same level as console (default INFO), rotating at 100 MB
     fh = RotatingFileHandler(
         log_path, maxBytes=100 * 1024 * 1024, backupCount=3, encoding="utf-8",
     )
     fh.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s"))
-    fh.setLevel(logging.DEBUG)
+    fh.setLevel(file_level)
     root.addHandler(fh)
-    # Console: respect --log-level / --verbose
+    # Console: same level
     sh = logging.StreamHandler()
-    sh.setLevel(getattr(logging, console_level.upper(), logging.ERROR))
+    sh.setLevel(file_level)
     root.addHandler(sh)
-    # Root open, handlers filter
-    root.setLevel(logging.DEBUG)
+    # Root matches lowest handler level
+    root.setLevel(file_level)
 
 
 def _run_server(

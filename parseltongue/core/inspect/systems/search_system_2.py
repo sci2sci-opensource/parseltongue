@@ -125,6 +125,9 @@ class SearchSystem2:
             d, p = str(doc_name), str(source)
             if "*" in p or "?" in p:
                 return fnmatch.fnmatch(d, p) or fnmatch.fnmatch(d, "*/" + p)
+            # Auto-glob: no extension and no glob chars → *pattern*
+            if "." not in p:
+                return fnmatch.fnmatch(d, f"*{p}*")
             return d == p or d.endswith("/" + p) or d.endswith(p)
 
         def _in(source: str | Posting | Sentence, query: str | Posting | Sentence | None = None) -> Posting:

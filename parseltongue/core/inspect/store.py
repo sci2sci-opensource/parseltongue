@@ -21,8 +21,6 @@ import hashlib
 import json
 import logging
 import os
-import struct
-import zlib
 from pathlib import Path
 from typing import Callable
 
@@ -31,6 +29,8 @@ from ..integrity.merkle import MerkleNode, _sha256, merkle_combine
 from ..loader.lazy_loader import LazyLoader, LazyLoadResult
 from ..quote_verifier import DocumentIndex
 from ..system import System
+from .history import History
+from .pgz import json_pgz_read, json_pgz_write, ordinal_pgz_read, ordinal_pgz_write, pgz_read, pgz_write
 from .screen import Screen
 from .probe_core_to_consequence import CoreToConsequenceStructure
 from .serialization import deserialize_structure, serialize_structure
@@ -39,36 +39,9 @@ log = logging.getLogger("parseltongue.store")
 
 BENCH_DIR = ".parseltongue-bench"
 
-# ── .pgz format ──
-
-_PGZ_MAGIC = b"PGZ\x01"
-_PGZ_HEADER = struct.Struct("<4s32sI")  # magic + sha256 + size
-
-
-def _pgz_write(path: Path, data: bytes):
-    """Write data to a .pgz file."""
-    digest = hashlib.sha256(data).digest()
-    compressed = zlib.compress(data, level=6)
-    header = _PGZ_HEADER.pack(_PGZ_MAGIC, digest, len(data))
-    path.write_bytes(header + compressed)
-
-
-def _pgz_read(path: Path) -> bytes:
-    """Read and verify a .pgz file. Raises on corruption."""
-    raw = path.read_bytes()
-    if len(raw) < _PGZ_HEADER.size:
-        raise ValueError("File too small for .pgz header")
-    magic, expected_digest, size = _PGZ_HEADER.unpack_from(raw)
-    if magic != _PGZ_MAGIC:
-        raise ValueError(f"Bad magic: {magic!r}")
-    compressed = raw[_PGZ_HEADER.size :]
-    data = zlib.decompress(compressed)
-    if len(data) != size:
-        raise ValueError(f"Size mismatch: expected {size}, got {len(data)}")
-    actual_digest = hashlib.sha256(data).digest()
-    if actual_digest != expected_digest:
-        raise ValueError("SHA-256 integrity check failed")
-    return data
+# Back-compat aliases for any external callers
+_pgz_write = pgz_write
+_pgz_read = pgz_read
 
 
 def _collect_tree_leaves(node: MerkleNode) -> dict[str, str]:
@@ -81,12 +54,18 @@ def _collect_tree_leaves(node: MerkleNode) -> dict[str, str]:
     return result
 
 
+_DEFAULT_IGNORE = [".git", ".hg", ".svn", "node_modules", ".*"]
+
+
 def _load_pgignore(directory: str) -> list[str]:
-    """Load .pgignore patterns from directory (gitignore-style). Returns pattern list."""
+    """Load .pgignore patterns from directory (gitignore-style). Returns pattern list.
+
+    Always includes default ignores (.git, .hg, .svn, node_modules, dotdirs).
+    """
+    patterns = list(_DEFAULT_IGNORE)
     pgignore = Path(directory) / ".pgignore"
     if not pgignore.exists():
-        return []
-    patterns = []
+        return patterns
     for line in pgignore.read_text().splitlines():
         line = line.strip()
         if line and not line.startswith("#"):
@@ -302,6 +281,42 @@ class Store:
     def _index_cache_path(self, directory: str) -> Path:
         return self._dir / f"{self._cache_key(directory)}.idx.pgz"
 
+    def history(self, key: str, max_layers: int = 42) -> History:
+        """Get a History instance for a given cache key.
+
+        History provides append-only layered text storage with time
+        travel, diffing, and restore — both whole-state and per-file.
+        """
+        self._ensure_dir()
+        prefix = self._cache_key(key)
+        return History(self._dir, prefix, max_layers=max_layers)
+
+    def save_texts(self, key: str, file_texts: dict[str, str]):
+        """Save file texts as a base layer in History."""
+        h = self.history(key)
+        if h.layer_count() == 0:
+            h.commit_base(file_texts)
+        else:
+            # Diff against current to write a delta
+            current = h.current()
+            changed: dict[str, str] = {}
+            deleted: set[str] = set()
+            for name, text in file_texts.items():
+                if name not in current or current[name] != text:
+                    changed[name] = text
+            for name in current:
+                if name not in file_texts:
+                    deleted.add(name)
+            if changed or deleted:
+                h.commit(changed, deleted)
+
+    def load_texts(self, key: str) -> dict[str, str] | None:
+        """Load current file texts from History."""
+        h = self.history(key)
+        if h.layer_count() == 0:
+            return None
+        return h.current()
+
     def save_index(
         self,
         key: str,
@@ -313,7 +328,11 @@ class Store:
         dir_mtimes: dict[str, int] | None = None,
         file_texts: dict[str, str] | None = None,
     ):
-        """Save search index to disk as .idx.pgz. Key is the cache lookup key, directory is stored inside."""
+        """Save search index to disk as .idx.pgz + texts as .texts.pgz.
+
+        file_texts are stored separately in OrdinalPGZ format — not in the
+        main index cache. This keeps the index small and fast to read.
+        """
         self._ensure_dir()
         data: dict = {"directory": directory, "file_hashes": file_hashes, "index": index_data}
         if indexed_dirs:
@@ -322,22 +341,24 @@ class Store:
             data["file_stats"] = file_stats
         if dir_mtimes:
             data["dir_mtimes"] = dir_mtimes
-        if file_texts:
-            data["file_texts"] = file_texts
+        # file_texts go to separate .texts.pgz — NOT in main index
         try:
-            payload = json.dumps(data, separators=(",", ":")).encode()
-            _pgz_write(self._index_cache_path(key), payload)
+            json_pgz_write(self._index_cache_path(key), data)
         except Exception as e:
             log.warning("Failed to save index for %s: %s", key, e)
+        if file_texts:
+            self.save_texts(key, file_texts)
 
     def load_index(self, key: str) -> dict | None:
-        """Load cached index data, or None if not cached."""
+        """Load cached index data (without file texts), or None if not cached.
+
+        File texts live in a separate .texts.pgz — use load_texts() for those.
+        """
         cache_file = self._index_cache_path(key)
         if not cache_file.exists():
             return None
         try:
-            data = _pgz_read(cache_file)
-            return json.loads(data)
+            return json_pgz_read(cache_file)
         except Exception as e:
             log.warning("Failed to read index cache for %s: %s", key, e)
             cache_file.unlink(missing_ok=True)
@@ -346,10 +367,12 @@ class Store:
     # ── Invalidation ──
 
     def remove(self, path: str):
-        """Remove cache files for a specific path — includes viz cache."""
+        """Remove cache files for a specific path — includes viz, history, texts."""
         self._cache_path(path).unlink(missing_ok=True)
         self._diagnosis_cache_path(path).unlink(missing_ok=True)
         self._index_cache_path(path).unlink(missing_ok=True)
+        # History layers + metadata
+        self.history(path).remove_all()
         # Clean up legacy too
         self._legacy_cache_path(path).unlink(missing_ok=True)
         self._legacy_diagnosis_cache_path(path).unlink(missing_ok=True)
@@ -460,6 +483,12 @@ class SearchStore:
         # Directory mtime cache: abs_dir_path → mtime_ns
         self._dir_mtimes: dict[str, int] = {}
 
+    def _history(self) -> History | None:
+        """Get the History instance for this search store."""
+        if not self._store:
+            return None
+        return self._store.history(self._path)
+
     def load_index(self) -> DocumentIndex:
         if self._preloaded is not None:
             return self._preloaded
@@ -482,24 +511,22 @@ class SearchStore:
         self._dir_mtimes = cached.get("dir_mtimes", {})
         self._dir_hashes[self._path] = file_hashes
         idx_data = cached.get("index", {})
-        # Use cached file texts — zero disk reads on warm load
-        file_texts = cached.get("file_texts", {})
+        # Load texts from History (separate layered OrdinalPGZ files)
+        file_texts = self._store.load_texts(self._path)
+        # Migration: old format stored file_texts inside the main index
+        if not file_texts:
+            file_texts = cached.get("file_texts", {})
         if file_texts and len(file_texts) >= len(file_hashes):
             original_texts = {rel: file_texts.get(rel, "") for rel in idx_data.get("documents", {})}
             return DocumentIndex.from_dict(idx_data, original_texts)
         # Fallback: texts missing or incomplete — re-read from disk
-        # and backfill the cache so next load is instant
+        # and backfill History so next load is instant
         base = Path(directory)
         paths = [(base / rel, rel) for rel in file_hashes]
         disk_texts, _ = self._read_and_hash(paths)
         original_texts = {rel: disk_texts.get(rel, "") for rel in idx_data.get("documents", {})}
-        if disk_texts and self._store:
-            cached["file_texts"] = disk_texts
-            try:
-                payload = json.dumps(cached, separators=(",", ":")).encode()
-                _pgz_write(self._store._index_cache_path(self._path), payload)
-            except Exception:
-                pass
+        if disk_texts:
+            self._store.save_texts(self._path, disk_texts)
         return DocumentIndex.from_dict(idx_data, original_texts)
 
     def load_search_index(self, doc_index: DocumentIndex) -> "DocumentSearchIndex | None":
@@ -575,7 +602,7 @@ class SearchStore:
         """Diff hashes, update index for changed files, remove deleted. Save cache.
 
         file_texts only contains files that were actually read (stat-changed or new).
-        Unchanged files' texts are pulled from the cache.
+        Unchanged files' texts are pulled from History.
         """
         changed = {f for f in set(old_hashes) | set(new_hashes) if old_hashes.get(f) != new_hashes.get(f)}
         deleted = set(old_hashes) - set(new_hashes)
@@ -586,11 +613,11 @@ class SearchStore:
             len(deleted),
         )
 
-        # Load cached texts for unchanged files
+        # Load cached texts from History for unchanged files
         cached_texts: dict[str, str] = {}
+        if self._store:
+            cached_texts = self._store.load_texts(self._path) or {}
         cached = self._store.load_index(self._path) if self._store else None
-        if cached:
-            cached_texts = cached.get("file_texts", {})
 
         # Merge: cached texts for unchanged, fresh texts for changed/new
         all_texts = dict(cached_texts)
@@ -629,19 +656,22 @@ class SearchStore:
                 del _index.documents[key]
             all_texts.pop(key, None)
 
-        # Only keep texts for files still in the index
-        save_texts = {k: v for k, v in all_texts.items() if k in new_hashes}
-
-        # Save — includes file texts, tracked dirs, stat caches
-        self._save_cache(directory, new_hashes, _index, file_texts=save_texts)
+        # Save index (without texts) + commit texts delta to History
+        self._save_cache(directory, new_hashes, _index,
+                         changed_texts=file_texts, deleted_keys=deleted)
         self._dir_hashes[self._path] = new_hashes
         return _index, total_changed
 
     def _save_cache(
         self, directory: str, file_hashes: dict[str, str], doc_index: DocumentIndex,
-        file_texts: dict[str, str] | None = None,
+        changed_texts: dict[str, str] | None = None,
+        deleted_keys: set[str] | None = None,
     ):
-        """Save DocumentIndex + file texts + tracked dirs + stat caches to disk."""
+        """Save DocumentIndex + tracked dirs + stat caches to disk.
+
+        Text changes are committed to History as a delta layer — not
+        stored in the main index cache.
+        """
         if not self._store:
             return
         self._store.save_index(
@@ -649,8 +679,20 @@ class SearchStore:
             indexed_dirs=self._indexed_dirs,
             file_stats={k: list(v) for k, v in self._file_stats.items()},
             dir_mtimes=self._dir_mtimes,
-            file_texts=file_texts,
         )
+        # Commit text changes to History
+        if changed_texts or deleted_keys:
+            history = self._history()
+            if history:
+                if history.layer_count() == 0:
+                    # First index — need full texts for base layer
+                    all_texts = self._store.load_texts(self._path) or {}
+                    all_texts.update(changed_texts or {})
+                    for k in deleted_keys or ():
+                        all_texts.pop(k, None)
+                    history.commit_base(all_texts)
+                else:
+                    history.commit(changed_texts or {}, deleted_keys)
 
     def save_search_index(self, search_index: "object"):
         """Persist DocumentSearchIndex data alongside the existing cache."""
@@ -661,10 +703,8 @@ class SearchStore:
             return
         from .search_s.serialization import serialize_search_index
         cached["search_index"] = serialize_search_index(search_index)
-        # Re-save the full cache
         try:
-            payload = json.dumps(cached, separators=(",", ":")).encode()
-            _pgz_write(self._store._index_cache_path(self._path), payload)
+            json_pgz_write(self._store._index_cache_path(self._path), cached)
         except Exception as e:
             log.warning("Failed to save search index: %s", e)
 

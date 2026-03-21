@@ -119,8 +119,12 @@ class Technician:
 
     # ── Scope registration ──
 
-    def _register_scopes(self, path: str, sample: Sample):
-        """Register all scopes — lens and screen. Called on both prepare and live."""
+    def _register_scopes(self, path: str, sample: Sample, screen=None, live=False):
+        """Register all scopes — lens and screen.
+
+        If screen is provided, use it directly. Otherwise load from frozen cache.
+        live=False skips expensive work (LiveBench, live_probe_all, search refresh).
+        """
         from .optics import Lens
         from .perspectives.md_debugger import MDebuggerPerspective
 
@@ -131,8 +135,13 @@ class Technician:
         lens = Lens(structure, [MDebuggerPerspective(loader)])
         search.register_scope("lens", lens.search_system)
 
-        # Screen scope — from cache if available
-        dx = self._load_screen(path, sample)
+        # Screen scope — provided, computed live, or from frozen cache
+        if screen is not None:
+            dx = screen
+        elif live:
+            dx = self._load_screen_live(path, sample)
+        else:
+            dx = self._load_screen(path, sample)
         if dx is not None:
             for _scope_name in ("screen", "diagnose", "evaluation"):
                 search.register_scope(_scope_name, dx.search_system)
@@ -167,9 +176,9 @@ class Technician:
                 ),
             )
 
-        # Populate search docs + create LiveBench if result available
+        # Populate search docs + create LiveBench — only on live path
         result = sample[3].last_result
-        if result is not None and hasattr(result.system, "engine") and result.system.engine.facts:
+        if live and result is not None and hasattr(result.system, "engine") and result.system.engine.facts:
             from .systems.live_bench import LiveBench
 
             self._live[path] = LiveBench(result, frozen)  # type: ignore[arg-type]
@@ -206,7 +215,11 @@ class Technician:
     # ── Screen ──
 
     def _load_screen(self, path: str, sample: Sample | None):
-        """Screen consistency — cached, incremental, or cold."""
+        """Screen for frozen path — never blocks.
+
+        Returns exact cache, stale cache, or empty Screen. Never computes
+        cold consistency. Live thread replaces this when ready.
+        """
         from .screen import Screen
 
         # Memory cache
@@ -219,6 +232,43 @@ class Technician:
             disk_dx = self._store.load_diagnosis(path, merkle_root)
             if disk_dx is not None:
                 self._screen_mem[path] = disk_dx
+                return disk_dx
+
+        # Stale disk cache — frozen uses whatever exists
+        stale_dx = self._store.load_stale_diagnosis(path)
+        if stale_dx is not None:
+            return stale_dx
+
+        # Empty — frozen has no screen yet, live will fill it in
+        from .screen import ScreenItem
+
+        return Screen(
+            items=[
+                ScreenItem(
+                    name="frozen-empty",
+                    category="loader",
+                    type="error",
+                    kind=None,
+                    loc="?",
+                    detail="Frozen cache empty — waiting for live evaluation",
+                )
+            ],
+            consistent=False,
+        )
+
+    def _load_screen_live(self, path: str, sample: Sample | None):
+        """Screen for live path — full compute on background thread.
+
+        Tries incremental if affected set is known, otherwise cold.
+        Replaces whatever frozen had.
+        """
+        from .screen import Screen
+
+        # Already fresh in memory with matching merkle
+        if path in self._screen_mem and sample:
+            merkle_root = sample[1].hash
+            disk_dx = self._store.load_diagnosis(path, merkle_root)
+            if disk_dx is not None:
                 return disk_dx
 
         # Incremental: stale screen + known affected set
@@ -435,7 +485,7 @@ class Technician:
         sample: Sample = (path, new_tree, structure, loader)
         self._store.save(path, new_tree, structure, loader, file_list, new_hashes)
         self._ensure_frozen()
-        self._register_scopes(path, sample)
+        self._register_scopes(path, sample, live=True)
         integrity = self._check_load_integrity(path, load_result)
         self._on_status(path, integrity, self.LIVE)
         return sample
@@ -518,11 +568,23 @@ class Technician:
         file_hashes = self._file_hashes
         technician = self
 
+        # Seed verifier index from frozen sample so add() hits hash check and skips
+        cached_verifier = None
+        try:
+            cr = current_sample[3].last_result
+            if cr and cr.system and cr.system.engine:
+                from parseltongue.core.quote_verifier import QuoteVerifier
+                cached_verifier = QuoteVerifier()
+                cached_verifier.index = cr.system.engine._verifier.index
+        except Exception:
+            pass
+
         def _reload():
             try:
+                kw = {"verifier": cached_verifier} if cached_verifier else {}
                 loader = LazyLoader(lib_paths=technician._lib_paths)
-                loader.load_main(path, effects=technician._effects.get(path), name="Technician.bg_reload")
-                file_list = technician.collect_source_files(loader)
+                loader.load_main(path, effects=technician._effects.get(path), name="Technician.bg_reload", **kw)
+                file_list = file_lists.get(path) or technician.collect_source_files(loader)
                 new_hashes = store.hash_files(file_list)
                 new_tree = store.build_file_tree(file_list, new_hashes)
                 bg_result = loader.last_result
@@ -553,8 +615,9 @@ class Technician:
                 technician._bg_result = (path, new_sample)
                 integrity = technician._check_load_integrity(path, bg_result)
                 on_status(path, integrity, Technician.LIVE)
-                # Register live scopes with the fresh sample
-                technician._register_scopes(path, new_sample)
+                # Compute live screen (full consistency) then register scopes
+                live_dx = technician._load_screen_live(path, new_sample)
+                technician._register_scopes(path, new_sample, screen=live_dx, live=True)
                 store.save(path, new_tree, structure, loader, file_list, new_hashes)
                 log.info("Background reload complete for %s", path)
             except Exception as e:

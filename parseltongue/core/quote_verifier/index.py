@@ -4,7 +4,7 @@ Inverted word-position index for fast quote lookup.
 Build once per document, query many times.
 """
 
-import hashlib
+import zlib
 from collections import defaultdict
 from typing import Dict, List, Tuple
 
@@ -13,7 +13,7 @@ from .normalizer import normalize_with_mapping
 
 
 def _content_hash(text: str) -> str:
-    return hashlib.sha256(text.encode()).hexdigest()
+    return format(zlib.crc32(text.encode()), "08x")
 
 
 class IndexedDocument:
