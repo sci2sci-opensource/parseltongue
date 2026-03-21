@@ -1,7 +1,7 @@
 """BenchSystem — base class and protocols for bench subsystems.
 
 BenchSubsystem protocol: a Rewriter with a PostingMorphism and a tag.
-Each subsystem (Lens, Evaluation, Hologram search systems) implements
+Each subsystem (Lens, Screen, Hologram search systems) implements
 BenchSubsystem so the Search layer can dispatch tagged forms back to
 postings by head symbol.
 

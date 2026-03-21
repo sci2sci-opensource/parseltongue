@@ -31,7 +31,7 @@ from ..integrity.merkle import MerkleNode, _sha256, merkle_combine
 from ..loader.lazy_loader import LazyLoader, LazyLoadResult
 from ..quote_verifier import DocumentIndex
 from ..system import System
-from .evaluation import Evaluation
+from .screen import Screen
 from .probe_core_to_consequence import CoreToConsequenceStructure
 from .serialization import deserialize_structure, serialize_structure
 
@@ -131,7 +131,7 @@ class Store:
     - File hashing and Merkle tree construction
     - Reading/writing cached data to .pgz files
     - Deserializing cached data back into structures + loaders
-    - Evaluation cache (separate .dx.pgz files)
+    - Screen cache (separate .dx.pgz files)
     """
 
     def __init__(self, bench_dir: str | Path | None = None):
@@ -260,9 +260,9 @@ class Store:
         loader._result._all_nodes = nodes
         return structure, loader
 
-    # ── Evaluation cache ──
+    # ── Screen cache ──
 
-    def save_diagnosis(self, path: str, merkle_root: str, dx: Evaluation):
+    def save_diagnosis(self, path: str, merkle_root: str, dx: Screen):
         """Save evaluation to disk as .pgz."""
         self._ensure_dir()
         data = {"merkle_root": merkle_root, "diagnosis": dx.to_dict()}
@@ -273,7 +273,7 @@ class Store:
         except Exception as e:
             log.warning("Failed to save evaluation for %s: %s", path, e)
 
-    def load_diagnosis(self, path: str, expected_merkle_root: str) -> Evaluation | None:
+    def load_diagnosis(self, path: str, expected_merkle_root: str) -> Screen | None:
         """Load evaluation from disk if Merkle root matches."""
         data = self._read_diagnosis_raw(path)
         if data is None:
@@ -281,18 +281,18 @@ class Store:
         if data.get("merkle_root") != expected_merkle_root:
             return None
         try:
-            return Evaluation.from_dict(data["diagnosis"])
+            return Screen.from_dict(data["diagnosis"])
         except Exception:
             self._diagnosis_cache_path(path).unlink(missing_ok=True)
             return None
 
-    def load_stale_diagnosis(self, path: str) -> Evaluation | None:
+    def load_stale_diagnosis(self, path: str) -> Screen | None:
         """Load evaluation from disk regardless of Merkle root match."""
         data = self._read_diagnosis_raw(path)
         if data is None:
             return None
         try:
-            return Evaluation.from_dict(data["diagnosis"])
+            return Screen.from_dict(data["diagnosis"])
         except Exception:
             self._diagnosis_cache_path(path).unlink(missing_ok=True)
             return None
@@ -484,14 +484,22 @@ class SearchStore:
         idx_data = cached.get("index", {})
         # Use cached file texts — zero disk reads on warm load
         file_texts = cached.get("file_texts", {})
-        if file_texts:
+        if file_texts and len(file_texts) >= len(file_hashes):
             original_texts = {rel: file_texts.get(rel, "") for rel in idx_data.get("documents", {})}
             return DocumentIndex.from_dict(idx_data, original_texts)
-        # Fallback: old cache format without file_texts — re-read from disk
+        # Fallback: texts missing or incomplete — re-read from disk
+        # and backfill the cache so next load is instant
         base = Path(directory)
         paths = [(base / rel, rel) for rel in file_hashes]
         disk_texts, _ = self._read_and_hash(paths)
         original_texts = {rel: disk_texts.get(rel, "") for rel in idx_data.get("documents", {})}
+        if disk_texts and self._store:
+            cached["file_texts"] = disk_texts
+            try:
+                payload = json.dumps(cached, separators=(",", ":")).encode()
+                _pgz_write(self._store._index_cache_path(self._path), payload)
+            except Exception:
+                pass
         return DocumentIndex.from_dict(idx_data, original_texts)
 
     def load_search_index(self, doc_index: DocumentIndex) -> "DocumentSearchIndex | None":

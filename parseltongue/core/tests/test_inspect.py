@@ -1,4 +1,4 @@
-"""Tests for the inspect module: probe, lens, search, evaluation, serialization."""
+"""Tests for the inspect module: probe, lens, search, screen, serialization."""
 
 import unittest
 from unittest.mock import patch
@@ -6,6 +6,7 @@ from unittest.mock import patch
 from parseltongue.core.inspect import inspect
 
 from ..atoms import Evidence, Symbol
+# Back-compat: import via old names to verify the shim works
 from ..inspect.evaluation import Evaluation, EvaluationItem
 from ..inspect.optics import Lens
 from ..inspect.perspective import Perspective

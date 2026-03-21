@@ -4,7 +4,7 @@ Uses the loader to load/reload .pltg files, the Store to check cache
 and persist results. Updates Bench status via a private callback.
 
 The Technician decides *how* to load (cold, cache hit, hot-patch,
-background reload). Owns scope registration, evaluation computation,
+background reload). Owns scope registration, screening,
 and search engine lifecycle. The Bench decides *what* to observe.
 """
 
@@ -37,7 +37,7 @@ class Technician:
 
     Coordinates between the loader and the Store. Reports state
     transitions via a callback provided by the Bench. Owns scope
-    registration, evaluation computation, and search engine.
+    registration, screening, and search engine.
     """
 
     # Integrity values (mirrors Bench.Integrity for the callback)
@@ -68,7 +68,7 @@ class Technician:
         self._effects: dict[str, dict] = {}  # path → effects dict
         self._frozen = None  # FrozenBench, created lazily on first prepare
         self._live: dict = {}  # path → LiveBench
-        self._evaluation_mem: dict = {}  # path → Evaluation
+        self._screen_mem: dict = {}  # path → Screen
         self._affected: dict[str, set[str]] = {}
         self._search_mem: dict = {}  # path → Search
         self._ops: "OperationsSystem | None" = None  # shared, stateless
@@ -120,7 +120,7 @@ class Technician:
     # ── Scope registration ──
 
     def _register_scopes(self, path: str, sample: Sample):
-        """Register all scopes — lens and evaluation. Called on both prepare and live."""
+        """Register all scopes — lens and screen. Called on both prepare and live."""
         from .optics import Lens
         from .perspectives.md_debugger import MDebuggerPerspective
 
@@ -131,16 +131,18 @@ class Technician:
         lens = Lens(structure, [MDebuggerPerspective(loader)])
         search.register_scope("lens", lens.search_system)
 
-        # Evaluation scope — from cache if available
-        dx = self._load_evaluate(path, sample)
+        # Screen scope — from cache if available
+        dx = self._load_screen(path, sample)
         if dx is not None:
-            search.register_scope("evaluation", dx.search_system)
+            for _scope_name in ("screen", "diagnose", "evaluation"):
+                search.register_scope(_scope_name, dx.search_system)
 
         # Operations scope — generic composition over tagged forms
         ops = self._ensure_ops()
         ops.register_scope("lens", lens.search_system)
         if dx is not None:
-            ops.register_scope("evaluation", dx.search_system)
+            for _scope_name in ("screen", "diagnose", "evaluation"):
+                ops.register_scope(_scope_name, dx.search_system)
         ops.register_scope("search", search._system)
         search.register_scope("ops", ops)
 
@@ -149,7 +151,8 @@ class Technician:
         if frozen is not None:
             frozen.register_scope("lens", lens.search_system)
             if dx is not None:
-                frozen.register_scope("evaluation", dx.search_system)
+                for _scope_name in ("screen", "diagnose", "evaluation"):
+                    frozen.register_scope(_scope_name, dx.search_system)
             frozen.register_scope("ops", ops)
             frozen.register_scope("search", search._system)
 
@@ -172,7 +175,8 @@ class Technician:
             self._live[path] = LiveBench(result, frozen)  # type: ignore[arg-type]
             self._live[path].register_scope("lens", lens.search_system)
             if dx is not None:
-                self._live[path].register_scope("evaluation", dx.search_system)
+                for _scope_name in ("screen", "diagnose", "evaluation"):
+                    self._live[path].register_scope(_scope_name, dx.search_system)
             self._live[path].register_scope("ops", ops)
             self._live[path].register_scope("search", search._system)
             self._live[path].register_hologram_scope(engine=result.system.engine)
@@ -199,25 +203,25 @@ class Technician:
             )
             search.refresh(vi)
 
-    # ── Evaluation ──
+    # ── Screen ──
 
-    def _load_evaluate(self, path: str, sample: Sample | None):
-        """Evaluate consistency — cached, incremental, or cold."""
-        from .evaluation import Evaluation
+    def _load_screen(self, path: str, sample: Sample | None):
+        """Screen consistency — cached, incremental, or cold."""
+        from .screen import Screen
 
         # Memory cache
-        if path in self._evaluation_mem:
-            return self._evaluation_mem[path]
+        if path in self._screen_mem:
+            return self._screen_mem[path]
 
         # Disk cache — exact Merkle match
         if sample:
             merkle_root = sample[1].hash
             disk_dx = self._store.load_diagnosis(path, merkle_root)
             if disk_dx is not None:
-                self._evaluation_mem[path] = disk_dx
+                self._screen_mem[path] = disk_dx
                 return disk_dx
 
-        # Incremental: stale evaluation + known affected set
+        # Incremental: stale screen + known affected set
         affected = self._affected.get(path)
         if affected is not None:
             old_dx = self._store.load_stale_diagnosis(path)
@@ -231,26 +235,29 @@ class Technician:
 
                 if diffs_to_patch:
                     log.info(
-                        "Incremental evaluate: %d/%d diffs",
+                        "Incremental screen: %d/%d diffs",
                         len(diffs_to_patch),
                         len(engine.diffs),
                     )
                     lc = result.consistency_incremental(diffs_to_patch)
                     dx = old_dx.incremental(diffs_to_patch, lc)
-                    self._evaluation_mem[path] = dx
-                    self._save_evaluation(path, dx, sample)
+                    self._screen_mem[path] = dx
+                    self._save_screen(path, dx, sample)
                     self._affected.pop(path, None)
                     return dx
 
         # Cold — full consistency
         result, sample = self.ensure_live(path, sample)
         lc = result.consistency()
-        dx = Evaluation.from_report(lc, result)
-        self._evaluation_mem[path] = dx
-        self._save_evaluation(path, dx, sample)
+        dx = Screen.from_report(lc, result)
+        self._screen_mem[path] = dx
+        self._save_screen(path, dx, sample)
         return dx
 
-    def _save_evaluation(self, path: str, dx, sample: Sample | None):
+    # Backwards compat
+    _load_evaluate = _load_screen
+
+    def _save_screen(self, path: str, dx, sample: Sample | None):
         merkle_root = sample[1].hash if sample else ""
         self._store.save_diagnosis(path, merkle_root, dx)
 
@@ -317,7 +324,7 @@ class Technician:
                             sample = (path, new_tree, structure, loader)
                             self._file_hashes[path] = new_hashes
                             self._affected[path] = affected
-                            self._evaluation_mem.pop(path, None)
+                            self._screen_mem.pop(path, None)
                             self._ensure_frozen()
                             self._register_scopes(path, sample)
                             self._on_status(path, self.UNKNOWN, self.LOADING)
@@ -371,7 +378,7 @@ class Technician:
             self._file_lists.clear()
             self._file_hashes.clear()
             self._store.remove_all()
-            self._evaluation_mem.clear()
+            self._screen_mem.clear()
             self._affected.clear()
             self._search_mem.clear()
             self._live.clear()
@@ -379,7 +386,7 @@ class Technician:
             self._file_lists.pop(path, None)
             self._file_hashes.pop(path, None)
             self._store.remove(path)
-            self._evaluation_mem.pop(path, None)
+            self._screen_mem.pop(path, None)
             self._affected.pop(path, None)
             self._search_mem.pop(path, None)
             self._live.pop(path, None)

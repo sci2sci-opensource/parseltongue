@@ -5,7 +5,7 @@ Prepare a sample, then observe: ``lens()`` for structure,
 
 The Bench owns sample status and integrity labels. A Technician
 handles loading (cold, cache hit, hot-patch, background reload),
-scope registration, and evaluation caching. A Store handles
+scope registration, and screening cache. A Store handles
 all disk I/O.
 
 Usage::
@@ -29,7 +29,7 @@ import logging
 from pathlib import Path
 
 from ..loader.lazy_loader import LazyLoadResult
-from .evaluation import Evaluation
+from .screen import Screen
 from .optics import Lens
 from .optics.hologram import Hologram
 from .perspectives.md_debugger import MDebuggerPerspective
@@ -230,12 +230,15 @@ class Bench:
 
     # ── Observe: health ──
 
-    def evaluate(self, path: str | None = None) -> Evaluation:
-        """Consistency observation — an Evaluation with focus, search, filtering."""
+    def screen(self, path: str | None = None) -> Screen:
+        """Consistency observation — a Screen with focus, search, filtering."""
         path = str(Path(path).resolve()) if path else self._require_current()
         if path not in self._mem:
             self.prepare(path)
-        return self._technician._load_evaluate(path, self._mem.get(path))
+        return self._technician._load_screen(path, self._mem.get(path))
+
+    # Backwards compat
+    evaluate = screen
 
     # ── Search ──
 
@@ -270,7 +273,7 @@ class Bench:
     def _prepare_bench_system(self, path: str):
         """Get the best available bench system — live if ready, frozen otherwise.
 
-        Scopes (lens, evaluation, search, ops, viz) are registered by the
+        Scopes (lens, screen, search, ops, viz) are registered by the
         Technician's _register_scopes — no need to re-register here.
         """
         live = self._technician._live.get(path)

@@ -1,4 +1,4 @@
-"""Tests for search systems on Lens, Evaluation, and Hologram.
+"""Tests for search systems on Lens, Screen, and Hologram.
 
 Exercises scope/project/delegate semantics through the bench search
 infrastructure. Each optic holds its own search system with a
@@ -7,9 +7,9 @@ in the main search engine so queries can compose across domains.
 
 Covers:
 - LensSearchSystem: node, kind, inputs, downstream, roots, layer, focus
-- EvaluationSearchSystem: issues, warnings, danglings, focus, kind, category, type
+- ScreenSearchSystem: issues, warnings, danglings, focus, kind, category, type
 - HologramSystem: left, right, lens, divergent, common, only
-- Cross-scope queries: (scope lens ...), (scope evaluation ...)
+- Cross-scope queries: (scope lens ...), (scope screen ...)
 - Scope + project: (scope lens (project (kind "fact")))
 - Scope + delegate: multi-level scope chains
 - find/fuzzy on all three optics via their search indexes
@@ -263,11 +263,11 @@ class TestLensSearchSystem(_Base):
         self.assertIsInstance(result, str)
 
 
-# ── Evaluation Search System ──
+# ── Screen Search System (back-compat: Evaluation) ──
 
 
-class TestEvaluationSearchSystem(_Base):
-    """S-expression queries over Evaluation items."""
+class TestScreenSearchSystem(_Base):
+    """S-expression queries over Screen items (uses deprecated bench.evaluate() alias)."""
 
     def test_find_regex(self):
         bench = self._prepare()
@@ -330,7 +330,7 @@ class TestEvaluationSearchSystem(_Base):
         for item in posting:
             doc = item[1]
             # Items within this category doc at this line should have diff- prefix
-            # (evaluation groups by category, not name)
+            # (screen groups by category, not name)
         self.assertIsInstance(posting, list)
 
     def test_consistent_returns_bool(self):
@@ -454,7 +454,7 @@ class TestHologramSystem(_Base):
 
 
 class TestCrossScopeQueries(_Base):
-    """Queries that compose across search/lens/evaluation scopes."""
+    """Queries that compose across search/lens/screen scopes."""
 
     def test_scope_lens_kind(self):
         bench = self._prepare()
@@ -478,19 +478,25 @@ class TestCrossScopeQueries(_Base):
         names = {ln["document"] for ln in result["lines"]}
         self.assertIn("double-rev", names)
 
-    def test_scope_evaluation_issues(self):
+    def test_scope_screen_issues(self):
+        bench = self._prepare()
+        result = bench.search("(scope screen (issues))")
+        self.assertGreater(result["total_lines"], 0)
+
+    def test_scope_evaluation_issues_backcompat(self):
+        """Back-compat: (scope evaluation ...) still works."""
         bench = self._prepare()
         result = bench.search("(scope evaluation (issues))")
         self.assertGreater(result["total_lines"], 0)
 
-    def test_scope_evaluation_kind(self):
+    def test_scope_screen_kind(self):
         bench = self._prepare()
-        result = bench.search('(scope evaluation (kind "diff"))')
+        result = bench.search('(scope screen (kind "diff"))')
         self.assertIsInstance(result, dict)
 
-    def test_scope_evaluation_category(self):
+    def test_scope_screen_category(self):
         bench = self._prepare()
-        result = bench.search('(scope evaluation (category "issue"))')
+        result = bench.search('(scope screen (category "issue"))')
         self.assertGreater(result["total_lines"], 0)
 
     def test_and_text_with_scope(self):
@@ -669,11 +675,11 @@ class TestAxiomInstantiation(_Base):
         self.assertIn("pos-rule", names)
 
 
-# ── Diff Evaluation ──
+# ── Diff Screening (back-compat: uses bench.evaluate() alias) ──
 
 
 class TestDiffEvaluation(_Base):
-    """Diff semantics through search systems."""
+    """Diff semantics through search systems (uses deprecated bench.evaluate() alias)."""
 
     def test_diff_divergence_detected(self):
         bench = self._prepare()

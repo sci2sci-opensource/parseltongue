@@ -379,22 +379,35 @@ def bench_view(
     asyncio.run(_run())
 
 
-@bench_app.command("diagnose")
-def bench_diagnose(
-    focus: Annotated[Optional[str], typer.Option("--focus", help="Namespace prefix to focus on.")] = None,
-    what: Annotated[str, typer.Option("--what", help="summary, issues, or ok.")] = "summary",
-) -> None:
-    """Run consistency diagnosis via the bench daemon."""
+def _bench_screen_impl(focus, what):
     import asyncio
 
     from .tui.bench_client import BenchClient
 
     async def _run():
         client = BenchClient()
-        result = await client.diagnose(what=what, focus=focus)
+        result = await client.screen(what=what, focus=focus)
         typer.echo(result)
 
     asyncio.run(_run())
+
+
+@bench_app.command("screen")
+def bench_screen(
+    focus: Annotated[Optional[str], typer.Option("--focus", help="Namespace prefix to focus on.")] = None,
+    what: Annotated[str, typer.Option("--what", help="summary, issues, or ok.")] = "summary",
+) -> None:
+    """Run consistency screening via the bench daemon."""
+    _bench_screen_impl(focus, what)
+
+
+@bench_app.command("diagnose", deprecated=True)
+def bench_diagnose(
+    focus: Annotated[Optional[str], typer.Option("--focus", help="Namespace prefix to focus on.")] = None,
+    what: Annotated[str, typer.Option("--what", help="summary, issues, or ok.")] = "summary",
+) -> None:
+    """Run consistency screening (alias for 'screen')."""
+    _bench_screen_impl(focus, what)
 
 
 @bench_app.command("status")

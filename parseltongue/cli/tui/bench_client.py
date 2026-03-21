@@ -193,10 +193,10 @@ class BenchClient:
         r = self._check(await self._query({"action": "compose", "names": list(names)}))
         return r["text"]
 
-    # ── Evaluation ──
+    # ── Screen ──
 
-    async def diagnose(self, what: str = "summary", focus: str | None = None) -> str:
-        cmd: dict = {"action": "diagnose", "what": what}
+    async def screen(self, what: str = "summary", focus: str | None = None) -> str:
+        cmd: dict = {"action": "screen", "what": what}
         if focus:
             cmd["focus"] = focus
         r = self._check(await self._query(cmd))

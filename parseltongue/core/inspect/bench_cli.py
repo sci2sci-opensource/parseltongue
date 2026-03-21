@@ -42,8 +42,8 @@ Hologram (multi-lens views):
     pg-bench dissect atoms.theorem-derivation-sources  # diff side-by-side
     pg-bench compose engine.eval-bind engine.derive     # parallel lenses
 
-Evaluation (diagnosis — consistency checks):
-    pg-bench diagnose                          # summary
+Screen (consistency checks):
+    pg-bench diagnose                          # summary (alias: screen)
     pg-bench diagnose --what issues            # only failures
     pg-bench diagnose --what ok                # only passing
     pg-bench diagnose --focus "engine."        # focus on namespace
@@ -309,8 +309,8 @@ class BenchServer:
                 text = focused.view()
                 return {"ok": True, "text": str(text)}
 
-            elif action == "diagnose":
-                dx = self.bench.evaluate()
+            elif action in ("diagnose", "screen"):
+                dx = self.bench.screen()
                 focus = cmd.get("focus")
                 if focus:
                     dx = dx.focus(focus)
@@ -636,7 +636,7 @@ def _form_tag(item) -> str | None:
 _TAG_QUALIFY = {
     "sr": "bench_pg.search.sr",
     "ln": "bench_pg.lens.ln",
-    "dx": "bench_pg.evaluation.dx",
+    "dx": "bench_pg.screen.dx",
     "hn": "bench_pg.hologram.hn",
 }
 
@@ -811,34 +811,20 @@ def _handle_client(server: BenchServer, conn: socket.socket):
 BENCH_DIR = Path(".parseltongue-bench")
 
 
-class _BufferedFileHandler(logging.FileHandler):
-    """FileHandler that doesn't flush on every emit — flushes on close or every N records."""
-
-    _FLUSH_INTERVAL = 100
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self._count = 0
-
-    def emit(self, record):
-        try:
-            msg = self.format(record)
-            self.stream.write(msg + self.terminator)
-            self._count += 1
-            if self._count >= self._FLUSH_INTERVAL:
-                self.flush()
-                self._count = 0
-        except Exception:
-            self.handleError(record)
-
-
 def _setup_file_logging(console_level: str):
-    """Add a file handler to .parseltongue-bench/bench.log."""
+    """Add a rotating file handler to .parseltongue-bench/bench.log.
+
+    Rotates at 100 MB, keeps 3 backups (bench.log.1, .2, .3).
+    """
+    from logging.handlers import RotatingFileHandler
+
     BENCH_DIR.mkdir(parents=True, exist_ok=True)
     log_path = BENCH_DIR / "bench.log"
     root = logging.getLogger("parseltongue")
-    # File: always DEBUG, buffered to avoid per-emit flush
-    fh = _BufferedFileHandler(log_path, mode="a", encoding="utf-8")
+    # File: always DEBUG, rotating at 100 MB
+    fh = RotatingFileHandler(
+        log_path, maxBytes=100 * 1024 * 1024, backupCount=3, encoding="utf-8",
+    )
     fh.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s"))
     fh.setLevel(logging.DEBUG)
     root.addHandler(fh)
@@ -991,8 +977,8 @@ def cli():
       pg-bench compose engine.eval-bind engine.derive
 
     \b
-    DIAGNOSIS:
-      pg-bench diagnose [--what issues|ok] [--focus "engine."]
+    SCREEN (alias: diagnose):
+      pg-bench screen [--what issues|ok] [--focus "engine."]
 
     \b
     OPERATIONS:
@@ -1169,7 +1155,7 @@ def eval_cmd(expression: str | None, file: str | None, raw: bool, profile: bool)
 
     \b
     Combines the loaded .pltg system, the full std library, and three
-    registered scopes (lens, evaluation, count). Module aliases resolve
+    registered scopes (lens, screen, count). Module aliases resolve
     automatically: counting.X, epistemics.Y, lists.Z work without std.
     Built-in arithmetic (+, -, *, /, mod), comparison (>, <, >=, <=, =,
     !=), logic (and, or, not, implies), conditionals (if), bindings (let),
@@ -1177,8 +1163,8 @@ def eval_cmd(expression: str | None, file: str | None, raw: bool, profile: bool)
 
     \b
     SCOPES — cross-system evaluation:
-      Three scopes give eval access to the lens (structure) and evaluation
-      (diagnosis) systems. Use (scope name expr) to evaluate in a scope.
+      Three scopes give eval access to the lens (structure) and screen
+      (consistency) systems. Use (scope name expr) to evaluate in a scope.
 
     \b
       Lens scope — structural navigation over the pltg graph:
@@ -1196,21 +1182,21 @@ def eval_cmd(expression: str | None, file: str | None, raw: bool, profile: bool)
         (scope lens (quotes "engine.derive"))  list of quote strings
 
     \b
-      Evaluation scope — consistency diagnosis results:
-        (scope evaluation (issues))       all failing diffs
-        (scope evaluation (warnings))     all warnings
-        (scope evaluation (danglings))    all dangling definitions
-        (scope evaluation (kind "diff"))  items by directive kind
-        (scope evaluation (category "issue"))   by category
-        (scope evaluation (type "diverge"))     by issue type substring
-        (scope evaluation (focus "engine."))    filter to namespace
-        (scope evaluation (consistent))         true if no issues
-        (scope evaluation (ns))                 all top-level namespaces
+      Screen scope — consistency results (alias: diagnose, deprecated: evaluation):
+        (scope screen (issues))           all failing diffs
+        (scope screen (warnings))         all warnings
+        (scope screen (danglings))        all dangling definitions
+        (scope screen (kind "diff"))      items by directive kind
+        (scope screen (category "issue"))      by category
+        (scope screen (type "diverge"))        by issue type substring
+        (scope screen (focus "engine."))       filter to namespace
+        (scope screen (consistent))            true if no issues
+        (scope screen (ns))                    all top-level namespaces
 
     \b
       Count — posting set size:
         (count (scope lens (kind "fact")))       how many facts
-        (count (scope evaluation (issues)))      how many issues
+        (count (scope screen (issues)))          how many issues
 
     \b
     PROJECT — resolve in parent before crossing scope boundary:
@@ -1218,9 +1204,9 @@ def eval_cmd(expression: str | None, file: str | None, raw: bool, profile: bool)
         Evaluates engine-prefix in the bench engine first, passes the
         concrete value to the lens scope. Without project, the lens
         scope would try to resolve engine-prefix itself.
-      (scope evaluation (focus (project (if use-engine "engine." "atoms."))))
+      (scope screen (focus (project (if use-engine "engine." "atoms."))))
         Conditional resolution: the if-expression evaluates in the parent
-        engine, the result string crosses into the evaluation scope.
+        engine, the result string crosses into the screen scope.
 
     \b
     DELEGATE — happens-before transport across scope chains:
@@ -1306,7 +1292,7 @@ def eval_cmd(expression: str | None, file: str | None, raw: bool, profile: bool)
     \b
       Scope — delegate to a registered system:
         (scope lens (kind "fact"))          evaluate in the lens system
-        (scope evaluation (issues))        evaluate in diagnosis system
+        (scope screen (issues))            evaluate in screen system
         (scope hologram (divergent))        evaluate in hologram system
 
     \b
@@ -1332,11 +1318,11 @@ def eval_cmd(expression: str | None, file: str | None, raw: bool, profile: bool)
     \b
     COMPOSITION EXAMPLES:
       Count facts in the engine namespace that have issues:
-        (count (scope evaluation (focus "engine." (issues))))
+        (count (scope screen (focus "engine." (issues))))
 
       Check if more than half the diffs pass:
         (let ((total (count (scope lens (kind "diff"))))
-              (bad   (count (scope evaluation (issues)))))
+              (bad   (count (scope screen (issues)))))
           (> total (* 2 bad)))
 
       List all axiom names from the lens graph:
@@ -1503,15 +1489,29 @@ def focus(name: str):
     _print_result(_query({"action": "focus", "name": name}))
 
 
+def _screen_impl(focus_name: str | None, what: str):
+    """Shared implementation for screen/diagnose commands."""
+    cmd = {"action": "screen", "what": what}
+    if focus_name:
+        cmd["focus"] = focus_name
+    _print_result(_query(cmd))
+
+
+_screen_opts = [
+    click.option("--focus", "focus_name", default=None, help="Focus on a subsystem prefix."),
+    click.option("--what", default="summary", type=click.Choice(["summary", "issues", "loader", "ok"])),
+]
+
+
 @cli.command()
-@click.option("--focus", "focus_name", default=None, help="Focus on a subsystem prefix.")
-@click.option("--what", default="summary", type=click.Choice(["summary", "issues", "loader", "ok"]))
-def diagnose(focus_name: str | None, what: str):
-    """Run consistency diagnosis (Merkle-cached).
+@_screen_opts[0]
+@_screen_opts[1]
+def screen(focus_name: str | None, what: str):
+    """Run consistency screening (Merkle-cached).
 
     \b
-    Evaluates all diffs in the loaded .pltg and reports divergences.
-    Cached — same Merkle root = same diagnosis. Incremental when
+    Screens all diffs in the loaded .pltg and reports divergences.
+    Cached — same Merkle root = same screening. Incremental when
     only some files change.
 
     \b
@@ -1521,10 +1521,15 @@ def diagnose(focus_name: str | None, what: str):
     --what ok       only passing diffs
     --focus         filter to a namespace prefix
     """
-    cmd = {"action": "diagnose", "what": what}
-    if focus_name:
-        cmd["focus"] = focus_name
-    _print_result(_query(cmd))
+    _screen_impl(focus_name, what)
+
+
+@cli.command(deprecated=True)
+@_screen_opts[0]
+@_screen_opts[1]
+def diagnose(focus_name: str | None, what: str):
+    """Run consistency screening (alias for 'screen')."""
+    _screen_impl(focus_name, what)
 
 
 @cli.command()
