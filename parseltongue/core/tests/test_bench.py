@@ -18,6 +18,7 @@ import unittest
 from unittest.mock import patch
 
 from ..inspect.bench import Bench
+
 # Back-compat: import via old name to verify the shim works
 from ..inspect.evaluation import Evaluation as Screen
 
@@ -312,7 +313,7 @@ class TestBenchDocumentsAndQuotes(_BenchTestBase):
         bench = self._bench()
         bench.prepare(path)
         lens = bench.lens()
-        names = lens.find("revenue")
+        names = [r.split()[0] for r in lens.find("revenue")]
         self.assertIn("revenue", names)
         view = str(lens.view_node("revenue"))
         self.assertIn("revenue", view)
@@ -322,7 +323,8 @@ class TestBenchDocumentsAndQuotes(_BenchTestBase):
         bench = self._bench()
         bench.prepare(path)
         lens = bench.lens()
-        self.assertIn("double-rev", lens.find("double-rev"))
+        names = [r.split()[0] for r in lens.find("double-rev")]
+        self.assertIn("double-rev", names)
 
     # ── Search through document text ──
 
@@ -384,7 +386,8 @@ class TestBenchImportChain(_BenchTestBase):
         bench = self._bench()
         bench.prepare(path)
         lens = bench.lens()
-        all_names = lens.find(".*")
+        all_results = lens.find(".*")
+        all_names = [r.split()[0] for r in all_results]
         self.assertIn("offices", all_names)
         has_sub = any("headcount" in n for n in all_names)
         self.assertTrue(has_sub, f"No headcount in: {all_names}")
@@ -876,9 +879,11 @@ class TestBenchMultipleSamples(_BenchTestBase):
         bench.prepare(path2)
 
         lens1 = bench.lens(path1)
-        self.assertIn("revenue", lens1.find("revenue"))
+        names1 = [r.split()[0] for r in lens1.find("revenue")]
+        self.assertIn("revenue", names1)
         lens2 = bench.lens(path2)
-        self.assertIn("customer-count", lens2.find("customer"))
+        names2 = [r.split()[0] for r in lens2.find("customer")]
+        self.assertIn("customer-count", names2)
 
     def test_diagnose_by_path(self):
         self._write("report.txt", REPORT_TEXT)

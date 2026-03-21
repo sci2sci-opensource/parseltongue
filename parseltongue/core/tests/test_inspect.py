@@ -6,6 +6,7 @@ from unittest.mock import patch
 from parseltongue.core.inspect import inspect
 
 from ..atoms import Evidence, Symbol
+
 # Back-compat: import via old names to verify the shim works
 from ..inspect.evaluation import Evaluation, EvaluationItem
 from ..inspect.optics import Lens
@@ -163,21 +164,24 @@ class TestLens(unittest.TestCase):
         lens = Lens(self.structure, [MarkdownPerspective()])
         focused = lens.focus("double-rev")
         self.assertIsInstance(focused, Lens)
-        self.assertIn("double-rev", focused.find("double-rev"))
+        names = [r.split()[0] for r in focused.find("double-rev")]
+        self.assertIn("double-rev", names)
 
     def test_lens_find(self):
         from ..inspect.perspectives.markdown import MarkdownPerspective
 
         lens = Lens(self.structure, [MarkdownPerspective()])
         results = lens.find("thm")
-        self.assertIn("thm-high", results)
+        names = [r.split()[0] for r in results]
+        self.assertIn("thm-high", names)
 
     def test_lens_fuzzy(self):
         from ..inspect.perspectives.markdown import MarkdownPerspective
 
         lens = Lens(self.structure, [MarkdownPerspective()])
         results = lens.fuzzy("rev")
-        self.assertIn("revenue", results)
+        names = [r.split()[0] for r in results]
+        self.assertIn("revenue", names)
 
     def test_lens_no_perspective_raises(self):
         lens = Lens(self.structure)
@@ -345,7 +349,8 @@ class TestEvaluation(unittest.TestCase):
     def test_fuzzy(self):
         dx = Evaluation(items=self._make_items(), consistent=False)
         results = dx.fuzzy("bad")
-        self.assertIn("ax-bad", results)
+        names = [r.split()[0] for r in results]
+        self.assertIn("ax-bad", names)
 
     def test_summary_non_empty(self):
         dx = Evaluation(items=self._make_items(), consistent=False)

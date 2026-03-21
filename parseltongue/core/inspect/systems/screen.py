@@ -11,6 +11,8 @@ Operators::
     (focus "engine.")       — namespace prefix filter
     (consistent)            — True if no issues
     (ns)                    — all top-level namespaces as text
+    (find "pattern")        — regex search over item names (enriched strings)
+    (fuzzy "query")         — ranked substring search over item names
 
 Registered as ``(scope screen ...)`` in the main search system.
 Also accepts ``(scope diagnose ...)`` as an alias.
@@ -131,6 +133,37 @@ class ScreenSearchSystem:
                 detail_str = f": {item.detail}" if item.detail else ""
                 self._name_idx.add(item.name, f"{item.category} {kind_str}{item.type}{detail_str}")
 
+        def _find(pattern, max_results=50):
+            """Regex search over item names — returns posting set."""
+            import re as _re_mod
+
+            rx = _re_mod.compile(str(pattern))
+            matches = set(sorted(n for n in sys._name_idx.documents if rx.search(n))[: int(max_results)])
+            return {k: _posting(k) for k, it in item_index.items() if it.name in matches and _posting(k)}
+
+        def _fuzzy(query, max_results=10):
+            """Ranked substring search over item names — returns posting set."""
+            query_lower = str(query).lower()
+            scored = []
+            for name in sys._name_idx.documents:
+                name_lower = name.lower()
+                if query_lower not in name_lower:
+                    continue
+                if name_lower == query_lower:
+                    score = 0
+                elif name_lower.endswith(query_lower):
+                    score = 1
+                elif name_lower.startswith(query_lower):
+                    score = 2
+                else:
+                    score = 3
+                scored.append((score, len(name), name))
+            scored.sort()
+            matches = {name for _, _, name in scored[: int(max_results)]}
+            return {k: _posting(k) for k, it in item_index.items() if it.name in matches and _posting(k)}
+
+        sys = self  # capture for closures
+
         ops = {
             Symbol("kind"): _kind,
             Symbol("category"): _category,
@@ -142,6 +175,8 @@ class ScreenSearchSystem:
             Symbol("focus"): _focus,
             Symbol("consistent"): _consistent,
             Symbol("ns"): _ns,
+            Symbol("find"): _find,
+            Symbol("fuzzy"): _fuzzy,
         }
         self._system = System(initial_env=ops, name="ScreenSearch")
         self.posting_morphism = self._DxPostingMorphism(self._item_index)
@@ -158,12 +193,20 @@ class ScreenSearchSystem:
 
         self._system.evaluate = _sexp_evaluate  # type: ignore[method-assign, assignment]
 
+    def _enrich(self, name: str) -> str:
+        """Enrich a name with category, type, and location."""
+        for item in self._dx._items:
+            if item.name == name:
+                return f"{name}  {item.category}/{item.type}  {item.loc}"
+        return name
+
     def find(self, pattern: str, max_results: int = 50) -> list[str]:
         """Regex search over item names via the index."""
         import re as _re
 
         rx = _re.compile(pattern)
-        return sorted(n for n in self._name_idx.documents if rx.search(n))[:max_results]
+        names = sorted(n for n in self._name_idx.documents if rx.search(n))[:max_results]
+        return [self._enrich(n) for n in names]
 
     def fuzzy(self, query: str, max_results: int = 10) -> list[str]:
         """Ranked substring search over item names via the index."""
@@ -183,7 +226,7 @@ class ScreenSearchSystem:
                 score = 3
             scored.append((score, len(name), name))
         scored.sort()
-        return [name for _, _, name in scored[:max_results]]
+        return [self._enrich(name) for _, _, name in scored[:max_results]]
 
     def evaluate(self, expr, local_env=None):
         """Evaluate a query — string or s-expression."""

@@ -1,0 +1,17 @@
+# Include all package source
+recursive-include parseltongue *.py *.pltg *.txt *.md *.tcss *.html *.js *.json *.csv *.sh
+
+# Mirror .gitignore: exclude generated/synthetic data from data_governance demo
+recursive-exclude parseltongue/core/demos/data_governance_pltg/resources/business_catalog *
+recursive-exclude parseltongue/core/demos/data_governance_pltg/resources/contracts *
+recursive-exclude parseltongue/core/demos/data_governance_pltg/resources/technical_catalog *
+recursive-exclude parseltongue/core/demos/data_governance_pltg/src *
+recursive-exclude parseltongue/core/demos/data_governance_pltg/temp *
+recursive-exclude parseltongue/core/demos/data_governance_pltg/viz-results *
+exclude parseltongue/core/demos/data_governance_pltg/manifest.json
+
+# Global excludes matching .gitignore
+global-exclude .DS_Store *.pyc *.pyo
+prune temp
+prune .parseltongue-bench
+prune .claude

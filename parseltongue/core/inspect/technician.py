@@ -69,6 +69,7 @@ class Technician:
         self._frozen = None  # FrozenBench, created lazily on first prepare
         self._live: dict = {}  # path → LiveBench
         self._screen_mem: dict = {}  # path → Screen
+        self._lens_mem: dict = {}  # path → Lens
         self._affected: dict[str, set[str]] = {}
         self._search_mem: dict = {}  # path → Search
         self._ops: "OperationsSystem | None" = None  # shared, stateless
@@ -132,7 +133,9 @@ class Technician:
         search = self.search_engine(path)
 
         # Lens scope — always available from structure
-        lens = Lens(structure, [MDebuggerPerspective(loader)])
+        lens = Lens(structure, [MDebuggerPerspective(loader)], loader=loader)
+        _ = lens.search_system  # pre-warm before background thread starts
+        self._lens_mem[path] = lens
         search.register_scope("lens", lens.search_system)
 
         # Screen scope — provided, computed live, or from frozen cache
@@ -574,6 +577,7 @@ class Technician:
             cr = current_sample[3].last_result
             if cr and cr.system and cr.system.engine:
                 from parseltongue.core.quote_verifier import QuoteVerifier
+
                 cached_verifier = QuoteVerifier()
                 cached_verifier.index = cr.system.engine._verifier.index
         except Exception:

@@ -152,11 +152,13 @@ class TestLensSearchSystem(_Base):
         bench = self._prepare()
         lens = bench.lens()
         results = lens.find("revenue")
-        self.assertIn("revenue", results)
-        self.assertIn("revenue-per-head", results)
+        names = [r.split()[0] for r in results]
+        self.assertIn("revenue", names)
+        self.assertIn("revenue-per-head", names)
         # double-rev doesn't contain "revenue" substring
         results_rev = lens.find("rev")
-        self.assertIn("double-rev", results_rev)
+        names_rev = [r.split()[0] for r in results_rev]
+        self.assertIn("double-rev", names_rev)
 
     def test_find_no_match(self):
         bench = self._prepare()
@@ -168,9 +170,10 @@ class TestLensSearchSystem(_Base):
         lens = bench.lens()
         results = lens.fuzzy("margin")
         self.assertTrue(len(results) > 0)
+        names = [r.split()[0] for r in results]
         # Exact match should rank first
-        self.assertEqual(results[0], "margin")
-        self.assertIn("margin-ratio", results)
+        self.assertEqual(names[0], "margin")
+        self.assertIn("margin-ratio", names)
 
     def test_kind_fact(self):
         bench = self._prepare()
@@ -357,6 +360,7 @@ class TestHologramSystem(_Base):
     def _hn_names(forms):
         """Extract node names from hn or ln form lists."""
         from parseltongue.core.atoms import Symbol
+
         names = set()
         for form in forms:
             if not isinstance(form, (list, tuple)) or len(form) < 2:
@@ -737,6 +741,7 @@ class TestStainedHolograms(_Base):
         bench = self._prepare()
         h = bench.stain("thm-positive", "thm-margin-under-100")
         from ..inspect.optics.hologram import Hologram
+
         self.assertIsInstance(h, Hologram)
 
     def test_stain_two_theorems(self):
@@ -825,6 +830,7 @@ class TestStainedHolograms(_Base):
         bench = self._prepare()
         h = bench.stain("thm-positive", "thm-margin-under-100")
         from ..inspect.perspectives.visualisation.renderer import _build_named_structure_data
+
         for lens in h._lenses:
             structure = lens._structure
             items = _build_named_structure_data(set(structure.graph.keys()), structure)

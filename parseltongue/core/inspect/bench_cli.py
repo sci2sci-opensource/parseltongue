@@ -3,9 +3,11 @@
 Server keeps a Bench loaded in memory. Client sends commands over a Unix socket.
 
 Start:
-    pg-bench serve path/to/file.pltg &
-    pg-bench wait
-    pg-bench index parseltongue/core
+    pg-bench serve path/to/file.pltg &   # foreground (blocking)
+    pg-bench start path/to/file.pltg     # daemonized (returns immediately)
+    pg-bench up path/to/file.pltg        # foreground; pg-bench up -d to detach
+    pg-bench wait                         # block until ready
+    pg-bench index parseltongue/core      # index source files for search
 
 Evaluate (default command — bare string arg evaluates):
     pg-bench '(+ 1 2)'                              # => 3
@@ -176,6 +178,22 @@ class BenchServer:
         search = self.bench.index
         search.register_scope("hologram", hologram.search_system)
 
+    @staticmethod
+    def _apply_bias(hologram, bias_name: str):
+        """Apply a named bias to a hologram, returning a new hologram."""
+        from .optics.hologram import Bias
+
+        bias_map = {
+            "neutral": Bias.NEUTRAL,
+            "left": Bias.LEFT,
+            "right": Bias.RIGHT,
+            "divergence": Bias.DIVERGENCE,
+        }
+        bias = bias_map.get(bias_name)
+        if bias is not None and bias is not Bias.NEUTRAL:
+            return hologram.bias(bias)
+        return hologram
+
     def dispatch(self, cmd: dict) -> dict:
         """Execute a command dict, return a result dict."""
         action = cmd.get("action", "")
@@ -268,12 +286,26 @@ class BenchServer:
                 return {"ok": True, "text": text}
 
             elif action == "find":
-                results = self.bench.lens().find(cmd.get("pattern", ""), cmd.get("max", 50))
-                return {"ok": True, "results": results}
+                scope = cmd.get("scope", "all")
+                pattern = cmd.get("pattern", "")
+                mx = cmd.get("max", 50)
+                results = []
+                if scope in ("all", "lens"):
+                    results.extend(self.bench.lens().find(pattern, mx))
+                if scope in ("all", "screen"):
+                    results.extend(self.bench.screen().find(pattern, mx))
+                return {"ok": True, "results": results[:mx]}
 
             elif action == "fuzzy":
-                results = self.bench.lens().fuzzy(cmd.get("query", ""), cmd.get("max", 10))
-                return {"ok": True, "results": results}
+                scope = cmd.get("scope", "all")
+                query = cmd.get("query", "")
+                mx = cmd.get("max", 10)
+                results = []
+                if scope in ("all", "lens"):
+                    results.extend(self.bench.lens().fuzzy(query, mx))
+                if scope in ("all", "screen"):
+                    results.extend(self.bench.screen().fuzzy(query, mx))
+                return {"ok": True, "results": results[:mx]}
 
             elif action == "view":
                 name = cmd.get("name", "")
@@ -329,15 +361,26 @@ class BenchServer:
                             parts.append(str(i.detail))
                         parts.append("")
                     text = "\n".join(parts).strip() if items else "No loader errors."
+                elif what == "warnings":
+                    items = dx.warnings()
+                    text = "\n".join(str(i) for i in items) if items else "No warnings."
+                elif what == "danglings":
+                    items = dx.danglings()
+                    text = "\n".join(str(i) for i in items) if items else "No danglings."
                 elif what == "ok":
-                    ok_items = [i for i in dx._items if i.category not in ("issue",)]
+                    ok_items = [i for i in dx._items if i.category not in ("issue", "loader")]
                     text = "\n".join(str(i) for i in ok_items) if ok_items else "All items have issues."
+                elif what == "stats":
+                    import json as _json
+
+                    text = _json.dumps(dx.stats(), indent=2)
                 else:
                     text = dx.summary()
                 return {"ok": True, "text": str(text)}
 
             elif action == "dissect":
                 h = self.bench.dissect(cmd["name"])
+                h = self._apply_bias(h, cmd.get("bias", "neutral"))
                 self._register_hologram_scope(h)
                 text = h.view()
                 return {"ok": True, "text": str(text)}
@@ -345,6 +388,7 @@ class BenchServer:
             elif action == "compose":
                 names = cmd.get("names", [])
                 h = self.bench.compose(*names)
+                h = self._apply_bias(h, cmd.get("bias", "neutral"))
                 self._register_hologram_scope(h)
                 text = h.view()
                 return {"ok": True, "text": str(text)}
@@ -352,6 +396,7 @@ class BenchServer:
             elif action == "stain":
                 names = cmd.get("names", [])
                 h = self.bench.stain(*names)
+                h = self._apply_bias(h, cmd.get("bias", "neutral"))
                 self._register_hologram_scope(h)
                 text = h.view()
                 return {"ok": True, "text": str(text)}
@@ -466,7 +511,11 @@ class BenchServer:
 
                 exclude = cmd.get("exclude")
                 count = self.bench.index.index_dir(
-                    directory, extensions, exclude=exclude, on_progress=_progress, force=force,
+                    directory,
+                    extensions,
+                    exclude=exclude,
+                    on_progress=_progress,
+                    force=force,
                 )
                 total = len(self.bench.index._index.documents)
                 msg = f"Indexed {count} new files from {directory} ({total} total)"
@@ -557,6 +606,7 @@ class BenchServer:
             if fd.old_text is not None and fd.new_text is None:
                 return {"ok": True, "text": f"[deleted] {fd.name}"}
             import difflib
+
             diff_lines = difflib.unified_diff(
                 (fd.old_text or "").splitlines(keepends=True),
                 (fd.new_text or "").splitlines(keepends=True),
@@ -933,7 +983,10 @@ def _setup_file_logging(console_level: str):
     file_level = getattr(logging, console_level.upper(), logging.INFO)
     # File: same level as console (default INFO), rotating at 100 MB
     fh = RotatingFileHandler(
-        log_path, maxBytes=100 * 1024 * 1024, backupCount=3, encoding="utf-8",
+        log_path,
+        maxBytes=100 * 1024 * 1024,
+        backupCount=3,
+        encoding="utf-8",
     )
     fh.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s"))
     fh.setLevel(file_level)
@@ -1056,25 +1109,44 @@ def cli():
     """pg-bench — persistent .pltg inspection daemon.
 
     \b
-    EVALUATE (default — bare expression evaluates directly):
-      pg-bench '(+ 1 2)'                          => 3
-      pg-bench '(counting.sum-values x y)'         => 30
-      pg-bench '(if (> x 0) "pos" "neg")'          => pos
+    LLM agents: read .claude/skills/parseltongue-bench/skill.md for the
+    full reference with examples, scopes, and map-reduce patterns.
 
     \b
-    SEARCH (S-expression query language):
+    eval and interpret are the primary interface. eval is pure (clean
+    copy each time), interpret accumulates state (clean resets it).
+    Both accept S-expressions with the full std library, scopes (lens,
+    screen, ops, search, hologram), and fmt for formatted output.
+
+    \b
+    EVALUATE (pure — clean copy, never mutated):
+      pg-bench '(+ 1 2)'                          => 3
+      pg-bench eval '(scope lens (find "engine"))'
+      pg-bench eval '(fmt "viz" (scope lens (kind "fact")))' > out.html
+      pg-bench eval --help                         # full operator reference
+
+    \b
+    INTERPRET (stateful — accumulates across calls):
+      pg-bench interpret '(defterm my-val 42 :origin "test")'
+      pg-bench interpret '(fact check true :evidence ("f.py" :quotes ("x")))'
+      pg-bench interpret -f setup.pltg
+      pg-bench clean                               # reset interpret scope
+      pg-bench interpret --help                    # details
+
+    \b
+    SEARCH (S-expression query language — see search --help):
       pg-bench search "raise ValueError"
       pg-bench search '(in "engine.py" "raise")'
       pg-bench search '(and "import" "quote")'
-      pg-bench search '(or "raise" "return")'
-      pg-bench search '(not (in "e.py" "raise") "Key")'
-      pg-bench search '(re "def \\\\w+")'
-      pg-bench search '(seq "def derive" "raise")'
+      pg-bench search '(not-in "engine.py" "raise")'
+      pg-bench search '(scope lens (find "engine"))'
+      pg-bench search '(scope screen (issues))'
       pg-bench search '(count (in "engine.py" "raise"))'
 
     \b
-    LENS (structural navigation):
+    LENS (structural navigation — see find/view/subgraph --help):
       pg-bench find "error"           pg-bench fuzzy "eval"
+      pg-bench find "error" --scope screen
       pg-bench view engine.eval-bind  pg-bench view
       pg-bench focus "engine."        pg-bench kinds
       pg-bench consumer engine.derive pg-bench inputs engine.derive
@@ -1082,22 +1154,44 @@ def cli():
       pg-bench roots
 
     \b
-    HOLOGRAM (multi-lens):
-      pg-bench dissect atoms.theorem-derivation-sources
-      pg-bench compose engine.eval-bind engine.derive
+    HOLOGRAM (multi-lens, requires live — see dissect/compose/stain --help):
+      pg-bench dissect atoms.theorem-derivation-sources [--bias divergence]
+      pg-bench compose engine.eval-bind engine.derive [--bias left]
+      pg-bench stain all-contract-facts-ok all-product-facts-ok
 
     \b
-    SCREEN (alias: diagnose):
-      pg-bench screen [--what issues|ok] [--focus "engine."]
+    SCREEN (alias: diagnose — see screen --help):
+      pg-bench screen [--what issues|warnings|danglings|ok|stats]
+      pg-bench screen [--focus "engine."]
 
     \b
-    OPERATIONS:
+    VIZ — interactive HTML visualization (pipe to file, open in browser):
+      pg-bench eval '(fmt "viz" (scope lens (kind "fact")))' > viz.html
+      pg-bench eval '(fmt "viz" (scope lens (focus "engine.")))' > eng.html
+      pg-bench eval '(fmt "viz" (scope screen (issues)))' > issues.html
+      pg-bench eval '(fmt "viz" (scope hologram (divergent)))' > holo.html
+      Renders any scope result as self-contained HTML with cards, layers,
+      D3 graph, search, kind filters, and evidence panel. Cached on disk.
+
+    \b
+    HISTORY (time travel over indexed states — see history --help):
+      pg-bench history layers          pg-bench history files
+      pg-bench history diff            pg-bench history diff-file NAME
+      pg-bench history restore LAYER   pg-bench history compact --yes
+
+    \b
+    OPERATIONS (see serve/index/status --help):
       pg-bench serve file.pltg     # foreground (blocking)
       pg-bench start file.pltg     # daemonized (returns immediately)
       pg-bench up file.pltg        # foreground; pg-bench up -d to detach
       pg-bench wait                # block until ready
       pg-bench index parseltongue/core
       pg-bench ping   pg-bench status   pg-bench reload   pg-bench purge
+
+    \b
+    See advanced usage patterns in parseltongue/core/demos/ and
+    parseltongue/llm/demos/ — governance pipelines, spec validation,
+    revenue reports, all driven by eval/interpret + scopes + fmt.
     """
 
 
@@ -1114,6 +1208,40 @@ def _import_effects(spec: str) -> dict:
     if not isinstance(obj, dict):
         raise click.BadParameter(f"{spec} resolved to {type(obj).__name__}, expected dict")
     return obj
+
+
+_LIFECYCLE_HELP = (
+    "Lifecycle: the server loads a frozen cache immediately (~20ms) so queries\n"
+    "work right away, then computes a live evaluation in a background thread.\n"
+    "Use 'pg-bench status' to check whether the bench is frozen or live."
+)
+
+_INDEX_HELP = (
+    "After startup, index source files so search works:\n"
+    "  pg-bench index <directory>\n\n"
+    "Place a .pgignore in the indexed directory to exclude paths (same syntax\n"
+    "as .gitignore). Default ignores: .git, .*, node_modules."
+)
+
+_VARIANTS_HELP = (
+    "Start variants:\n"
+    "  pg-bench serve file.pltg     foreground (blocking)\n"
+    "  pg-bench start file.pltg     daemonized (returns immediately)\n"
+    "  pg-bench up file.pltg        foreground; pg-bench up -d to detach"
+)
+
+
+def _serve_doc(*sections: str):
+    """Decorator: build help text from shared sections."""
+
+    def decorator(fn):
+        base = (fn.__doc__ or "").rstrip()
+        for s in sections:
+            base += "\n\n    \b\n    " + s.replace("\n", "\n    ")
+        fn.__doc__ = base
+        return fn
+
+    return decorator
 
 
 def _serve_options(fn):
@@ -1171,24 +1299,9 @@ def _daemonize(path: str, sock: str, refresh_s: int, log_level: str, effects: di
 
 @cli.command()
 @_serve_options
+@_serve_doc(_LIFECYCLE_HELP, _INDEX_HELP, _VARIANTS_HELP)
 def serve(path: str, sock: str, refresh_s: int, effects_spec: str | None, verbose: bool, log_level: str):
-    """Start the bench server in the foreground (blocking).
-
-    \b
-    The server holds a Bench in memory with Merkle-cached loading (~20ms
-    after first cold start ~300ms). Queries arrive over a Unix socket.
-    Background reindex watches for file changes every --refresh-index seconds.
-
-    \b
-    Typical startup:
-      pg-bench serve parseltongue/core/validation/core.pltg &
-      pg-bench wait
-      pg-bench index parseltongue/core
-
-    \b
-    With custom effects (e.g. governance demo):
-      pg-bench serve governance/main.pltg --effects pkg.ops:EFFECTS
-    """
+    """Start the bench server in the foreground (blocking)."""
     effects = _import_effects(effects_spec) if effects_spec else None
     _run_server(
         path, Path(sock), refresh_s=refresh_s, log_level=_resolve_log_level(verbose, log_level), effects=effects
@@ -1197,18 +1310,12 @@ def serve(path: str, sock: str, refresh_s: int, effects_spec: str | None, verbos
 
 @cli.command()
 @_serve_options
+@_serve_doc(_LIFECYCLE_HELP, _INDEX_HELP, _VARIANTS_HELP)
 def start(path: str, sock: str, refresh_s: int, effects_spec: str | None, verbose: bool, log_level: str):
-    """Start the bench server as a daemon (always detached, returns immediately).
+    """Start the bench server as a daemon (returns immediately).
 
     \b
-    Equivalent to `pg-bench serve PATH &` but with proper double-fork
-    daemonization — the server survives terminal close.
-
-    \b
-    Typical usage:
-      pg-bench start parseltongue/core/validation/core.pltg
-      pg-bench wait
-      pg-bench index parseltongue/core
+    Double-fork daemonization — the server survives terminal close.
     """
     effects = _import_effects(effects_spec) if effects_spec else None
     _daemonize(path, sock, refresh_s, _resolve_log_level(verbose, log_level), effects=effects)
@@ -1217,18 +1324,14 @@ def start(path: str, sock: str, refresh_s: int, effects_spec: str | None, verbos
 @cli.command()
 @_serve_options
 @click.option("-d", "--detach", is_flag=True, help="Detach — run as daemon (like start).")
+@_serve_doc(_LIFECYCLE_HELP, _INDEX_HELP)
 def up(path: str, sock: str, refresh_s: int, effects_spec: str | None, verbose: bool, log_level: str, detach: bool):
     """Start the bench server. Foreground by default, -d to detach.
 
     \b
     Combines serve and start:
-      pg-bench up file.pltg      # foreground (blocking)
-      pg-bench up -d file.pltg   # detached daemon
-
-    \b
-    After detached start:
-      pg-bench wait
-      pg-bench index parseltongue/core
+      pg-bench up file.pltg      foreground (blocking)
+      pg-bench up -d file.pltg   detached daemon
     """
     level = _resolve_log_level(verbose, log_level)
     effects = _import_effects(effects_spec) if effects_spec else None
@@ -1258,50 +1361,80 @@ def eval_cmd(expression: str | None, file: str | None, raw: bool, profile: bool)
     """Evaluate an S-expression in the bench engine (main + std + scopes).
 
     \b
+    Pure evaluation — uses a clean copy of the loaded system. Never
+    polluted by interpret. Pipe output to files for viz or further processing.
+
+    \b
     Expression can be provided as argument, from a file (-f), or piped via stdin:
       pg-bench eval '(+ 1 2)'
       pg-bench eval -f script.pltg
       echo '(+ 1 2)' | pg-bench eval
+      pg-bench eval '(fmt "viz" (scope lens (kind "fact")))' > out.html
 
     \b
-    Combines the loaded .pltg system, the full std library, and three
-    registered scopes (lens, screen, count). Module aliases resolve
+    Combines the loaded .pltg system, the full std library, and registered
+    scopes (lens, screen, ops, search, hologram). Module aliases resolve
     automatically: counting.X, epistemics.Y, lists.Z work without std.
     Built-in arithmetic (+, -, *, /, mod), comparison (>, <, >=, <=, =,
     !=), logic (and, or, not, implies), conditionals (if), bindings (let),
     and quoting (quote) are always available.
 
     \b
+    FMT — format bench forms for display:
+      (fmt "perspective" expr) rewrites tagged bench forms (sr, ln, dx, hn)
+      into display forms. Perspectives come from view.pltg axioms.
+        (fmt "md" (scope lens (kind "fact")))        markdown output
+        (fmt "viz" (scope lens (focus "engine.")))   HTML visualization
+        (fmt "viz" (scope hologram (divergent)))      hologram viz
+
+    \b
     SCOPES — cross-system evaluation:
-      Three scopes give eval access to the lens (structure) and screen
-      (consistency) systems. Use (scope name expr) to evaluate in a scope.
+      Use (scope name expr) to evaluate in a registered scope.
 
     \b
       Lens scope — structural navigation over the pltg graph:
         (scope lens (kind "fact"))        all fact nodes as posting set
         (scope lens (kind "diff"))        all diff nodes
-        (scope lens (inputs "engine.derive"))   upstream deps of a node
-        (scope lens (downstream "engine.derive"))  what depends on it
+        (scope lens (inputs "name"))      upstream deps of a node
+        (scope lens (downstream "name"))  what depends on it
         (scope lens (roots))              root nodes (depth 0, no inputs)
         (scope lens (layer 2))            all nodes at depth 2
         (scope lens (focus "engine."))    filter to namespace prefix
-        (scope lens (node "engine.derive"))  single node posting set
-        (scope lens (depth "engine.derive"))   depth as int
-        (scope lens (value "engine.derive"))   node value as string
-        (scope lens (terms "axiom"))      list of axiom names (not posting set)
-        (scope lens (quotes "engine.derive"))  list of quote strings
+        (scope lens (node "name"))        single node posting set
+        (scope lens (depth "name"))       depth as int
+        (scope lens (value "name"))       node value as string
+        (scope lens (terms "axiom"))      list of names matching kind
+        (scope lens (quotes "name"))      list of quote strings
+        (scope lens (atom "name"))        atom as pltg tagged list
+        (scope lens (find "pattern"))     regex search (posting set)
+        (scope lens (fuzzy "query"))      ranked substring (posting set)
 
     \b
-      Screen scope — consistency results (alias: diagnose, deprecated: evaluation):
+      Screen scope — consistency results (alias: diagnose, evaluation):
         (scope screen (issues))           all failing diffs
         (scope screen (warnings))         all warnings
         (scope screen (danglings))        all dangling definitions
+        (scope screen (loader))           loader issues
         (scope screen (kind "diff"))      items by directive kind
         (scope screen (category "issue"))      by category
         (scope screen (type "diverge"))        by issue type substring
         (scope screen (focus "engine."))       filter to namespace
         (scope screen (consistent))            true if no issues
         (scope screen (ns))                    all top-level namespaces
+        (scope screen (find "pattern"))        regex search (posting set)
+        (scope screen (fuzzy "query"))         ranked substring (posting set)
+
+    \b
+      Ops scope — fast set operations over tagged form lists:
+        (scope ops (and-forms L1 L2))     intersection by identity key
+        (scope ops (or-forms L1 L2))      union
+        (scope ops (not-forms L1 L2))     difference
+        (scope ops (count-forms L))       count forms
+        (scope ops (limit-forms N L))     first N forms
+        (scope ops (str form))            form to string
+        (scope ops (list a b c))          build list
+        Dispatches by tag to registered subsystem morphisms.
+        Falls through to pltg engine for unknown operations.
 
     \b
       Count — posting set size:
@@ -1365,6 +1498,8 @@ def eval_cmd(expression: str | None, file: str | None, raw: bool, profile: bool)
         (in "engine.py" "raise")            only engine.py
         (in "tests/*" "assert")             glob pattern
         (in "*.pltg" "import")              by extension
+        (in "engine" "raise")               bare name → auto-glob *engine*
+        (not-in "engine.py" "raise")        inverse of in
 
     \b
       Set operations — combine posting sets:
@@ -1395,15 +1530,25 @@ def eval_cmd(expression: str | None, file: str | None, raw: bool, profile: bool)
         (context 2 "raise ValueError")     2 lines before AND after
 
     \b
-      Count — posting set cardinality:
-        (count (in "engine.py" "raise"))    how many lines match
-        (count (and "import" "quote"))      count co-occurrences
+      Ranking and strategy:
+        (rank "callers" query)              rank by caller count
+        (rank "coverage" query)             rank by overlap
+        (rank "document" query)             group by document
+        (rank "line" query)                 sort by doc:line
+        (strategy "stemmed" query)          explicit strategy selection
+
+    \b
+      Count and output:
+        (count query)                       posting set cardinality
+        (results query)                     convert to sr forms
+        (limit N query)                     first N entries
 
     \b
       Scope — delegate to a registered system:
         (scope lens (kind "fact"))          evaluate in the lens system
         (scope screen (issues))            evaluate in screen system
         (scope hologram (divergent))        evaluate in hologram system
+        (scope ops (and-forms L1 L2))       evaluate in ops system
 
     \b
       Composition — operators nest and compose:
@@ -1424,31 +1569,33 @@ def eval_cmd(expression: str | None, file: str | None, raw: bool, profile: bool)
         (scope hologram (common))            nodes present in ALL lenses
         (scope hologram (only 0))            nodes exclusive to lens 0
         (scope hologram (left (kind "fact")))  facts in left side only
+      Hologram scope also supports inline dissect/compose/stain:
+        (scope hologram (dissect "diff-name"))     create hologram from diff
+        (scope hologram (compose name1 name2))     compose from names
+        (scope hologram (dissect (stain "name")))  stain marks for live probe
 
     \b
     COMPOSITION EXAMPLES:
-      Count facts in the engine namespace that have issues:
-        (count (scope screen (focus "engine." (issues))))
 
-      Check if more than half the diffs pass:
-        (let ((total (count (scope lens (kind "diff"))))
-              (bad   (count (scope screen (issues)))))
-          (> total (* 2 bad)))
+    \b
+      (count (scope screen (focus "engine." (issues))))
+      (scope lens (terms "axiom"))
+      (scope lens (quotes "engine.derive"))
+      (fmt "viz" (scope lens (focus "engine.")))
 
-      List all axiom names from the lens graph:
-        (scope lens (terms "axiom"))
+    \b
+      (let ((total (count (scope lens (kind "diff"))))
+            (bad   (count (scope screen (issues)))))
+        (> total (* 2 bad)))
 
-      Get quotes from a specific node:
-        (scope lens (quotes "engine.derive"))
+    \b
+      (if (= (epistemics.joint-status s1 s2 s3) epistemics.hallucinated)
+        "contaminated" "clean")
 
-      Epistemic status of a group of claims, then branch:
-        (if (= (epistemics.joint-status s1 s2 s3) epistemics.hallucinated)
-          "contaminated" "clean")
-
-      Find engine functions that raise, count them, check threshold:
-        (let ((raises (count (in "engine.py" (near "def" "raise" 10))))
-              (total  (count (in "engine.py" (re "def \\w+")))))
-          (> raises (* total 0.3)))
+    \b
+      (let ((raises (count (in "engine.py" (near "def" "raise" 10))))
+            (total  (count (in "engine.py" (re "def \\w+")))))
+        (> raises (* total 0.3)))
     """
     expr = _read_expression(expression, file)
     _print_result(_query({"action": "eval", "query": expr, "raw": raw, "profile": profile}))
@@ -1463,8 +1610,9 @@ def interpret_cmd(expression: str | None, file: str | None, raw: bool):
 
     \b
     Like eval, but also accepts directives (defterm, fact, axiom, derive).
-    Directives are executed in the eval system, then the last expression
-    is evaluated. Useful for defining terms interactively.
+    State accumulates across calls — defined terms persist in the interpret
+    scope until 'pg-bench clean' resets it. Does not affect the main
+    loaded system or the eval scope.
 
     \b
     Expression can be provided as argument, from a file (-f), or piped via stdin:
@@ -1476,6 +1624,7 @@ def interpret_cmd(expression: str | None, file: str | None, raw: bool):
     Examples:
       pg-bench interpret '(defterm or-test (lists.concat (strict ?a) (strict ?b)))'
       pg-bench interpret '(fact my-val 42 :origin "test")'
+      pg-bench clean   # reset interpret scope
     """
     expr = _read_expression(expression, file)
     _print_result(_query({"action": "interpret", "query": expr, "raw": raw}))
@@ -1484,38 +1633,43 @@ def interpret_cmd(expression: str | None, file: str | None, raw: bool):
 @cli.command()
 @click.argument("pattern")
 @click.option("--max", "max_results", default=50, help="Max results.")
-def find(pattern: str, max_results: int):
-    """Regex search over all pltg node names in the lens graph.
+@click.option("--scope", default="all", type=click.Choice(["all", "lens", "screen"]), help="Search scope.")
+def find(pattern: str, max_results: int, scope: str):
+    """Regex search over pltg names — lens graph + screen items.
 
     \b
-    Returns names matching PATTERN (Python regex). Each name is a pltg
-    definition (fact, axiom, theorem, term, diff) with file:line location.
+    Returns matching names with kind/category and source file:line.
+    By default searches both lens (structure) and screen (consistency).
+    Use --scope to narrow: lens for definitions, screen for issues/danglings.
 
     \b
     Examples:
-      pg-bench find "engine"        # all names containing "engine"
-      pg-bench find "^engine\\."     # names starting with "engine."
-      pg-bench find "count.*exist"  # count-exists variants
+      pg-bench find "engine"                # all names containing "engine"
+      pg-bench find "^engine\\."             # names starting with "engine."
+      pg-bench find "count.*exist"          # count-exists variants
+      pg-bench find "diverge" --scope screen # only screen items
     """
-    _print_result(_query({"action": "find", "pattern": pattern, "max": max_results}))
+    _print_result(_query({"action": "find", "pattern": pattern, "max": max_results, "scope": scope}))
 
 
 @cli.command()
 @click.argument("query")
 @click.option("--max", "max_results", default=10, help="Max results.")
-def fuzzy(query: str, max_results: int):
-    """Ranked substring search over all pltg names.
+@click.option("--scope", default="all", type=click.Choice(["all", "lens", "screen"]), help="Search scope.")
+def fuzzy(query: str, max_results: int, scope: str):
+    """Ranked substring search over pltg names — lens graph + screen items.
 
     \b
-    Scores names by substring match quality (prefix > infix > suffix).
-    Returns top --max results sorted by score.
+    Scores by match quality: exact > suffix > prefix > infix.
+    Returns names with kind/category and source file:line.
+    By default searches both lens and screen. Use --scope to narrow.
 
     \b
     Examples:
-      pg-bench fuzzy "eval"     # eval-bind, evaluate, eval-rewritten, ...
-      pg-bench fuzzy "count"    # count-exists, count-hallucinated, ...
+      pg-bench fuzzy "eval"                   # across lens + screen
+      pg-bench fuzzy "diverge" --scope screen # only screen items
     """
-    _print_result(_query({"action": "fuzzy", "query": query, "max": max_results}))
+    _print_result(_query({"action": "fuzzy", "query": query, "max": max_results, "scope": scope}))
 
 
 @cli.command()
@@ -1576,7 +1730,7 @@ def subgraph(name: str, direction: str):
 
 @cli.command()
 def kinds():
-    """View all node kinds (fact, axiom, theorem, term, diff) with counts."""
+    """View all node kinds with counts. Diffs not yet traversed by the lens."""
     _print_result(_query({"action": "view_kinds"}))
 
 
@@ -1609,7 +1763,11 @@ def _screen_impl(focus_name: str | None, what: str):
 
 _screen_opts = [
     click.option("--focus", "focus_name", default=None, help="Focus on a subsystem prefix."),
-    click.option("--what", default="summary", type=click.Choice(["summary", "issues", "loader", "ok"])),
+    click.option(
+        "--what",
+        default="summary",
+        type=click.Choice(["summary", "issues", "warnings", "danglings", "loader", "ok", "stats"]),
+    ),
 ]
 
 
@@ -1625,11 +1783,14 @@ def screen(focus_name: str | None, what: str):
     only some files change.
 
     \b
-    --what summary  issue + dangling + loader counts (default)
-    --what issues   only failing diffs with values
-    --what loader   only loader errors (unresolved symbols, failed effects)
-    --what ok       only passing diffs
-    --focus         filter to a namespace prefix
+    --what summary    counts by category and type, grouped by kind (default)
+    --what issues     only failing diffs with values
+    --what warnings   only warnings (unverified evidence, manual verification)
+    --what danglings  only dangling definitions (consumed by nothing)
+    --what loader     only loader errors (unresolved symbols, failed effects)
+    --what ok         passing items (warnings + danglings, excludes issues/loader)
+    --what stats      JSON breakdown by category, type, kind, namespace, file
+    --focus           filter to a namespace prefix
     """
     _screen_impl(focus_name, what)
 
@@ -1642,22 +1803,53 @@ def diagnose(focus_name: str | None, what: str):
     _screen_impl(focus_name, what)
 
 
+_BIAS_CHOICES = ["neutral", "left", "right", "divergence"]
+
+_BIAS_HELP = (
+    "Biases control how lens outputs are combined in the view:\n"
+    "  neutral     — show all lenses side by side (default)\n"
+    "  left        — left lens primary, others indented\n"
+    "  right       — right lens primary, others indented\n"
+    "  divergence  — only show nodes that differ; skip identical\n\n"
+    "The hologram scope in the search system (scope hologram ...)\n"
+    "has analogous structural operators (divergent, common, only N)\n"
+    "that work at the posting-set level rather than the view level."
+)
+
+
 @cli.command()
 @click.argument("name")
-def dissect(name: str):
+@click.option("--bias", type=click.Choice(_BIAS_CHOICES), default="neutral", help="View combination bias.")
+def dissect(name: str, bias: str):
     """Dissect a diff into a side-by-side hologram.
 
     \b
     Creates two lenses — one for :replace, one for :with — showing the
     full probe structure of each side. The hologram is registered as a
     search scope so you can query it via (scope hologram ...).
+
+    \b
+    Requires live evaluation (forces full load if still frozen).
+
+    \b
+    Biases control how lens outputs are combined in the view:
+      neutral     — show all lenses side by side (default)
+      left        — left lens primary, others indented
+      right       — right lens primary, others indented
+      divergence  — only show nodes that differ; skip identical
+
+    \b
+    The hologram scope in the search system (scope hologram ...)
+    has analogous structural operators (divergent, common, only N)
+    that work at the posting-set level rather than the view level.
     """
-    _print_result(_query({"action": "dissect", "name": name}))
+    _print_result(_query({"action": "dissect", "name": name, "bias": bias}))
 
 
 @cli.command()
 @click.argument("names", nargs=-1, required=True)
-def compose(names: tuple[str, ...]):
+@click.option("--bias", type=click.Choice(_BIAS_CHOICES), default="neutral", help="View combination bias.")
+def compose(names: tuple[str, ...], bias: str):
     """Compose N system names into a hologram — one lens per name.
 
     \b
@@ -1665,28 +1857,63 @@ def compose(names: tuple[str, ...]):
     Useful for comparing how different subsystems relate.
 
     \b
+    Requires live evaluation (forces full load if still frozen).
+
+    \b
+    Biases control how lens outputs are combined in the view:
+      neutral     — show all lenses side by side (default)
+      left        — left lens primary, others indented
+      right       — right lens primary, others indented
+      divergence  — only show nodes that differ; skip identical
+
+    \b
+    The hologram scope in the search system (scope hologram ...)
+    has analogous structural operators (divergent, common, only N)
+    that work at the posting-set level rather than the view level.
+
+    \b
     Example:
       pg-bench compose engine.eval-bind engine.derive engine._rewrite
+      pg-bench compose engine.eval-bind engine.derive --bias divergence
     """
-    _print_result(_query({"action": "compose", "names": list(names)}))
+    _print_result(_query({"action": "compose", "names": list(names), "bias": bias}))
 
 
 @cli.command()
 @click.argument("names", nargs=-1, required=True)
-def stain(names: tuple[str, ...]):
-    """Live-probe N terms with a vital stain — one lens per name.
+@click.option("--bias", type=click.Choice(_BIAS_CHOICES), default="neutral", help="View combination bias.")
+def stain(names: tuple[str, ...], bias: str):
+    """Trace evaluation of N terms at execution time — one lens per name.
 
     \b
-    Applies a vital stain to the engine, re-evaluates each term's
-    theorem WFF to capture runtime resolution edges, then builds
-    lenses with live_probe. Shows runtime dependencies invisible
-    to static probing.
+    Unlike compose (static probe), stain is a direct tracer: it
+    re-evaluates each term's theorem WFF under trace, capturing the
+    actual resolution edges at the moment of execution. This resolves
+    dynamic terms whose dependencies may have changed since load.
+
+    \b
+    Shows runtime dependencies invisible to static probing.
+
+    \b
+    Requires live evaluation (forces full load if still frozen).
+
+    \b
+    Biases control how lens outputs are combined in the view:
+      neutral     — show all lenses side by side (default)
+      left        — left lens primary, others indented
+      right       — right lens primary, others indented
+      divergence  — only show nodes that differ; skip identical
+
+    \b
+    The hologram scope in the search system (scope hologram ...)
+    has analogous structural operators (divergent, common, only N)
+    that work at the posting-set level rather than the view level.
 
     \b
     Example:
       pg-bench stain all-contract-facts-ok all-product-facts-ok
     """
-    _print_result(_query({"action": "stain", "names": list(names)}))
+    _print_result(_query({"action": "stain", "names": list(names), "bias": bias}))
 
 
 @cli.command()
@@ -1709,10 +1936,17 @@ def search(query: str, limit: int, offset: int, page: int, go_next: bool, go_pre
       (or "raise ValueError" "raise Syntax")   union
       (not "raise" "test")                     difference
       (in "engine.py" "raise")                 document filter (exact/suffix/glob)
+      (not-in "engine.py" "raise")             inverse of in
       (near "raise" "ValueError" 3)            proximity within N lines
       (seq "def derive" "raise")               a before b in same doc
       (re "raise (ValueError|NameError)")      regex
       (lines 400 500 query)                    line range filter
+
+    \b
+    (in ...) supports exact match, suffix match, and globs:
+      (in "engine.py" ...)       exact or suffix match
+      (in "tests/*" ...)         glob pattern
+      (in "engine" ...)          bare name → auto-glob *engine*
 
     \b
     Context expansion (add surrounding lines):
@@ -1726,9 +1960,18 @@ def search(query: str, limit: int, offset: int, page: int, go_next: bool, go_pre
       (rank "coverage" query)                  rank by overlap
       (rank "document" query)                  group by doc
       (rank "line" query)                      sort by doc:line
+      (strategy "stemmed" query)               explicit strategy selection
       (count query)                            integer count
       (results query)                          convert to sr forms
       (limit N query)                          first N entries
+
+    \b
+    Scopes — delegate into subsystem query languages:
+      (scope lens (find "engine"))             lens structural search
+      (scope screen (issues))                  screen diagnostic search
+      (scope hologram (divergent))             hologram comparison search
+      Registered scopes: lens, screen (aka diagnose, evaluation),
+      hologram (after dissect/compose/stain), ops, self.
 
     \b
     Compose freely:
@@ -1769,7 +2012,16 @@ def search(query: str, limit: int, offset: int, page: int, go_next: bool, go_pre
 )
 @click.option("--force", is_flag=True, help="Ignore stat/hash caches — full re-read of every file.")
 def index_dir(directory: str, extensions: tuple[str, ...], excludes: tuple[str, ...], force: bool):
-    """Index all files in DIRECTORY into the search engine. Reads .pgignore from directory root."""
+    """Index all files in DIRECTORY into the search engine.
+
+    \b
+    Additive — call multiple times for different directories, all get merged
+    into one search index. Reindex re-walks all previously indexed directories.
+
+    \b
+    Reads .pgignore from each directory root (gitignore-style patterns).
+    Uses stat fingerprinting + Merkle hashing: unchanged files are skipped.
+    """
     cmd: dict = {"action": "index", "directory": directory, "extensions": list(extensions)}
     if excludes:
         cmd["exclude"] = list(excludes)
@@ -1800,13 +2052,18 @@ def reindex(force: bool):
 
 @cli.command()
 def clean():
-    """Reset the eval system so interpret -f can run again without restart."""
+    """Recreate the eval system of the bench. Use when interpret -f accumulated state you want to discard."""
     _print_result(_query({"action": "clean"}))
 
 
 @cli.command()
 def reload():
-    """Invalidate Merkle cache and reload the .pltg file from scratch."""
+    """Invalidate memory cache and re-prepare the .pltg file.
+
+    \b
+    Disk cache (Merkle) is preserved, so re-prepare is fast (~20ms).
+    Use 'purge' to clear disk caches too.
+    """
     _print_result(_query({"action": "reload"}))
 
 
@@ -1821,13 +2078,18 @@ def purge(yes: bool):
 
 @cli.command()
 def status():
-    """Show server status (path, status, integrity)."""
+    """Show server status: path, status (frozen/live), integrity.
+
+    \b
+    When integrity is 'corrupted', also shows loader errors, skipped
+    definitions, and warnings.
+    """
     _print_result(_query({"action": "status"}))
 
 
 @cli.command()
 def ping():
-    """Check if server is running and ready."""
+    """Check if server is running. Returns 'pong' when ready, 'loading' during prepare."""
     _print_result(_query({"action": "ping"}))
 
 
@@ -1853,7 +2115,14 @@ def wait(timeout_s: int):
 
 @cli.group()
 def history():
-    """History — time travel over indexed file states."""
+    """Time travel over indexed file states.
+
+    \b
+    Each 'pg-bench index' commits an immutable delta layer. Layers
+    record which files were added, modified, or deleted. Restore
+    is non-destructive — it appends a reverse delta, keeping the
+    full history intact. Compact squashes all layers into one base.
+    """
     pass
 
 
@@ -1892,7 +2161,9 @@ def history_diff(from_layer: int, to_layer: int | None):
 @click.option("--to", "to_layer", type=int, default=None, help="To layer (default: latest).")
 def history_diff_file(name: str, from_layer: int, to_layer: int | None):
     """Diff a single file between two layers."""
-    _print_result(_query({"action": "history", "sub": "diff_file", "name": name, "from_layer": from_layer, "to_layer": to_layer}))
+    _print_result(
+        _query({"action": "history", "sub": "diff_file", "name": name, "from_layer": from_layer, "to_layer": to_layer})
+    )
 
 
 @history.command("restore")

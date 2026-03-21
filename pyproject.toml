@@ -57,7 +57,10 @@ include = ["parseltongue", "parseltongue.*"]
 exclude = ["parseltongue.*.tests", "parseltongue.*.tests.*"]
 
 [tool.setuptools.package-data]
-"*" = ["*.txt", "*.md", "*.tcss", "*.pltg"]
+"*" = ["*.txt", "*.md", "*.tcss", "*.pltg", "*.html", "*.js"]
+
+[tool.setuptools.exclude-package-data]
+"*" = [".DS_Store"]
 
 [tool.black]
 line-length = 120

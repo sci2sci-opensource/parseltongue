@@ -29,10 +29,10 @@ import logging
 from pathlib import Path
 
 from ..loader.lazy_loader import LazyLoadResult
-from .screen import Screen
 from .optics import Lens
 from .optics.hologram import Hologram
 from .perspectives.md_debugger import MDebuggerPerspective
+from .screen import Screen
 from .store import Store
 from .technician import Sample, Technician
 
@@ -160,8 +160,13 @@ class Bench:
         path = str(Path(path).resolve()) if path else self._require_current()
         if path not in self._mem:
             self.prepare(path)
+        # Pre-warmed by technician._register_scopes (avoids GIL contention with bg thread)
+        cached = self._technician._lens_mem.get(path)
+        if cached is not None:
+            return cached
+        # Fallback: should not happen after prepare, but safe to have
         _, _, structure, loader = self._mem[path]
-        return Lens(structure, [MDebuggerPerspective(loader)])
+        return Lens(structure, [MDebuggerPerspective(loader)], loader=loader)
 
     def dissect(self, diff_name: str, path: str | None = None, perspectives: list | None = None) -> Hologram:
         """Dissect a diff into a Hologram — two lenses, one per side."""
