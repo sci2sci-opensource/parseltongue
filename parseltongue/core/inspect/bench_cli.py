@@ -431,6 +431,9 @@ class BenchServer:
                 self.bench.clean()
                 return {"ok": True, "text": "Eval system reset."}
 
+            elif action == "history":
+                return self._dispatch_history(cmd)
+
             elif action == "reload":
                 self.bench.invalidate()
                 self.bench.prepare(self.pltg_path)
@@ -479,6 +482,112 @@ class BenchServer:
                 _send(conn, {"ok": True, "done": True, "text": f"Reindexed {count} files"})
         except Exception:
             _send(conn, {"ok": False, "done": True, "error": traceback.format_exc()})
+
+    def _dispatch_history(self, cmd: dict) -> dict:
+        """Handle history sub-commands."""
+        import time as _time
+
+        store = self.bench._store
+        path = self.bench._current_path
+        if not path:
+            return {"ok": False, "error": "No project loaded"}
+        h = store.history(path)
+        sub = cmd.get("sub", "layers")
+
+        if sub == "layers":
+            infos = h.layers()
+            if not infos:
+                return {"ok": True, "text": f"No layers. Total commits: {h.total_commits}"}
+            lines = [f"Layers: {len(infos)}  Total commits: {h.total_commits}"]
+            for li in infos:
+                ts = _time.strftime("%Y-%m-%d %H:%M:%S", _time.localtime(li.timestamp))
+                lines.append(
+                    f"  [{li.index}] {ts}  files={li.file_count}  "
+                    f"+{li.keys_added} ~{li.keys_modified} -{li.keys_deleted}  "
+                    f"({li.disk_bytes:,}B)"
+                )
+            return {"ok": True, "text": "\n".join(lines)}
+
+        elif sub == "files":
+            layer = cmd.get("layer")
+            state = h.at(layer) if layer is not None else h.current()
+            lines = [f"Files ({len(state)}):"]
+            for name in sorted(state):
+                lines.append(f"  {name} ({len(state[name]):,} chars)")
+            return {"ok": True, "text": "\n".join(lines)}
+
+        elif sub == "file":
+            name = cmd.get("name")
+            if not name:
+                return {"ok": False, "error": "Missing file name"}
+            layer = cmd.get("layer")
+            text = h.file_at(name, layer) if layer is not None else h.current().get(name)
+            if text is None:
+                return {"ok": True, "text": f"File '{name}' not found at layer {layer}"}
+            return {"ok": True, "text": text}
+
+        elif sub == "diff":
+            fr = cmd.get("from_layer", 0)
+            to = cmd.get("to_layer")
+            if to is None:
+                to = h.layer_count() - 1
+            d = h.diff(fr, to)
+            lines = [f"Diff layer {fr} → {to}: +{len(d.added)} ~{len(d.modified)} -{len(d.deleted)}"]
+            for name in sorted(d.added):
+                lines.append(f"  + {name}")
+            for name in sorted(d.modified):
+                lines.append(f"  ~ {name}")
+            for name in sorted(d.deleted):
+                lines.append(f"  - {name}")
+            return {"ok": True, "text": "\n".join(lines)}
+
+        elif sub == "diff_file":
+            name = cmd.get("name")
+            if not name:
+                return {"ok": False, "error": "Missing file name"}
+            fr = cmd.get("from_layer", 0)
+            to = cmd.get("to_layer")
+            if to is None:
+                to = h.layer_count() - 1
+            fd = h.diff_file(name, fr, to)
+            if fd.status == "unchanged":
+                return {"ok": True, "text": f"[unchanged] {fd.name}"}
+            if fd.old_text is None and fd.new_text is not None:
+                return {"ok": True, "text": f"[added] {fd.name}\n" + fd.new_text}
+            if fd.old_text is not None and fd.new_text is None:
+                return {"ok": True, "text": f"[deleted] {fd.name}"}
+            import difflib
+            diff_lines = difflib.unified_diff(
+                (fd.old_text or "").splitlines(keepends=True),
+                (fd.new_text or "").splitlines(keepends=True),
+                fromfile=f"{fd.name} (layer {fr})",
+                tofile=f"{fd.name} (layer {to})",
+            )
+            return {"ok": True, "text": "".join(diff_lines) or f"[{fd.status}] {fd.name}"}
+
+        elif sub == "restore":
+            layer = cmd.get("layer")
+            if layer is None:
+                return {"ok": False, "error": "Missing layer number"}
+            h.restore(layer)
+            return {"ok": True, "text": f"Restored to layer {layer}"}
+
+        elif sub == "restore_file":
+            name = cmd.get("name")
+            layer = cmd.get("layer")
+            if not name or layer is None:
+                return {"ok": False, "error": "Missing file name or layer number"}
+            h.restore_file(name, layer)
+            return {"ok": True, "text": f"Restored '{name}' to layer {layer}"}
+
+        elif sub == "compact":
+            if not cmd.get("confirm"):
+                return {"ok": False, "error": "Compact squashes all layers into one. Pass --yes to confirm."}
+            h.compact()
+            return {"ok": True, "text": "Compacted to single base layer."}
+
+        else:
+            return {"ok": False, "error": f"Unknown history sub-command: {sub!r}"}
 
 
 def _validate_sexp(query: str) -> tuple[str, str | None]:
@@ -1702,8 +1811,11 @@ def reload():
 
 
 @cli.command()
-def purge():
+@click.option("--yes", is_flag=True, help="Skip confirmation.")
+def purge(yes: bool):
     """Nuclear — purge all caches (memory + disk) and reload from scratch."""
+    if not yes:
+        click.confirm("This will destroy all caches and reload. Continue?", abort=True)
     _print_result(_query({"action": "purge"}))
 
 
@@ -1737,6 +1849,74 @@ def wait(timeout_s: int):
         time.sleep(0.05)
     click.echo("Timed out waiting for server.", err=True)
     raise SystemExit(1)
+
+
+@cli.group()
+def history():
+    """History — time travel over indexed file states."""
+    pass
+
+
+@history.command("layers")
+def history_layers():
+    """Show all layers with metadata."""
+    _print_result(_query({"action": "history", "sub": "layers"}))
+
+
+@history.command("files")
+@click.option("--layer", "-l", type=int, default=None, help="Layer number (default: current).")
+def history_files(layer: int | None):
+    """List files at a layer (default: current state)."""
+    _print_result(_query({"action": "history", "sub": "files", "layer": layer}))
+
+
+@history.command("file")
+@click.argument("name")
+@click.option("--layer", "-l", type=int, default=None, help="Layer number (default: current).")
+def history_file(name: str, layer: int | None):
+    """Show file content at a layer."""
+    _print_result(_query({"action": "history", "sub": "file", "name": name, "layer": layer}))
+
+
+@history.command("diff")
+@click.option("--from", "from_layer", type=int, default=0, help="From layer (default: 0).")
+@click.option("--to", "to_layer", type=int, default=None, help="To layer (default: latest).")
+def history_diff(from_layer: int, to_layer: int | None):
+    """Diff between two layers."""
+    _print_result(_query({"action": "history", "sub": "diff", "from_layer": from_layer, "to_layer": to_layer}))
+
+
+@history.command("diff-file")
+@click.argument("name")
+@click.option("--from", "from_layer", type=int, default=0, help="From layer (default: 0).")
+@click.option("--to", "to_layer", type=int, default=None, help="To layer (default: latest).")
+def history_diff_file(name: str, from_layer: int, to_layer: int | None):
+    """Diff a single file between two layers."""
+    _print_result(_query({"action": "history", "sub": "diff_file", "name": name, "from_layer": from_layer, "to_layer": to_layer}))
+
+
+@history.command("restore")
+@click.argument("layer", type=int)
+def history_restore(layer: int):
+    """Restore full state to a layer (non-destructive — appends reverse delta)."""
+    _print_result(_query({"action": "history", "sub": "restore", "layer": layer}))
+
+
+@history.command("restore-file")
+@click.argument("name")
+@click.argument("layer", type=int)
+def history_restore_file(name: str, layer: int):
+    """Restore a single file to its state at a layer."""
+    _print_result(_query({"action": "history", "sub": "restore_file", "name": name, "layer": layer}))
+
+
+@history.command("compact")
+@click.option("--yes", is_flag=True, help="Skip confirmation.")
+def history_compact(yes: bool):
+    """Squash all layers into a single base (destructive)."""
+    if not yes:
+        click.confirm("This will squash all layers into one. Continue?", abort=True)
+    _print_result(_query({"action": "history", "sub": "compact", "confirm": True}))
 
 
 if __name__ == "__main__":
