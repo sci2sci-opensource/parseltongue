@@ -13,6 +13,16 @@
 ; The checker is independent of HOW facts are generated —
 ; it discovers what exists and validates against policy.
 ;
+; *** LIB PATH ***
+;
+; This demo requires lib_paths=[parseltongue/core/] so the
+; loader qualifies sub-module facts with the full dotted path
+; (e.g. src.manifest.technical.ds_5385-source-type).  Without
+; lib_paths the facts lack the "src.manifest." prefix and the
+; (s ...) effect can't resolve them.  pg-bench supplies this
+; automatically via Bench.STD_PATH; standalone scripts must
+; pass lib_paths=[core_dir] to LazyLoader.
+;
 ; *** CRITICAL: :using IN DERIVES ***
 ;
 ; :using is NOT a convenience annotation — it controls which axioms

@@ -1,4 +1,10 @@
 #!/bin/bash
+# Data Governance demo visualization.
+#
+# Requires lib_paths=[parseltongue/core/] for correct module
+# qualification — pg-bench provides this via Bench.STD_PATH.
+# Without it, sub-module facts lack the "src.manifest." prefix
+# and (s ...) resolution fails.
 set -e
 
 DIR="$(cd "$(dirname "$0")" && pwd)"

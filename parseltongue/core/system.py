@@ -2,12 +2,14 @@
 Parseltongue System — composes Engine with defaults, serialization, and introspection.
 """
 
+
 import logging
 from typing import Callable, Self
 
 from .atoms import SILENCE, Evidence, Symbol
 from .default_system_settings import DEFAULT_OPERATORS, ENGINE_DOCS
-from .engine import Engine, Fact
+from .engines.engine_stack import Engine, Fact
+# from .engine import Engine, Fact
 from .engine import load_source as _engine_load_source
 from .lang import (
     DSL_KEYWORDS,

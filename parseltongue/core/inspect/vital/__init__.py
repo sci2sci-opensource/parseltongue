@@ -1,10 +1,13 @@
 """Vital — live probing of engine runtime dependencies.
 
-Stain wraps an engine to capture runtime resolution edges.
-live_probe merges stained traces with static structure.
+Tracer (stack engine): native tracing via express/suppress.
+Stain (recursive engine): monkey-patch tracing via apply/remove.
+trace_engine: auto-detect and trace.
+live_probe merges traced edges with static structure.
 """
 
-from .live_probe import live_probe
+from .live_probe import live_probe, trace_engine
 from .stain import Edge, Stain, Trace
+from .tracer import Tracer
 
-__all__ = ["Edge", "Stain", "Trace", "live_probe"]
+__all__ = ["Edge", "Stain", "Trace", "Tracer", "live_probe", "trace_engine"]

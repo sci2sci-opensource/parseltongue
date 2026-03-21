@@ -387,27 +387,16 @@ class Technician:
     # ── Internal ──
 
     def _live_probe_all(self, result: LazyLoadResult):
-        """Build a live-probed structure: stain all theorems, probe from __output__."""
-        from .vital import Stain, live_probe
+        """Build a live-probed structure: trace all theorems, probe from __output__."""
+        from .vital import live_probe
 
         eng = result.system.engine
-        stain_obj = Stain(eng, capture="names")
-        stain_obj.apply()
-        for tname, thm in eng.theorems.items():
-            if thm.wff is not None:
-                stain_obj.push_context(tname)
-                try:
-                    eng.evaluate(thm.wff)
-                except Exception:
-                    pass
-                stain_obj.pop_context()
-        stain_obj.remove()
         roots = result.roots()
         if not roots:
             from .probe_core_to_consequence import CoreToConsequenceStructure
 
             return CoreToConsequenceStructure(layers=[], graph={}, depths={}, max_depth=0)
-        return live_probe(["__output__"] + roots, eng, stain_obj, store="names")
+        return live_probe(["__output__"] + roots, eng)
 
     def _check_load_integrity(self, path: str, result: LazyLoadResult) -> str:
         """Check whether a load completed fully. Returns integrity label."""

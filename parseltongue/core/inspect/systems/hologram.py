@@ -151,19 +151,10 @@ class HologramSystem:
         def _do_probe(name, eng, live):
             """Probe a name — live if requested, static otherwise."""
             if live:
-                from ..vital import Stain, live_probe
+                from ..vital import live_probe, trace_engine
 
-                stain_obj = Stain(eng, capture="names")
-                stain_obj.apply()
-                if name in eng.theorems:
-                    stain_obj.push_context(name)
-                    try:
-                        eng.evaluate(eng.theorems[name].wff)
-                    except Exception:
-                        pass
-                    stain_obj.pop_context()
-                stain_obj.remove()
-                return live_probe(name, eng, stain_obj, store="names")
+                traced = trace_engine(eng, names=[name])
+                return live_probe(name, eng, traced, store="names")
             from ..probe_core_to_consequence import probe as _probe
 
             return _probe(name, eng)

@@ -202,15 +202,15 @@ class Bench:
         capture: str | int = "names",
         store: str | int = "names",
     ) -> Hologram:
-        """Live-probe N terms with a vital stain — one lens per name.
+        """Live-probe N terms with tracing — one lens per name.
 
-        Applies a Stain to the engine, re-evaluates each term's theorem WFF
-        to capture runtime edges, then builds lenses with live_probe.
-        The result is a Hologram comparing live dependency graphs.
+        Traces the engine (auto-detects Tracer vs Stain), re-evaluates
+        each term's theorem WFF to capture runtime edges, then builds
+        lenses with live_probe.
 
         Parameters:
-            names: Term names to probe (theorems are re-evaluated under stain).
-            capture: Stain capture mode ("names", "heads", "all", or int N).
+            names: Term names to probe (theorems are re-evaluated under trace).
+            capture: Capture mode (only affects legacy Stain engine).
             store: live_probe store mode ("names", "heads", "all", or int N).
         """
         path = str(Path(path).resolve()) if path else self._require_current()
@@ -218,26 +218,13 @@ class Bench:
         engine = result.system.engine
         _, _, _, loader = self._mem[path]
         persp = perspectives or [MDebuggerPerspective(loader)]
-        from .vital import Stain, live_probe
+        from .vital import live_probe, trace_engine
 
-        stain_obj = Stain(engine, capture=capture)
-        stain_obj.apply()
-
-        # Re-evaluate theorem WFFs under the stain to capture runtime edges
-        for name in names:
-            if name in engine.theorems:
-                stain_obj.push_context(name)
-                try:
-                    engine.evaluate(engine.theorems[name].wff)
-                except Exception:
-                    pass
-                stain_obj.pop_context()
-
-        stain_obj.remove()
+        traced = trace_engine(engine, names=list(names), capture=capture)
 
         lenses = []
         for name in names:
-            structure = live_probe(name, engine, stain_obj, store=store)
+            structure = live_probe(name, engine, traced, store=store)
             lenses.append(Lens(structure, list(persp)))
         return Hologram(lenses, labels=list(names))
 

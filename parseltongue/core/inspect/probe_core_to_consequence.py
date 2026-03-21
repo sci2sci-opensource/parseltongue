@@ -298,17 +298,28 @@ def probe(term: str | list[str], engine: Engine) -> CoreToConsequenceStructure:
     def compute_depths(g):
         memo: dict[str, int] = {}
 
-        def depth(n):
-            if n in memo:
-                return memo[n]
-            if not g[n]["inputs"]:
-                memo[n] = 0
-            else:
-                memo[n] = 1 + max(depth(i) for i in g[n]["inputs"] if i in g)
-            return memo[n]
-
-        for n in g:
-            depth(n)
+        for start in g:
+            if start in memo:
+                continue
+            stack = [(start, False)]
+            while stack:
+                n, children_done = stack[-1]
+                if n in memo:
+                    stack.pop()
+                    continue
+                inputs = [i for i in g[n]["inputs"] if i in g]
+                if not inputs:
+                    memo[n] = 0
+                    stack.pop()
+                    continue
+                if children_done:
+                    memo[n] = 1 + max(memo.get(i, 0) for i in inputs)
+                    stack.pop()
+                else:
+                    stack[-1] = (n, True)
+                    for i in reversed(inputs):
+                        if i not in memo:
+                            stack.append((i, False))
 
         # Layout: bump consumers whose fact set subsumes a sibling's
         changed = True

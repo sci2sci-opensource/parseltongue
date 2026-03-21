@@ -1,36 +1,36 @@
-"""Live probe — augments static probe with runtime edges from a Stain.
+"""Live probe — augments static probe with runtime edges.
 
 Builds the same CoreToConsequenceStructure as the static probe, but
-with additional inputs discovered by the vital stain during engine
-evaluation. Effects, runtime-resolved terms, and dynamic dependencies
-all become visible edges in the structure.
+with additional inputs discovered during engine evaluation.
 
-The ``store`` parameter controls how much of the evaluation trace
-becomes visible as graph nodes::
+Accepts either a Stain (old recursive engine) or a Tracer (stack engine).
+Detection is automatic via ``Tracer.supported(engine)``.
 
-    "names"  — (default) only named entities from edges
-    "heads"  — named + head of every evaluated list expression
-    "all"    — every evaluated expression becomes a node
-    int N    — expressions up to N levels from named context
+Usage with Tracer (stack engine)::
 
-Usage::
+    from parseltongue.core.inspect.vital import Tracer, live_probe
+
+    tracer = Tracer(engine)
+    tracer.express()
+    # ... engine evaluates ...
+    tracer.suppress()
+    structure = live_probe("checker.policy-consistent", engine, tracer)
+
+Usage with Stain (recursive engine)::
 
     from parseltongue.core.inspect.vital import Stain, live_probe
 
-    stain = Stain(engine, capture="all")
-    stain.apply()
-    # ... engine evaluates (load, derive, etc.) ...
-    stain.remove()
-
+    with Stain(engine, capture="all") as stain:
+        # ... engine evaluates ...
     structure = live_probe("checker.policy-consistent", engine, stain, store="all")
 """
+
 
 from __future__ import annotations
 
 import logging
 
 from parseltongue.core.atoms import Symbol
-from parseltongue.core.engine import Engine
 from parseltongue.core.lang import to_sexp
 
 from ..probe_core_to_consequence import (
@@ -44,6 +44,7 @@ from ..probe_core_to_consequence import (
     _GraphEntry,
 )
 from .stain import Stain, Trace
+from .tracer import Tracer
 
 log = logging.getLogger("parseltongue.vital.live_probe")
 
@@ -65,27 +66,68 @@ def _fmt_value(v):
     return repr(v)
 
 
+def trace_engine(engine, names: list[str] | None = None, capture: str | int = "names") -> Stain | Tracer:
+    """Evaluate theorems under tracing — returns a Stain or Tracer with captured edges.
+
+    Detects engine type automatically:
+    - Stack engine (has _tracing): uses Tracer (express/suppress)
+    - Recursive engine: uses Stain (apply/remove with push_context)
+
+    Parameters:
+        engine: The engine to trace.
+        names: Theorem names to evaluate. None = all theorems.
+        capture: Capture mode (only affects Stain; Tracer always captures edges).
+    """
+    theorem_names = names if names is not None else list(engine.theorems.keys())
+
+    if Tracer.supported(engine):
+        tracer = Tracer(engine)
+        tracer.express()
+        for tname in theorem_names:
+            if tname in engine.theorems:
+                try:
+                    engine.evaluate(Symbol(tname))
+                except Exception:
+                    pass
+        tracer.suppress()
+        return tracer
+    else:
+        stain_obj = Stain(engine, capture=capture)
+        stain_obj.apply()
+        for tname in theorem_names:
+            if tname in engine.theorems and engine.theorems[tname].wff is not None:
+                stain_obj.push_context(tname)
+                try:
+                    engine.evaluate(engine.theorems[tname].wff)
+                except Exception:
+                    pass
+                stain_obj.pop_context()
+        stain_obj.remove()
+        return stain_obj
+
+
 def live_probe(
     term: str | list[str],
-    engine: Engine,
-    stain: Stain,
+    engine,
+    stain: Stain | Tracer | None = None,
     store: str | int = "names",
 ) -> CoreToConsequenceStructure:
-    """Probe with runtime edges from a vital stain.
+    """Probe with runtime edges from a Stain or Tracer.
 
-    Same algorithm as the static probe, but inputs lists are augmented
-    with edges the stain captured during engine evaluation.
+    If stain is None, traces the engine automatically via trace_engine().
 
     Parameters:
         term: Root term(s) to probe.
         engine: The engine to probe.
-        stain: A Stain that has captured runtime edges (and optionally traces).
+        stain: A Stain or Tracer with captured edges, or None to auto-trace.
         store: Controls anonymous node inclusion:
             "names" — only named entities (default)
             "heads" — named + expression heads from traces
             "all"   — every trace entry becomes a node
             int N   — traces up to N call levels from named context
     """
+    if stain is None:
+        stain = trace_engine(engine)
 
     # --- Phase 1: Build static graph (same as probe.walk) ---
     graph: dict[str, _GraphEntry] = {}
@@ -230,17 +272,28 @@ def live_probe(
     # --- Phase 4: Depth computation (same as static probe) ---
     memo: dict[str, int] = {}
 
-    def depth(n):
-        if n in memo:
-            return memo[n]
-        if not graph[n]["inputs"]:
-            memo[n] = 0
-        else:
-            memo[n] = 1 + max(depth(i) for i in graph[n]["inputs"] if i in graph)
-        return memo[n]
-
-    for n in graph:
-        depth(n)
+    for start in graph:
+        if start in memo:
+            continue
+        stack = [(start, False)]
+        while stack:
+            n, children_done = stack[-1]
+            if n in memo:
+                stack.pop()
+                continue
+            inputs = [i for i in graph[n]["inputs"] if i in graph]
+            if not inputs:
+                memo[n] = 0
+                stack.pop()
+                continue
+            if children_done:
+                memo[n] = 1 + max(memo.get(i, 0) for i in inputs)
+                stack.pop()
+            else:
+                stack[-1] = (n, True)
+                for i in reversed(inputs):
+                    if i not in memo:
+                        stack.append((i, False))
 
     # Layout: bump consumers whose fact set subsumes a sibling's
     changed = True
