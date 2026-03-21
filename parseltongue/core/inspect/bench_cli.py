@@ -456,22 +456,26 @@ class BenchServer:
             if action == "index":
                 directory = cmd.get("directory", ".")
                 extensions = cmd.get("extensions")
+                force = cmd.get("force", False)
 
                 def _progress(count, total, rel):
                     _send(conn, {"progress": True, "count": count, "total": total, "file": rel})
 
                 exclude = cmd.get("exclude")
-                count = self.bench.index.index_dir(directory, extensions, exclude=exclude, on_progress=_progress)
+                count = self.bench.index.index_dir(
+                    directory, extensions, exclude=exclude, on_progress=_progress, force=force,
+                )
                 total = len(self.bench.index._index.documents)
                 msg = f"Indexed {count} new files from {directory} ({total} total)"
                 _send(conn, {"ok": True, "done": True, "text": msg})
 
             elif action == "reindex":
+                force = cmd.get("force", False)
 
                 def _progress(count, total, rel):
                     _send(conn, {"progress": True, "count": count, "total": total, "file": rel})
 
-                count = self.bench.index.reindex(on_progress=_progress)
+                count = self.bench.index.reindex(on_progress=_progress, force=force)
                 _send(conn, {"ok": True, "done": True, "text": f"Reindexed {count} files"})
         except Exception:
             _send(conn, {"ok": False, "done": True, "error": traceback.format_exc()})
@@ -1648,11 +1652,14 @@ def search(query: str, limit: int, offset: int, page: int, go_next: bool, go_pre
     multiple=True,
     help="Glob patterns to exclude (repeatable, in addition to .pgignore).",
 )
-def index_dir(directory: str, extensions: tuple[str, ...], excludes: tuple[str, ...]):
+@click.option("--force", is_flag=True, help="Ignore stat/hash caches — full re-read of every file.")
+def index_dir(directory: str, extensions: tuple[str, ...], excludes: tuple[str, ...], force: bool):
     """Index all files in DIRECTORY into the search engine. Reads .pgignore from directory root."""
-    cmd = {"action": "index", "directory": directory, "extensions": list(extensions)}
+    cmd: dict = {"action": "index", "directory": directory, "extensions": list(extensions)}
     if excludes:
         cmd["exclude"] = list(excludes)
+    if force:
+        cmd["force"] = True
     for msg in _query_stream(cmd):
         if msg.get("progress"):
             click.echo(f"\r  {msg['count']}/{msg['total']}  {msg['file']}", nl=False)
@@ -1662,9 +1669,13 @@ def index_dir(directory: str, extensions: tuple[str, ...], excludes: tuple[str, 
 
 
 @cli.command()
-def reindex():
+@click.option("--force", is_flag=True, help="Ignore stat/hash caches — full re-read of every file.")
+def reindex(force: bool):
     """Re-index all previously indexed directories (detects file changes)."""
-    for msg in _query_stream({"action": "reindex"}):
+    cmd: dict = {"action": "reindex"}
+    if force:
+        cmd["force"] = True
+    for msg in _query_stream(cmd):
         if msg.get("progress"):
             click.echo(f"\r  {msg['count']}/{msg['total']}  {msg['file']}", nl=False)
         elif msg.get("done"):

@@ -302,10 +302,28 @@ class Store:
     def _index_cache_path(self, directory: str) -> Path:
         return self._dir / f"{self._cache_key(directory)}.idx.pgz"
 
-    def save_index(self, key: str, directory: str, file_hashes: dict[str, str], index_data: dict):
+    def save_index(
+        self,
+        key: str,
+        directory: str,
+        file_hashes: dict[str, str],
+        index_data: dict,
+        indexed_dirs: dict[str, list[str]] | None = None,
+        file_stats: dict[str, list] | None = None,
+        dir_mtimes: dict[str, int] | None = None,
+        file_texts: dict[str, str] | None = None,
+    ):
         """Save search index to disk as .idx.pgz. Key is the cache lookup key, directory is stored inside."""
         self._ensure_dir()
-        data = {"directory": directory, "file_hashes": file_hashes, "index": index_data}
+        data: dict = {"directory": directory, "file_hashes": file_hashes, "index": index_data}
+        if indexed_dirs:
+            data["indexed_dirs"] = indexed_dirs
+        if file_stats:
+            data["file_stats"] = file_stats
+        if dir_mtimes:
+            data["dir_mtimes"] = dir_mtimes
+        if file_texts:
+            data["file_texts"] = file_texts
         try:
             payload = json.dumps(data, separators=(",", ":")).encode()
             _pgz_write(self._index_cache_path(key), payload)
@@ -423,6 +441,11 @@ class Store:
         return None
 
 
+def _stat_fingerprint(st: os.stat_result) -> tuple:
+    """Git-style stat fingerprint: (ctime_ns, mtime_ns, dev, ino, mode, size)."""
+    return (st.st_ctime_ns, st.st_mtime_ns, st.st_dev, st.st_ino, st.st_mode, st.st_size)
+
+
 class SearchStore:
 
     def __init__(self, store: Store | None = None, path: str = "", index: DocumentIndex | None = None):
@@ -430,6 +453,12 @@ class SearchStore:
         self._path = path
         self._dir_hashes: dict[str, dict[str, str]] = {}
         self._preloaded = index
+        # Tracked directories: directory → extensions list
+        self._indexed_dirs: dict[str, list[str]] = {}
+        # Git-style stat cache: file_key → (ctime_ns, mtime_ns, dev, ino, mode, size)
+        self._file_stats: dict[str, tuple] = {}
+        # Directory mtime cache: abs_dir_path → mtime_ns
+        self._dir_mtimes: dict[str, int] = {}
 
     def load_index(self) -> DocumentIndex:
         if self._preloaded is not None:
@@ -443,31 +472,87 @@ class SearchStore:
         file_hashes = cached.get("file_hashes", {})
         if not directory or not file_hashes:
             return DocumentIndex()
-        # Re-read files from disk to restore full text
-        base = Path(directory)
-        paths = [(base / rel, rel) for rel in file_hashes]
-        file_texts, _ = self._read_and_hash(paths)
+        # Restore tracked directories
+        self._indexed_dirs = cached.get("indexed_dirs", {})
+        if directory and not self._indexed_dirs:
+            # Migrate: old format had single directory
+            self._indexed_dirs[directory] = cached.get("extensions", [".py", ".pltg", ".md", ".txt"])
+        # Restore stat caches
+        self._file_stats = {k: tuple(v) for k, v in cached.get("file_stats", {}).items()}
+        self._dir_mtimes = cached.get("dir_mtimes", {})
         self._dir_hashes[self._path] = file_hashes
         idx_data = cached.get("index", {})
-        original_texts = {rel: file_texts.get(rel, "") for rel in idx_data.get("documents", {})}
+        # Use cached file texts — zero disk reads on warm load
+        file_texts = cached.get("file_texts", {})
+        if file_texts:
+            original_texts = {rel: file_texts.get(rel, "") for rel in idx_data.get("documents", {})}
+            return DocumentIndex.from_dict(idx_data, original_texts)
+        # Fallback: old cache format without file_texts — re-read from disk
+        base = Path(directory)
+        paths = [(base / rel, rel) for rel in file_hashes]
+        disk_texts, _ = self._read_and_hash(paths)
+        original_texts = {rel: disk_texts.get(rel, "") for rel in idx_data.get("documents", {})}
         return DocumentIndex.from_dict(idx_data, original_texts)
 
-    def _read_and_hash(self, paths: list[tuple[Path, str]]) -> tuple[dict[str, str], dict[str, str]]:
+    def load_search_index(self, doc_index: DocumentIndex) -> "DocumentSearchIndex | None":
+        """Load cached DocumentSearchIndex if available.
+
+        Requires the already-loaded DocumentIndex (from load_index) for
+        enrichment — avoids re-reading the cache file.
+        """
+        from .search_s.serialization import deserialize_search_index
+
+        if not self._store:
+            return None
+        cached = self._store.load_index(self._path)
+        if not cached or "search_index" not in cached:
+            return None
+        try:
+            return deserialize_search_index(cached["search_index"], doc_index)
+        except Exception as e:
+            log.warning("Failed to restore search index: %s", e)
+            return None
+
+    def _read_and_hash(
+        self,
+        paths: list[tuple[Path, str]],
+        old_hashes: dict[str, str] | None = None,
+    ) -> tuple[dict[str, str], dict[str, str]]:
         """Read files and compute hashes. Returns (file_texts, new_hashes).
 
         Each entry is (absolute_path, key) where key is used in the index and cache.
+
+        Uses git-style stat fingerprinting: files whose (ctime_ns, mtime_ns,
+        dev, ino, mode, size) haven't changed reuse their cached hash without
+        reading the file content. Only new or stat-changed files are read.
         """
         from parseltongue.core.integrity.merkle import _sha256
 
         new_hashes: dict[str, str] = {}
         file_texts: dict[str, str] = {}
+
         for fpath, key in paths:
+            try:
+                st = fpath.stat()
+            except OSError:
+                continue
+
+            fp = _stat_fingerprint(st)
+
+            # Fast path: stat unchanged AND hash known → skip read
+            if old_hashes and key in old_hashes and self._file_stats.get(key) == fp:
+                new_hashes[key] = old_hashes[key]
+                continue
+
+            # Slow path: read + hash
             try:
                 text = fpath.read_text(errors="replace")
             except Exception:
                 continue
             new_hashes[key] = _sha256(text)
             file_texts[key] = text
+            self._file_stats[key] = fp
+
         return file_texts, new_hashes
 
     def _update_index(
@@ -479,7 +564,11 @@ class SearchStore:
         directory: str = "",
         on_progress: Callable[[int, int, str], None] | None = None,
     ) -> tuple[DocumentIndex, int]:
-        """Diff hashes, update index for changed files, remove deleted. Save cache."""
+        """Diff hashes, update index for changed files, remove deleted. Save cache.
+
+        file_texts only contains files that were actually read (stat-changed or new).
+        Unchanged files' texts are pulled from the cache.
+        """
         changed = {f for f in set(old_hashes) | set(new_hashes) if old_hashes.get(f) != new_hashes.get(f)}
         deleted = set(old_hashes) - set(new_hashes)
         log.debug(
@@ -489,25 +578,31 @@ class SearchStore:
             len(deleted),
         )
 
+        # Load cached texts for unchanged files
+        cached_texts: dict[str, str] = {}
+        cached = self._store.load_index(self._path) if self._store else None
+        if cached:
+            cached_texts = cached.get("file_texts", {})
+
+        # Merge: cached texts for unchanged, fresh texts for changed/new
+        all_texts = dict(cached_texts)
+        all_texts.update(file_texts)
+
         if not changed and old_hashes:
             # Nothing changed — restore from cache
-            if self._store:
-                cached = self._store.load_index(self._path)
-                if cached:
-                    idx_data = cached.get("index", {})
-                    original_texts = {k: file_texts.get(k, "") for k in idx_data.get("documents", {})}
-                    _index = DocumentIndex.from_dict(idx_data, original_texts)
+            if cached:
+                idx_data = cached.get("index", {})
+                original_texts = {k: all_texts.get(k, "") for k in idx_data.get("documents", {})}
+                _index = DocumentIndex.from_dict(idx_data, original_texts)
             self._dir_hashes[self._path] = new_hashes
             return _index, 0
 
-        if old_hashes and self._store:
+        if old_hashes and cached:
             # Partial reindex: restore unchanged from cache, reindex changed
-            cached = self._store.load_index(self._path)
-            if cached:
-                idx_data = cached.get("index", {})
-                unchanged_texts = {k: file_texts[k] for k in file_texts if k not in changed}
-                if unchanged_texts and idx_data:
-                    _index = DocumentIndex.from_dict(idx_data, unchanged_texts)
+            idx_data = cached.get("index", {})
+            unchanged_texts = {k: all_texts[k] for k in all_texts if k not in changed and k in idx_data.get("documents", {})}
+            if unchanged_texts and idx_data:
+                _index = DocumentIndex.from_dict(idx_data, unchanged_texts)
 
         # Index changed (or all if no cache)
         to_index = sorted(changed) if changed else sorted(file_texts.keys())
@@ -521,41 +616,68 @@ class SearchStore:
                 on_progress(count, total_changed, key)
 
         # Remove deleted files
-        for key in old_hashes:
-            if key not in new_hashes and key in _index.documents:
+        for key in deleted:
+            if key in _index.documents:
                 del _index.documents[key]
+            all_texts.pop(key, None)
 
-        # Save
-        if self._store:
-            self._store.save_index(self._path, directory, new_hashes, _index.to_dict())
+        # Only keep texts for files still in the index
+        save_texts = {k: v for k, v in all_texts.items() if k in new_hashes}
+
+        # Save — includes file texts, tracked dirs, stat caches
+        self._save_cache(directory, new_hashes, _index, file_texts=save_texts)
         self._dir_hashes[self._path] = new_hashes
         return _index, total_changed
 
-    def index_incremental(
+    def _save_cache(
+        self, directory: str, file_hashes: dict[str, str], doc_index: DocumentIndex,
+        file_texts: dict[str, str] | None = None,
+    ):
+        """Save DocumentIndex + file texts + tracked dirs + stat caches to disk."""
+        if not self._store:
+            return
+        self._store.save_index(
+            self._path, directory, file_hashes, doc_index.to_dict(),
+            indexed_dirs=self._indexed_dirs,
+            file_stats={k: list(v) for k, v in self._file_stats.items()},
+            dir_mtimes=self._dir_mtimes,
+            file_texts=file_texts,
+        )
+
+    def save_search_index(self, search_index: "object"):
+        """Persist DocumentSearchIndex data alongside the existing cache."""
+        if not self._store:
+            return
+        cached = self._store.load_index(self._path)
+        if not cached:
+            return
+        from .search_s.serialization import serialize_search_index
+        cached["search_index"] = serialize_search_index(search_index)
+        # Re-save the full cache
+        try:
+            payload = json.dumps(cached, separators=(",", ":")).encode()
+            _pgz_write(self._store._index_cache_path(self._path), payload)
+        except Exception as e:
+            log.warning("Failed to save search index: %s", e)
+
+    def _walk_directory(
         self,
-        _index: DocumentIndex,
         directory: str,
-        extensions: list[str] | None = None,
+        extensions: list[str],
         exclude: list[str] | None = None,
-        on_progress: Callable[[int, int, str], None] | None = None,
-    ) -> tuple[DocumentIndex, int]:
-        """Walk *directory*, index every file matching *extensions*.
+        old_hashes: dict[str, str] | None = None,
+    ) -> list[tuple[Path, str]]:
+        """Walk a directory collecting files as (absolute_path, relative_key).
 
-        Uses Merkle-based caching: only changed files are re-indexed.
-        Deleted files are removed from the index.
-        Reads .pgignore from directory root (gitignore-style patterns).
-        Additional exclude patterns can be passed via *exclude*.
+        Uses directory mtime pruning: if a directory's mtime_ns hasn't changed
+        since last index, its entire subtree is skipped — the old file list is
+        reused from old_hashes. Only directories with newer mtime are descended.
         """
-        extensions = extensions or [".py", ".pltg", ".md", ".txt"]
         ext_set = set(extensions)
-        directory = str(Path(directory).resolve())
-
-        # Load ignore patterns: .pgignore + explicit excludes
         ignore_patterns = _load_pgignore(directory)
         if exclude:
             ignore_patterns.extend(exclude)
 
-        # Collect files as (absolute, relative_key)
         paths: list[tuple[Path, str]] = []
         for root, dirs, fnames in os.walk(directory):
             # Prune ignored directories
@@ -567,6 +689,33 @@ class SearchStore:
                     if not _is_ignored(rel_dir + "/placeholder", ignore_patterns):
                         kept.append(d)
                 dirs[:] = kept
+
+            # Directory mtime pruning: if dir mtime unchanged, skip file listing
+            # and reuse known files from old_hashes. Each subdir still gets
+            # its own turn in os.walk for its own mtime check.
+            if old_hashes and self._dir_mtimes:
+                try:
+                    dir_mtime = os.stat(root).st_mtime_ns
+                except OSError:
+                    dir_mtime = 0
+                cached_mtime = self._dir_mtimes.get(root)
+                if cached_mtime is not None and dir_mtime == cached_mtime:
+                    # Reuse old file entries for this directory level only
+                    rel_root_str = str(Path(root).relative_to(directory))
+                    for key in old_hashes:
+                        key_dir = str(Path(key).parent)
+                        if key_dir == rel_root_str or (rel_root_str == "." and "/" not in key and "\\" not in key):
+                            fpath = Path(directory) / key
+                            if fpath.suffix in ext_set:
+                                paths.append((fpath, key))
+                    continue
+
+            # Record this directory's mtime
+            try:
+                self._dir_mtimes[root] = os.stat(root).st_mtime_ns
+            except OSError:
+                pass
+
             for fname in fnames:
                 if any(fname.endswith(e) for e in ext_set):
                     fpath = Path(root) / fname
@@ -574,15 +723,49 @@ class SearchStore:
                     if ignore_patterns and _is_ignored(rel, ignore_patterns):
                         continue
                     paths.append((fpath, rel))
+        return paths
 
-        file_texts, new_hashes = self._read_and_hash(paths)
+    def index_incremental(
+        self,
+        _index: DocumentIndex,
+        directory: str,
+        extensions: list[str] | None = None,
+        exclude: list[str] | None = None,
+        on_progress: Callable[[int, int, str], None] | None = None,
+        force: bool = False,
+    ) -> tuple[DocumentIndex, int]:
+        """Walk *directory*, index every file matching *extensions*.
+
+        Uses stat fingerprinting + Merkle hashing: unchanged files are skipped.
+        Deleted files are removed from the index.
+        Reads .pgignore from directory root (gitignore-style patterns).
+
+        force=True ignores all stat/hash caches and re-reads every file.
+        """
+        extensions = extensions or [".py", ".pltg", ".md", ".txt"]
+        directory = str(Path(directory).resolve())
+
+        # Track this directory for reindex
+        self._indexed_dirs[directory] = extensions
 
         # Old hashes from cache
         old_hashes: dict[str, str] = {}
-        if self._store:
+        if not force and self._store:
             cached = self._store.load_index(self._path)
             if cached:
                 old_hashes = cached.get("file_hashes", {})
+
+        if force:
+            self._file_stats.clear()
+            self._dir_mtimes.clear()
+
+        paths = self._walk_directory(
+            directory, extensions, exclude,
+            old_hashes=None if force else old_hashes,
+        )
+        file_texts, new_hashes = self._read_and_hash(
+            paths, old_hashes=None if force else old_hashes,
+        )
 
         return self._update_index(_index, file_texts, new_hashes, old_hashes, directory, on_progress)
 
@@ -590,8 +773,12 @@ class SearchStore:
         self,
         _index: DocumentIndex,
         on_progress: Callable[[int, int, str], None] | None = None,
+        force: bool = False,
     ) -> tuple[DocumentIndex, int]:
-        """Re-read and re-hash all previously indexed files. Update stale entries."""
+        """Re-walk all tracked directories, picking up new/changed/deleted files.
+
+        force=True ignores stat/hash caches and re-reads every file.
+        """
         if not self._store:
             return _index, 0
 
@@ -599,14 +786,35 @@ class SearchStore:
         if not cached:
             return _index, 0
 
-        old_hashes: dict[str, str] = cached.get("file_hashes", {})
+        old_hashes: dict[str, str] = {} if force else cached.get("file_hashes", {})
         directory = cached.get("directory", "")
-        if not old_hashes or not directory:
+
+        # Restore tracked dirs from cache if not already loaded
+        if not self._indexed_dirs:
+            self._indexed_dirs = cached.get("indexed_dirs", {})
+            if directory and not self._indexed_dirs:
+                self._indexed_dirs[directory] = cached.get("extensions", [".py", ".pltg", ".md", ".txt"])
+
+        if not self._indexed_dirs:
             return _index, 0
 
-        # Reconstruct (absolute_path, relative_key) from cached keys
-        base = Path(directory)
-        paths = [(base / rel, rel) for rel in old_hashes]
-        file_texts, new_hashes = self._read_and_hash(paths)
+        if force:
+            self._file_stats.clear()
+            self._dir_mtimes.clear()
 
-        return self._update_index(_index, file_texts, new_hashes, old_hashes, directory, on_progress)
+        # Walk ALL tracked directories — picks up new files
+        all_paths: list[tuple[Path, str]] = []
+        primary_dir = directory
+        for dir_path, exts in self._indexed_dirs.items():
+            all_paths.extend(self._walk_directory(
+                dir_path, exts,
+                old_hashes=None if force else old_hashes,
+            ))
+            if not primary_dir:
+                primary_dir = dir_path
+
+        file_texts, new_hashes = self._read_and_hash(
+            all_paths, old_hashes=None if force else old_hashes,
+        )
+
+        return self._update_index(_index, file_texts, new_hashes, old_hashes, primary_dir, on_progress)

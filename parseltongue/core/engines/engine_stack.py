@@ -490,21 +490,16 @@ class Engine(Rewriter, Executor):
                                 ctx_list.append(("resolve", name))
                         result = expr
                     elif self.strict_derive:
-                        import traceback
                         trace_str = "\n".join(
                             f"  [{i}] {t!r}" for i, t in enumerate(self._eval_trace[-20:])
                         )
-                        stack_str = "".join(traceback.format_stack())
-                        log.error(
-                            "Unresolved symbol: %s (restricted=%s)\n"
-                            "  last 20 eval steps:\n%s\n  Python stack:\n%s",
-                            expr, restricted, trace_str, stack_str,
-                        )
-                        raise NameError(
+                        msg = (
                             f"Unresolved symbol: {expr} — not in :using"
                             if restricted
                             else f"Unresolved symbol: {expr} — not in current system"
                         )
+                        inner = ValueError(f"last 20 eval steps:\n{trace_str}")
+                        raise NameError(msg) from inner
                     else:
                         # Unresolved symbol — still trace the attempt
                         if tracing and tracer_stack:

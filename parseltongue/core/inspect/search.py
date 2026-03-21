@@ -74,7 +74,12 @@ class Search:
     def __init__(self, store: SearchStore):
         self._index = store.load_index()
         self._store = store
-        self._system = SearchSystem(self._index, self._collect)
+        # Try to restore cached search index (stems, ngrams, meta, corpus)
+        cached_search = store.load_search_index(self._index)
+        if cached_search is not None:
+            self._system = SearchSystem(cached_search, self._collect)
+        else:
+            self._system = SearchSystem(self._index, self._collect)
 
     def register_scope(self, name: str, system: BenchSubsystem):
         """Register a BenchSubsystem as a named scope."""
@@ -92,12 +97,27 @@ class Search:
     def refresh(self, doc_index=None) -> None:
         """Sync search system with backing DocumentIndex.
 
-        If *doc_index* is provided, swaps the backing index (e.g. to the
-        verifier's DocumentIndex which carries quote ranges).
+        If *doc_index* is provided, merges its documents and quote ranges
+        into the existing index (e.g. the verifier's DocumentIndex carries
+        quote ranges for provenance tracing). Does NOT replace the index —
+        directory-indexed files are preserved.
         """
         if doc_index is not None:
-            self._index = doc_index
-            self._system._index = doc_index
+            # Merge verifier docs into existing index (adds quote ranges)
+            for name, doc in doc_index.documents.items():
+                if name not in self._index.documents:
+                    self._index.add(name, doc.original_text)
+            # Import quote ranges for provenance enrichment
+            self._index._quote_ranges = doc_index._quote_ranges
+            # Update the search system's backing doc_index reference
+            self._system._search_index._doc_index = self._index
+        self._system.refresh()
+
+    def _sync(self, updated_index):
+        """Sync all references after _update_index may have replaced DocumentIndex."""
+        if updated_index is not self._index:
+            self._index = updated_index
+            self._system._index = updated_index
         self._system.refresh()
 
     def index_dir(
@@ -106,22 +126,32 @@ class Search:
         extensions: list[str] | None = None,
         exclude: list[str] | None = None,
         on_progress: Callable[[int, int, str], None] | None = None,
+        force: bool = False,
     ) -> int:
-        _, count = self._store.index_incremental(self._index, directory, extensions, exclude, on_progress)
-        self._system.refresh()
+        updated, count = self._store.index_incremental(
+            self._index, directory, extensions, exclude, on_progress, force=force,
+        )
+        self._sync(updated)
+        if count > 0:
+            self._store.save_search_index(self._system._search_index)
         return count
 
     def reindex(
         self,
         on_progress: Callable[[int, int, str], None] | None = None,
+        force: bool = False,
     ) -> int:
-        """Re-read known files, update stale entries, remove deleted.
+        """Re-walk tracked directories, picking up new/changed/deleted files.
 
-        Works in-place on the current index. Cited documents that changed
-        get their quote positions recomputed via DocumentIndex.refresh_document.
+        Walks all previously indexed directories to discover new files,
+        re-hashes existing files, and updates stale entries.
+
+        force=True bypasses stat/hash caches — full tree walk + re-read.
         """
-        _, count = self._store.reindex(self._index, on_progress)
-        self._system.refresh()
+        updated, count = self._store.reindex(self._index, on_progress, force=force)
+        self._sync(updated)
+        if count > 0:
+            self._store.save_search_index(self._system._search_index)
         return count
 
     def evaluate(self, expression: str):
