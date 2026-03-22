@@ -50,7 +50,7 @@ class DiffView(Static):
         self._filepath = filepath
         self._old_string = old_string
         self._new_string = new_string
-        self._context = context
+        self._diff_context = context
         self._split_mode = False
         self._before, self._after = self._build_context()
 
@@ -67,9 +67,9 @@ class DiffView(Static):
             suffix = content[idx + len(self._old_string) :]
 
             pre_lines = prefix.splitlines()
-            ctx_before = pre_lines[-(self._context + 5) :] if pre_lines else []
+            ctx_before = pre_lines[-(self._diff_context + 5) :] if pre_lines else []
             post_lines = suffix.splitlines()
-            ctx_after = post_lines[: self._context + 5] if post_lines else []
+            ctx_after = post_lines[: self._diff_context + 5] if post_lines else []
 
             before_block = (
                 "\n".join(ctx_before)
@@ -98,14 +98,14 @@ class DiffView(Static):
                 self._before,
                 self._after,
                 filepath=self._filepath,
-                context=self._context,
+                context=self._diff_context,
             )
         else:
             table = build_unified_diff_table(
                 self._before,
                 self._after,
                 filepath=self._filepath,
-                context=self._context,
+                context=self._diff_context,
             )
         self.update(table)
 

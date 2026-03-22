@@ -49,13 +49,13 @@ class HighlightedLog(RichLog):
         self.clear()
         if not text:
             return
-        markup = self._render(text, lang)
+        markup = self._highlight_render(text, lang)
         self.write(markup)
 
     def append(self, text: str, *, language: str | None = ...) -> None:  # type: ignore[assignment]
         """Append highlighted text."""
         lang = self._language if language is ... else language
-        markup = self._render(text, lang)
+        markup = self._highlight_render(text, lang)
         self.write(markup)
 
     def set_info(self, text: str) -> None:
@@ -69,7 +69,7 @@ class HighlightedLog(RichLog):
         self.write(f"[red]{pv_escape(text)}[/red]")
 
     @staticmethod
-    def _render(text: str, language: str | None) -> str:
+    def _highlight_render(text: str, language: str | None) -> str:
         """Render text to Rich markup, optionally via Pygments."""
         if language is None:
             # Pass through as-is (caller provides markup or plain text)
