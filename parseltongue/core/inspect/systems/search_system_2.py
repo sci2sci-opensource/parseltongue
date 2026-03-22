@@ -17,7 +17,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Callable
 
 from parseltongue.core.atoms import Symbol
-from parseltongue.core.lang import Rewriter, SImpl, Sentence
+from parseltongue.core.lang import Rewriter, Sentence, is_sentence, is_sentence_list
 
 from .bench_system import BenchSubsystem, Posting
 from .search import SearchPostingMorphism, _posting_to_sr, _SrOpsMorphism
@@ -248,7 +248,7 @@ class SearchSystem2:
             scope_system = sys._scopes[name]
             result: Sentence | Posting | None = None
             for arg in args:
-                if isinstance(arg, SImpl):
+                if is_sentence(arg):
                     result = scope_system.evaluate(arg)
                 else:
                     result = arg
@@ -294,7 +294,7 @@ class SearchSystem2:
             """Take first N entries from a posting set or sr list."""
             val = _resolve(query)
             n = int(n)
-            if isinstance(val, SImpl):
+            if is_sentence_list(val):
                 return val[:n]
             if isinstance(val, dict):
                 keys = list(val.keys())[:n]
@@ -376,7 +376,7 @@ class SearchSystem2:
         def _scope_fn(_name, *args):
             result = None
             for arg in args:
-                if isinstance(arg, SImpl):
+                if is_sentence(arg):
                     result = system.evaluate(arg)
                 else:
                     result = arg
@@ -400,10 +400,12 @@ class SearchSystem2:
     def refresh(self):
         """Sync search index with underlying DocumentIndex after new docs added."""
         import logging as _logging
+
         _log = _logging.getLogger("parseltongue.search_system2")
         _log.info(
             "refresh: _index docs=%d qr=%d",
-            len(self._index.documents), len(self._index._quote_ranges),
+            len(self._index.documents),
+            len(self._index._quote_ranges),
         )
         self._search_index.refresh(self._index)
 

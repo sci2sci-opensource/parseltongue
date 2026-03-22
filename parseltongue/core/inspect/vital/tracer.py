@@ -88,9 +88,8 @@ class Tracer:
         self.express()
         return self
 
-    def __exit__(self, *exc) -> bool:
+    def __exit__(self, *exc) -> None:
         self.suppress()
-        return False
 
     def _extract(self):
         """Convert trace_log entries into Edge objects."""
@@ -105,7 +104,7 @@ class Tracer:
     def edges(self) -> set[Edge]:
         if self._edges is None:
             self._extract()
-        return self._edges
+        return self._edges  # type: ignore[return-value]
 
     @property
     def traces(self) -> list:

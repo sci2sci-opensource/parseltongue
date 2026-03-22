@@ -31,9 +31,10 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
+from typing import Any
 
 from parseltongue.core.atoms import Symbol
-from parseltongue.core.engine import Engine
+from parseltongue.core.engine import EngineImpl
 
 log = logging.getLogger("parseltongue.vital.stain")
 
@@ -102,10 +103,10 @@ class Stain:
             int N   — edges + traces up to N call levels from named context
     """
 
-    def __init__(self, engine: Engine, capture: str | int = "names"):
+    def __init__(self, engine: EngineImpl, capture: str | int = "names"):
         self._engine = engine
-        self._original_eval = None
-        self._original_rewrite = None
+        self._original_eval: Any = None
+        self._original_rewrite: Any = None
         self._edges: set[Edge] = set()
         self._traces: list[Trace] = []
         self._context_stack: list[str] = []
@@ -290,8 +291,8 @@ class Stain:
 
             return result
 
-        self._engine._eval = _stained_eval
-        self._engine._rewrite = _stained_rewrite
+        self._engine._eval = _stained_eval  # type: ignore[method-assign]
+        self._engine._rewrite = _stained_rewrite  # type: ignore[method-assign]
         self._applied = True
         log.info("Stain applied to engine (capture=%s)", self._capture)
         return self
@@ -300,10 +301,10 @@ class Stain:
         """Remove the stain — restore originals."""
         if self._applied:
             if self._original_eval is not None:
-                self._engine._eval = self._original_eval
+                self._engine._eval = self._original_eval  # type: ignore[method-assign]
                 self._original_eval = None
             if self._original_rewrite is not None:
-                self._engine._rewrite = self._original_rewrite
+                self._engine._rewrite = self._original_rewrite  # type: ignore[method-assign]
                 self._original_rewrite = None
             self._applied = False
             log.info(

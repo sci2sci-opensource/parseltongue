@@ -14,15 +14,17 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+from collections.abc import Callable
 from pathlib import Path
 from string import Template
 from typing import TYPE_CHECKING, Any
 
-log = logging.getLogger("parseltongue.viz")
-
 from ...form_renderer import FormRenderer, _to_sexp
 
+log = logging.getLogger("parseltongue.viz")
+
 if TYPE_CHECKING:
+    from ...probe_core_to_consequence import CoreToConsequenceStructure
     from ...store import Store
 
 # ── Template loading ──
@@ -37,10 +39,17 @@ def _read_template(name: str) -> str:
 class VizRenderer(FormRenderer):
     """Tailwind + D3 renderer for bench forms."""
 
-    def __init__(self, store: "Store | None" = None, merkle_root: str = "", structure: "Any | None" = None):
+    def __init__(
+        self,
+        store: "Store | None" = None,
+        merkle_root: str = "",
+        structure: "Any | None" = None,
+        loc_fn: "Callable[[str], str] | None" = None,
+    ):
         self._store = store
         self._merkle_root = merkle_root
         self._structure = structure  # CoreToConsequenceStructure for rail layout
+        self._loc_fn = loc_fn
 
     def fmt(self, val: Any) -> str:
         key = _content_hash(_to_sexp(val))
@@ -89,7 +98,7 @@ class VizRenderer(FormRenderer):
 # ── Helpers ──
 
 
-def _base_tag(form: list) -> str:
+def _base_tag(form: list | tuple) -> str:
     if not form:
         return ""
     return str(form[0]).rsplit(".", 1)[-1]
@@ -166,12 +175,12 @@ def _extract_sr_items(forms: list[list]) -> list[dict]:
         line = str(f[1]) if len(f) > 1 else "0"
         # Find context (first str after line) and callers (last list)
         ctx = ""
-        callers_raw = []
+        callers_raw: list = []
         for el in f[2:]:
             if isinstance(el, str):
                 ctx = el
             elif isinstance(el, (list, tuple)):
-                callers_raw = el
+                callers_raw = list(el)
             # skip int (column)
         callers = []
         for c in callers_raw:
@@ -214,7 +223,7 @@ def _extract_hn_items(forms: list[list]) -> list[dict]:
         if not f:
             continue
         # Each element in f is a biased lens ln form or []
-        lens_data = []
+        lens_data: list[dict[str, object] | None] = []
         name = ""
         kind = ""
         value = ""
@@ -268,14 +277,15 @@ def _ln_title(form: list) -> str:
 # ── Stacked-pills layout (from CoreToConsequenceStructure) ──
 
 
-def _build_layers_data(structure, item_names: set[str] | None = None) -> dict:  # noqa: C901
+def _build_layers_data(structure: CoreToConsequenceStructure, item_names: set[str] | None = None) -> dict:  # noqa: C901
     """Build stacked-pills layout data from a CoreToConsequenceStructure.
 
     Returns JSON-serializable dict with:
       layers: [{depth, nodes: [{name, kind, value, uses, declares, pulls, module}]}]
       edges: [{source, target, type}]  — type: use/declare/pull
     """
-    from parseltongue.core.atoms import SILENCE, Symbol as _Sym
+    from parseltongue.core.atoms import SILENCE
+    from parseltongue.core.atoms import Symbol as _Sym
     from parseltongue.core.lang import to_sexp as _to_sexp_val
 
     if structure is None:
@@ -376,12 +386,15 @@ def _build_layers_data(structure, item_names: set[str] | None = None) -> dict:  
             return r
         return set()
 
-    for name, node in structure.graph.items():
-        if node.kind != NodeKind.AXIOM or node.atom is None:
+    for name, graph_node in structure.graph.items():
+        if graph_node.kind != NodeKind.AXIOM or graph_node.atom is None:
             continue
         if name not in kept_names:
             continue
-        for ref in _syms(node.atom.wff):
+        atom = graph_node.atom
+        if not hasattr(atom, "wff"):
+            continue
+        for ref in _syms(atom.wff):
             if ref in kept_names and ref != name:
                 ref_node = structure.graph.get(ref)
                 if ref_node and ref_node.kind == NodeKind.TERM_FWD:
@@ -624,7 +637,8 @@ def _localize_multi(structure, seeds: set[str]):
 
 def _build_named_structure_data(names: set[str], structure) -> list[dict]:
     """Build ln-like structure items for a set of node names found in structure."""
-    from parseltongue.core.atoms import SILENCE, Symbol as _Sym
+    from parseltongue.core.atoms import SILENCE
+    from parseltongue.core.atoms import Symbol as _Sym
     from parseltongue.core.lang import to_sexp as _to_sexp_val
 
     if structure is None:
@@ -689,7 +703,7 @@ def _build_sr_structure_data(sr_items: list[dict], structure) -> list[dict]:
 
 def _render_app(items: list[dict], form_type: str, title: str, structure: "Any | None" = None) -> str:
     structure_items = items  # default: structure tab shows same data
-    layers_data = {"layers": [], "edges": []}
+    layers_data: dict[str, list] = {"layers": [], "edges": []}
 
     if form_type == "ln" and items and structure is not None:
         item_names = {item["id"] for item in items}

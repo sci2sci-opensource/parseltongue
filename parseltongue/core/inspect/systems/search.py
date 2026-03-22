@@ -3,7 +3,7 @@ from typing import Callable
 from typing_extensions import deprecated
 
 from parseltongue.core.atoms import Symbol
-from parseltongue.core.lang import Rewriter, SImpl
+from parseltongue.core.lang import Rewriter, is_sentence_list
 from parseltongue.core.quote_verifier import DocumentIndex
 
 from .bench_system import BenchSubsystem, Posting
@@ -352,7 +352,7 @@ class SearchSystem:
             """Take first N entries from a posting set or sr list."""
             val = _resolve(query)
             n = int(n)
-            if isinstance(val, SImpl):
+            if is_sentence_list(val):
                 return val[:n]
             if isinstance(val, dict):
                 keys = list(val.keys())[:n]

@@ -184,7 +184,7 @@ class Technician:
         if live and result is not None and hasattr(result.system, "engine") and result.system.engine.facts:
             from .systems.live_bench import LiveBench
 
-            self._live[path] = LiveBench(result, frozen)  # type: ignore[arg-type]
+            self._live[path] = LiveBench(result, frozen)
             self._live[path].register_scope("lens", lens.search_system)
             if dx is not None:
                 for _scope_name in ("screen", "diagnose", "evaluation"):
@@ -461,7 +461,7 @@ class Technician:
     def _check_load_integrity(self, path: str, result: LazyLoadResult) -> str:
         """Check whether a load completed fully. Returns integrity label."""
         errors = result.errors if result else {}
-        unresolved = getattr(result.system, "_unresolved", set()) if result and result.system else set()
+        unresolved: set[str] = getattr(result.system, "_unresolved", set()) if result and result.system else set()
         if errors or unresolved:
             parts = []
             if errors:
@@ -587,7 +587,7 @@ class Technician:
             try:
                 kw = {"verifier": cached_verifier} if cached_verifier else {}
                 loader = LazyLoader(lib_paths=technician._lib_paths)
-                loader.load_main(path, effects=technician._effects.get(path), name="Technician.bg_reload", **kw)
+                loader.load_main(path, effects=technician._effects.get(path), name="Technician.bg_reload", **kw)  # type: ignore[arg-type]
                 file_list = file_lists.get(path) or technician.collect_source_files(loader)
                 new_hashes = store.hash_files(file_list)
                 new_tree = store.build_file_tree(file_list, new_hashes)

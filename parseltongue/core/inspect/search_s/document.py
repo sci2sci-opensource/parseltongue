@@ -47,6 +47,8 @@ class SearchDocument:
         "_content_hash",
     )
 
+    doc: "IndexedDocument"
+
     def __init__(self, doc: "IndexedDocument"):
         self.name = doc.name
         self.doc = doc

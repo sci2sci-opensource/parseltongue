@@ -11,10 +11,12 @@ fix for grammar returning tuples. Should instantiate lang-level rewriters
 (match/substitute/free_vars) properly instead of duck-typing both containers.
 """
 
+from __future__ import annotations
+
 import logging
 from dataclasses import dataclass, field, replace
 from enum import StrEnum
-from typing import Callable
+from typing import Callable, Protocol, runtime_checkable
 
 from .atoms import SILENCE, WFF, Evidence, Silence, Symbol
 from .lang import (
@@ -288,11 +290,52 @@ class ConsistencyReport:
 
 
 # ============================================================
-# Engine
+# Engine Protocol
 # ============================================================
 
 
-class Engine(Rewriter, Executor):
+@runtime_checkable
+class Engine(Rewriter, Executor, Protocol):
+    """Protocol describing the engine interface.
+
+    Both ``EngineImpl`` (engine.py) and ``engines.engine_stack.Engine``
+    satisfy this protocol. Use ``Engine`` in type hints everywhere;
+    instantiate the concrete implementation you need.
+    """
+
+    name: str
+    axioms: dict[str, Axiom]
+    theorems: dict[str, Theorem]
+    terms: dict[str, Term]
+    facts: dict[str, Fact]
+    env: dict
+    diffs: dict[str, dict]
+    diff_refs: dict[str, set[str]]
+    documents: dict[str, str]
+    overridable: bool
+    strict_derive: bool
+
+    def register_document(self, name: str, text: str) -> None: ...
+    def load_document(self, name: str, path: str) -> None: ...
+    def set_fact(self, name: str, value: WFF, origin: object) -> None: ...
+    def introduce_axiom(self, name: str, wff: object, origin: object) -> Axiom: ...
+    def introduce_term(self, name: str, definition: object, origin: object) -> Term: ...
+    def derive(self, name: str, wff: object, using: list[str]) -> Theorem: ...
+    def register_diff(self, name: str, replace: str, with_: str) -> None: ...
+    def eval_diff(self, name: str) -> DiffResult: ...
+    def consistency(self, suppress_log: bool = True) -> ConsistencyReport: ...
+    def verify_manual(self, name: str) -> None: ...
+    def instantiate(self, name: str, bindings: dict) -> object: ...
+    def retract(self, name: str) -> None: ...
+    def rederive(self, name: str) -> None: ...
+
+
+# ============================================================
+# Engine Implementation
+# ============================================================
+
+
+class EngineImpl(Engine):
     """Evaluation engine with document management. No serialization."""
 
     def __init__(
@@ -318,6 +361,7 @@ class Engine(Rewriter, Executor):
         self.strict_derive = strict_derive
         self.max_eval_depth = max_eval_depth
         import sys
+
         if sys.getrecursionlimit() < max_eval_depth:
             sys.setrecursionlimit(max_eval_depth)
 
@@ -1016,7 +1060,7 @@ class Engine(Rewriter, Executor):
         if isinstance(expr, (list, tuple)):
             result: set[str] = set()
             for sub in expr:
-                result |= Engine._expr_symbols(sub)
+                result |= EngineImpl._expr_symbols(sub)
             return result
         return set()
 
@@ -1150,7 +1194,7 @@ class Engine(Rewriter, Executor):
         if isinstance(expr, Symbol):
             return str(expr) == name
         if isinstance(expr, (list, tuple)):
-            return any(Engine._expr_references(sub, name) for sub in expr)
+            return any(EngineImpl._expr_references(sub, name) for sub in expr)
         return False
 
     def _dependents(self, symbol_name: str, exclude_diff: str | None = None) -> list[tuple[str, str]]:

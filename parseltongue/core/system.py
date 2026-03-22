@@ -2,15 +2,15 @@
 Parseltongue System — composes Engine with defaults, serialization, and introspection.
 """
 
-
 import logging
 from typing import Callable, Self
 
 from .atoms import SILENCE, Evidence, Symbol
 from .default_system_settings import DEFAULT_OPERATORS, ENGINE_DOCS
-from .engines.engine_stack import Engine, Fact
+
 # from .engine import Engine, Fact
 from .engine import load_source as _engine_load_source
+from .engines.engine_stack import Engine, Fact
 from .lang import (
     DSL_KEYWORDS,
     LANG_DOCS,
@@ -40,6 +40,8 @@ log = logging.getLogger("parseltongue")
 class AbstractSystem(Rewriter, Interpreter):
     """Composes Engine with serialization and introspection. All args required — no defaults."""
 
+    _unresolved: set[str]
+
     def __init__(
         self,
         initial_env: dict,
@@ -55,6 +57,8 @@ class AbstractSystem(Rewriter, Interpreter):
 
         self.engine = Engine(env, overridable=overridable, strict_derive=strict_derive, verifier=verifier, name=name)
         self._docs = docs
+
+        self._unresolved = set()
 
         for name, fn in effects.items():
             self.engine.env[Symbol(name)] = lambda *args, _fn=fn: _fn(self, *args)
@@ -310,7 +314,8 @@ class AbstractSystem(Rewriter, Interpreter):
         from .lang import EQ
 
         # Re-verify all evidence to rebuild quote ranges for search provenance
-        for name, item in {**self.engine.facts, **self.engine.axioms, **self.engine.terms}.items():
+        items: dict[str, Fact | Axiom | Term] = {**self.engine.facts, **self.engine.axioms, **self.engine.terms}
+        for name, item in items.items():
             if isinstance(item.origin, Evidence):
                 self.engine._verify_evidence(item.origin, caller=name)
 

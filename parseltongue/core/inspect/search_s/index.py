@@ -222,7 +222,7 @@ class DocumentSearchIndex:
         fn = STRATEGIES.get(strategy)
         if fn is None:
             raise ValueError(f"Unknown strategy: {strategy!r}. Available: {list(STRATEGIES)}")
-        return fn(self, query)  # type: ignore[operator]
+        return fn(self, query)
 
     def search(self, query: str, strategy: str = "rrf") -> dict:
         """Lookup + enrich with quote provenance.
@@ -266,7 +266,7 @@ class DocumentSearchIndex:
                     best[c] = o
 
             callers = [{"name": c, "overlap": round(o, 3)} for c, o in best.items()]
-            callers.sort(key=lambda c: -c["overlap"])
+            callers.sort(key=lambda c: -c["overlap"])  # type: ignore[operator]
             entry["callers"] = callers
             entry["total_callers"] = len(callers)
 

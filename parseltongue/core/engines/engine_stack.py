@@ -12,12 +12,12 @@ fix for grammar returning tuples. Should instantiate lang-level rewriters
 """
 
 import logging
-from dataclasses import dataclass, field, replace
-from enum import StrEnum
+from dataclasses import replace
 from typing import Callable
 
 from ..atoms import SILENCE, WFF, Evidence, Silence, Symbol
-from ..engine import IssueType, WarningType, ConsistencyWarning, Fact, ConsistencyReport, DiffResult, ConsistencyIssue
+from ..engine import ConsistencyIssue, ConsistencyReport, ConsistencyWarning, DiffResult, Fact, IssueType, WarningType
+from ..engine import Engine as EngineProtocol
 from ..lang import (
     AXIOM,
     DEFTERM,
@@ -41,9 +41,7 @@ from ..lang import (
     SPECIAL_FORMS,
     STRICT,
     Axiom,
-    Executor,
     PGStringParser,
-    Rewriter,
     Sentence,
     Term,
     Theorem,
@@ -59,19 +57,19 @@ from ..quote_verifier import QuoteVerifier
 log = logging.getLogger("parseltongue")
 
 _TAIL_CALL = object()  # sentinel for iterative eval tail-call signaling
-_MISSING = object()    # sentinel for trail: key didn't exist before
+_MISSING = object()  # sentinel for trail: key didn't exist before
 
 # -- Continuation tags for iterative _eval (ints for speed) --
-_K_ARGS          = 0  # evaluating argument list
-_K_IF_COND       = 1  # waiting for if-condition
-_K_LET_BIND      = 2  # waiting for let-binding value
-_K_BIND_PAIR     = 3  # waiting for :bind pair value
-_K_SELF_ARGS     = 4  # evaluating (self ...) args sequentially
-_K_HEAD          = 5  # waiting for head evaluation (rare: compound heads only)
-_K_STRICT_ARG    = 6  # waiting for (strict ...) arg in lazy path
+_K_ARGS = 0  # evaluating argument list
+_K_IF_COND = 1  # waiting for if-condition
+_K_LET_BIND = 2  # waiting for let-binding value
+_K_BIND_PAIR = 3  # waiting for :bind pair value
+_K_SELF_ARGS = 4  # evaluating (self ...) args sequentially
+_K_HEAD = 5  # waiting for head evaluation (rare: compound heads only)
+_K_STRICT_ARG = 6  # waiting for (strict ...) arg in lazy path
 _K_PROJECT_BASIS = 7  # waiting for project basis
-_K_TRAIL_UNDO    = 8  # env restore point — undo trail on scope exit
-_K_CONTEXT       = 9  # context marker for observer (name,) — popped after body eval
+_K_TRAIL_UNDO = 8  # env restore point — undo trail on scope exit
+_K_CONTEXT = 9  # context marker for observer (name,) — popped after body eval
 
 
 # ============================================================
@@ -84,7 +82,7 @@ _K_CONTEXT       = 9  # context marker for observer (name,) — popped after bod
 # ============================================================
 
 
-class Engine(Rewriter, Executor):
+class Engine(EngineProtocol):
     """Evaluation engine with document management. No serialization."""
 
     def __init__(
@@ -112,11 +110,12 @@ class Engine(Rewriter, Executor):
         self._eval_observer = None  # callable(expr, result, stack) or None
         # ── Tracing (off by default, activated by Tracer) ──
         self._tracing: bool = False
-        self._trace_log: list = []       # completed context traces (appended on _K_CONTEXT pop)
+        self._trace_log: list = []  # completed context traces (appended on _K_CONTEXT pop)
         self._trace_context: str | None = None  # current context name (for _rewrite)
         self._trace_current: list | None = None  # current context's trace list (for _rewrite)
-        self._tracer_stack: list = []    # [(name, traces_list), ...] — mirrors _K_CONTEXT frames
+        self._tracer_stack: list = []  # [(name, traces_list), ...] — mirrors _K_CONTEXT frames
         import sys
+
         if sys.getrecursionlimit() < max_eval_depth:
             sys.setrecursionlimit(max_eval_depth)
 
@@ -379,6 +378,9 @@ class Engine(Rewriter, Executor):
 
         return expr
 
+    # Internal: Sentence slots that may be None (tail-call placeholders, strict-pending slots)
+    StackSentence = Sentence | None
+
     def _eval(self, expr: Sentence, env, axiom_scope=None, restricted=False) -> Sentence:
         """Iterative evaluator with delta-compressed stack.
 
@@ -394,14 +396,14 @@ class Engine(Rewriter, Executor):
 
         # -- Stack & result register --
         stack: list = []
-        result: Sentence = None
+        result: Engine.StackSentence = None
         observer = self._eval_observer
         _rewrite_cache: dict = {}  # id(expr) → rewritten result
         tracing = self._tracing
         tracer_stack = self._tracer_stack  # instance-level, spans recursive _eval calls
 
         if not hasattr(self, "_eval_trace"):
-            self._eval_trace = []
+            self._eval_trace: list[Sentence] = []
 
         # ── helpers: trail-based env mutation ──
         # trail = [(key, old_value_or_MISSING), ...]
@@ -414,9 +416,7 @@ class Engine(Rewriter, Executor):
 
             # ── Depth guard (stack depth, not iteration count) ──
             if len(stack) > self.max_eval_depth:
-                trace_str = "\n".join(
-                    f"  [{i}] {t!r}" for i, t in enumerate(self._eval_trace[-20:])
-                )
+                trace_str = "\n".join(f"  [{i}] {t!r}" for i, t in enumerate(self._eval_trace[-20:]))
                 raise RecursionError(
                     f"maximum eval depth ({self.max_eval_depth}) exceeded "
                     f"while evaluating {expr!r}\n  last 20 eval steps:\n{trace_str}"
@@ -452,7 +452,7 @@ class Engine(Rewriter, Executor):
                                     if ctx_name != name:
                                         ctx_list.append(("resolve", name))
                                 # Push context for any definition (compound or alias)
-                                ctx_traces = []
+                                ctx_traces: list[tuple[str, str]] = []
                                 stack.append((_K_CONTEXT, name, ctx_traces))
                                 tracer_stack.append((name, ctx_traces))
                                 self._trace_context = name
@@ -490,16 +490,14 @@ class Engine(Rewriter, Executor):
                                 ctx_list.append(("resolve", name))
                         result = expr
                     elif self.strict_derive:
-                        trace_str = "\n".join(
-                            f"  [{i}] {t!r}" for i, t in enumerate(self._eval_trace[-20:])
-                        )
+                        trace_str = "\n".join(f"  [{i}] {t!r}" for i, t in enumerate(self._eval_trace[-20:]))
                         msg = (
                             f"Unresolved symbol: {expr} — not in :using"
                             if restricted
                             else f"Unresolved symbol: {expr} — not in current system"
                         )
-                        inner = ValueError(f"last 20 eval steps:\n{trace_str}")
-                        raise NameError(msg) from inner
+                        cause = ValueError(f"last 20 eval steps:\n{trace_str}")
+                        raise NameError(msg) from cause
                     else:
                         # Unresolved symbol — still trace the attempt
                         if tracing and tracer_stack:
@@ -540,7 +538,7 @@ class Engine(Rewriter, Executor):
                             pairs = [p for p in bind_raw if isinstance(p, (list, tuple)) and len(p) >= 2]
                             if pairs:
                                 # Trail: mutations to env will be undone by _K_TRAIL_UNDO
-                                trail = []
+                                trail: list[tuple] = []
                                 stack.append((_K_TRAIL_UNDO, trail))
                                 # [tag, pairs, defn, idx, sub_bindings, trail]
                                 stack.append([_K_BIND_PAIR, pairs, defn, 0, {}, trail])
@@ -561,8 +559,9 @@ class Engine(Rewriter, Executor):
                 # ── let ──
                 if head == LET:
                     _, bindings_expr, body = expr
-                    assert isinstance(bindings_expr, (list, tuple)), \
-                        f"let bindings must be a list, got {type(bindings_expr)}"
+                    assert isinstance(
+                        bindings_expr, (list, tuple)
+                    ), f"let bindings must be a list, got {type(bindings_expr)}"
                     let_bindings = [b for b in bindings_expr if isinstance(b, (list, tuple))]
                     if let_bindings:
                         # Trail: undo env mutations when let scope exits
@@ -644,7 +643,9 @@ class Engine(Rewriter, Executor):
                         for arg in expr[1:]:
                             if isinstance(arg, Symbol):
                                 aname = str(arg)
-                                if aname != ctx_name_t and (aname in self.facts or aname in self.terms or aname in self.theorems):
+                                if aname != ctx_name_t and (
+                                    aname in self.facts or aname in self.terms or aname in self.theorems
+                                ):
                                     ctx_list_t.append(("resolve", aname))
 
                     # --- Resolve head inline (avoid _K_HEAD for Symbols) ---
@@ -712,7 +713,7 @@ class Engine(Rewriter, Executor):
                             continue
                     else:
                         # Lazy path: force-eval (strict ...) args, then rewrite
-                        lazy_args = []
+                        lazy_args: list[Engine.StackSentence] = []
                         strict_pending = []
                         for i, arg in enumerate(expr[1:]):
                             if isinstance(arg, (list, tuple)) and arg and arg[0] == STRICT:
@@ -723,18 +724,16 @@ class Engine(Rewriter, Executor):
 
                         if strict_pending:
                             # [tag, head_val, head, expr, lazy_args, strict_pending, strict_idx]
-                            stack.append([_K_STRICT_ARG, head_val, head, expr, lazy_args,
-                                          strict_pending, 0])
+                            stack.append([_K_STRICT_ARG, head_val, head, expr, lazy_args, strict_pending, 0])
                             expr = strict_pending[0][1]
                             continue
                         else:
                             # No strict args — try rewrite immediately
                             rr = self._eval_lazy_rewrite_inline(
-                                head_val, head, expr, lazy_args,
-                                axiom_scope, stack, _rewrite_cache
+                                head_val, head, expr, lazy_args, axiom_scope, stack, _rewrite_cache
                             )
                             if rr is _TAIL_CALL:
-                                expr = self._tc_expr
+                                expr = self._tc_expr  # type: ignore[assignment]
                                 continue
                             result = rr
 
@@ -809,7 +808,11 @@ class Engine(Rewriter, Executor):
                             if ev != formal_expr:
                                 rewritten2 = self._rewrite(ev, axiom_scope=axiom_scope)
                                 if rewritten2 != ev:
-                                    new_head2 = rewritten2[0] if isinstance(rewritten2, (list, tuple)) and rewritten2 else rewritten2
+                                    new_head2 = (
+                                        rewritten2[0]
+                                        if isinstance(rewritten2, (list, tuple)) and rewritten2
+                                        else rewritten2
+                                    )
                                     if new_head2 != head_val:
                                         log.info("_eval post-arg rewrite %r -> %r", ev, rewritten2)
                                         expr = rewritten2
@@ -866,6 +869,7 @@ class Engine(Rewriter, Executor):
                     else:
                         stack.pop()
                         defn = frame[2]
+                        assert defn is not None  # defn set at _K_LET_BIND push
                         bound = substitute(defn, sub_bindings) if sub_bindings else defn
                         expr = bound
                         break
@@ -908,7 +912,7 @@ class Engine(Rewriter, Executor):
                         break
                     else:
                         # Lazy path
-                        lazy_args = []
+                        lazy_args = []  # list[Engine.StackSentence]
                         strict_pending = []
                         for i, arg in enumerate(original_expr[1:]):
                             if isinstance(arg, (list, tuple)) and arg and arg[0] == STRICT:
@@ -917,17 +921,15 @@ class Engine(Rewriter, Executor):
                             else:
                                 lazy_args.append(arg)
                         if strict_pending:
-                            stack.append([_K_STRICT_ARG, head_val, head, original_expr,
-                                          lazy_args, strict_pending, 0])
+                            stack.append([_K_STRICT_ARG, head_val, head, original_expr, lazy_args, strict_pending, 0])
                             expr = strict_pending[0][1]
                             break
                         else:
                             rr = self._eval_lazy_rewrite_inline(
-                                head_val, head, original_expr, lazy_args,
-                                axiom_scope, stack, _rewrite_cache
+                                head_val, head, original_expr, lazy_args, axiom_scope, stack, _rewrite_cache
                             )
                             if rr is _TAIL_CALL:
-                                expr = self._tc_expr
+                                expr = self._tc_expr  # type: ignore[assignment]
                                 break
                             result = rr
                             continue
@@ -943,11 +945,10 @@ class Engine(Rewriter, Executor):
                     else:
                         stack.pop()
                         rr = self._eval_lazy_rewrite_inline(
-                            frame[1], frame[2], frame[3], frame[4],
-                            axiom_scope, stack, _rewrite_cache
+                            frame[1], frame[2], frame[3], frame[4], axiom_scope, stack, _rewrite_cache
                         )
                         if rr is _TAIL_CALL:
-                            expr = self._tc_expr
+                            expr = self._tc_expr  # type: ignore[assignment]
                             break
                         result = rr
                         continue
@@ -966,13 +967,13 @@ class Engine(Rewriter, Executor):
                 # Stack empty — we're done
                 if tracing and tracer_stack:
                     log.info("trace: _eval returning with %d stale tracer_stack entries", len(tracer_stack))
+                assert result is not None  # _eval always produces a value
                 return result
 
     # Single-slot for tail-call signaling (avoids tuple allocation)
-    _tc_expr: Sentence = None
+    _tc_expr: StackSentence = None
 
-    def _eval_lazy_rewrite_inline(self, head_val, head, original_expr, lazy_args,
-                                  axiom_scope, stack, cache):
+    def _eval_lazy_rewrite_inline(self, head_val, head, original_expr, lazy_args, axiom_scope, stack, cache):
         """Lazy rewrite path for non-callable heads.
 
         Returns result value, or _TAIL_CALL sentinel (sets self._tc_expr).
@@ -1013,9 +1014,8 @@ class Engine(Rewriter, Executor):
 
     def _eval_delegate(self, expr, env, axiom_scope, restricted):
         """Evaluate (delegate ...) — kept as recursive helper (rare, shallow)."""
-        head = expr[0]
         depth = 0
-        delegate_pattern: Sentence | None = None
+        delegate_pattern: Engine.StackSentence = None
         e: Sentence = expr
         while isinstance(e, (list, tuple)) and e and e[0] == DELEGATE:
             depth += 1
@@ -1063,6 +1063,7 @@ class Engine(Rewriter, Executor):
         """Evaluate (scope ...) — kept as recursive helper (scope boundary)."""
         scope_name: Sentence = expr[1]
         if scope_name == SELF:
+
             def _self_scope(_name, *args):
                 result = None
                 for arg in args:
@@ -1071,10 +1072,12 @@ class Engine(Rewriter, Executor):
                     else:
                         result = arg
                 return result
+
             scope_val: Sentence | Callable = _self_scope
         else:
             scope_val = self._eval(scope_name, env, axiom_scope, restricted)
         if callable(scope_val):
+
             def _resolve_projects(ex):
                 if not isinstance(ex, (list, tuple)) or not ex:
                     return ex

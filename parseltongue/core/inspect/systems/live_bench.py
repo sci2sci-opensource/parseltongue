@@ -13,7 +13,6 @@ from .bench_system import BenchSystem
 
 if TYPE_CHECKING:
     from parseltongue.core.loader.lazy_loader import LazyLoadResult
-    from parseltongue.core.system import System
 
     from .frozen_bench import FrozenBench
 
@@ -23,6 +22,6 @@ class LiveBench(BenchSystem):
 
     def __init__(self, result: "LazyLoadResult", frozen: "FrozenBench"):
         self._loader = frozen._loader
-        self.system: System = frozen.system.copy(name="LiveBench", overridable=True)
+        self.system = frozen.system.copy(name="LiveBench", overridable=True)  # type: ignore[assignment]
         self.result = result
         self.register_scope("sample", result.system)

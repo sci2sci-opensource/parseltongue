@@ -142,15 +142,16 @@ def search_meta(
     if not tokens:
         return {}
 
-    syn = synonyms or getattr(index, "_synonyms", DEFAULT_SYNONYMS)
-    expanded = syn.expand_flat(tokens, scope=ExpansionScope.META)
+    syn: SynonymIndex = synonyms or getattr(index, "_synonyms", None) or DEFAULT_SYNONYMS
+    token_list = list(tokens)
+    expanded = syn.expand_flat(token_list, scope=ExpansionScope.META)
     expanded_terms = [e.term for e in expanded]
     expanded_weights = {e.term: e.weight for e in expanded}
 
     result = {}
     for doc_name, sdoc in index.documents.items():
         # Direct match (original tokens, full boost)
-        direct_located = sdoc.meta.matches_query_located(tokens)
+        direct_located = sdoc.meta.matches_query_located(token_list)
 
         # Expanded match (synonym tokens, weighted)
         expanded_located = sdoc.meta.matches_query_located(expanded_terms) if expanded_terms != tokens else []

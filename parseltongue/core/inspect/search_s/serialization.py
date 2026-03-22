@@ -12,6 +12,8 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from parseltongue.core.quote_verifier.index import DocumentIndex, IndexedDocument
+
     from .document import SearchDocument
     from .index import DocumentSearchIndex
     from .meta import MetaIndex, MetaMark
@@ -19,6 +21,7 @@ if TYPE_CHECKING:
 
 
 # ── MetaMark ──
+
 
 def _serialize_mark(m: "MetaMark") -> dict:
     d: dict = {"key": m.key, "value": m.value}
@@ -31,6 +34,7 @@ def _serialize_mark(m: "MetaMark") -> dict:
 
 def _deserialize_mark(d: dict) -> "MetaMark":
     from .meta import MetaMark
+
     return MetaMark(
         key=d["key"],
         value=d["value"],
@@ -40,6 +44,7 @@ def _deserialize_mark(d: dict) -> "MetaMark":
 
 
 # ── MetaIndex ──
+
 
 def serialize_meta(meta: "MetaIndex") -> dict:
     return {
@@ -52,6 +57,7 @@ def serialize_meta(meta: "MetaIndex") -> dict:
 
 def deserialize_meta(d: dict) -> "MetaIndex":
     from .meta import MetaIndex
+
     meta = MetaIndex()
     for k, marks in d.get("token_meta", {}).items():
         meta.token_meta[int(k)] = [_deserialize_mark(m) for m in marks]
@@ -59,6 +65,7 @@ def deserialize_meta(d: dict) -> "MetaIndex":
         meta.word_meta[k] = [_deserialize_mark(m) for m in marks]
         # Rebuild _stem_meta
         from .stemmer import stem
+
         for m in meta.word_meta[k]:
             meta._stem_meta.setdefault(stem(k), []).append(m)
     for k, marks in d.get("line_meta", {}).items():
@@ -69,6 +76,7 @@ def deserialize_meta(d: dict) -> "MetaIndex":
 
 # ── NGramIndex ──
 
+
 def serialize_ngrams(ng: "NGramIndex") -> dict:
     return {
         "bigrams": {f"{a}\x00{b}": sorted(lines) for (a, b), lines in ng.bigrams.items()},
@@ -78,6 +86,7 @@ def serialize_ngrams(ng: "NGramIndex") -> dict:
 
 def deserialize_ngrams(d: dict) -> "NGramIndex":
     from .ngrams import NGramIndex
+
     ng = NGramIndex()
     for key, lines in d.get("bigrams", {}).items():
         parts = key.split("\x00")
@@ -89,6 +98,7 @@ def deserialize_ngrams(d: dict) -> "NGramIndex":
 
 
 # ── SearchDocument ──
+
 
 def _set_to_list(s: set) -> list:
     return sorted(s)
@@ -116,15 +126,13 @@ def serialize_search_document(sdoc: "SearchDocument") -> dict:
     }
 
 
-def deserialize_search_document(d: dict, indexed_doc: "object | None" = None) -> "SearchDocument":
+def deserialize_search_document(d: dict, indexed_doc: "IndexedDocument | None" = None) -> "SearchDocument":
     """Restore a SearchDocument from serialized data.
 
     If indexed_doc is provided, it's used as the backing doc reference.
     Otherwise a stub is created with just the name.
     """
     from .document import SearchDocument
-    from .meta import MetaIndex
-    from .ngrams import NGramIndex
 
     # Create without calling __init__ — we'll set everything manually
     sdoc = object.__new__(SearchDocument)
@@ -137,11 +145,12 @@ def deserialize_search_document(d: dict, indexed_doc: "object | None" = None) ->
     sdoc._line_tokens = [(ln, tokens) for ln, tokens in d["line_tokens"]]
     sdoc.ngram_index = deserialize_ngrams(d["ngram_index"])
     sdoc.meta = deserialize_meta(d["meta"])
-    sdoc.doc = indexed_doc
+    sdoc.doc = indexed_doc  # type: ignore[assignment]  # object.__new__ bypass
     return sdoc
 
 
 # ── DocumentSearchIndex ──
+
 
 def _corpus_to_json(corpus: dict[str, dict[str, set[int]]]) -> dict[str, dict[str, list[int]]]:
     return {stem: {doc: sorted(lines) for doc, lines in docs.items()} for stem, docs in corpus.items()}
@@ -161,7 +170,7 @@ def serialize_search_index(idx: "DocumentSearchIndex") -> dict:
     }
 
 
-def deserialize_search_index(d: dict, doc_index: "object") -> "DocumentSearchIndex":
+def deserialize_search_index(d: dict, doc_index: "DocumentIndex") -> "DocumentSearchIndex":
     """Restore a DocumentSearchIndex from serialized data + backing DocumentIndex."""
     from .annotators import DEFAULT_ANNOTATORS
     from .index import DocumentSearchIndex

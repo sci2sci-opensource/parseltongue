@@ -20,6 +20,8 @@ from typing import TYPE_CHECKING, Protocol
 from parseltongue.core.atoms import Symbol
 
 if TYPE_CHECKING:
+    from parseltongue.core.inspect.form_renderer import FormRenderer
+    from parseltongue.core.lang import Sentence
     from parseltongue.core.system import System
 
 
@@ -157,7 +159,7 @@ class BenchSystem:
 
     def __init_perspectives__(self):
         if not hasattr(self, "_perspectives"):
-            self._perspectives: dict[str, "Perspective"] = {}
+            self._perspectives: dict[str, "FormRenderer"] = {}
 
     def register_scope(self, name: str, scope_system):
         """Register a scope system as a callable in engine env.

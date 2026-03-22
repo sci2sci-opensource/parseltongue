@@ -22,7 +22,10 @@ import json
 import logging
 import os
 from pathlib import Path
-from typing import Callable
+from typing import TYPE_CHECKING, Callable
+
+if TYPE_CHECKING:
+    from .search_s.index import DocumentSearchIndex
 
 from ..ast import DirectiveNode
 from ..integrity.merkle import MerkleNode, _sha256, merkle_combine
@@ -30,9 +33,9 @@ from ..loader.lazy_loader import LazyLoader, LazyLoadResult
 from ..quote_verifier import DocumentIndex
 from ..system import System
 from .history import History
-from .pgz import json_pgz_read, json_pgz_write, ordinal_pgz_read, ordinal_pgz_write, pgz_read, pgz_write
-from .screen import Screen
+from .pgz import json_pgz_read, json_pgz_write, pgz_read, pgz_write
 from .probe_core_to_consequence import CoreToConsequenceStructure
+from .screen import Screen
 from .serialization import deserialize_structure, serialize_structure
 
 log = logging.getLogger("parseltongue.store")
@@ -223,9 +226,9 @@ class Store:
                 node.atom = engine.terms[name]
         loader = LazyLoader()
         loader._result = LazyLoadResult(system=system)
-        nodes = []
+        dir_nodes: list[DirectiveNode] = []
         for name, info in data.get("node_index", {}).items():
-            node = DirectiveNode(
+            dn = DirectiveNode(
                 name=name,
                 expr=[],
                 dep_names=set(),
@@ -234,9 +237,9 @@ class Store:
                 source_order=0,
                 source_line=info.get("source_line", 0),
             )
-            nodes.append(node)
-        loader._all_nodes = nodes
-        loader._result._all_nodes = nodes
+            dir_nodes.append(dn)
+        loader._all_nodes = dir_nodes
+        loader._result._all_nodes = dir_nodes
         return structure, loader
 
     # ── Screen cache ──
@@ -635,7 +638,9 @@ class SearchStore:
         if old_hashes and cached:
             # Partial reindex: restore unchanged from cache, reindex changed
             idx_data = cached.get("index", {})
-            unchanged_texts = {k: all_texts[k] for k in all_texts if k not in changed and k in idx_data.get("documents", {})}
+            unchanged_texts = {
+                k: all_texts[k] for k in all_texts if k not in changed and k in idx_data.get("documents", {})
+            }
             if unchanged_texts and idx_data:
                 _index = DocumentIndex.from_dict(idx_data, unchanged_texts)
 
@@ -657,13 +662,15 @@ class SearchStore:
             all_texts.pop(key, None)
 
         # Save index (without texts) + commit texts delta to History
-        self._save_cache(directory, new_hashes, _index,
-                         changed_texts=file_texts, deleted_keys=deleted)
+        self._save_cache(directory, new_hashes, _index, changed_texts=file_texts, deleted_keys=deleted)
         self._dir_hashes[self._path] = new_hashes
         return _index, total_changed
 
     def _save_cache(
-        self, directory: str, file_hashes: dict[str, str], doc_index: DocumentIndex,
+        self,
+        directory: str,
+        file_hashes: dict[str, str],
+        doc_index: DocumentIndex,
         changed_texts: dict[str, str] | None = None,
         deleted_keys: set[str] | None = None,
     ):
@@ -675,7 +682,10 @@ class SearchStore:
         if not self._store:
             return
         self._store.save_index(
-            self._path, directory, file_hashes, doc_index.to_dict(),
+            self._path,
+            directory,
+            file_hashes,
+            doc_index.to_dict(),
             indexed_dirs=self._indexed_dirs,
             file_stats={k: list(v) for k, v in self._file_stats.items()},
             dir_mtimes=self._dir_mtimes,
@@ -694,7 +704,7 @@ class SearchStore:
                 else:
                     history.commit(changed_texts or {}, deleted_keys)
 
-    def save_search_index(self, search_index: "object"):
+    def save_search_index(self, search_index: "DocumentSearchIndex"):
         """Persist DocumentSearchIndex data alongside the existing cache."""
         if not self._store:
             return
@@ -702,6 +712,7 @@ class SearchStore:
         if not cached:
             return
         from .search_s.serialization import serialize_search_index
+
         cached["search_index"] = serialize_search_index(search_index)
         try:
             json_pgz_write(self._store._index_cache_path(self._path), cached)
@@ -808,11 +819,14 @@ class SearchStore:
             self._dir_mtimes.clear()
 
         paths = self._walk_directory(
-            directory, extensions, exclude,
+            directory,
+            extensions,
+            exclude,
             old_hashes=None if force else old_hashes,
         )
         file_texts, new_hashes = self._read_and_hash(
-            paths, old_hashes=None if force else old_hashes,
+            paths,
+            old_hashes=None if force else old_hashes,
         )
 
         return self._update_index(_index, file_texts, new_hashes, old_hashes, directory, on_progress)
@@ -854,15 +868,19 @@ class SearchStore:
         all_paths: list[tuple[Path, str]] = []
         primary_dir = directory
         for dir_path, exts in self._indexed_dirs.items():
-            all_paths.extend(self._walk_directory(
-                dir_path, exts,
-                old_hashes=None if force else old_hashes,
-            ))
+            all_paths.extend(
+                self._walk_directory(
+                    dir_path,
+                    exts,
+                    old_hashes=None if force else old_hashes,
+                )
+            )
             if not primary_dir:
                 primary_dir = dir_path
 
         file_texts, new_hashes = self._read_and_hash(
-            all_paths, old_hashes=None if force else old_hashes,
+            all_paths,
+            old_hashes=None if force else old_hashes,
         )
 
         return self._update_index(_index, file_texts, new_hashes, old_hashes, primary_dir, on_progress)

@@ -25,7 +25,6 @@ Usage with Stain (recursive engine)::
     structure = live_probe("checker.policy-consistent", engine, stain, store="all")
 """
 
-
 from __future__ import annotations
 
 import logging
@@ -41,7 +40,6 @@ from ..probe_core_to_consequence import (
     Layer,
     Node,
     NodeKind,
-    _GraphEntry,
 )
 from .stain import Stain, Trace
 from .tracer import Tracer
@@ -130,7 +128,7 @@ def live_probe(
         stain = trace_engine(engine)
 
     # --- Phase 1: Build static graph (same as probe.walk) ---
-    graph: dict[str, _GraphEntry] = {}
+    graph: dict[str, dict] = {}
 
     def walk(name, visited=None):
         if visited is None:
@@ -303,15 +301,15 @@ def live_probe(
         for n, d in memo.items():
             if d > 0:
                 by_d.setdefault(d, []).append(n)
-        for d, nodes in by_d.items():
-            if len(nodes) < 2:
+        for d, depth_nodes in by_d.items():
+            if len(depth_nodes) < 2:
                 continue
             fact_sets = {}
-            for n in nodes:
+            for n in depth_nodes:
                 facts = frozenset(i for i in graph[n]["inputs"] if i in graph and graph[i]["kind"] == NodeKind.FACT)
                 fact_sets[n] = facts
-            for n in nodes:
-                for other in nodes:
+            for n in depth_nodes:
+                for other in depth_nodes:
                     if n != other and fact_sets[n] > fact_sets[other]:
                         memo[n] = d + 1
                         changed = True
@@ -364,7 +362,7 @@ def live_probe(
     root_primaries = {g[0] for g in root_groups}
 
     # --- Phase 6: Build Node objects ---
-    nodes = {}
+    nodes: dict[str, Node] = {}
     for name, data in graph.items():
         nodes[name] = Node(
             name=name, kind=data["kind"], value=data["value"], inputs=list(data["inputs"]), atom=data.get("atom")

@@ -81,8 +81,8 @@ class Layer:
 @dataclass
 class CoreToConsequenceStructure:
     layers: list = field(default_factory=list)  # list of Layer (layer 0 = roots)
-    graph: dict = field(default_factory=dict)  # name -> Node
-    depths: dict = field(default_factory=dict)  # name -> int
+    graph: dict[str, Node] = field(default_factory=dict)
+    depths: dict[str, int] = field(default_factory=dict)
     max_depth: int = 0
 
     @property
@@ -122,7 +122,7 @@ class CoreToConsequenceStructure:
 
         axiom_for_term: dict[str, list[str]] = {}  # term-fwd name -> [axiom names]
         for n, node in self.graph.items():
-            if node.kind == NodeKind.AXIOM and node.atom is not None:
+            if node.kind == NodeKind.AXIOM and node.atom is not None and hasattr(node.atom, "wff"):
                 for ref in _syms(node.atom.wff):
                     if ref in self.graph and self.graph[ref].kind == NodeKind.TERM_FWD:
                         axiom_for_term.setdefault(ref, []).append(n)

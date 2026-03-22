@@ -438,35 +438,35 @@ class BenchServer:
                 for r in search_result.get("lines", []):
                     by_doc.setdefault(r["document"], []).append(r)
 
-                lines: list[str] = []
+                out_lines: list[str] = []
                 for doc, entries in by_doc.items():
-                    if lines:
-                        lines.append("")
-                    lines.append(doc)
+                    if out_lines:
+                        out_lines.append("")
+                    out_lines.append(doc)
                     prev_line = None
                     for r in entries:
                         line_no = r["line"]
                         if prev_line and line_no - prev_line > 1:
-                            lines.append("")
+                            out_lines.append("")
                         callers = ", ".join(c["name"] for c in r.get("callers", []))
                         prefix = f"[{callers}] " if callers else ""
-                        lines.append(f"  {line_no:<6} {prefix}{r['context']}")
+                        out_lines.append(f"  {line_no:<6} {prefix}{r['context']}")
                         prev_line = line_no
                 total = search_result.get("total_lines", 0)
                 shown = sum(len(v) for v in by_doc.values())
                 page = offset // limit + 1 if limit else 1
                 pages = (total + limit - 1) // limit if limit else 1
-                lines.append("")
+                out_lines.append("")
                 if total > limit:
-                    lines.append(f"({offset + 1}-{offset + shown}/{total} results, page {page}/{pages})")
+                    out_lines.append(f"({offset + 1}-{offset + shown}/{total} results, page {page}/{pages})")
                 else:
-                    lines.append(f"({total} results)")
+                    out_lines.append(f"({total} results)")
                 if sexp_warn:
-                    lines.insert(0, f"⚠ {sexp_warn}")
+                    out_lines.insert(0, f"⚠ {sexp_warn}")
                 if search_warn:
-                    lines.insert(0, f"⚠ {search_warn}")
-                    lines.insert(1, "")
-                return {"ok": True, "results": lines}
+                    out_lines.insert(0, f"⚠ {search_warn}")
+                    out_lines.insert(1, "")
+                return {"ok": True, "results": out_lines}
 
             elif action == "index":
                 # Handled separately via dispatch_stream
@@ -566,7 +566,7 @@ class BenchServer:
             return {"ok": True, "text": "\n".join(lines)}
 
         elif sub == "file":
-            name = cmd.get("name")
+            name = cmd.get("name")  # type: ignore[assignment]
             if not name:
                 return {"ok": False, "error": "Missing file name"}
             layer = cmd.get("layer")
@@ -591,7 +591,7 @@ class BenchServer:
             return {"ok": True, "text": "\n".join(lines)}
 
         elif sub == "diff_file":
-            name = cmd.get("name")
+            name = cmd.get("name")  # type: ignore[assignment]
             if not name:
                 return {"ok": False, "error": "Missing file name"}
             fr = cmd.get("from_layer", 0)
@@ -623,7 +623,7 @@ class BenchServer:
             return {"ok": True, "text": f"Restored to layer {layer}"}
 
         elif sub == "restore_file":
-            name = cmd.get("name")
+            name = cmd.get("name")  # type: ignore[assignment]
             layer = cmd.get("layer")
             if not name or layer is None:
                 return {"ok": False, "error": "Missing file name or layer number"}
@@ -829,7 +829,7 @@ def _get_perspective(bench, name="md"):
 
         return bench.lens()._get(AsciiPerspective)
     if name == "viz":
-        from parseltongue.core.inspect.perspectives.viz import VizPerspective
+        from parseltongue.core.inspect.perspectives.viz import VizRenderer as VizPerspective
 
         lens = bench.lens()
         loader = lens._loader

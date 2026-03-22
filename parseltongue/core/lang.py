@@ -35,7 +35,7 @@ See LANG_DOCS below for full syntax and examples drawn from real demos.
 """
 
 from dataclasses import dataclass, field
-from typing import Protocol, TypeVar
+from typing import Protocol, TypeGuard, TypeVar
 
 from .atoms import (  # noqa: F401 — re-export
     SILENCE,
@@ -69,6 +69,16 @@ Sentence = Clause | list["Sentence"]
 # Runtime-safe isinstance tuple — same types as Sentence minus parameterized
 # generics (Sequence["WFF"], list["Sentence"]). Use instead of isinstance(x, Sentence).
 SImpl: tuple[type, ...] = (Symbol, str, int, float, bool, Silence, list, tuple, Evidence, Axiom, Theorem, Term)
+
+
+def is_sentence(x: object) -> TypeGuard[Sentence]:
+    """Runtime check: is x a Sentence? Use instead of isinstance(x, Sentence)."""
+    return isinstance(x, SImpl)
+
+
+def is_sentence_list(x: object) -> TypeGuard[list[Sentence]]:
+    """Runtime check: is x a list (of sentences)? Sliceable, indexable."""
+    return isinstance(x, list)
 
 
 # ============================================================
