@@ -14,19 +14,15 @@ import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from ..inspect.history import Diff, FileDiff, History, LayerInfo
+from ..inspect.history import History
 from ..inspect.pgz import (
     LayeredTexts,
     json_pgz_read,
     json_pgz_write,
-    ordinal_pgz_decode,
     ordinal_pgz_header_keys,
     ordinal_pgz_read,
     ordinal_pgz_write,
-    pgz_read,
-    pgz_write,
 )
-
 
 # ── Synthetic data generators ──
 
@@ -98,7 +94,7 @@ def _mutate_corpus(
         # Modify ~10% of the content
         pos = rng.randint(0, max(0, len(old) - 100))
         patch = _random_text(100, seed=rng.randint(0, 100000))
-        new_text = old[:pos] + patch + old[pos + 100:]
+        new_text = old[:pos] + patch + old[pos + 100 :]
         new_corpus[key] = new_text
         changed[key] = new_text
 
@@ -328,9 +324,9 @@ class TestHistoryCorrectness(unittest.TestCase):
 
             infos = h.layers()
             self.assertEqual(len(infos), 2)
-            self.assertEqual(infos[1].keys_added, 1)      # c.py
-            self.assertEqual(infos[1].keys_modified, 1)    # a.py
-            self.assertEqual(infos[1].keys_deleted, 1)     # b.py
+            self.assertEqual(infos[1].keys_added, 1)  # c.py
+            self.assertEqual(infos[1].keys_modified, 1)  # a.py
+            self.assertEqual(infos[1].keys_deleted, 1)  # b.py
 
     def test_metadata_persists_across_instances(self):
         """Metadata survives creating a new History instance."""
@@ -530,7 +526,11 @@ class TestHistoryCorrectness(unittest.TestCase):
             current = dict(corpus)
             for i in range(6):
                 current, changed, deleted = _mutate_corpus(
-                    current, num_modify=5, num_add=2, num_delete=1, seed=i * 13,
+                    current,
+                    num_modify=5,
+                    num_add=2,
+                    num_delete=1,
+                    seed=i * 13,
                 )
                 h.commit(changed, deleted)
                 states.append(dict(current))
@@ -538,11 +538,9 @@ class TestHistoryCorrectness(unittest.TestCase):
             # Verify all historical states
             for layer_idx, expected in enumerate(states):
                 actual = h.at(layer_idx)
-                self.assertEqual(set(actual.keys()), set(expected.keys()),
-                                 f"Key mismatch at layer {layer_idx}")
+                self.assertEqual(set(actual.keys()), set(expected.keys()), f"Key mismatch at layer {layer_idx}")
                 for k in expected:
-                    self.assertEqual(actual[k], expected[k],
-                                     f"Content mismatch for {k} at layer {layer_idx}")
+                    self.assertEqual(actual[k], expected[k], f"Content mismatch for {k} at layer {layer_idx}")
 
             # Diff between first and last
             d_full = h.diff(0, len(states) - 1)
@@ -569,7 +567,7 @@ class TestPGZPerformance(unittest.TestCase):
         cls.corpus = _make_corpus(num_files=400, min_size=500, max_size=20_000, seed=42)
         cls.corpus_json = json.dumps(cls.corpus, separators=(",", ":")).encode()
         total_bytes = sum(len(v.encode()) for v in cls.corpus.values())
-        print(f"\n--- PGZ Performance Test ---")
+        print("\n--- PGZ Performance Test ---")
         print(f"Corpus: {len(cls.corpus)} files, {total_bytes:,} bytes uncompressed text")
         print(f"JSON payload: {len(cls.corpus_json):,} bytes")
 
@@ -648,7 +646,11 @@ class TestPGZPerformance(unittest.TestCase):
             delta_times = []
             for i in range(5):
                 current, changed, deleted = _mutate_corpus(
-                    current, num_modify=20, num_add=5, num_delete=3, seed=i * 31,
+                    current,
+                    num_modify=20,
+                    num_add=5,
+                    num_delete=3,
+                    seed=i * 31,
                 )
                 t0 = time.perf_counter()
                 lt.write_delta(changed, deleted)
@@ -662,7 +664,7 @@ class TestPGZPerformance(unittest.TestCase):
             result = lt.read()
             t_read = time.perf_counter() - t0
 
-            print(f"\nLayered 1+5 deltas:")
+            print("\nLayered 1+5 deltas:")
             print(f"  delta avg={avg_delta:.1f}ms  read={t_read*1000:.1f}ms  total_disk={total_size:,}B")
             print(f"  layers={lt.layer_count()}")
 
@@ -679,7 +681,11 @@ class TestPGZPerformance(unittest.TestCase):
             current = dict(self.corpus)
             for i in range(10):
                 current, changed, deleted = _mutate_corpus(
-                    current, num_modify=15, num_add=3, num_delete=2, seed=i * 17,
+                    current,
+                    num_modify=15,
+                    num_add=3,
+                    num_delete=2,
+                    seed=i * 17,
                 )
                 lt.write_delta(changed, deleted)
 
@@ -696,7 +702,7 @@ class TestPGZPerformance(unittest.TestCase):
             result = lt.read()
             t_read = time.perf_counter() - t0
 
-            print(f"\nLayered trim 11→3:")
+            print("\nLayered trim 11→3:")
             print(f"  trim={t_trim*1000:.1f}ms  read_after={t_read*1000:.1f}ms")
             print(f"  disk: {size_before:,}B → {size_after:,}B")
 
@@ -714,7 +720,11 @@ class TestPGZPerformance(unittest.TestCase):
             current = dict(self.corpus)
             for i in range(8):
                 current, changed, deleted = _mutate_corpus(
-                    current, num_modify=10, num_add=2, num_delete=2, seed=i * 53,
+                    current,
+                    num_modify=10,
+                    num_add=2,
+                    num_delete=2,
+                    seed=i * 53,
                 )
                 lt.write_delta(changed, deleted)
 
@@ -728,7 +738,7 @@ class TestPGZPerformance(unittest.TestCase):
             result = lt.read()
             t_read = time.perf_counter() - t0
 
-            print(f"\nLayered compact 9→1:")
+            print("\nLayered compact 9→1:")
             print(f"  compact={t_compact*1000:.1f}ms  read={t_read*1000:.1f}ms  disk={size:,}B")
 
             self.assertEqual(lt.layer_count(), 1)
@@ -740,7 +750,11 @@ class TestPGZPerformance(unittest.TestCase):
         current = dict(self.corpus)
         for i in range(3):
             current, changed, deleted = _mutate_corpus(
-                current, num_modify=20, num_add=5, num_delete=3, seed=i * 41,
+                current,
+                num_modify=20,
+                num_add=5,
+                num_delete=3,
+                seed=i * 41,
             )
             mutations.append((changed, deleted))
 
@@ -793,11 +807,13 @@ class TestPGZPerformance(unittest.TestCase):
             layer_read = time.perf_counter() - t0
             layer_size = sum(p.stat().st_size for p in lt.layer_paths())
 
-            print(f"\n--- Comparison: base + 3 incremental updates ---")
+            print("\n--- Comparison: base + 3 incremental updates ---")
             print(f"{'':20s} {'avg write':>12s} {'read':>10s} {'disk':>12s}")
             print(f"{'JsonPGZ':20s} {sum(json_writes)/3*1000:>10.1f}ms {json_read*1000:>8.1f}ms {json_size:>10,}B")
             print(f"{'OrdinalPGZ':20s} {sum(ord_writes)/3*1000:>10.1f}ms {ord_read*1000:>8.1f}ms {ord_size:>10,}B")
-            print(f"{'LayeredTexts':20s} {sum(layer_writes)/3*1000:>10.1f}ms {layer_read*1000:>8.1f}ms {layer_size:>10,}B")
+            print(
+                f"{'LayeredTexts':20s} {sum(layer_writes)/3*1000:>10.1f}ms {layer_read*1000:>8.1f}ms {layer_size:>10,}B"
+            )
 
             # Correctness: all three must agree
             self.assertEqual(set(json_result.keys()), set(current.keys()))

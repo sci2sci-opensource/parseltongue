@@ -129,7 +129,12 @@ class Search:
         force: bool = False,
     ) -> int:
         updated, count = self._store.index_incremental(
-            self._index, directory, extensions, exclude, on_progress, force=force,
+            self._index,
+            directory,
+            extensions,
+            exclude,
+            on_progress,
+            force=force,
         )
         self._sync(updated)
         if count > 0:

@@ -785,11 +785,29 @@ COMMERCIAL_DATASETS = [
 # ── scale: expand template lists with combinatorial variations ──────
 
 _SUFFIXES = [
-    "Batch A", "Batch B", "Batch C", "Batch D", "Batch E",
-    "HepG2", "A549", "MCF7", "HEK293", "Jurkat",
-    "US Cohort", "EU Cohort", "APAC Cohort", "LATAM Cohort",
-    "Phase 1", "Phase 2", "v2", "v3", "Extended",
-    "QC Filtered", "Normalized", "Imputed", "Annotated",
+    "Batch A",
+    "Batch B",
+    "Batch C",
+    "Batch D",
+    "Batch E",
+    "HepG2",
+    "A549",
+    "MCF7",
+    "HEK293",
+    "Jurkat",
+    "US Cohort",
+    "EU Cohort",
+    "APAC Cohort",
+    "LATAM Cohort",
+    "Phase 1",
+    "Phase 2",
+    "v2",
+    "v3",
+    "Extended",
+    "QC Filtered",
+    "Normalized",
+    "Imputed",
+    "Annotated",
 ]
 
 
@@ -824,7 +842,6 @@ _seen_ids: set = set()
 
 def _build_datasets(template_list, department, owners) -> List[DatasetRecord]:
     records = []
-    counter = len(records) + 1
     for entry in template_list:
         if len(entry) == 8:
             name, path, table, schema, fmt, cadence, src_type = entry[:7]
@@ -863,7 +880,9 @@ def _build_datasets(template_list, department, owners) -> List[DatasetRecord]:
 def generate_all_datasets(scale: int = 1) -> Dict[str, List[DatasetRecord]]:
     return {
         "discovery": _build_datasets(_scale_templates(DISCOVERY_DATASETS, scale), "discovery", OWNERS_DISCOVERY),
-        "translational": _build_datasets(_scale_templates(TRANSLATIONAL_DATASETS, scale), "translational", OWNERS_TRANSLATIONAL),
+        "translational": _build_datasets(
+            _scale_templates(TRANSLATIONAL_DATASETS, scale), "translational", OWNERS_TRANSLATIONAL
+        ),
         "clinical": _build_datasets(_scale_templates(CLINICAL_DATASETS, scale), "clinical", OWNERS_CLINICAL),
         "commercial": _build_datasets(_scale_templates(COMMERCIAL_DATASETS, scale), "commercial", OWNERS_COMMERCIAL),
     }
@@ -1125,7 +1144,9 @@ def generate_business_products(
         "Real-world evidence subject to selection bias inherent in claims data.",
     ]
 
-    for i, (name, desc, dept_sources, n_range, consumers) in enumerate(_scale_product_templates(PRODUCT_TEMPLATES, scale), 1):
+    for i, (name, desc, dept_sources, n_range, consumers) in enumerate(
+        _scale_product_templates(PRODUCT_TEMPLATES, scale), 1
+    ):
         # Pick source datasets from the specified departments
         candidate_datasets = []
         for dept in dept_sources:
@@ -1578,7 +1599,7 @@ def inject_inconsistencies(
 
     # Flatten all datasets
     flat_datasets = [ds for dept in all_datasets.values() for ds in dept]
-    external_datasets = [ds for ds in flat_datasets if ds.source_type == "external"]
+    _external_datasets = [ds for ds in flat_datasets if ds.source_type == "external"]
 
     # ── 1. Path drift (technical layer) ──
     victims = random.sample(flat_datasets, _n(5, len(flat_datasets)))

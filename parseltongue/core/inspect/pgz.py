@@ -78,7 +78,7 @@ def pgz_read(path: Path) -> bytes:
     magic, expected_digest, size = _PGZ_HEADER.unpack_from(raw)
     if magic != _PGZ_MAGIC:
         raise ValueError(f"Bad magic: {magic!r}")
-    compressed = raw[_PGZ_HEADER.size:]
+    compressed = raw[_PGZ_HEADER.size :]
     data = zlib.decompress(compressed)
     if len(data) != size:
         raise ValueError(f"Size mismatch: expected {size}, got {len(data)}")
@@ -106,7 +106,7 @@ def json_pgz_read(path: Path) -> dict:
 
 _TXS_MAGIC = b"TXS\x01"
 _TXS_ENVELOPE = struct.Struct("<4s32sII")  # magic + sha256 + header_csize + text_csize
-_ENTRY_HEAD = struct.Struct("<H")   # filename length
+_ENTRY_HEAD = struct.Struct("<H")  # filename length
 _ENTRY_TAIL = struct.Struct("<II")  # text offset, text length
 
 
@@ -171,7 +171,10 @@ def ordinal_pgz_write(path: Path, entries: dict[str, str]):
     # Integrity covers both compressed streams
     digest = hashlib.sha256(header_compressed + text_compressed).digest()
     envelope = _TXS_ENVELOPE.pack(
-        _TXS_MAGIC, digest, len(header_compressed), len(text_compressed),
+        _TXS_MAGIC,
+        digest,
+        len(header_compressed),
+        len(text_compressed),
     )
     path.write_bytes(envelope + header_compressed + text_compressed)
 
@@ -188,7 +191,7 @@ def _ordinal_pgz_read_raw(path: Path) -> tuple[bytes, bytes]:
     if magic != _TXS_MAGIC:
         raise ValueError(f"Bad OrdinalPGZ magic: {magic!r}")
 
-    payload = raw[_TXS_ENVELOPE.size:]
+    payload = raw[_TXS_ENVELOPE.size :]
     header_compressed = payload[:hc_size]
     text_compressed = payload[hc_size : hc_size + tc_size]
 
@@ -212,7 +215,7 @@ def _ordinal_pgz_read_header_only(path: Path) -> bytes:
     if magic != _TXS_MAGIC:
         raise ValueError(f"Bad OrdinalPGZ magic: {magic!r}")
 
-    payload = raw[_TXS_ENVELOPE.size:]
+    payload = raw[_TXS_ENVELOPE.size :]
     header_compressed = payload[:hc_size]
     text_compressed = payload[hc_size : hc_size + tc_size]
 
@@ -247,7 +250,7 @@ def ordinal_pgz_decode(data: bytes) -> dict[str, str]:
     if magic != _TXS_MAGIC:
         raise ValueError(f"Bad OrdinalPGZ magic: {magic!r}")
 
-    payload = data[_TXS_ENVELOPE.size:]
+    payload = data[_TXS_ENVELOPE.size :]
     header_compressed = payload[:hc_size]
     text_compressed = payload[hc_size : hc_size + tc_size]
 

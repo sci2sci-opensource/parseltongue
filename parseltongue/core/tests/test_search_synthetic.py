@@ -22,16 +22,46 @@ TEST_DIR = "/tmp/search-test"
 # ── Synthetic file generation ──
 
 _KEYWORDS = [
-    "engine", "derive", "evaluate", "axiom", "theorem", "symbol",
-    "validate", "parse", "rewrite", "resolve", "interpret", "compile",
-    "transform", "dispatch", "register", "traverse", "inspect", "probe",
-    "serialize", "deserialize", "cache", "invalidate", "refresh", "query",
-    "index", "annotate", "stem", "tokenize", "normalize", "enrich",
+    "engine",
+    "derive",
+    "evaluate",
+    "axiom",
+    "theorem",
+    "symbol",
+    "validate",
+    "parse",
+    "rewrite",
+    "resolve",
+    "interpret",
+    "compile",
+    "transform",
+    "dispatch",
+    "register",
+    "traverse",
+    "inspect",
+    "probe",
+    "serialize",
+    "deserialize",
+    "cache",
+    "invalidate",
+    "refresh",
+    "query",
+    "index",
+    "annotate",
+    "stem",
+    "tokenize",
+    "normalize",
+    "enrich",
 ]
 
 _EXCEPTIONS = [
-    "ValueError", "TypeError", "KeyError", "NameError",
-    "RuntimeError", "AttributeError", "IndexError",
+    "ValueError",
+    "TypeError",
+    "KeyError",
+    "NameError",
+    "RuntimeError",
+    "AttributeError",
+    "IndexError",
 ]
 
 _TYPES = ["int", "str", "float", "bool", "list", "dict", "tuple", "set"]
@@ -62,7 +92,7 @@ def _gen_function(rng: random.Random) -> str:
             lines.append(f"        self.{rng.choice(_KEYWORDS)}(item)")
         elif kind == "comment":
             lines.append(f"    # {rng.choice(_KEYWORDS)}: {rng.choice(_KEYWORDS)}")
-    if not any(l.strip().startswith("return") for l in lines[2:]):
+    if not any(ln.strip().startswith("return") for ln in lines[2:]):
         lines.append(f"    return {var}")
     return "\n".join(lines)
 
@@ -186,7 +216,8 @@ class TestSyntheticIndexing(unittest.TestCase):
         for kw in random.Random(self.seed).sample(_KEYWORDS, 10):
             r = search.query(kw)
             self.assertGreater(
-                r["total_lines"], 0,
+                r["total_lines"],
+                0,
                 f"Keyword {kw!r} not found after initial index",
             )
 
@@ -221,7 +252,8 @@ class TestSyntheticIndexing(unittest.TestCase):
         for i in random.Random(self.seed).sample(range(30), 10):
             r = search.query(f"synthetic_addition_{i}")
             self.assertGreater(
-                r["total_lines"], 0,
+                r["total_lines"],
+                0,
                 f"Added file marker synthetic_addition_{i} not found",
             )
 
@@ -247,7 +279,8 @@ class TestSyntheticIndexing(unittest.TestCase):
         for name, marker in list(modified_markers.items())[:10]:
             r = search.query(marker)
             self.assertGreater(
-                r["total_lines"], 0,
+                r["total_lines"],
+                0,
                 f"Modified marker {marker} in {name} not found",
             )
 
@@ -280,7 +313,8 @@ class TestSyntheticIndexing(unittest.TestCase):
 
         # Verify remaining files still searchable
         remaining = [
-            f for f in os.listdir(self.files_dir)
+            f
+            for f in os.listdir(self.files_dir)
             if f.endswith(".py") and os.path.isfile(os.path.join(self.files_dir, f))
         ]
         self.assertGreater(len(remaining), 0)
@@ -349,7 +383,8 @@ class TestSyntheticIndexing(unittest.TestCase):
         for kw, expected in baseline.items():
             actual = search2.query(kw)["total_lines"]
             self.assertEqual(
-                actual, expected,
+                actual,
+                expected,
                 f"Cache mismatch for {kw!r}: {actual} vs {expected}",
             )
 

@@ -18,9 +18,7 @@ import tempfile
 import unittest
 
 # cd into the demo directory so .pltg relative paths resolve
-_DEMO_DIR = os.path.join(
-    os.path.dirname(__file__), "..", "demos", "data_governance_pltg"
-)
+_DEMO_DIR = os.path.join(os.path.dirname(__file__), "..", "demos", "data_governance_pltg")
 # Same lib_paths that Bench uses — needed for correct module qualification
 _CORE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 
@@ -28,9 +26,12 @@ _CORE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 def _generate_vanilla():
     """Regenerate demo data with default settings (scale=1, consistent)."""
     import subprocess
+
     subprocess.run(
         ["python", "generate.py", "--clean", "--consistent-only", "--scale", "1"],
-        cwd=_DEMO_DIR, check=True, capture_output=True,
+        cwd=_DEMO_DIR,
+        check=True,
+        capture_output=True,
     )
 
 
@@ -61,7 +62,7 @@ class TestDGDemoDirectLoad(unittest.TestCase):
         """Report what the direct loader produces."""
         eng = self.engine
         res = self.result
-        print(f"\n  Direct load:")
+        print("\n  Direct load:")
         print(f"    Theorems: {len(eng.theorems)}")
         print(f"    Facts:    {len(eng.facts)}")
         print(f"    Terms:    {len(eng.terms)}")
@@ -116,7 +117,7 @@ class TestDGDemoBenchLoad(unittest.TestCase):
         """Report what the bench loader produces."""
         eng = self.engine
         res = self.result
-        print(f"\n  Bench load:")
+        print("\n  Bench load:")
         print(f"    Theorems: {len(eng.theorems)}")
         print(f"    Facts:    {len(eng.facts)}")
         print(f"    Terms:    {len(eng.terms)}")
@@ -160,7 +161,7 @@ class TestDGDemoBenchLoad(unittest.TestCase):
         left_edges = sum(len(n.inputs) for n in left.graph.values())
         right_edges = sum(len(n.inputs) for n in right.graph.values())
 
-        print(f"\n  Bench dissect:")
+        print("\n  Bench dissect:")
         print(f"    Left nodes:  {len(left.graph)}")
         print(f"    Right nodes: {len(right.graph)}")
         print(f"    Combined:    {len(combined)}")
@@ -169,13 +170,9 @@ class TestDGDemoBenchLoad(unittest.TestCase):
 
         # Baseline from recursive engine via bench: 509 left + 2 right = 510 combined
         # Left edges: 611, right edges: 1 → 612 combined
+        self.assertGreaterEqual(len(combined), 500, f"Combined dissect should have 500+ nodes (got {len(combined)})")
         self.assertGreaterEqual(
-            len(combined), 500,
-            f"Combined dissect should have 500+ nodes (got {len(combined)})"
-        )
-        self.assertGreaterEqual(
-            left_edges + right_edges, 600,
-            f"Combined edges should be 600+ (got {left_edges + right_edges})"
+            left_edges + right_edges, 600, f"Combined edges should be 600+ (got {left_edges + right_edges})"
         )
 
     def test_bench_all_theorems_evaluate(self):
@@ -230,7 +227,7 @@ class TestDGDemoStackEngine(unittest.TestCase):
     def test_full_load(self):
         eng = self.engine
         res = self.result
-        print(f"\n  Stack engine:")
+        print("\n  Stack engine:")
         print(f"    Theorems: {len(eng.theorems)}, Facts: {len(eng.facts)}")
         print(f"    Errors: {len(res.errors)}, Diffs: {len(eng.diffs)}")
         self.assertEqual(len(res.errors), 0, f"Errors: {[str(e) for e in res.errors.values()]}")
@@ -271,20 +268,16 @@ class TestDGDemoStackEngine(unittest.TestCase):
         left_edges = sum(len(n.inputs) for n in left.graph.values())
         right_edges = sum(len(n.inputs) for n in right.graph.values())
 
-        print(f"\n  Stack dissect:")
+        print("\n  Stack dissect:")
         print(f"    Left nodes:  {len(left.graph)}")
         print(f"    Right nodes: {len(right.graph)}")
         print(f"    Combined:    {len(combined)}")
         print(f"    Left edges:  {left_edges}")
         print(f"    Right edges: {right_edges}")
 
+        self.assertGreaterEqual(len(combined), 500, f"Combined dissect should have 500+ nodes (got {len(combined)})")
         self.assertGreaterEqual(
-            len(combined), 500,
-            f"Combined dissect should have 500+ nodes (got {len(combined)})"
-        )
-        self.assertGreaterEqual(
-            left_edges + right_edges, 600,
-            f"Combined edges should be 600+ (got {left_edges + right_edges})"
+            left_edges + right_edges, 600, f"Combined edges should be 600+ (got {left_edges + right_edges})"
         )
 
 
