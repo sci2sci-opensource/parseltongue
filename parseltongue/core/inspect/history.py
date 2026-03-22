@@ -31,7 +31,6 @@ from pathlib import Path
 
 from .pgz import (
     LayeredTexts,
-    _TOMBSTONE,
     ordinal_pgz_header_keys,
     ordinal_pgz_read,
     ordinal_pgz_write,
@@ -113,15 +112,17 @@ def _entries_to_meta(entries: dict[str, str]) -> tuple[list[LayerInfo], int, flo
     layers_info: list[LayerInfo] = []
     for i in range(layer_count):
         p = str(i)
-        layers_info.append(LayerInfo(
-            index=i,
-            timestamp=float(entries.get(f"{p}.timestamp", "0")),
-            file_count=int(entries.get(f"{p}.file_count", "0")),
-            disk_bytes=int(entries.get(f"{p}.disk_bytes", "0")),
-            keys_added=int(entries.get(f"{p}.keys_added", "0")),
-            keys_modified=int(entries.get(f"{p}.keys_modified", "0")),
-            keys_deleted=int(entries.get(f"{p}.keys_deleted", "0")),
-        ))
+        layers_info.append(
+            LayerInfo(
+                index=i,
+                timestamp=float(entries.get(f"{p}.timestamp", "0")),
+                file_count=int(entries.get(f"{p}.file_count", "0")),
+                disk_bytes=int(entries.get(f"{p}.disk_bytes", "0")),
+                keys_added=int(entries.get(f"{p}.keys_added", "0")),
+                keys_modified=int(entries.get(f"{p}.keys_modified", "0")),
+                keys_deleted=int(entries.get(f"{p}.keys_deleted", "0")),
+            )
+        )
     return layers_info, total_commits, created
 
 
@@ -174,8 +175,7 @@ class History:
         entries = _meta_to_entries(self._layers_info, self._total_commits, self._created)
         ordinal_pgz_write(self._meta_path, entries)
 
-    def _record_layer(self, layer_index: int, keys_added: int, keys_modified: int,
-                      keys_deleted: int, file_count: int):
+    def _record_layer(self, layer_index: int, keys_added: int, keys_modified: int, keys_deleted: int, file_count: int):
         """Record metadata for a newly written layer."""
         path = self._layers._layer_path(layer_index)
         disk_bytes = path.stat().st_size if path.exists() else 0
@@ -246,8 +246,7 @@ class History:
         self._created = _time.time()
         self._layers_info = []
         # _record_layer increments _total_commits
-        self._record_layer(0, keys_added=len(entries), keys_modified=0,
-                           keys_deleted=0, file_count=len(entries))
+        self._record_layer(0, keys_added=len(entries), keys_modified=0, keys_deleted=0, file_count=len(entries))
 
     # ── Read: current state ──
 
@@ -455,15 +454,17 @@ class History:
                 modified = len(live_keys & prev_keys)
                 deleted = len(tombstones & prev_keys)
 
-            infos.append(LayerInfo(
-                index=i,
-                timestamp=stat.st_mtime,
-                file_count=len(layer_data),
-                disk_bytes=stat.st_size,
-                keys_added=added,
-                keys_modified=modified,
-                keys_deleted=deleted,
-            ))
+            infos.append(
+                LayerInfo(
+                    index=i,
+                    timestamp=stat.st_mtime,
+                    file_count=len(layer_data),
+                    disk_bytes=stat.st_size,
+                    keys_added=added,
+                    keys_modified=modified,
+                    keys_deleted=deleted,
+                )
+            )
 
             # Accumulate live keys
             for k, v in layer_data.items():

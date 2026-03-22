@@ -2,8 +2,8 @@
 
 import os
 
-from ..form_renderer import FormRenderer
 from ...loader.lazy_loader import LazyLoader
+from ..form_renderer import FormRenderer
 from ..perspective import Perspective
 from ..probe_core_to_consequence import (
     Consumer,
