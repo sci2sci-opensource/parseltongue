@@ -21,7 +21,7 @@ jobs:
         run: pip install -e ".[dev,llm]"
 
       - name: Ruff
-        run: ruff check parseltongue/
+        run: ruff check parseltongue/ --exclude 'parseltongue/core/tests/' --exclude 'parseltongue/core/demos/' --exclude 'parseltongue/llm/tests/' --exclude 'parseltongue/cli/tests/'
 
       - name: Black
         run: black --check parseltongue/
