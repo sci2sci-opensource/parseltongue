@@ -3,7 +3,7 @@
 Provides tabbed access to the bench's core features:
 - Search: full-text search with S-expression queries
 - Lens: structural navigation (find, view, subgraph)
-- Evaluation: consistency diagnosis
+- Screen: consistency screening
 - Eval: S-expression evaluation
 """
 
@@ -55,14 +55,14 @@ class QueryBox(PygmentsTextArea):
     def on_mount(self) -> None:
         self.border_title = f"[dim]{self._placeholder}[/dim]"
 
-    def _on_key(self, event: events.Key) -> None:
+    async def _on_key(self, event: events.Key) -> None:
         if event.key == "enter":
             event.prevent_default()
             event.stop()
             text = self.document.text.strip()
             self.post_message(_QuerySubmitted(self._query_id, text))
             return
-        super()._on_key(event)
+        await super()._on_key(event)
 
 
 class BenchScreen(Screen):
@@ -74,6 +74,7 @@ class BenchScreen(Screen):
         Binding("ctrl+d", "focus_tab('diagnosis')", "Diagnosis", show=False),
         Binding("ctrl+e", "focus_tab('eval')", "Eval", show=False),
         Binding("ctrl+r", "reload", "Reload"),
+        Binding("ctrl+t", "open_terminal", "Terminal", show=False),
         Binding("left", "search_prev", "Prev", show=False),
         Binding("right", "search_next", "Next", show=False),
         Binding("escape", "dismiss", "Back"),
@@ -157,6 +158,7 @@ class BenchScreen(Screen):
                 ("Ctrl+E", "Eval", "screen.focus_tab('eval')"),
                 ("Left/Right", "Page"),
                 ("Ctrl+R", "Reload", "screen.reload"),
+                ("Ctrl+T", "Terminal", "screen.open_terminal"),
                 ("Esc", "Back", "screen.dismiss"),
             ]
         )
@@ -188,7 +190,7 @@ class BenchScreen(Screen):
             names = await self._client.find("", max_results=200)
             self._populate_name_tree(self.query_one("#lens-names", FocusedTree), names)
 
-            dx_text = await self._client.diagnose()
+            dx_text = await self._client.screen()
             self.query_one("#dx-results", HighlightedLog).set_content(dx_text)
 
             kinds_text = await self._client.view_kinds()
@@ -211,9 +213,9 @@ class BenchScreen(Screen):
         groups: dict[str, list[str]] = {}
         for name in names:
             if "." in name:
-                ns, leaf = name.rsplit(".", 1)
+                ns, _ = name.rsplit(".", 1)
             else:
-                ns, leaf = "", name
+                ns = ""
             groups.setdefault(ns, []).append(name)
 
         if len(groups) == 1:
@@ -369,7 +371,7 @@ class BenchScreen(Screen):
         out = self.query_one("#dx-results", HighlightedLog)
         out.set_info("Diagnosing...")
         try:
-            text = await self._client.diagnose(focus=focus if focus else None)
+            text = await self._client.screen(focus=focus if focus else None)
             out.set_content(text)
         except BenchClientError as e:
             out.set_error(str(e))
@@ -391,6 +393,12 @@ class BenchScreen(Screen):
     def action_focus_tab(self, tab_id: str) -> None:
         tabs = self.query_one("#bench-tabs", TabbedContent)
         tabs.active = tab_id
+
+    def action_open_terminal(self) -> None:
+        """Push a terminal screen on top of bench."""
+        from .terminal import TerminalScreen
+
+        self.app.push_screen(TerminalScreen())
 
     @work(exclusive=True, group="reload")
     async def action_reload(self) -> None:
