@@ -3,15 +3,30 @@
 <head>
 <meta charset="utf-8">
 <title>Parseltongue — $title</title>
-<script src="https://cdn.tailwindcss.com"></script>
-<script>tailwind.config={theme:{extend:{colors:{
-  base:'var(--base)',mantle:'var(--mantle)',crust:'var(--crust)',
-  surface0:'var(--surface0)',surface1:'var(--surface1)',surface2:'var(--surface2)',
-  overlay0:'var(--overlay0)',text:'var(--text)',subtext:'var(--subtext)',
-  green:'var(--green)',red:'var(--red)',yellow:'var(--yellow)',blue:'var(--blue)',
-  mauve:'var(--mauve)',teal:'var(--teal)',peach:'var(--peach)',flamingo:'var(--flamingo)',
-  sky:'var(--sky)',lavender:'var(--lavender)'
-}}}}</script>
+<script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+<style type="text/tailwindcss">
+@theme {
+  --color-base: var(--base);
+  --color-mantle: var(--mantle);
+  --color-crust: var(--crust);
+  --color-surface0: var(--surface0);
+  --color-surface1: var(--surface1);
+  --color-surface2: var(--surface2);
+  --color-overlay0: var(--overlay0);
+  --color-text: var(--text);
+  --color-subtext: var(--subtext);
+  --color-green: var(--green);
+  --color-red: var(--red);
+  --color-yellow: var(--yellow);
+  --color-blue: var(--blue);
+  --color-mauve: var(--mauve);
+  --color-teal: var(--teal);
+  --color-peach: var(--peach);
+  --color-flamingo: var(--flamingo);
+  --color-sky: var(--sky);
+  --color-lavender: var(--lavender);
+}
+</style>
 <style>
 :root, [data-theme="dark"] {
   --base:#1e1e2e;--mantle:#181825;--crust:#11111b;

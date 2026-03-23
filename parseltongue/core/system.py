@@ -310,14 +310,24 @@ class AbstractSystem(Rewriter, Interpreter):
         return system
 
     def _rebuild_env(self) -> set[str]:
+        from dataclasses import replace
+
         from .atoms import Evidence
         from .lang import EQ
 
-        # Re-verify all evidence to rebuild quote ranges for search provenance
+        # Re-verify all evidence and update atoms with verification results
         items: dict[str, Fact | Axiom | Term] = {**self.engine.facts, **self.engine.axioms, **self.engine.terms}
         for name, item in items.items():
             if isinstance(item.origin, Evidence):
-                self.engine._verify_evidence(item.origin, caller=name)
+                verified_ev = self.engine._verify_evidence(item.origin, caller=name)
+                if verified_ev is not item.origin:
+                    updated = replace(item, origin=verified_ev)
+                    if name in self.engine.facts:
+                        self.engine.facts[name] = updated  # type: ignore[assignment]
+                    elif name in self.engine.axioms:
+                        self.engine.axioms[name] = updated  # type: ignore[assignment]
+                    elif name in self.engine.terms:
+                        self.engine.terms[name] = updated  # type: ignore[assignment]
 
         for name, fact in self.engine.facts.items():
             self.engine.env[Symbol(name)] = fact.wff

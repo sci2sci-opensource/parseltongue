@@ -428,19 +428,25 @@ def _enrich_items_from_structure(items: list[dict], structure) -> None:
         # Origin status and evidence
         origin = getattr(atom, "origin", None)
         if isinstance(origin, Evidence):
+            if origin.verified:
+                ev_status = "verified"
+            elif origin.verify_manual:
+                ev_status = "manual"
+            else:
+                ev_status = "unverified"
             item["evidence"] = [
                 {
                     "doc": origin.document,
                     "quotes": origin.quotes,
                     "explanation": origin.explanation,
-                    "verified": origin.is_grounded,
-                    "status": "verified" if origin.is_grounded else "unverified",
+                    "verified": origin.verified,
+                    "status": ev_status,
                 }
             ]
         elif isinstance(atom, Theorem) or origin == "derived":
             item["evidence"] = [{"status": "derived"}]
         elif isinstance(origin, str) and origin:
-            item["evidence"] = [{"doc": origin, "status": "manual"}]
+            item["evidence"] = [{"doc": origin, "status": "unverified"}]
 
     # Enrich inputs with in-probe status + create stubs for external graph nodes
     all_ids = {item.get("id", "") for item in items}
@@ -475,19 +481,25 @@ def _enrich_items_from_structure(items: list[dict], structure) -> None:
                 ext_item["definition"] = ParseltongueGrammar.enc(atom.wff)
             origin = getattr(atom, "origin", None)
             if isinstance(origin, Evidence):
+                if origin.verified:
+                    ev_status = "verified"
+                elif origin.verify_manual:
+                    ev_status = "manual"
+                else:
+                    ev_status = "unverified"
                 ext_item["evidence"] = [
                     {
                         "doc": origin.document,
                         "quotes": origin.quotes,
                         "explanation": origin.explanation,
-                        "verified": origin.is_grounded,
-                        "status": "verified" if origin.is_grounded else "unverified",
+                        "verified": origin.verified,
+                        "status": ev_status,
                     }
                 ]
             elif isinstance(atom, Theorem) or origin == "derived":
                 ext_item["evidence"] = [{"status": "derived"}]
             elif isinstance(origin, str) and origin:
-                ext_item["evidence"] = [{"doc": origin, "status": "manual"}]
+                ext_item["evidence"] = [{"doc": origin, "status": "unverified"}]
         external_items.append(ext_item)
         all_ids.add(ext_name)
     items.extend(external_items)
