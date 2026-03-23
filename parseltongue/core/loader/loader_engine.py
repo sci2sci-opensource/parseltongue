@@ -310,12 +310,22 @@ class LoaderEngine(Executor[LoaderTranslationResult]):
 
         Unresolved dotted symbols that belong to an already-imported module
         are deferred references — no warning. Only warns for truly unknown prefixes.
+
+        Scope boundary: ``(scope X body)`` — only the scope name (index 1) is
+        patched in the parent engine's namespace. The body args (index 2+)
+        belong to the scope's own system and must NOT be patched, except for
+        ``(project ...)`` sub-expressions which resolve in the parent.
         """
         if not isinstance(expr, (list, tuple)):
             return
         head_is_import = expr and expr[0] == Symbol("import")
+        head_is_scope = expr and expr[0] == Symbol("scope")
         for i, item in enumerate(expr):
             if i == skip_index:
+                continue
+            # Scope body args (index >= 2): only recurse into (project ...) sub-exprs
+            if head_is_scope and i >= 2:
+                self._patch_projects_only(item, ctx, line)
                 continue
             if isinstance(item, Symbol) and not str(item).startswith(("?", ":")):
                 s = str(item)
@@ -333,6 +343,18 @@ class LoaderEngine(Executor[LoaderTranslationResult]):
                 if head_is_import and item and item[0] == Symbol("quote"):
                     continue
                 self.patch_symbols(item, ctx, line)
+
+    def _patch_projects_only(self, expr, ctx: PatchContext, line: int = 0) -> None:
+        """Recurse into scope body but only patch (project ...) sub-expressions."""
+        if not isinstance(expr, (list, tuple)):
+            return
+        if expr and expr[0] == Symbol("project"):
+            # (project ...) resolves in the parent engine — patch normally
+            self.patch_symbols(expr, ctx, line)
+            return
+        for item in expr:
+            if isinstance(item, (NavList, list, tuple)):
+                self._patch_projects_only(item, ctx, line)
 
     def patch_context(self, expr, ctx: PatchContext, line: int = 0) -> None:
         """Recursively patch (context :key) → (context "module.:key")."""
