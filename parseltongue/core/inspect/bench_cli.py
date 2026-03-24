@@ -1109,8 +1109,9 @@ def cli():
     """pg-bench — persistent .pltg inspection daemon.
 
     \b
-    LLM agents: read .claude/skills/parseltongue-bench/skill.md for the
-    full reference with examples, scopes, and map-reduce patterns.
+    LLM AGENTS — learn kung-fu:
+      pg-bench learn kung-fu           # full skill reference
+      This is the one skill an LLM should acquire before using pg-bench.
 
     \b
     eval and interpret are the primary interface. eval is pure (clean
@@ -1192,6 +1193,11 @@ def cli():
     See advanced usage patterns in parseltongue/core/demos/ and
     parseltongue/llm/demos/ — governance pipelines, spec validation,
     revenue reports, all driven by eval/interpret + scopes + fmt.
+
+    \b
+    LLM AGENTS — learn kung-fu:
+      pg-bench learn kung-fu           # full skill reference
+      This is the one skill an LLM should acquire before using pg-bench.
     """
 
 
@@ -2188,6 +2194,28 @@ def history_compact(yes: bool):
     if not yes:
         click.confirm("This will squash all layers into one. Continue?", abort=True)
     _print_result(_query({"action": "history", "sub": "compact", "confirm": True}))
+
+
+@cli.command("learn")
+@click.argument("what", default="kung-fu")
+def learn(what: str):
+    """I know kung-fu.
+
+    \b
+    Usage:
+      pg-bench learn kung-fu           # full pg-bench skill for LLM agents
+      pg-bench learn kung-fu > pg.md   # save to file
+    """
+    skills = {"kung-fu": "PG-SKILL.md"}
+    filename = skills.get(what)
+    if not filename:
+        click.echo(f"Unknown skill: {what}. Available: {', '.join(skills)}", err=True)
+        raise SystemExit(1)
+    skill_path = Path(__file__).parent / "skills" / filename
+    if not skill_path.exists():
+        click.echo(f"Skill file not found: {skill_path}", err=True)
+        raise SystemExit(1)
+    click.echo(skill_path.read_text())
 
 
 if __name__ == "__main__":

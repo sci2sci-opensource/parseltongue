@@ -12,6 +12,8 @@ Quick start::
     load_source(s, '(fact x 5 :origin "manual")')
 """
 
+import logging
+import os
 import warnings
 
 from .core import (  # noqa: F401
@@ -73,13 +75,14 @@ from .core import (  # noqa: F401
     to_sexp,
 )
 from .core import load_pltg as load_main  # noqa: F401
-from .llm import LLMProvider, Pipeline  # noqa: F401
-from .llm_doc import llm_doc  # noqa: F401
 
 try:
+    from .llm import LLMProvider, Pipeline  # noqa: F401
     from .llm.openrouter import OpenRouterProvider  # noqa: F401
+    from .llm_doc import llm_doc  # noqa: F401
 except ImportError:
-    warnings.warn(
-        "LLM provider dependencies not installed. Run: pip install parseltongue-dsl[llm]",
-        stacklevel=2,
-    )
+    if not os.environ.get("PARSELTONGUE_QUIET") and logging.getLogger(__name__).getEffectiveLevel() <= logging.WARNING:
+        warnings.warn(
+            "LLM provider dependencies not installed. Run: pip install parseltongue-dsl[llm]",
+            stacklevel=2,
+        )
