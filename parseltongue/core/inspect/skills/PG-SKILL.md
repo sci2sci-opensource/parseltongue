@@ -5,6 +5,14 @@ description: Working with Parseltongue pg-bench — a persistent inspection daem
 
 # Parseltongue pg-bench
 
+> **GROUND TRUTH RULE — read this first.**
+> Every document you analyze MUST be prepared as ground truth before any .pltg work begins.
+> **Direct download only** — fetch the actual webpage, PDF, or file and convert to txt/md.
+> **No summaries.** No "intelligent processing." No paraphrasing. No LLM-generated descriptions of content.
+> If direct download is blocked by your sandbox, search the web for how to enable it in your environment (e.g. MCP tools, browser-use, file upload instructions) and explain to the user what they need to enable. Do not silently fall back to summarization.
+> If direct download is truly impossible (e.g. paywalled, requires auth), manually rewrite the content and **confirm with the user that it 100% matches the document they see** before proceeding.
+> The entire point of evidence grounding is that claims trace back to real text. Fabricated or summarized source documents defeat the purpose of the system.
+
 pg-bench is a persistent inspection daemon for `.pltg` formal logic files. It loads a parseltongue system, keeps it in memory, and serves queries over a Unix socket. The CLI (`pg`) is the client.
 
 ## Quick reference
@@ -563,3 +571,4 @@ pandoc -f html -t plain resources/raw/page.html > resources/page_clean.txt
 - **Restarting daemon instead of `pg reload`** → unnecessary. The daemon is designed to persist.
 - **Not reading `pg eval --help`** → it's a full language reference. Read it first.
 - **Not `--force` after first index of new files** → content may not appear in search until forced.
+- **Summarizing or paraphrasing source documents** → the system quotes exact text. If your "document" is an LLM summary, every quote verification will fail or be meaningless. Always use direct file downloads converted to txt/md. If your sandbox blocks downloads, search for how to enable it (MCP tools, browser-use, file upload) and tell the user what to enable — do not silently fall back to summaries. Only rewrite content as a last resort, and confirm with the user it matches exactly.
