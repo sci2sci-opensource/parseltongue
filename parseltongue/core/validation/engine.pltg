@@ -936,10 +936,12 @@
         :explanation "with side — superposed until diff observes"))
 
 (defterm witness-diff-value-hallucinated
-    (epistemics.joint-status
-        (strict (epistemics.collapse (strict value-divergence-replace) epistemics.refuted))
-        (strict (epistemics.collapse (strict value-divergence-with) epistemics.refuted)))
-    :using (epistemics.collapse epistemics.joint-status epistemics.refuted
+    (epistemics.collapse
+        (epistemics.joint-superposed
+            value-divergence-replace
+            value-divergence-with)
+    epistemics.refuted)
+    :using (epistemics.collapse epistemics.joint-superposed epistemics.refuted
             value-divergence-replace value-divergence-with))
 
 ; --- DIFF_CONTAMINATION → unknown ---

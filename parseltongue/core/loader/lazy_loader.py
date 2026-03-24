@@ -502,6 +502,9 @@ class LazyLoader(Loader):
                     self._result.loaded.add(node)
                 return True
             except Exception as e:
+                # import traceback as _tb
+                #
+                # e._loader_tb = _tb.format_exc()
                 self._failed_names[node.name] = node
                 if self._result:
                     self._result.errors[node] = e

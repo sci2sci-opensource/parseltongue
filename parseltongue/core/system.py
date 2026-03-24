@@ -7,8 +7,10 @@ from typing import Callable, Self
 
 from .atoms import SILENCE, Evidence, Symbol
 from .default_system_settings import DEFAULT_OPERATORS, ENGINE_DOCS
-from .engine import Engine, Fact
+
+# from .engine import Engine, Fact
 from .engine import load_source as _engine_load_source
+from .engines.engine_stack import Engine, Fact
 from .lang import (
     DSL_KEYWORDS,
     LANG_DOCS,
@@ -38,6 +40,8 @@ log = logging.getLogger("parseltongue")
 class AbstractSystem(Rewriter, Interpreter):
     """Composes Engine with serialization and introspection. All args required — no defaults."""
 
+    _unresolved: set[str]
+
     def __init__(
         self,
         initial_env: dict,
@@ -53,6 +57,8 @@ class AbstractSystem(Rewriter, Interpreter):
 
         self.engine = Engine(env, overridable=overridable, strict_derive=strict_derive, verifier=verifier, name=name)
         self._docs = docs
+
+        self._unresolved = set()
 
         for name, fn in effects.items():
             self.engine.env[Symbol(name)] = lambda *args, _fn=fn: _fn(self, *args)
@@ -115,6 +121,33 @@ class AbstractSystem(Rewriter, Interpreter):
 
     def introduce_term(self, name, definition, origin):
         return self.engine.introduce_term(name, definition, origin)
+
+    def copy(self, name: str | None = None, overridable: bool | None = None) -> "AbstractSystem":
+        """Shallow-copy: new system with independent dicts sharing the same values.
+
+        The copy can accumulate new defterms/axioms without mutating the original.
+        Existing entries (env, axioms, terms, theorems, facts, diffs, documents)
+        are shared by reference — cheap and correct for read-only parent state.
+        """
+        clone = object.__new__(type(self))
+        clone.engine = Engine(
+            env={},
+            overridable=overridable if overridable is not None else self.engine.overridable,
+            strict_derive=self.engine.strict_derive,
+            verifier=self.engine._verifier,
+            name=name or f"{self.engine.name}.copy",
+        )
+        clone._docs = dict(self._docs)
+        # Shallow-copy all engine data dicts
+        clone.engine.env = dict(self.engine.env)
+        clone.engine.axioms = dict(self.engine.axioms)
+        clone.engine.terms = dict(self.engine.terms)
+        clone.engine.theorems = dict(self.engine.theorems)
+        clone.engine.facts = dict(self.engine.facts)
+        clone.engine.diffs = dict(self.engine.diffs)
+        clone.engine.diff_refs = {k: set(v) for k, v in self.engine.diff_refs.items()}
+        clone.engine.documents = dict(self.engine.documents)
+        return clone
 
     def derive(self, name, wff, using):
         return self.engine.derive(name, wff, using)
@@ -273,11 +306,28 @@ class AbstractSystem(Rewriter, Interpreter):
             system.engine.register_diff(name, diff["replace"], diff["with"])
         for name, text in documents.items():
             system.engine.register_document(name, text)
-        system._rebuild_env()
+        system._unresolved = system._rebuild_env()
         return system
 
-    def _rebuild_env(self) -> None:
+    def _rebuild_env(self) -> set[str]:
+        from dataclasses import replace
+
+        from .atoms import Evidence
         from .lang import EQ
+
+        # Re-verify all evidence and update atoms with verification results
+        items: dict[str, Fact | Axiom | Term] = {**self.engine.facts, **self.engine.axioms, **self.engine.terms}
+        for name, item in items.items():
+            if isinstance(item.origin, Evidence):
+                verified_ev = self.engine._verify_evidence(item.origin, caller=name)
+                if verified_ev is not item.origin:
+                    updated = replace(item, origin=verified_ev)
+                    if name in self.engine.facts:
+                        self.engine.facts[name] = updated  # type: ignore[assignment]
+                    elif name in self.engine.axioms:
+                        self.engine.axioms[name] = updated  # type: ignore[assignment]
+                    elif name in self.engine.terms:
+                        self.engine.terms[name] = updated  # type: ignore[assignment]
 
         for name, fact in self.engine.facts.items():
             self.engine.env[Symbol(name)] = fact.wff
@@ -305,6 +355,11 @@ class AbstractSystem(Rewriter, Interpreter):
                     pass
             if not remaining or not progress:
                 break
+
+        if remaining:
+            log.warning("_rebuild_env: %d unresolved terms: %s", len(remaining), ", ".join(sorted(remaining)))
+
+        return remaining
 
     # ----------------------------------------------------------
     # Display

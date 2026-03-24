@@ -17,8 +17,10 @@ Operators::
     (value "name")          — returns value as text
     (terms "kind")          — returns list of name strings matching kind
     (quotes "name")         — returns list of quote strings from atom evidence
+    (find "pattern")        — regex search over node names (enriched strings)
+    (fuzzy "query")         — ranked substring search over node names
 
-``terms`` and ``quotes`` return lists (not posting sets) — designed for
+``terms``, ``quotes``, ``find``, and ``fuzzy`` return lists (not posting sets) — designed for
 cross-scope composition where the caller needs raw values to pattern-match
 or delegate back through another system.
 
@@ -59,11 +61,27 @@ class LensSearchSystem:
 
     tag = Symbol("ln")
 
-    def __init__(self, structure: CoreToConsequenceStructure):
+    @property
+    def data_tags(self) -> list["Symbol"]:
+        return [Symbol("ln"), Symbol("ln-ev")]
+
+    def __init__(self, structure: CoreToConsequenceStructure, loader=None):
         from parseltongue.core.quote_verifier.index import DocumentIndex
 
         self._structure = structure
         self._idx = DocumentIndex()
+
+        # Build location index from loader AST if available
+        self._locs: dict[str, str] = {}
+        if loader is not None:
+            import os
+
+            for node in loader.ast:
+                if node.name and node.source_file:
+                    parts = [os.path.relpath(node.source_file)]
+                    if node.source_line:
+                        parts.append(str(node.source_line))
+                    self._locs[node.name] = ":".join(parts)
 
         # Build index: each node name → its text representation
         for name, node in structure.graph.items():
@@ -108,7 +126,12 @@ class LensSearchSystem:
             return _posting(name)
 
         def _kind(kind_pattern):
-            matches = [n for n, node in sys._structure.graph.items() if n != "__output__" and kind_pattern in node.kind]
+            if kind_pattern == "all":
+                matches = [n for n in sys._structure.graph if n != "__output__"]
+            else:
+                matches = [
+                    n for n, node in sys._structure.graph.items() if n != "__output__" and kind_pattern in node.kind
+                ]
             return _multi_posting(matches)
 
         def _inputs(name):
@@ -166,6 +189,44 @@ class LensSearchSystem:
                 return list(origin.quotes)
             return []
 
+        def _atom(name):
+            """Return atom as pltg tagged list via ClauseMorphism."""
+            node = sys._structure.graph.get(name)
+            if not node or not node.atom:
+                return []
+            from parseltongue.core.lang import ClauseMorphism
+
+            return ClauseMorphism.transform(node.atom)
+
+        def _find(pattern, max_results=50):
+            """Regex search over node names — returns posting set."""
+            import re as _re_mod
+
+            rx = _re_mod.compile(str(pattern))
+            matches = sorted(n for n in sys._idx.documents if rx.search(n))[: int(max_results)]
+            return _multi_posting(matches)
+
+        def _fuzzy(query, max_results=10):
+            """Ranked substring search over node names — returns posting set."""
+            query_lower = str(query).lower()
+            scored = []
+            for name in sys._idx.documents:
+                name_lower = name.lower()
+                if query_lower not in name_lower:
+                    continue
+                if name_lower == query_lower:
+                    score = 0
+                elif name_lower.endswith(query_lower):
+                    score = 1
+                elif name_lower.startswith(query_lower):
+                    score = 2
+                else:
+                    score = 3
+                scored.append((score, len(name), name))
+            scored.sort()
+            matches = [name for _, _, name in scored[: int(max_results)]]
+            return _multi_posting(matches)
+
         ops = {
             Symbol("node"): _node,
             Symbol("kind"): _kind,
@@ -178,9 +239,13 @@ class LensSearchSystem:
             Symbol("value"): _value,
             Symbol("terms"): _terms,
             Symbol("quotes"): _quotes,
+            Symbol("atom"): _atom,
+            Symbol("find"): _find,
+            Symbol("fuzzy"): _fuzzy,
         }
         self._system = System(initial_env=ops, docs={}, strict_derive=False, name="LensSearch")
         self.posting_morphism = self._LnPostingMorphism(structure)
+        self.ops_morphism = self._LnOpsMorphism()
 
         # Wrap evaluate: internal operators use posting sets,
         # but the system produces s-expressions at the boundary
@@ -199,13 +264,22 @@ class LensSearchSystem:
     def index(self) -> "DocumentIndex":
         return self._idx
 
+    def _enrich(self, name: str) -> str:
+        """Enrich a name with kind and source location."""
+        node = self._structure.graph.get(name)
+        kind = node.kind if node else "?"
+        loc = self._locs.get(name, "")
+        if loc:
+            return f"{name}  {kind}  {loc}"
+        return f"{name}  {kind}"
+
     def find(self, pattern: str, max_results: int = 50) -> list[str]:
         """Regex search over node names via the index."""
         import re as _re
 
         rx = _re.compile(pattern)
         names = sorted(n for n in self._idx.documents if rx.search(n))
-        return names[:max_results]
+        return [self._enrich(n) for n in names[:max_results]]
 
     def fuzzy(self, query: str, max_results: int = 10) -> list[str]:
         """Ranked substring search over node names via the index."""
@@ -225,7 +299,7 @@ class LensSearchSystem:
                 score = 3
             scored.append((score, len(name), name))
         scored.sort()
-        return [name for _, _, name in scored[:max_results]]
+        return [self._enrich(name) for _, _, name in scored[:max_results]]
 
     def evaluate(self, expr, local_env=None):
         """Evaluate a query — string or s-expression."""
@@ -239,6 +313,14 @@ class LensSearchSystem:
             return self._system.evaluate(parsed)
         return self._system.evaluate(expr)
 
+    class _LnOpsMorphism:
+        """OpsMorphism: ln identity is name (form[1])."""
+
+        __slots__ = ()
+
+        def key(self, form):
+            return form[1]
+
     class _LnPostingMorphism:
         """PostingMorphism: posting ↔ ln forms."""
 
@@ -246,9 +328,10 @@ class LensSearchSystem:
             self._structure = structure
 
         def transform(self, posting: dict) -> list:
-            from parseltongue.core.atoms import Symbol
+            from parseltongue.core.atoms import Evidence, Symbol
 
             tag = Symbol("ln")
+            ev_tag = Symbol("ln-ev")
             result = []
             for name, _line in posting:
                 node = self._structure.graph.get(name)
@@ -256,7 +339,13 @@ class LensSearchSystem:
                     continue
                 depth = self._structure.depths.get(name, 0)
                 value = str(node.value) if node.value is not None else ""
-                result.append([tag, name, node.kind, value, depth, list(node.inputs)])
+                # Evidence sublist
+                origin = getattr(node.atom, "origin", None) if node.atom else None
+                if isinstance(origin, Evidence):
+                    ev = [ev_tag, origin.document, list(origin.quotes), origin.explanation or "", origin.is_grounded]
+                else:
+                    ev = [ev_tag, "", [], str(origin) if origin else "", False]
+                result.append([tag, name, node.kind, value, depth, list(node.inputs), ev])
             return result
 
         def inverse(self, forms: list) -> dict:
@@ -272,6 +361,7 @@ class LensSearchSystem:
                 name = str(item[1])
                 kind = str(item[2]) if len(item) > 2 else ""
                 value = str(item[3]) if len(item) > 3 else ""
+                # ev sublist available at item[6] if needed for evidence doc
                 posting[(name, 1)] = {
                     "document": name,
                     "line": 1,

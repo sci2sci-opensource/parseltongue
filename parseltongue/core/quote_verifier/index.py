@@ -4,7 +4,7 @@ Inverted word-position index for fast quote lookup.
 Build once per document, query many times.
 """
 
-import hashlib
+import zlib
 from collections import defaultdict
 from typing import Dict, List, Tuple
 
@@ -13,7 +13,7 @@ from .normalizer import normalize_with_mapping
 
 
 def _content_hash(text: str) -> str:
-    return hashlib.sha256(text.encode()).hexdigest()
+    return format(zlib.crc32(text.encode()), "08x")
 
 
 class IndexedDocument:
@@ -25,6 +25,7 @@ class IndexedDocument:
         "normalized_text",
         "position_map",
         "word_positions",
+        "content_hash",
         "_collapsed_text",
         "_collapsed_to_norm",
     )
@@ -32,6 +33,7 @@ class IndexedDocument:
     def __init__(self, name: str, text: str, config: QuoteVerifierConfig):
         self.name = name
         self.original_text = text
+        self.content_hash = _content_hash(text)
         self.normalized_text, self.position_map, _ = normalize_with_mapping(text, config)
         self.word_positions = self._build_word_index()
         self._collapsed_text, self._collapsed_to_norm = self._build_collapsed()
@@ -44,6 +46,7 @@ class IndexedDocument:
         obj = object.__new__(cls)
         obj.name = name
         obj.original_text = original_text
+        obj.content_hash = _content_hash(original_text)
         obj.normalized_text = normalized_text
         obj.position_map = position_map
         obj.word_positions = obj._build_word_index()
@@ -55,6 +58,7 @@ class IndexedDocument:
             "name": self.name,
             "normalized_text": self.normalized_text,
             "position_map": self.position_map,
+            "content_hash": self.content_hash,
         }
 
     def _build_word_index(self) -> Dict[str, List[int]]:
@@ -240,6 +244,49 @@ class DocumentIndex:
                 idx.add(name, original)
 
         return idx
+
+    def refresh_document(self, name: str, new_text: str) -> int:
+        """Re-index a document and recompute quote positions.
+
+        Extracts quote text from the old normalized content, re-indexes the
+        document with new_text, and re-finds each quote at its new position.
+        Returns the number of quotes that could not be relocated.
+        """
+        old_doc = self.documents.get(name)
+        if old_doc is None:
+            self.add(name, new_text)
+            return 0
+
+        # Extract quote text from old normalized content
+        affected = [(i, r) for i, r in enumerate(self._quote_ranges) if r[0] == name]
+        if not affected:
+            self.add(name, new_text)
+            return 0
+
+        old_quotes = []
+        for idx, (doc, start, end, caller) in affected:
+            quote_text = old_doc.normalized_text[start : end + 1]
+            old_quotes.append((idx, quote_text, caller))
+
+        # Re-index with new content
+        self.add(name, new_text)
+        new_doc = self.documents[name]
+
+        # Re-find quotes at new positions
+        lost = 0
+        for idx, quote_text, caller in old_quotes:
+            new_start, new_end, strategy = new_doc.find(quote_text)
+            if new_start == -1:
+                lost += 1
+                self._quote_ranges[idx] = (name, -1, -1, caller)
+            else:
+                self._quote_ranges[idx] = (name, new_start, new_end, caller)
+
+        # Clean up unfound quotes
+        if lost:
+            self._quote_ranges = [r for r in self._quote_ranges if r[1] != -1]
+
+        return lost
 
     # ── Quote provenance ──
 

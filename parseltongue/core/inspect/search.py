@@ -9,7 +9,7 @@ Supports pltg S-expression queries over the inverted index::
     (or "raise ValueError" "raise Syntax")      — union of posting sets
     (not "raise" "test")                        — difference (first minus second)
     (in "engine.py" "raise")                    — restrict to document (exact, suffix, or glob)
-    (near "raise" "ValueError" 3)               — proximity within N lines
+    (near 3 "raise" "ValueError")               — proximity within N lines
     (seq "def derive" "raise")                  — a before b in same document
     (re "raise (ValueError|NameError)")         — regex over all indexed lines
     (lines 400 500 (in "engine.py" (re ".")))   — restrict to line range
@@ -58,7 +58,7 @@ from typing import Callable
 
 from .store import SearchStore
 from .systems.bench_system import BenchSubsystem
-from .systems.search import SearchSystem
+from .systems.search_system_2 import SearchSystem2 as SearchSystem
 
 
 class Search:
@@ -74,7 +74,12 @@ class Search:
     def __init__(self, store: SearchStore):
         self._index = store.load_index()
         self._store = store
-        self._system = SearchSystem(self._index, self._collect)
+        # Try to restore cached search index (stems, ngrams, meta, corpus)
+        cached_search = store.load_search_index(self._index)
+        if cached_search is not None:
+            self._system = SearchSystem(cached_search, self._collect)
+        else:
+            self._system = SearchSystem(self._index, self._collect)
 
     def register_scope(self, name: str, system: BenchSubsystem):
         """Register a BenchSubsystem as a named scope."""
@@ -84,24 +89,74 @@ class Search:
         """Unregister a named scope."""
         self._system.unregister_scope(name)
 
+    def add(self, name: str, text: str) -> None:
+        """Add a document and refresh the search index."""
+        if name not in self._index.documents:
+            self._index.add(name, text)
+
+    def refresh(self, doc_index=None) -> None:
+        """Sync search system with backing DocumentIndex.
+
+        If *doc_index* is provided, merges its documents and quote ranges
+        into the existing index (e.g. the verifier's DocumentIndex carries
+        quote ranges for provenance tracing). Does NOT replace the index —
+        directory-indexed files are preserved.
+        """
+        if doc_index is not None:
+            # Merge verifier docs into existing index (adds quote ranges)
+            for name, doc in doc_index.documents.items():
+                if name not in self._index.documents:
+                    self._index.add(name, doc.original_text)
+            # Import quote ranges for provenance enrichment
+            self._index._quote_ranges = doc_index._quote_ranges
+            # Update the search system's backing doc_index reference
+            self._system._search_index._doc_index = self._index
+        self._system.refresh()
+
+    def _sync(self, updated_index):
+        """Sync all references after _update_index may have replaced DocumentIndex."""
+        if updated_index is not self._index:
+            self._index = updated_index
+            self._system._index = updated_index
+        self._system.refresh()
+
     def index_dir(
         self,
         directory: str,
         extensions: list[str] | None = None,
         exclude: list[str] | None = None,
         on_progress: Callable[[int, int, str], None] | None = None,
+        force: bool = False,
     ) -> int:
-        self._index, count = self._store.index_incremental(self._index, directory, extensions, exclude, on_progress)
-        self._system._index = self._index
+        updated, count = self._store.index_incremental(
+            self._index,
+            directory,
+            extensions,
+            exclude,
+            on_progress,
+            force=force,
+        )
+        self._sync(updated)
+        if count > 0:
+            self._store.save_search_index(self._system._search_index)
         return count
 
     def reindex(
         self,
         on_progress: Callable[[int, int, str], None] | None = None,
+        force: bool = False,
     ) -> int:
-        """Re-read known files, update stale entries, remove deleted."""
-        self._index, count = self._store.reindex(self._index, on_progress)
-        self._system._index = self._index
+        """Re-walk tracked directories, picking up new/changed/deleted files.
+
+        Walks all previously indexed directories to discover new files,
+        re-hashes existing files, and updates stale entries.
+
+        force=True bypasses stat/hash caches — full tree walk + re-read.
+        """
+        updated, count = self._store.reindex(self._index, on_progress, force=force)
+        self._sync(updated)
+        if count > 0:
+            self._store.save_search_index(self._system._search_index)
         return count
 
     def evaluate(self, expression: str):
@@ -132,15 +187,9 @@ class Search:
 
         Each line: {document, line, column, context, callers, total_callers}.
         """
-        result = self._system.evaluate(text.strip()) if text.strip().startswith("(") else None
-
-        if result is not None:
-            # S-expression result — could be posting set, sr list, or scalar
-            posting = self._to_display_posting(result)
-        else:
-            # Plain text — collect with provenance
-            lines, _ = self._collect(text, max_lines + offset, max_callers)
-            posting = {(ln["document"], ln["line"]): ln for ln in lines}
+        # All queries go through SearchSystem2 — RRF + BM25 pipeline
+        result = self._system.evaluate(text.strip())
+        posting = self._to_display_posting(result)
 
         # Context/before/after queries need line-order ranking to keep
         # surrounding lines grouped with their matches.

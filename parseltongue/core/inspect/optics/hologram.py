@@ -24,7 +24,7 @@ from .base import Optics
 from .lens import Lens
 
 if TYPE_CHECKING:
-    from ..systems.hologram import HologramSearchSystem
+    from ..systems.hologram import HologramSystem
 
 T = TypeVar("T")
 
@@ -124,15 +124,15 @@ class Hologram(Optics):
         self._name = name
         self._labels = labels or [f"L{i}" for i in range(len(lenses))]
         self._bias = _bias or Bias.NEUTRAL
-        self._search: HologramSearchSystem | None = None
+        self._search: HologramSystem | None = None
 
     @property
-    def search_system(self) -> "HologramSearchSystem":
+    def search_system(self) -> "HologramSystem":
         """Lazy-init search system."""
         if self._search is None:
-            from ..systems.hologram import HologramSearchSystem
+            from ..systems.hologram import HologramSystem
 
-            self._search = HologramSearchSystem(self)
+            self._search = HologramSystem(self)
         return self._search
 
     def find(self, pattern: str, max_results: int = 50) -> list[str]:

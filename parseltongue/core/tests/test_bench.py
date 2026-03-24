@@ -18,7 +18,9 @@ import unittest
 from unittest.mock import patch
 
 from ..inspect.bench import Bench
-from ..inspect.evaluation import Evaluation
+
+# Back-compat: import via old name to verify the shim works
+from ..inspect.evaluation import Evaluation as Screen
 
 # Patch path for disabling background reloads in tests
 _BG_RELOAD = "parseltongue.core.inspect.technician.Technician._background_reload"
@@ -311,7 +313,7 @@ class TestBenchDocumentsAndQuotes(_BenchTestBase):
         bench = self._bench()
         bench.prepare(path)
         lens = bench.lens()
-        names = lens.find("revenue")
+        names = [r.split()[0] for r in lens.find("revenue")]
         self.assertIn("revenue", names)
         view = str(lens.view_node("revenue"))
         self.assertIn("revenue", view)
@@ -321,7 +323,8 @@ class TestBenchDocumentsAndQuotes(_BenchTestBase):
         bench = self._bench()
         bench.prepare(path)
         lens = bench.lens()
-        self.assertIn("double-rev", lens.find("double-rev"))
+        names = [r.split()[0] for r in lens.find("double-rev")]
+        self.assertIn("double-rev", names)
 
     # ── Search through document text ──
 
@@ -383,7 +386,8 @@ class TestBenchImportChain(_BenchTestBase):
         bench = self._bench()
         bench.prepare(path)
         lens = bench.lens()
-        all_names = lens.find(".*")
+        all_results = lens.find(".*")
+        all_names = [r.split()[0] for r in all_results]
         self.assertIn("offices", all_names)
         has_sub = any("headcount" in n for n in all_names)
         self.assertTrue(has_sub, f"No headcount in: {all_names}")
@@ -795,7 +799,29 @@ class TestBenchDiagnosis(_BenchTestBase):
         bench = self._bench()
         bench.prepare(path)
         dx = bench.evaluate()
-        self.assertIn("Evaluation", repr(dx))
+        self.assertIn("Screen", repr(dx))
+
+    def test_screen_diagnose_evaluate_same_result(self):
+        """Back-compat: screen(), evaluate() return the same cached object."""
+        self._write("truth.txt", TRUTH_TEXT)
+        path = self._write("bad.pltg", BAD_QUOTE_PLTG)
+        bench = self._bench()
+        bench.prepare(path)
+        dx_screen = bench.screen()
+        dx_evaluate = bench.evaluate()
+        self.assertIs(dx_screen, dx_evaluate)
+
+    def test_scope_screen_diagnose_evaluation_same_result(self):
+        """Back-compat: (scope screen ...), (scope diagnose ...), (scope evaluation ...) all work."""
+        self._write("truth.txt", TRUTH_TEXT)
+        path = self._write("bad.pltg", BAD_QUOTE_PLTG)
+        bench = self._bench()
+        bench.prepare(path)
+        r_screen = bench.search("(scope screen (issues))")
+        r_diagnose = bench.search("(scope diagnose (issues))")
+        r_evaluation = bench.search("(scope evaluation (issues))")
+        self.assertEqual(r_screen["total_lines"], r_diagnose["total_lines"])
+        self.assertEqual(r_screen["total_lines"], r_evaluation["total_lines"])
 
     def test_diagnosis_to_dict_roundtrip(self):
         self._write("truth.txt", TRUTH_TEXT)
@@ -804,7 +830,7 @@ class TestBenchDiagnosis(_BenchTestBase):
         bench.prepare(path)
         dx = bench.evaluate()
         d = dx.to_dict()
-        dx2 = Evaluation.from_dict(d)
+        dx2 = Screen.from_dict(d)
         self.assertEqual(len(dx2.issues()), len(dx.issues()))
         self.assertEqual(dx2.consistent, dx.consistent)
 
@@ -853,9 +879,11 @@ class TestBenchMultipleSamples(_BenchTestBase):
         bench.prepare(path2)
 
         lens1 = bench.lens(path1)
-        self.assertIn("revenue", lens1.find("revenue"))
+        names1 = [r.split()[0] for r in lens1.find("revenue")]
+        self.assertIn("revenue", names1)
         lens2 = bench.lens(path2)
-        self.assertIn("customer-count", lens2.find("customer"))
+        names2 = [r.split()[0] for r in lens2.find("customer")]
+        self.assertIn("customer-count", names2)
 
     def test_diagnose_by_path(self):
         self._write("report.txt", REPORT_TEXT)

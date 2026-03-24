@@ -4,7 +4,7 @@ Uses the loader to load/reload .pltg files, the Store to check cache
 and persist results. Updates Bench status via a private callback.
 
 The Technician decides *how* to load (cold, cache hit, hot-patch,
-background reload). Owns scope registration, evaluation computation,
+background reload). Owns scope registration, screening,
 and search engine lifecycle. The Bench decides *what* to observe.
 """
 
@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Callable
 
 if TYPE_CHECKING:
-    from .systems.operations import OperationsSystem
+    from .systems.operations_v2 import OperationsSystemV2 as OperationsSystem
 
 from ..integrity.merkle import MerkleNode
 from ..loader.lazy_loader import LazyLoader, LazyLoadResult
@@ -37,7 +37,7 @@ class Technician:
 
     Coordinates between the loader and the Store. Reports state
     transitions via a callback provided by the Bench. Owns scope
-    registration, evaluation computation, and search engine.
+    registration, screening, and search engine.
     """
 
     # Integrity values (mirrors Bench.Integrity for the callback)
@@ -65,9 +65,11 @@ class Technician:
         self._bg_result: tuple[str, Sample] | None = None
         self._lib_paths: list[str] = lib_paths or []
         self._bench_pg = bench_pg
+        self._effects: dict[str, dict] = {}  # path → effects dict
         self._frozen = None  # FrozenBench, created lazily on first prepare
         self._live: dict = {}  # path → LiveBench
-        self._evaluation_mem: dict = {}  # path → Evaluation
+        self._screen_mem: dict = {}  # path → Screen
+        self._lens_mem: dict = {}  # path → Lens
         self._affected: dict[str, set[str]] = {}
         self._search_mem: dict = {}  # path → Search
         self._ops: "OperationsSystem | None" = None  # shared, stateless
@@ -89,9 +91,9 @@ class Technician:
     def _ensure_ops(self):
         """Create OperationsSystem lazily — shared across all scopes."""
         if self._ops is None:
-            from .systems.operations import OperationsSystem
+            from .systems.operations_v2 import OperationsSystemV2
 
-            self._ops = OperationsSystem(lib_paths=self._lib_paths)
+            self._ops = OperationsSystemV2()
         return self._ops
 
     def _ensure_frozen(self):
@@ -118,8 +120,12 @@ class Technician:
 
     # ── Scope registration ──
 
-    def _register_scopes(self, path: str, sample: Sample):
-        """Register all scopes — lens and evaluation. Called on both prepare and live."""
+    def _register_scopes(self, path: str, sample: Sample, screen=None, live=False):
+        """Register all scopes — lens and screen.
+
+        If screen is provided, use it directly. Otherwise load from frozen cache.
+        live=False skips expensive work (LiveBench, live_probe_all, search refresh).
+        """
         from .optics import Lens
         from .perspectives.md_debugger import MDebuggerPerspective
 
@@ -127,52 +133,148 @@ class Technician:
         search = self.search_engine(path)
 
         # Lens scope — always available from structure
-        lens = Lens(structure, [MDebuggerPerspective(loader)])
+        lens = Lens(structure, [MDebuggerPerspective(loader)], loader=loader)
+        _ = lens.search_system  # pre-warm before background thread starts
+        self._lens_mem[path] = lens
         search.register_scope("lens", lens.search_system)
 
-        # Evaluation scope — from cache if available
-        dx = self._load_evaluate(path, sample)
+        # Screen scope — provided, computed live, or from frozen cache
+        if screen is not None:
+            dx = screen
+        elif live:
+            dx = self._load_screen_live(path, sample)
+        else:
+            dx = self._load_screen(path, sample)
         if dx is not None:
-            search.register_scope("evaluation", dx.search_system)
+            for _scope_name in ("screen", "diagnose", "evaluation"):
+                search.register_scope(_scope_name, dx.search_system)
 
         # Operations scope — generic composition over tagged forms
         ops = self._ensure_ops()
         ops.register_scope("lens", lens.search_system)
         if dx is not None:
-            ops.register_scope("evaluation", dx.search_system)
+            for _scope_name in ("screen", "diagnose", "evaluation"):
+                ops.register_scope(_scope_name, dx.search_system)
         ops.register_scope("search", search._system)
         search.register_scope("ops", ops)
 
-        # Populate search docs if live
+        # Register scopes + renderers on frozen system (always available)
+        frozen = self._ensure_frozen()
+        if frozen is not None:
+            frozen.register_scope("lens", lens.search_system)
+            if dx is not None:
+                for _scope_name in ("screen", "diagnose", "evaluation"):
+                    frozen.register_scope(_scope_name, dx.search_system)
+            frozen.register_scope("ops", ops)
+            frozen.register_scope("search", search._system)
+
+            from .perspectives.viz import VizRenderer
+
+            frozen.register_renderer(
+                "viz",
+                VizRenderer(
+                    store=self._store,
+                    merkle_root=getattr(self, "_merkle_roots", {}).get(path, ""),
+                    structure=structure,
+                ),
+            )
+
+        # Populate search docs + create LiveBench — only on live path
         result = sample[3].last_result
-        if result is not None and hasattr(result.system, "engine") and result.system.engine.facts:
+        if live and result is not None and hasattr(result.system, "engine") and result.system.engine.facts:
             from .systems.live_bench import LiveBench
 
-            self._live[path] = LiveBench(result, self._bench_pg, self._lib_paths)  # type: ignore[arg-type]
+            self._live[path] = LiveBench(result, frozen)
+            self._live[path].register_scope("lens", lens.search_system)
+            if dx is not None:
+                for _scope_name in ("screen", "diagnose", "evaluation"):
+                    self._live[path].register_scope(_scope_name, dx.search_system)
             self._live[path].register_scope("ops", ops)
-            for doc_name, doc_text in result.system.engine.documents.items():
-                if doc_name not in search._index.documents:
-                    search._index.add(doc_name, doc_text)
+            self._live[path].register_scope("search", search._system)
+            self._live[path].register_hologram_scope(engine=result.system.engine)
+            if frozen is not None:
+                frozen.register_hologram_scope(engine=result.system.engine)
 
-    # ── Evaluation ──
+            # Build live-probed structure — stain all theorems, probe from roots
+            live_structure = self._live_probe_all(result)
+            from .perspectives.viz import VizRenderer as _VR
 
-    def _load_evaluate(self, path: str, sample: Sample | None):
-        """Evaluate consistency — cached, incremental, or cold."""
-        from .evaluation import Evaluation
+            self._live[path].register_renderer(
+                "viz",
+                _VR(
+                    store=self._store,
+                    merkle_root=getattr(self, "_merkle_roots", {}).get(path, ""),
+                    structure=live_structure,
+                ),
+            )
+            vi = result.system.engine._verifier.index
+            log.info(
+                "Refreshing search with verifier index: docs=%d, quote_ranges=%d",
+                len(vi.documents),
+                len(vi._quote_ranges),
+            )
+            search.refresh(vi)
+
+    # ── Screen ──
+
+    def _load_screen(self, path: str, sample: Sample | None):
+        """Screen for frozen path — never blocks.
+
+        Returns exact cache, stale cache, or empty Screen. Never computes
+        cold consistency. Live thread replaces this when ready.
+        """
+        from .screen import Screen
 
         # Memory cache
-        if path in self._evaluation_mem:
-            return self._evaluation_mem[path]
+        if path in self._screen_mem:
+            return self._screen_mem[path]
 
         # Disk cache — exact Merkle match
         if sample:
             merkle_root = sample[1].hash
             disk_dx = self._store.load_diagnosis(path, merkle_root)
             if disk_dx is not None:
-                self._evaluation_mem[path] = disk_dx
+                self._screen_mem[path] = disk_dx
                 return disk_dx
 
-        # Incremental: stale evaluation + known affected set
+        # Stale disk cache — frozen uses whatever exists
+        stale_dx = self._store.load_stale_diagnosis(path)
+        if stale_dx is not None:
+            return stale_dx
+
+        # Empty — frozen has no screen yet, live will fill it in
+        from .screen import ScreenItem
+
+        return Screen(
+            items=[
+                ScreenItem(
+                    name="frozen-empty",
+                    category="loader",
+                    type="error",
+                    kind=None,
+                    loc="?",
+                    detail="Frozen cache empty — waiting for live evaluation",
+                )
+            ],
+            consistent=False,
+        )
+
+    def _load_screen_live(self, path: str, sample: Sample | None):
+        """Screen for live path — full compute on background thread.
+
+        Tries incremental if affected set is known, otherwise cold.
+        Replaces whatever frozen had.
+        """
+        from .screen import Screen
+
+        # Already fresh in memory with matching merkle
+        if path in self._screen_mem and sample:
+            merkle_root = sample[1].hash
+            disk_dx = self._store.load_diagnosis(path, merkle_root)
+            if disk_dx is not None:
+                return disk_dx
+
+        # Incremental: stale screen + known affected set
         affected = self._affected.get(path)
         if affected is not None:
             old_dx = self._store.load_stale_diagnosis(path)
@@ -186,26 +288,29 @@ class Technician:
 
                 if diffs_to_patch:
                     log.info(
-                        "Incremental evaluate: %d/%d diffs",
+                        "Incremental screen: %d/%d diffs",
                         len(diffs_to_patch),
                         len(engine.diffs),
                     )
                     lc = result.consistency_incremental(diffs_to_patch)
                     dx = old_dx.incremental(diffs_to_patch, lc)
-                    self._evaluation_mem[path] = dx
-                    self._save_evaluation(path, dx, sample)
+                    self._screen_mem[path] = dx
+                    self._save_screen(path, dx, sample)
                     self._affected.pop(path, None)
                     return dx
 
         # Cold — full consistency
         result, sample = self.ensure_live(path, sample)
         lc = result.consistency()
-        dx = Evaluation.from_report(lc, result)
-        self._evaluation_mem[path] = dx
-        self._save_evaluation(path, dx, sample)
+        dx = Screen.from_report(lc, result)
+        self._screen_mem[path] = dx
+        self._save_screen(path, dx, sample)
         return dx
 
-    def _save_evaluation(self, path: str, dx, sample: Sample | None):
+    # Backwards compat
+    _load_evaluate = _load_screen
+
+    def _save_screen(self, path: str, dx, sample: Sample | None):
         merkle_root = sample[1].hash if sample else ""
         self._store.save_diagnosis(path, merkle_root, dx)
 
@@ -248,10 +353,12 @@ class Technician:
                 structure, loader = self._store.deserialize(disk_raw)
                 sample = (path, new_tree, structure, loader)
                 self._file_hashes[path] = new_hashes
-                self._on_status(path, self.VERIFIED, self.LOADING)
-                self._background_reload(path, sample)
                 self._ensure_frozen()
                 self._register_scopes(path, sample)
+                load_result = loader.last_result
+                integrity = self._check_load_integrity(path, load_result) if load_result else self.VERIFIED
+                self._on_status(path, integrity, self.LOADING)
+                self._background_reload(path, sample)
                 return sample, None
 
             # Tree differs — hot-patch if we have a cached system
@@ -269,17 +376,16 @@ class Technician:
                             new_tree = self._store.build_file_tree(file_list, new_hashes)
                             sample = (path, new_tree, structure, loader)
                             self._file_hashes[path] = new_hashes
-                            self._on_status(path, self.UNKNOWN, self.LOADING)
-                            self._background_reload(path, sample)
                             self._affected[path] = affected
-                            self._evaluation_mem.pop(path, None)
+                            self._screen_mem.pop(path, None)
                             self._ensure_frozen()
                             self._register_scopes(path, sample)
+                            self._on_status(path, self.UNKNOWN, self.LOADING)
+                            self._background_reload(path, sample)
                             return sample, affected
 
-        # Cold — full reload (_cold_load registers live scopes)
+        # Cold — full reload (_cold_load registers live scopes + frozen)
         sample = self._cold_load(path)
-        self._ensure_frozen()
         return sample, None
 
     def ensure_live(
@@ -325,7 +431,7 @@ class Technician:
             self._file_lists.clear()
             self._file_hashes.clear()
             self._store.remove_all()
-            self._evaluation_mem.clear()
+            self._screen_mem.clear()
             self._affected.clear()
             self._search_mem.clear()
             self._live.clear()
@@ -333,17 +439,43 @@ class Technician:
             self._file_lists.pop(path, None)
             self._file_hashes.pop(path, None)
             self._store.remove(path)
-            self._evaluation_mem.pop(path, None)
+            self._screen_mem.pop(path, None)
             self._affected.pop(path, None)
             self._search_mem.pop(path, None)
             self._live.pop(path, None)
 
     # ── Internal ──
 
+    def _live_probe_all(self, result: LazyLoadResult):
+        """Build a live-probed structure: trace all theorems, probe from __output__."""
+        from .vital import live_probe
+
+        eng = result.system.engine
+        roots = result.roots()
+        if not roots:
+            from .probe_core_to_consequence import CoreToConsequenceStructure
+
+            return CoreToConsequenceStructure(layers=[], graph={}, depths={}, max_depth=0)
+        return live_probe(["__output__"] + roots, eng)
+
+    def _check_load_integrity(self, path: str, result: LazyLoadResult) -> str:
+        """Check whether a load completed fully. Returns integrity label."""
+        errors = result.errors if result else {}
+        unresolved: set[str] = getattr(result.system, "_unresolved", set()) if result and result.system else set()
+        if errors or unresolved:
+            parts = []
+            if errors:
+                parts.append(f"{len(errors)} loader errors")
+            if unresolved:
+                parts.append(f"{len(unresolved)} unresolved: {', '.join(sorted(unresolved)[:10])}")
+            log.warning("Incomplete load for %s — %s", path, "; ".join(parts))
+            return self.CORRUPTED
+        return self.VERIFIED
+
     def _cold_load(self, path: str) -> Sample:
         """Full reload from scratch."""
         loader = LazyLoader(lib_paths=self._lib_paths)
-        loader.load_main(path, name="Technician.cold")
+        loader.load_main(path, effects=self._effects.get(path), name="Technician.cold")
         load_result = loader.last_result
         assert load_result is not None
         file_list = self.collect_source_files(loader)
@@ -354,9 +486,11 @@ class Technician:
         structure = probe_all(load_result)
 
         sample: Sample = (path, new_tree, structure, loader)
-        self._on_status(path, self.VERIFIED, self.LIVE)
         self._store.save(path, new_tree, structure, loader, file_list, new_hashes)
-        self._register_scopes(path, sample)
+        self._ensure_frozen()
+        self._register_scopes(path, sample, live=True)
+        integrity = self._check_load_integrity(path, load_result)
+        self._on_status(path, integrity, self.LIVE)
         return sample
 
     def _hot_patch(
@@ -437,11 +571,24 @@ class Technician:
         file_hashes = self._file_hashes
         technician = self
 
+        # Seed verifier index from frozen sample so add() hits hash check and skips
+        cached_verifier = None
+        try:
+            cr = current_sample[3].last_result
+            if cr and cr.system and cr.system.engine:
+                from parseltongue.core.quote_verifier import QuoteVerifier
+
+                cached_verifier = QuoteVerifier()
+                cached_verifier.index = cr.system.engine._verifier.index
+        except Exception:
+            pass
+
         def _reload():
             try:
+                kw = {"verifier": cached_verifier} if cached_verifier else {}
                 loader = LazyLoader(lib_paths=technician._lib_paths)
-                loader.load_main(path, name="Technician.bg_reload")
-                file_list = technician.collect_source_files(loader)
+                loader.load_main(path, effects=technician._effects.get(path), name="Technician.bg_reload", **kw)  # type: ignore[arg-type]
+                file_list = file_lists.get(path) or technician.collect_source_files(loader)
                 new_hashes = store.hash_files(file_list)
                 new_tree = store.build_file_tree(file_list, new_hashes)
                 bg_result = loader.last_result
@@ -470,9 +617,11 @@ class Technician:
                 file_hashes[path] = new_hashes
                 new_sample: Sample = (path, new_tree, structure, loader)
                 technician._bg_result = (path, new_sample)
-                on_status(path, Technician.VERIFIED, Technician.LIVE)
-                # Register live scopes with the fresh sample
-                technician._register_scopes(path, new_sample)
+                integrity = technician._check_load_integrity(path, bg_result)
+                on_status(path, integrity, Technician.LIVE)
+                # Compute live screen (full consistency) then register scopes
+                live_dx = technician._load_screen_live(path, new_sample)
+                technician._register_scopes(path, new_sample, screen=live_dx, live=True)
                 store.save(path, new_tree, structure, loader, file_list, new_hashes)
                 log.info("Background reload complete for %s", path)
             except Exception as e:

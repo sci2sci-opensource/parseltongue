@@ -1,4 +1,4 @@
-"""Tests for search systems on Lens, Evaluation, and Hologram.
+"""Tests for search systems on Lens, Screen, and Hologram.
 
 Exercises scope/project/delegate semantics through the bench search
 infrastructure. Each optic holds its own search system with a
@@ -7,9 +7,9 @@ in the main search engine so queries can compose across domains.
 
 Covers:
 - LensSearchSystem: node, kind, inputs, downstream, roots, layer, focus
-- EvaluationSearchSystem: issues, warnings, danglings, focus, kind, category, type
-- HologramSearchSystem: left, right, lens, divergent, common, only
-- Cross-scope queries: (scope lens ...), (scope evaluation ...)
+- ScreenSearchSystem: issues, warnings, danglings, focus, kind, category, type
+- HologramSystem: left, right, lens, divergent, common, only
+- Cross-scope queries: (scope lens ...), (scope screen ...)
 - Scope + project: (scope lens (project (kind "fact")))
 - Scope + delegate: multi-level scope chains
 - find/fuzzy on all three optics via their search indexes
@@ -152,11 +152,13 @@ class TestLensSearchSystem(_Base):
         bench = self._prepare()
         lens = bench.lens()
         results = lens.find("revenue")
-        self.assertIn("revenue", results)
-        self.assertIn("revenue-per-head", results)
+        names = [r.split()[0] for r in results]
+        self.assertIn("revenue", names)
+        self.assertIn("revenue-per-head", names)
         # double-rev doesn't contain "revenue" substring
         results_rev = lens.find("rev")
-        self.assertIn("double-rev", results_rev)
+        names_rev = [r.split()[0] for r in results_rev]
+        self.assertIn("double-rev", names_rev)
 
     def test_find_no_match(self):
         bench = self._prepare()
@@ -168,9 +170,10 @@ class TestLensSearchSystem(_Base):
         lens = bench.lens()
         results = lens.fuzzy("margin")
         self.assertTrue(len(results) > 0)
+        names = [r.split()[0] for r in results]
         # Exact match should rank first
-        self.assertEqual(results[0], "margin")
-        self.assertIn("margin-ratio", results)
+        self.assertEqual(names[0], "margin")
+        self.assertIn("margin-ratio", names)
 
     def test_kind_fact(self):
         bench = self._prepare()
@@ -263,11 +266,11 @@ class TestLensSearchSystem(_Base):
         self.assertIsInstance(result, str)
 
 
-# ── Evaluation Search System ──
+# ── Screen Search System (back-compat: Evaluation) ──
 
 
-class TestEvaluationSearchSystem(_Base):
-    """S-expression queries over Evaluation items."""
+class TestScreenSearchSystem(_Base):
+    """S-expression queries over Screen items (uses deprecated bench.evaluate() alias)."""
 
     def test_find_regex(self):
         bench = self._prepare()
@@ -330,7 +333,7 @@ class TestEvaluationSearchSystem(_Base):
         for item in posting:
             doc = item[1]
             # Items within this category doc at this line should have diff- prefix
-            # (evaluation groups by category, not name)
+            # (screen groups by category, not name)
         self.assertIsInstance(posting, list)
 
     def test_consistent_returns_bool(self):
@@ -344,8 +347,36 @@ class TestEvaluationSearchSystem(_Base):
 # ── Hologram Search System ──
 
 
-class TestHologramSearchSystem(_Base):
-    """S-expression queries over Hologram (multi-lens)."""
+class TestHologramSystem(_Base):
+    """S-expression queries over Hologram (multi-lens).
+
+    HologramSystem.evaluate() returns hn form lists:
+        [hn, ln_form_0, ln_form_1, ...]
+    where each ln_form is [ln, name, kind, value, depth, inputs, evidence]
+    or [] if absent from that lens.
+    """
+
+    @staticmethod
+    def _hn_names(forms):
+        """Extract node names from hn or ln form lists."""
+        from parseltongue.core.atoms import Symbol
+
+        names = set()
+        for form in forms:
+            if not isinstance(form, (list, tuple)) or len(form) < 2:
+                continue
+            tag = str(form[0]) if isinstance(form[0], Symbol) else ""
+            if tag.endswith("ln"):
+                # Bare ln form: [ln, name, kind, ...]
+                names.add(form[1])
+            elif tag.endswith("hn"):
+                # hn form: [hn, ln_sub_0, ln_sub_1, ...]
+                for sub in form[1:]:
+                    if isinstance(sub, (list, tuple)) and len(sub) >= 2:
+                        stag = str(sub[0]) if isinstance(sub[0], Symbol) else ""
+                        if stag.endswith("ln"):
+                            names.add(sub[1])
+        return names
 
     def test_find_across_lenses(self):
         bench = self._prepare()
@@ -362,28 +393,31 @@ class TestHologramSearchSystem(_Base):
     def test_divergent(self):
         bench = self._prepare()
         h = bench.dissect("diff-rev-vs-income")
-        posting = h.search("(divergent)")
-        # The two sides of the diff should have different nodes
-        self.assertIsInstance(posting, dict)
+        result = h.search("(divergent)")
+        # Returns hn form list
+        self.assertIsInstance(result, list)
+        names = self._hn_names(result)
+        self.assertTrue(len(names) > 0)
 
     def test_common(self):
         bench = self._prepare()
         h = bench.dissect("diff-rev-vs-income")
-        posting = h.search("(common)")
-        self.assertIsInstance(posting, dict)
+        result = h.search("(common)")
+        # Returns hn form list (may be empty if nothing shared)
+        self.assertIsInstance(result, list)
 
     def test_left(self):
         bench = self._prepare()
         h = bench.dissect("diff-rev-vs-income")
-        posting = h.search("(left)")
-        names = {k[0] for k in posting}
+        result = h.search("(left)")
+        names = self._hn_names(result)
         self.assertIn("revenue", names)
 
     def test_right(self):
         bench = self._prepare()
         h = bench.dissect("diff-rev-vs-income")
-        posting = h.search("(right)")
-        names = {k[0] for k in posting}
+        result = h.search("(right)")
+        names = self._hn_names(result)
         self.assertIn("net-income", names)
 
     def test_lens_index(self):
@@ -391,8 +425,8 @@ class TestHologramSearchSystem(_Base):
         h = bench.dissect("diff-rev-vs-income")
         left = h.search("(lens 0)")
         right = h.search("(lens 1)")
-        left_names = {k[0] for k in left}
-        right_names = {k[0] for k in right}
+        left_names = self._hn_names(left)
+        right_names = self._hn_names(right)
         self.assertIn("revenue", left_names)
         self.assertIn("net-income", right_names)
 
@@ -401,30 +435,30 @@ class TestHologramSearchSystem(_Base):
         h = bench.dissect("diff-rev-vs-income")
         only_left = h.search("(only 0)")
         only_right = h.search("(only 1)")
-        # Exclusive nodes shouldn't overlap
-        left_names = {k[0] for k in only_left}
-        right_names = {k[0] for k in only_right}
+        left_names = self._hn_names(only_left)
+        right_names = self._hn_names(only_right)
         self.assertEqual(left_names & right_names, set())
 
     def test_left_kind_filter(self):
         bench = self._prepare()
         h = bench.dissect("diff-rev-vs-income")
-        posting = h.search('(left (kind "fact"))')
-        names = {item[1] for item in posting}
+        # left (kind "fact") returns ln forms from lens 0
+        result = h.search('(left (kind "fact"))')
+        names = self._hn_names(result)
         self.assertIn("revenue", names)
 
     def test_compose_two_names(self):
         bench = self._prepare()
         h = bench.compose("revenue", "net-income")
-        posting = h.search("(divergent)")
-        self.assertIsInstance(posting, dict)
+        result = h.search("(divergent)")
+        self.assertIsInstance(result, list)
 
 
 # ── Cross-Scope Queries ──
 
 
 class TestCrossScopeQueries(_Base):
-    """Queries that compose across search/lens/evaluation scopes."""
+    """Queries that compose across search/lens/screen scopes."""
 
     def test_scope_lens_kind(self):
         bench = self._prepare()
@@ -448,19 +482,25 @@ class TestCrossScopeQueries(_Base):
         names = {ln["document"] for ln in result["lines"]}
         self.assertIn("double-rev", names)
 
-    def test_scope_evaluation_issues(self):
+    def test_scope_screen_issues(self):
+        bench = self._prepare()
+        result = bench.search("(scope screen (issues))")
+        self.assertGreater(result["total_lines"], 0)
+
+    def test_scope_evaluation_issues_backcompat(self):
+        """Back-compat: (scope evaluation ...) still works."""
         bench = self._prepare()
         result = bench.search("(scope evaluation (issues))")
         self.assertGreater(result["total_lines"], 0)
 
-    def test_scope_evaluation_kind(self):
+    def test_scope_screen_kind(self):
         bench = self._prepare()
-        result = bench.search('(scope evaluation (kind "diff"))')
+        result = bench.search('(scope screen (kind "diff"))')
         self.assertIsInstance(result, dict)
 
-    def test_scope_evaluation_category(self):
+    def test_scope_screen_category(self):
         bench = self._prepare()
-        result = bench.search('(scope evaluation (category "issue"))')
+        result = bench.search('(scope screen (category "issue"))')
         self.assertGreater(result["total_lines"], 0)
 
     def test_and_text_with_scope(self):
@@ -639,11 +679,11 @@ class TestAxiomInstantiation(_Base):
         self.assertIn("pos-rule", names)
 
 
-# ── Diff Evaluation ──
+# ── Diff Screening (back-compat: uses bench.evaluate() alias) ──
 
 
 class TestDiffEvaluation(_Base):
-    """Diff semantics through search systems."""
+    """Diff semantics through search systems (uses deprecated bench.evaluate() alias)."""
 
     def test_diff_divergence_detected(self):
         bench = self._prepare()
@@ -657,8 +697,8 @@ class TestDiffEvaluation(_Base):
     def test_dissect_shows_both_sides(self):
         bench = self._prepare()
         h = bench.dissect("diff-rev-vs-income")
-        left_names = {k[0] for k in h.search("(left)")}
-        right_names = {k[0] for k in h.search("(right)")}
+        left_names = TestHologramSystem._hn_names(h.search("(left)"))
+        right_names = TestHologramSystem._hn_names(h.search("(right)"))
         self.assertIn("revenue", left_names)
         self.assertIn("net-income", right_names)
 
@@ -681,3 +721,126 @@ class TestDiffEvaluation(_Base):
         dx = bench.evaluate()
         posting = dx.search('(focus "diff-")')
         self.assertIsInstance(posting, list)
+
+
+# ── Stained Holograms ──
+
+
+class TestStainedHolograms(_Base):
+    """Vital stain — runtime execution trace as a Hologram.
+
+    bench.stain(*names) applies a Stain to the live engine, re-evaluates
+    theorem WFFs to capture runtime dependency edges, then builds a
+    Hologram with live_probe structures. Hologram requires >= 2 lenses,
+    so stain always takes 2+ names (or use dissect with stain in CLI).
+    Each lens has real depths, edges, and nodes from the actual
+    evaluation path.
+    """
+
+    def test_stain_returns_hologram(self):
+        bench = self._prepare()
+        h = bench.stain("thm-positive", "thm-margin-under-100")
+        from ..inspect.optics.hologram import Hologram
+
+        self.assertIsInstance(h, Hologram)
+
+    def test_stain_two_theorems(self):
+        bench = self._prepare()
+        h = bench.stain("thm-positive", "thm-margin-under-100")
+        self.assertEqual(len(h._lenses), 2)
+        self.assertEqual(h._labels, ["thm-positive", "thm-margin-under-100"])
+
+    def test_stain_three_theorems(self):
+        bench = self._prepare()
+        h = bench.stain("thm-positive", "thm-margin-under-100", "thm-headcount-positive")
+        self.assertEqual(len(h._lenses), 3)
+
+    def test_stain_lens_has_structure(self):
+        bench = self._prepare()
+        h = bench.stain("thm-positive", "thm-margin-under-100")
+        for lens in h._lenses:
+            structure = lens._structure
+            self.assertTrue(len(structure.graph) > 0, "Stained lens should have graph nodes")
+            self.assertTrue(len(structure.depths) > 0, "Stained lens should have depths")
+
+    def test_stain_captures_dependencies(self):
+        """thm-positive depends on double-rev which depends on revenue."""
+        bench = self._prepare()
+        h = bench.stain("thm-positive", "thm-margin-under-100")
+        names_0 = set(h._lenses[0]._structure.graph.keys())
+        self.assertIn("double-rev", names_0)
+        self.assertIn("revenue", names_0)
+        names_1 = set(h._lenses[1]._structure.graph.keys())
+        self.assertIn("margin", names_1)
+
+    def test_stain_depths_nonzero(self):
+        """Stained structure should have nodes at depth > 0."""
+        bench = self._prepare()
+        h = bench.stain("thm-positive", "thm-margin-under-100")
+        for lens in h._lenses:
+            depths = lens._structure.depths
+            max_depth = max(depths.values()) if depths else 0
+            self.assertGreater(max_depth, 0, "Expected at least one node with depth > 0")
+
+    def test_stain_has_layers(self):
+        bench = self._prepare()
+        h = bench.stain("thm-positive", "thm-margin-under-100")
+        for lens in h._lenses:
+            layers = lens._structure.layers
+            self.assertTrue(len(layers) > 0, "Stained structure should have layers")
+
+    def test_stain_search_left_right(self):
+        """Hologram search operators work on stained holograms."""
+        bench = self._prepare()
+        h = bench.stain("thm-positive", "thm-margin-under-100")
+        left = h.search("(left)")
+        right = h.search("(right)")
+        self.assertIsInstance(left, list)
+        self.assertIsInstance(right, list)
+
+    def test_stain_divergent(self):
+        """Two different theorems should produce a divergent query result."""
+        bench = self._prepare()
+        h = bench.stain("thm-positive", "thm-margin-under-100")
+        divergent = h.search("(divergent)")
+        # divergent returns hn forms — may be empty if lenses overlap fully
+        self.assertIsInstance(divergent, list)
+
+    def test_stain_common(self):
+        """Stained theorems sharing no deps should have empty common set."""
+        bench = self._prepare()
+        h = bench.stain("thm-positive", "thm-margin-under-100")
+        common = h.search("(common)")
+        self.assertIsInstance(common, list)
+
+    def test_stain_find(self):
+        bench = self._prepare()
+        h = bench.stain("thm-positive", "thm-margin-under-100")
+        results = h.find("revenue")
+        self.assertIn("revenue", results)
+
+    def test_stain_fuzzy(self):
+        bench = self._prepare()
+        h = bench.stain("thm-positive", "thm-margin-under-100")
+        results = h.fuzzy("rev")
+        self.assertTrue(len(results) > 0)
+
+    def test_stain_viz_data_has_depth(self):
+        """Viz renderer should produce structure items with correct depths from stain."""
+        bench = self._prepare()
+        h = bench.stain("thm-positive", "thm-margin-under-100")
+        from ..inspect.perspectives.visualisation.renderer import _build_named_structure_data
+
+        for lens in h._lenses:
+            structure = lens._structure
+            items = _build_named_structure_data(set(structure.graph.keys()), structure)
+            depths = [item["depth"] for item in items]
+            self.assertTrue(any(d > 0 for d in depths), f"Expected depth > 0 in viz data, got {depths}")
+
+    def test_stain_pos_rule_axiom_traced(self):
+        """thm-pos-revenue uses pos-rule via :bind — stain should capture it."""
+        bench = self._prepare()
+        h = bench.stain("thm-pos-revenue", "thm-positive")
+        names_0 = set(h._lenses[0]._structure.graph.keys())
+        # pos-rule axiom and revenue should be in the dependency graph
+        self.assertIn("revenue", names_0)

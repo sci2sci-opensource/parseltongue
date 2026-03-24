@@ -16,7 +16,7 @@ class Optics(ABC):
 
     Subclasses: Lens (single structure), Hologram (two structures side-by-side).
     Search is handled by dedicated search systems (LensSearchSystem,
-    HologramSearchSystem) registered as scopes in the main search engine.
+    HologramSystem) registered as scopes in the main search engine.
     """
 
     @abstractmethod

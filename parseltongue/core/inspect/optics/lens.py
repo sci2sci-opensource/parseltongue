@@ -25,11 +25,14 @@ class Lens(Optics):
     Holds a LensSearchSystem for find/fuzzy/search over the graph.
     """
 
-    def __init__(self, structure: CoreToConsequenceStructure, perspectives: list[Perspective] | None = None):
+    def __init__(
+        self, structure: CoreToConsequenceStructure, perspectives: list[Perspective] | None = None, loader=None
+    ):
         self._structure = structure
         self._perspectives: dict[type[Perspective], Perspective] = {}
         for p in perspectives or []:
             self._perspectives[type(p)] = p
+        self._loader = loader
         self._search: LensSearchSystem | None = None
 
     @property
@@ -38,7 +41,7 @@ class Lens(Optics):
         if self._search is None:
             from ..systems.lens import LensSearchSystem
 
-            self._search = LensSearchSystem(self._structure)
+            self._search = LensSearchSystem(self._structure, loader=self._loader)
         return self._search
 
     def find(self, pattern: str, max_results: int = 50) -> list[str]:
@@ -69,7 +72,7 @@ class Lens(Optics):
         return KeyError(f"No {name!r}")
 
     def focus(self, name: str) -> "Lens":
-        return Lens(self._structure.localize(name), list(self._perspectives.values()))
+        return Lens(self._structure.localize(name), list(self._perspectives.values()), loader=self._loader)
 
     def view(self, perspective: type[Perspective[T]] | None = None) -> T:
         return self._get(perspective).render_structure(self._structure)

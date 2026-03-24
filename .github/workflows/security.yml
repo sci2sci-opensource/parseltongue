@@ -28,7 +28,7 @@ jobs:
         run: pip freeze > requirements.txt
 
       - name: Run Trivy (console output)
-        uses: aquasecurity/trivy-action@0.34.2
+        uses: aquasecurity/trivy-action@0.35.0
         with:
           scan-type: fs
           scan-ref: .
@@ -38,7 +38,7 @@ jobs:
           format: table
 
       - name: Run Trivy (SARIF for GitHub Security)
-        uses: aquasecurity/trivy-action@0.34.2
+        uses: aquasecurity/trivy-action@0.35.0
         with:
           scan-type: fs
           scan-ref: .

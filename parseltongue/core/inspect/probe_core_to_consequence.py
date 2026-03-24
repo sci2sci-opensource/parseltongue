@@ -81,8 +81,8 @@ class Layer:
 @dataclass
 class CoreToConsequenceStructure:
     layers: list = field(default_factory=list)  # list of Layer (layer 0 = roots)
-    graph: dict = field(default_factory=dict)  # name -> Node
-    depths: dict = field(default_factory=dict)  # name -> int
+    graph: dict[str, Node] = field(default_factory=dict)
+    depths: dict[str, int] = field(default_factory=dict)
     max_depth: int = 0
 
     @property
@@ -122,7 +122,7 @@ class CoreToConsequenceStructure:
 
         axiom_for_term: dict[str, list[str]] = {}  # term-fwd name -> [axiom names]
         for n, node in self.graph.items():
-            if node.kind == NodeKind.AXIOM and node.atom is not None:
+            if node.kind == NodeKind.AXIOM and node.atom is not None and hasattr(node.atom, "wff"):
                 for ref in _syms(node.atom.wff):
                     if ref in self.graph and self.graph[ref].kind == NodeKind.TERM_FWD:
                         axiom_for_term.setdefault(ref, []).append(n)
@@ -298,17 +298,28 @@ def probe(term: str | list[str], engine: Engine) -> CoreToConsequenceStructure:
     def compute_depths(g):
         memo: dict[str, int] = {}
 
-        def depth(n):
-            if n in memo:
-                return memo[n]
-            if not g[n]["inputs"]:
-                memo[n] = 0
-            else:
-                memo[n] = 1 + max(depth(i) for i in g[n]["inputs"] if i in g)
-            return memo[n]
-
-        for n in g:
-            depth(n)
+        for start in g:
+            if start in memo:
+                continue
+            stack = [(start, False)]
+            while stack:
+                n, children_done = stack[-1]
+                if n in memo:
+                    stack.pop()
+                    continue
+                inputs = [i for i in g[n]["inputs"] if i in g]
+                if not inputs:
+                    memo[n] = 0
+                    stack.pop()
+                    continue
+                if children_done:
+                    memo[n] = 1 + max(memo.get(i, 0) for i in inputs)
+                    stack.pop()
+                else:
+                    stack[-1] = (n, True)
+                    for i in reversed(inputs):
+                        if i not in memo:
+                            stack.append((i, False))
 
         # Layout: bump consumers whose fact set subsumes a sibling's
         changed = True

@@ -1,7 +1,9 @@
 from typing import Callable
 
+from typing_extensions import deprecated
+
 from parseltongue.core.atoms import Symbol
-from parseltongue.core.lang import Rewriter
+from parseltongue.core.lang import Rewriter, is_sentence_list
 from parseltongue.core.quote_verifier import DocumentIndex
 
 from .bench_system import BenchSubsystem, Posting
@@ -9,6 +11,15 @@ from .bench_system import BenchSubsystem, Posting
 # ── sr: pltg-native search result form ──
 # (sr doc line column context ((caller_name overlap) ...))
 # Defined as rewrite axioms in SearchSystem.__init__.
+
+
+class _SrOpsMorphism:
+    """OpsMorphism: sr identity is (doc, line) — form[1], form[2]."""
+
+    __slots__ = ()
+
+    def key(self, form):
+        return (form[1], form[2])
 
 
 class SearchPostingMorphism:
@@ -101,6 +112,7 @@ def _sr_to_posting(sr_list: list) -> dict:
     return posting
 
 
+@deprecated("Use NewClass instead.")
 class SearchSystem:
     """Parseltongue System wired with posting-set operators for search queries.
 
@@ -121,6 +133,7 @@ class SearchSystem:
         self._collect = collect
         self._scopes: dict[str, BenchSubsystem | Rewriter] = {}
         self.posting_morphism = SearchPostingMorphism()
+        self.ops_morphism = _SrOpsMorphism()
 
         sys = self  # capture
 
@@ -128,6 +141,32 @@ class SearchSystem:
             if isinstance(x, str):
                 return sys._to_posting(x)
             return x
+
+        def _as_posting(x):
+            """Ensure x is a posting dict — convert sr lists back if needed."""
+            val = _resolve(x)
+            if isinstance(val, dict):
+                return val
+            if isinstance(val, list):
+                result = {}
+                for item in val:
+                    if isinstance(item, (list, tuple)) and len(item) >= 2:
+                        doc = str(item[1]) if len(item) > 1 else ""
+                        line = int(item[2]) if len(item) > 2 else 0
+                        col = int(item[3]) if len(item) > 3 else 1
+                        ctx = str(item[4]) if len(item) > 4 else ""
+                        callers = item[5] if len(item) > 5 else []
+                        total = int(item[6]) if len(item) > 6 else 0
+                        result[(doc, line)] = {
+                            "document": doc,
+                            "line": line,
+                            "column": col,
+                            "context": ctx,
+                            "callers": callers,
+                            "total_callers": total,
+                        }
+                return result
+            return {}
 
         def _delegate_ops(op, resolved):
             """Delegate to ops scope when args are tagged form lists."""
@@ -143,7 +182,7 @@ class SearchSystem:
             return False
 
         def _and(*args):
-            sets = [_resolve(a) for a in args]
+            sets = [_as_posting(a) for a in args]
             if _has_forms(sets):
                 return _delegate_ops("and", sets)
             result = sets[0]
@@ -152,7 +191,7 @@ class SearchSystem:
             return result
 
         def _or(*args):
-            sets = [_resolve(a) for a in args]
+            sets = [_as_posting(a) for a in args]
             if _has_forms(sets):
                 return _delegate_ops("or", sets)
             result = dict(sets[0])
@@ -161,7 +200,7 @@ class SearchSystem:
             return result
 
         def _not(*args):
-            resolved = [_resolve(a) for a in args]
+            resolved = [_as_posting(a) for a in args]
             if _has_forms(resolved):
                 return _delegate_ops("not", resolved)
             base = resolved[0]
@@ -172,7 +211,7 @@ class SearchSystem:
         def _in(doc_pattern, query):
             import fnmatch
 
-            posting = _resolve(query)
+            posting = _as_posting(query)
             if "*" in doc_pattern or "?" in doc_pattern:
                 return {k: v for k, v in posting.items() if fnmatch.fnmatch(k[0], doc_pattern)}
             return {k: v for k, v in posting.items() if k[0] == doc_pattern or k[0].endswith("/" + doc_pattern)}
@@ -186,7 +225,7 @@ class SearchSystem:
             return 0
 
         def _near(a, b, distance=5):
-            sa, sb = _resolve(a), _resolve(b)
+            sa, sb = _as_posting(a), _as_posting(b)
             n = int(distance) if not isinstance(distance, dict) else 5
             b_by_doc: dict[str, set[int]] = {}
             for doc, line in sb:
@@ -200,7 +239,7 @@ class SearchSystem:
             return result
 
         def _seq(a, b):
-            sa, sb = _resolve(a), _resolve(b)
+            sa, sb = _as_posting(a), _as_posting(b)
             b_by_doc: dict[str, int] = {}
             for doc, line in sb:
                 if doc not in b_by_doc or line > b_by_doc[doc]:
@@ -227,13 +266,13 @@ class SearchSystem:
             return result
 
         def _lines(start, end, query):
-            posting = _resolve(query)
+            posting = _as_posting(query)
             s, e = int(start), int(end)
             return {k: v for k, v in posting.items() if s <= k[1] <= e}
 
         def _context_lines(n, query, before=True, after=True):
             """Expand matches to include surrounding lines."""
-            posting = _resolve(query)
+            posting = _as_posting(query)
             n = int(n)
             expanded = dict(posting)
             for (doc, line), _ in posting.items():
@@ -278,7 +317,7 @@ class SearchSystem:
             return result
 
         def _rank(strategy, query):
-            posting = _resolve(query)
+            posting = _as_posting(query)
             items = list(posting.values())
             strat = str(strategy)
             if strat == "callers":
@@ -306,14 +345,14 @@ class SearchSystem:
 
         def _results(query):
             """Convert a posting set to a list of sr forms."""
-            posting = _resolve(query)
+            posting = _as_posting(query)
             return _posting_to_sr(posting)
 
         def _limit(n, query):
             """Take first N entries from a posting set or sr list."""
             val = _resolve(query)
             n = int(n)
-            if isinstance(val, list):
+            if is_sentence_list(val):
                 return val[:n]
             if isinstance(val, dict):
                 keys = list(val.keys())[:n]

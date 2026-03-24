@@ -74,7 +74,7 @@ class TestLiteralSearch(unittest.TestCase):
         self.assertGreater(r["total_lines"], 0)
 
     def test_no_match_returns_empty(self):
-        r = self.search.query("xyzzy_not_here_42")
+        r = self.search.query("a1b2c3d4e5f6g7h8")
         self.assertEqual(r["total_lines"], 0)
 
     def test_finds_in_multiple_docs(self):
@@ -149,7 +149,7 @@ class TestSExprOperators(unittest.TestCase):
         self.assertIn("__result__", r["lines"][0]["document"])
 
     def test_near(self):
-        r = self.search.query('(near "def derive" "raise" 2)')
+        r = self.search.query('(near 2 (strategy "direct" "def derive") "raise")')
         self.assertGreater(r["total_lines"], 0)
         for ln in r["lines"]:
             self.assertIn("derive", ln["context"])
@@ -363,6 +363,140 @@ class TestIndexDir(unittest.TestCase):
         self.assertGreater(len(calls), 0)
         # Last call should have count == total
         self.assertEqual(calls[-1][0], calls[-1][1])
+
+
+class TestSearchIndexSerialization(unittest.TestCase):
+    """Round-trip serialization of DocumentSearchIndex."""
+
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp(prefix="search_ser_")
+
+    def tearDown(self):
+        shutil.rmtree(self.tmpdir, ignore_errors=True)
+
+    def _write(self, name, content):
+        path = os.path.join(self.tmpdir, name)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w") as f:
+            f.write(content)
+        return path
+
+    def test_search_index_round_trip(self):
+        """Serialized search index restores word/stem/ngram indices."""
+        from ..inspect.store import Store
+
+        bench_dir = os.path.join(self.tmpdir, ".bench")
+        store = Store(bench_dir)
+
+        self._write("code.py", "def hello_world():\n    raise ValueError('bad')\n")
+        self._write("lib.py", "class Engine:\n    def evaluate(self, expr):\n        return expr\n")
+        search = Search(SearchStore(store=store, path=self.tmpdir))
+        search.index_dir(self.tmpdir)
+
+        # Verify original works
+        r1 = search.query("hello")
+        self.assertGreater(r1["total_lines"], 0)
+        r2 = search.query("evaluate")
+        self.assertGreater(r2["total_lines"], 0)
+
+        # Load from cache — should restore search index
+        search2 = Search(SearchStore(store=store, path=self.tmpdir))
+        r3 = search2.query("hello")
+        self.assertEqual(r1["total_lines"], r3["total_lines"])
+        r4 = search2.query("evaluate")
+        self.assertEqual(r2["total_lines"], r4["total_lines"])
+
+    def test_serialized_ngrams_work(self):
+        """N-gram queries work after deserialization."""
+        from ..inspect.store import Store
+
+        bench_dir = os.path.join(self.tmpdir, ".bench")
+        store = Store(bench_dir)
+
+        self._write("code.py", "raise ValueError('something bad happened')\n")
+        search = Search(SearchStore(store=store, path=self.tmpdir))
+        search.index_dir(self.tmpdir)
+
+        # Multi-word query uses n-grams
+        r1 = search.query("raise ValueError")
+        self.assertGreater(r1["total_lines"], 0)
+
+        # Restore from cache
+        search2 = Search(SearchStore(store=store, path=self.tmpdir))
+        r2 = search2.query("raise ValueError")
+        self.assertEqual(r1["total_lines"], r2["total_lines"])
+
+
+class TestReindexNewFiles(unittest.TestCase):
+    """reindex() should discover new files in tracked directories."""
+
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp(prefix="search_reindex_")
+
+    def tearDown(self):
+        shutil.rmtree(self.tmpdir, ignore_errors=True)
+
+    def _write(self, name, content):
+        path = os.path.join(self.tmpdir, name)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w") as f:
+            f.write(content)
+        return path
+
+    def test_reindex_picks_up_new_files(self):
+        """New files added after initial index are found by reindex."""
+        from ..inspect.store import Store
+
+        bench_dir = os.path.join(self.tmpdir, ".bench")
+        store = Store(bench_dir)
+
+        self._write("original.py", "def original(): pass")
+        search = Search(SearchStore(store=store, path=self.tmpdir))
+        search.index_dir(self.tmpdir)
+
+        r1 = search.query("original")
+        self.assertGreater(r1["total_lines"], 0)
+
+        # Add new file after initial index
+        self._write("added.py", "def newly_added(): pass")
+
+        # reindex should find the new file
+        count = search.reindex()
+        self.assertGreater(count, 0)
+
+        r2 = search.query("newly_added")
+        self.assertGreater(r2["total_lines"], 0)
+
+    def test_reindex_tracks_multiple_directories(self):
+        """Multiple index_dir calls track all directories; reindex walks all."""
+        from ..inspect.store import Store
+
+        bench_dir = os.path.join(self.tmpdir, ".bench")
+        store = Store(bench_dir)
+
+        dir_a = os.path.join(self.tmpdir, "a")
+        dir_b = os.path.join(self.tmpdir, "b")
+        os.makedirs(dir_a)
+        os.makedirs(dir_b)
+
+        self._write("a/foo.py", "def from_a(): pass")
+        self._write("b/bar.py", "def from_b(): pass")
+
+        search = Search(SearchStore(store=store, path=self.tmpdir))
+        search.index_dir(dir_a)
+        search.index_dir(dir_b)
+
+        # Both are searchable
+        self.assertGreater(search.query("from_a")["total_lines"], 0)
+        self.assertGreater(search.query("from_b")["total_lines"], 0)
+
+        # Add new file to dir_b
+        self._write("b/new.py", "def new_in_b(): pass")
+
+        # reindex should find it
+        count = search.reindex()
+        self.assertGreater(count, 0)
+        self.assertGreater(search.query("new_in_b")["total_lines"], 0)
 
 
 class TestSearchEdgeCases(unittest.TestCase):

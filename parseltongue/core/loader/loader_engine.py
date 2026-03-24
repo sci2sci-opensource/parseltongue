@@ -13,9 +13,12 @@ is pure: reuses or creates a translator, translates, returns frozen analysis
 + patch context.  execute() applies the patches and delegates to the inner engine.
 """
 
+import logging
 import os
+from typing import Any
 
-from ..atoms import SILENCE, Silence
+from ..ast import AnnotatedDirective, NavList
+from ..atoms import SILENCE, Silence, Symbol
 from ..lang import Executor, Sentence
 from .loader_morphism import (
     LoaderAnnotatedDirective,
@@ -24,15 +27,57 @@ from .loader_morphism import (
     MorphismReport,
     PatchContext,
     _lm_v2,
-    patch_context,
-    patch_definition_name,
-    patch_symbols,
 )
 from .loader_translator import (
     EngineKnown,
     LoaderTranslationResult,
     LoaderTranslatorV2,
 )
+
+log = logging.getLogger("parseltongue.loader")
+
+
+# ============================================================
+# Patching helpers (pure, no engine state needed)
+# ============================================================
+
+
+def _patch_in_parent(expr: Any, index: int, value: Any) -> None:
+    """Replace expr[index] with value. If expr is a tuple, rebuild and replace in parent."""
+    if isinstance(expr, list):
+        expr[index] = value
+    elif isinstance(expr, tuple):
+        parent = getattr(expr, 'parent', None)
+        if parent is not None:
+            pos = getattr(expr, 'pos', None)
+            new = expr[:index] + (value,) + expr[index + 1 :]
+            parent[pos] = new
+
+
+def _resolve_dotted(s: str, ctx: PatchContext, line: int) -> str | None:
+    """Try to resolve a dotted symbol via aliases. Returns resolved name or None."""
+    for alias, canonical in ctx.aliases.items():
+        prefix = alias + "."
+        if s.startswith(prefix):
+            target = canonical + s[len(alias) :]
+            if target in ctx.known_names:
+                ctx.log_resolution(s, target, f"alias:{alias}->{canonical}", line)
+                return target
+    return None
+
+
+def _resolve_bare(s: str, ctx: PatchContext, line: int) -> str | None:
+    """Try to resolve a bare symbol via module namespace or aliases. Returns resolved name or None."""
+    candidate = f"{ctx.module_name}.{s}"
+    if candidate in ctx.known_names:
+        ctx.log_resolution(s, candidate, "module", line)
+        return candidate
+    for alias, canonical in ctx.aliases.items():
+        target = f"{canonical}.{s}"
+        if target in ctx.known_names:
+            ctx.log_resolution(s, target, f"alias:{alias}->{canonical}", line)
+            return target
+    return None
 
 
 class _UnionKnown:
@@ -240,6 +285,104 @@ class LoaderEngine(Executor[LoaderTranslationResult]):
     # Executor protocol — patch + delegate
     # ----------------------------------------------------------
 
+    # ----------------------------------------------------------
+    # Patching — engine-level (uses live state)
+    # ----------------------------------------------------------
+
+    def _is_imported_prefix(self, dotted: str) -> bool:
+        """Check if a dotted symbol's prefix matches an imported module.
+
+        e.g. "bench_pg.search.sr" → prefix "bench_pg.search" or "bench_pg"
+        If any prefix is in _imported or names_to_modules, it's a deferred
+        reference that will resolve at eval time.
+        """
+        parts = dotted.split(".")
+        for i in range(len(parts) - 1, 0, -1):
+            prefix = ".".join(parts[:i])
+            if prefix in self._imported:
+                return True
+            if prefix in self.names_to_modules:
+                return True
+        return False
+
+    def patch_symbols(self, expr, ctx: PatchContext, line: int = 0, skip_index: int | None = None) -> None:
+        """Recursively namespace symbols using NavList for direct patching.
+
+        Unresolved dotted symbols that belong to an already-imported module
+        are deferred references — no warning. Only warns for truly unknown prefixes.
+
+        Scope boundary: ``(scope X body)`` — only the scope name (index 1) is
+        patched in the parent engine's namespace. The body args (index 2+)
+        belong to the scope's own system and must NOT be patched, except for
+        ``(project ...)`` sub-expressions which resolve in the parent.
+        """
+        if not isinstance(expr, (list, tuple)):
+            return
+        head_is_import = expr and expr[0] == Symbol("import")
+        head_is_scope = expr and expr[0] == Symbol("scope")
+        for i, item in enumerate(expr):
+            if i == skip_index:
+                continue
+            # Scope body args (index >= 2): only recurse into (project ...) sub-exprs
+            if head_is_scope and i >= 2:
+                self._patch_projects_only(item, ctx, line)
+                continue
+            if isinstance(item, Symbol) and not str(item).startswith(("?", ":")):
+                s = str(item)
+                if "." in s:
+                    resolved = _resolve_dotted(s, ctx, line)
+                    if resolved:
+                        _patch_in_parent(expr, i, Symbol(resolved))
+                    elif not self._is_imported_prefix(s):
+                        ctx.log_warning(f"Dotted symbol '{s}' did not resolve", line, s)
+                else:
+                    resolved = _resolve_bare(s, ctx, line)
+                    if resolved:
+                        _patch_in_parent(expr, i, Symbol(resolved))
+            elif isinstance(item, (NavList, list, tuple)):
+                if head_is_import and item and item[0] == Symbol("quote"):
+                    continue
+                self.patch_symbols(item, ctx, line)
+
+    def _patch_projects_only(self, expr, ctx: PatchContext, line: int = 0) -> None:
+        """Recurse into scope body but only patch (project ...) sub-expressions."""
+        if not isinstance(expr, (list, tuple)):
+            return
+        if expr and expr[0] == Symbol("project"):
+            # (project ...) resolves in the parent engine — patch normally
+            self.patch_symbols(expr, ctx, line)
+            return
+        for item in expr:
+            if isinstance(item, (NavList, list, tuple)):
+                self._patch_projects_only(item, ctx, line)
+
+    def patch_context(self, expr, ctx: PatchContext, line: int = 0) -> None:
+        """Recursively patch (context :key) → (context "module.:key")."""
+        if not isinstance(expr, (list, tuple)) or not expr:
+            return
+        if expr[0] == Symbol("context") and len(expr) >= 2:
+            old = str(expr[1])
+            patched = f"{ctx.module_name}.{old}"
+            _patch_in_parent(expr, 1, patched)
+            ctx.names_to_modules[patched] = ctx.module_name
+            ctx.log_resolution(old, patched, "context", line)
+            return
+        for item in expr:
+            if isinstance(item, (NavList, list, tuple)):
+                self.patch_context(item, ctx, line)
+
+    def patch_definition_name(self, ad: AnnotatedDirective, ctx: PatchContext) -> None:
+        """Namespace the definition name at index.name for non-main modules."""
+        idx = ad.sentence.index
+        expr = ad.sentence.expr
+        if idx.name is not None and isinstance(expr, (list, tuple)):
+            old_name = str(expr[idx.name])
+            new_name = f"{ctx.module_name}.{old_name}"
+            _patch_in_parent(expr, idx.name, new_name)
+            ad.node.name = new_name
+            ctx.names_to_modules[new_name] = ctx.module_name
+            ctx.log_resolution(old_name, new_name, "definition", ad.sentence.line)
+
     def patch_one(self, lad: LoaderAnnotatedDirective, ctx: "PatchContext", extra_names=None) -> None:
         """Patch a single directive — namespace names, context keys, symbols.
 
@@ -260,20 +403,20 @@ class LoaderEngine(Executor[LoaderTranslationResult]):
 
         # Namespace definition name
         if lad.needs_namespace:
-            patch_definition_name(ad, ctx)
+            self.patch_definition_name(ad, ctx)
 
         # Track name → line
         if ad.node.name:
             self.names_to_lines[ad.node.name] = line
 
         # Patch context keys
-        patch_context(expr, ctx, line)
+        self.patch_context(expr, ctx, line)
 
         # Patch symbols against live engine state
         if not lad.is_main:
-            patch_symbols(expr, ctx, line, skip_index=lad.skip_index)
+            self.patch_symbols(expr, ctx, line, skip_index=lad.skip_index)
         elif ctx.aliases:
-            patch_symbols(expr, ctx, line, skip_index=lad.skip_index)
+            self.patch_symbols(expr, ctx, line, skip_index=lad.skip_index)
 
     def delegate_one(self, lad: LoaderAnnotatedDirective) -> None:
         """Delegate a patched directive to inner engine for registration."""
@@ -289,20 +432,16 @@ class LoaderEngine(Executor[LoaderTranslationResult]):
 
     def patch_context_expr(self, expr, module_name: str = "") -> None:
         """Patch (context :key) on a pre-parsed expression."""
-        from .loader_morphism import PatchContext, patch_context
-
         ctx = PatchContext(
             module_name=module_name,
             names_to_modules=self.names_to_modules,
             report=self._report,
             engine_name=self.name,
         )
-        patch_context(expr, ctx)
+        self.patch_context(expr, ctx)
 
     def patch_expr(self, expr, module_name: str = "") -> None:
         """Patch symbols on a pre-parsed expression using current engine state."""
-        from .loader_morphism import PatchContext, patch_symbols
-
         ctx = PatchContext(
             module_name=module_name,
             known_names=EngineKnown(self._inner),
@@ -311,7 +450,7 @@ class LoaderEngine(Executor[LoaderTranslationResult]):
             report=self._report,
             engine_name=self.name,
         )
-        patch_symbols(expr, ctx)
+        self.patch_symbols(expr, ctx)
 
     @property
     def report(self) -> MorphismReport:

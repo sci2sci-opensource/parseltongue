@@ -76,9 +76,10 @@ class OperationsSystem:
         from parseltongue.core.loader.lazy_loader import LazyLoader
 
         bench_pg_dir = str(Path(__file__).resolve().parent.parent / "bench_pg")
+        std_parent = str(Path(__file__).resolve().parent.parent.parent)  # parseltongue/core
         ops_pltg = str(Path(bench_pg_dir) / "ops.pltg")
 
-        all_paths = list(lib_paths or []) + [bench_pg_dir]
+        all_paths = list(lib_paths or []) + [std_parent, bench_pg_dir]
         loader = LazyLoader(lib_paths=all_paths)
         loader.load_main(ops_pltg, name="Operations", strict=False)
         assert loader.last_result is not None
@@ -94,6 +95,11 @@ class OperationsSystem:
             self.posting_morphism.register(scope_system)
 
         self.system.engine.env[Symbol(name)] = lambda *args: self._scope(name, *args)
+
+        # Data tags from scope results must be self-quoting in the engine.
+        for tag in getattr(scope_system, "data_tags", [getattr(scope_system, "tag", None)]):
+            if tag is not None and tag not in self.system.engine.env:
+                self.system.engine.env[tag] = tag
 
     def evaluate(self, expr, local_env=None):
         return self.system.evaluate(expr)

@@ -1,0 +1,278 @@
+; ==========================================================
+; Data Governance Policy Rules
+; ==========================================================
+;
+; Hand-written. Not generated. Grounded in governance_policy.md.
+;
+; Three layers:
+;   1. Axioms — formal rules from the policy document
+;   2. Per-item compliance predicates — rewrite axioms that
+;      check one dataset/product against a rule
+;   3. Variadic reductions — splat axioms that fold over
+;      lists of compliance results
+;
+; The generator produces facts. These rules consume them.
+; ==========================================================
+
+(load-document "governance_policy" "resources/governance_policy.md")
+
+
+; ══════════════════════════════════════════════════════════
+; 1. AXIOMS — the policy itself
+; ══════════════════════════════════════════════════════════
+
+; 2.1 Commercial datasets require valid contract + use policy
+(axiom commercial-requires-contract
+    (implies (= ?source-type "commercial")
+        (and (= ?has-contract true) (= ?has-use-policy true)))
+    :evidence (evidence "governance_policy"
+        :quotes ("Any dataset sourced from a commercial provider must be covered by a contract with valid start and end dates and a specified permitted-use policy.")
+        :explanation "Commercial data needs contract + permitted use"))
+
+; 2.1 Non-compliant commercial datasets must be quarantined
+(axiom quarantine-uncovered
+    (implies
+        (and (= ?source-type "commercial") (= ?has-contract false))
+        (= ?must-quarantine true))
+    :evidence (evidence "governance_policy"
+        :quotes ("A commercial dataset without a valid contract, or with an expired contract, is non-compliant and must be quarantined.")
+        :explanation "Uncovered commercial data is quarantined"))
+
+; 2.2 Expired contracts are not valid
+(axiom expired-not-valid
+    (implies (= ?contract-status "expired")
+        (= ?contract-valid false))
+    :evidence (evidence "governance_policy"
+        :quotes ("An expired contract revokes all permitted uses for the datasets it covers.")
+        :explanation "Expired = invalid"))
+
+; 1.1 Classification propagates: product ≥ most restrictive source
+(axiom classification-propagates
+    (implies
+        (and (= ?src-class "restricted") (= ?product-uses-src true))
+        (= ?product-class "restricted"))
+    :evidence (evidence "governance_policy"
+        :quotes ("Any data product that consumes a restricted source dataset must itself be classified as restricted.")
+        :explanation "Restricted propagates upward"))
+
+; 1.2 Omics data is always restricted
+(axiom omics-is-restricted
+    (implies (= ?is-omics true) (= ?ds-class "restricted"))
+    :evidence (evidence "governance_policy"
+        :quotes ("All genomic, proteomic, and transcriptomic datasets — collectively \"omics data\" — are classified as restricted regardless of their origin.")
+        :explanation "Omics = restricted"))
+
+; 3.1 Technical cadence must not exceed contractual SLA
+(axiom sla-must-align
+    (implies (= ?tech-faster-than-sla true)
+        (= ?sla-risk true))
+    :evidence (evidence "governance_policy"
+        :quotes ("If the technical cadence is faster than the contractual SLA, the platform may be pulling data more frequently than the provider guarantees, creating a reliability risk.")
+        :explanation "Over-frequent pull = reliability risk"))
+
+; 5.1 Phantom references
+(axiom no-phantoms
+    (implies (= ?exists-in-tech false)
+        (= ?is-phantom true))
+    :evidence (evidence "governance_policy"
+        :quotes ("A reference to a non-existent dataset is a phantom reference and indicates catalog drift.")
+        :explanation "Missing from tech catalog = phantom"))
+
+; 4.1 Retention within contract limits
+(axiom retention-within-limit
+    (implies (= ?retention-exceeds true)
+        (= ?retention-violation true))
+    :evidence (evidence "governance_policy"
+        :quotes ("Data products must not retain records longer than the shortest retention limit specified by any contract covering their source datasets.")
+        :explanation "Retention must respect contract ceiling"))
+
+
+; ══════════════════════════════════════════════════════════
+; 2. PER-ITEM COMPLIANCE PREDICATES — rewrite axioms
+; ══════════════════════════════════════════════════════════
+;
+; (contract-ok ?source-type ?has-contract ?has-use-policy) → bool
+; (class-ok ?src-class ?product-class) → bool
+;
+; Generator emits derives that :bind to specific facts.
+
+; contract-ok: commercial → needs contract + use policy; else exempt
+(defterm contract-ok
+  :evidence (evidence "governance_policy"
+    :quotes ("Any dataset sourced from a commercial provider must be covered by a contract with valid start and end dates and a specified permitted-use policy.")
+    :explanation "per-dataset contract compliance predicate"))
+(axiom contract-ok-rule
+    (= (contract-ok ?source-type ?has-contract ?has-use-policy)
+       (if (= ?source-type "commercial")
+           (and ?has-contract ?has-use-policy)
+           true))
+    :evidence (evidence "governance_policy"
+        :quotes ("Any dataset sourced from a commercial provider must be covered by a contract with valid start and end dates and a specified permitted-use policy.")
+        :explanation "Non-commercial datasets are exempt"))
+
+; class-ok: product class must be ≥ source class
+(defterm class-ok
+  :evidence (evidence "governance_policy"
+    :quotes ("A product's effective classification is the most restrictive classification among all its source datasets.")
+    :explanation "per-source classification compliance predicate"))
+(axiom class-ok-restricted
+    (= (class-ok "restricted" ?product-class)
+       (= ?product-class "restricted"))
+    :evidence (evidence "governance_policy"
+        :quotes ("Any data product that consumes a restricted source dataset must itself be classified as restricted.")
+        :explanation "Restricted source requires restricted product"))
+
+(axiom class-ok-confidential
+    (= (class-ok "confidential" ?product-class)
+       (or (= ?product-class "restricted")
+           (= ?product-class "confidential")))
+    :evidence (evidence "governance_policy"
+        :quotes ("A product's effective classification is the most restrictive classification among all its source datasets.")
+        :explanation "Confidential source requires confidential or above"))
+
+(axiom class-ok-internal
+    (= (class-ok "internal" ?product-class) true)
+    :evidence (evidence "governance_policy"
+        :quotes ("A product's effective classification is the most restrictive classification among all its source datasets.")
+        :explanation "Internal sources impose no upward constraint"))
+
+(axiom class-ok-public
+    (= (class-ok "public" ?product-class) true)
+    :evidence (evidence "governance_policy"
+        :quotes ("A product's effective classification is the most restrictive classification among all its source datasets.")
+        :explanation "Public sources impose no upward constraint"))
+
+
+; omics-ok: if data contains omics keywords, classification must be restricted
+; ?has-omics is truthy (regex-match result) or false, ?classification is a string
+(defterm omics-ok
+  :evidence (evidence "governance_policy"
+    :quotes ("All genomic, proteomic, and transcriptomic datasets — collectively \"omics data\" — are classified as restricted regardless of their origin.")
+    :explanation "omics data must be classified restricted"))
+(axiom omics-ok-rule
+    (= (omics-ok ?has-omics ?classification)
+       (if ?has-omics
+           (= ?classification "restricted")
+           true))
+    :evidence (evidence "governance_policy"
+        :quotes ("All genomic, proteomic, and transcriptomic datasets — collectively \"omics data\" — are classified as restricted regardless of their origin.")
+        :explanation "Omics data requires restricted classification; non-omics is exempt"))
+
+
+; contract-valid: active → true, expired → false
+(defterm contract-valid
+  :evidence (evidence "governance_policy"
+    :quotes ("An expired contract revokes all permitted uses for the datasets it covers.")
+    :explanation "contract validity predicate"))
+(axiom contract-valid-rule
+    (= (contract-valid ?status)
+       (= ?status "active"))
+    :evidence (evidence "governance_policy"
+        :quotes ("A contract is valid when its status is \"active\" and its expiry date has not passed." "An expired contract revokes all permitted uses for the datasets it covers.")
+        :explanation "Only active contracts are valid"))
+
+
+; cadence-rank: map cadence string to numeric rank (lower = faster)
+; hourly=1, daily=2, weekly=3, monthly=4, quarterly=5
+(defterm cadence-rank
+  :evidence (evidence "governance_policy"
+    :quotes ("the contractual refresh SLA for a dataset must be at least as frequent as the technical refresh cadence")
+    :explanation "cadence frequency ranking for SLA comparison"))
+(axiom cadence-rank-rule
+    (= (cadence-rank ?c)
+       (if (= ?c "hourly") 1
+         (if (= ?c "daily") 2
+           (if (= ?c "weekly") 3
+             (if (= ?c "monthly") 4
+               5)))))
+    :evidence (evidence "governance_policy"
+        :quotes ("the contractual refresh SLA for a dataset must be at least as frequent as the technical refresh cadence")
+        :explanation "Ordered ranking: hourly(1) < daily(2) < weekly(3) < monthly(4) < quarterly(5)"))
+
+
+; sla-ok: tech cadence must not be faster than contractual SLA
+; True when tech rank >= SLA rank (i.e. same speed or slower)
+(defterm sla-ok
+  :evidence (evidence "governance_policy"
+    :quotes ("If the technical cadence is faster than the contractual SLA, the platform may be pulling data more frequently than the provider guarantees, creating a reliability risk.")
+    :explanation "SLA alignment predicate — tech cadence vs contract SLA"))
+(axiom sla-ok-rule
+    (= (sla-ok ?tech-cadence ?contract-sla)
+       (>= (cadence-rank ?tech-cadence) (cadence-rank ?contract-sla)))
+    :evidence (evidence "governance_policy"
+        :quotes ("If the technical cadence is faster than the contractual SLA, the platform may be pulling data more frequently than the provider guarantees, creating a reliability risk.")
+        :explanation "Tech cadence must not exceed (be faster than) contract SLA"))
+
+
+; retention-ok: product retention must not exceed contract limit
+; Both args are numbers (days).  True when product ≤ contract.
+(defterm retention-ok
+  :evidence (evidence "governance_policy"
+    :quotes ("Data products must not retain records longer than the shortest retention limit specified by any contract covering their source datasets.")
+    :explanation "retention limit compliance predicate"))
+(axiom retention-ok-rule
+    (= (retention-ok ?product-days ?contract-days)
+       (<= ?product-days ?contract-days))
+    :evidence (evidence "governance_policy"
+        :quotes ("Data products must not retain records longer than the shortest retention limit specified by any contract covering their source datasets.")
+        :explanation "Product retention must not exceed contract ceiling"))
+
+
+; ══════════════════════════════════════════════════════════
+; 3. VARIADIC REDUCTIONS — splat axioms
+; ══════════════════════════════════════════════════════════
+
+; all-true: AND over N booleans
+(defterm all-true
+  :evidence (evidence "governance_policy"
+    :quotes ("Any dataset sourced from a commercial provider must be covered by a contract")
+    :explanation "variadic AND — all items must be compliant"))
+(axiom all-true-base
+    (= (all-true ?x) ?x)
+    :evidence (evidence "governance_policy"
+        :quotes ("Any dataset sourced from a commercial provider must be covered by a contract")
+        :explanation "Single item: its own compliance"))
+
+(axiom all-true-step
+    (= (all-true ?x ?y ?...rest)
+       (and ?x (all-true ?y ?...rest)))
+    :evidence (evidence "governance_policy"
+        :quotes ("Any dataset sourced from a commercial provider must be covered by a contract")
+        :explanation "All items must pass"))
+
+; count-violations: count how many are false
+(defterm count-violations
+  :evidence (evidence "governance_policy"
+    :quotes ("A commercial dataset without a valid contract, or with an expired contract, is non-compliant and must be quarantined.")
+    :explanation "variadic violation counter"))
+(axiom count-violations-base
+    (= (count-violations ?x)
+       (if ?x 0 1))
+    :evidence (evidence "governance_policy"
+        :quotes ("A commercial dataset without a valid contract, or with an expired contract, is non-compliant and must be quarantined.")
+        :explanation "0 if compliant, 1 if not"))
+
+(axiom count-violations-step
+    (= (count-violations ?x ?y ?...rest)
+       (+ (if ?x 0 1) (count-violations ?y ?...rest)))
+    :evidence (evidence "governance_policy"
+        :quotes ("A commercial dataset without a valid contract, or with an expired contract, is non-compliant and must be quarantined.")
+        :explanation "Sum violations across all items"))
+
+; any-true: OR over N booleans
+(defterm any-true
+  :evidence (evidence "governance_policy"
+    :quotes ("Data products consuming datasets covered only by expired contracts must be flagged for review.")
+    :explanation "variadic OR — any violation triggers flag"))
+(axiom any-true-base
+    (= (any-true ?x) ?x)
+    :evidence (evidence "governance_policy"
+        :quotes ("Data products consuming datasets covered only by expired contracts must be flagged for review.")
+        :explanation "Single item check"))
+
+(axiom any-true-step
+    (= (any-true ?x ?y ?...rest)
+       (or ?x (any-true ?y ?...rest)))
+    :evidence (evidence "governance_policy"
+        :quotes ("Data products consuming datasets covered only by expired contracts must be flagged for review.")
+        :explanation "Any item triggers"))

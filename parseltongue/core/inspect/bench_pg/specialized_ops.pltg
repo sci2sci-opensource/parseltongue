@@ -32,9 +32,10 @@
 
 ; ── keys: extract all keys from a list ──
 
+(defterm keys-tmpl (map form-key (strict ?xs)))
 (defterm keys :origin "map form-key over a sentence list")
-(axiom keys-rule (= (keys ?xs) (map form-key ?xs))
-    :origin "keys is map form-key")
+(axiom keys-rule (= (keys ?xs1) (keys-tmpl :bind ((?xs ?xs1))))
+    :origin "keys is map form-key — strict forces scope eval first")
 
 ; ── has-key: check if a form's key is in a key list ──
 

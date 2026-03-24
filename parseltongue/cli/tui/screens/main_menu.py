@@ -33,6 +33,12 @@ class RecentProjectsRequested(Message):
     pass
 
 
+class BenchRequested(Message):
+    """User wants to open the bench inspector."""
+
+    pass
+
+
 class ConfigureRequested(Message):
     """User wants to reconfigure settings."""
 
@@ -48,6 +54,7 @@ class QuitRequested(Message):
 _OPTIONS = [
     Option("New run", id="new-run"),
     Option("Load project", id="load-project"),
+    Option("Bench inspector", id="bench"),
     Option("Recent projects", id="recent-projects"),
     Option("Runs history", id="history"),
     Option("Configure", id="configure"),
@@ -82,6 +89,8 @@ class MainMenu(Screen):
                 self.post_message(RecentProjectsRequested())
             case "history":
                 self.post_message(HistoryRequested())
+            case "bench":
+                self.post_message(BenchRequested())
             case "configure":
                 self.post_message(ConfigureRequested())
             case "quit":

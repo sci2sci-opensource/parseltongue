@@ -5,7 +5,7 @@ Prepare a sample, then observe: ``lens()`` for structure,
 
 The Bench owns sample status and integrity labels. A Technician
 handles loading (cold, cache hit, hot-patch, background reload),
-scope registration, and evaluation caching. A Store handles
+scope registration, and screening cache. A Store handles
 all disk I/O.
 
 Usage::
@@ -29,10 +29,10 @@ import logging
 from pathlib import Path
 
 from ..loader.lazy_loader import LazyLoadResult
-from .evaluation import Evaluation
 from .optics import Lens
 from .optics.hologram import Hologram
 from .perspectives.md_debugger import MDebuggerPerspective
+from .screen import Screen
 from .store import Store
 from .technician import Sample, Technician
 
@@ -133,9 +133,16 @@ class Bench:
 
     # ── Prepare ──
 
-    def prepare(self, path: str) -> "Bench":
-        """Prepare a .pltg file for observation. Returns self for chaining."""
+    def prepare(self, path: str, effects: dict | None = None) -> "Bench":
+        """Prepare a .pltg file for observation. Returns self for chaining.
+
+        Args:
+            effects: Optional dict of effect name → callable for this path.
+                     Different paths can have different effects.
+        """
         path = str(Path(path).resolve())
+        if effects is not None:
+            self._technician._effects[path] = effects
         self._current_path = path
         sample, _ = self._technician.prepare(path, self._mem.get(path))
         self._mem[path] = sample
@@ -153,8 +160,13 @@ class Bench:
         path = str(Path(path).resolve()) if path else self._require_current()
         if path not in self._mem:
             self.prepare(path)
+        # Pre-warmed by technician._register_scopes (avoids GIL contention with bg thread)
+        cached = self._technician._lens_mem.get(path)
+        if cached is not None:
+            return cached
+        # Fallback: should not happen after prepare, but safe to have
         _, _, structure, loader = self._mem[path]
-        return Lens(structure, [MDebuggerPerspective(loader)])
+        return Lens(structure, [MDebuggerPerspective(loader)], loader=loader)
 
     def dissect(self, diff_name: str, path: str | None = None, perspectives: list | None = None) -> Hologram:
         """Dissect a diff into a Hologram — two lenses, one per side."""
@@ -187,14 +199,51 @@ class Bench:
             lenses.append(Lens(structure, list(persp)))
         return Hologram(lenses, labels=list(names))
 
+    def stain(
+        self,
+        *names: str,
+        path: str | None = None,
+        perspectives: list | None = None,
+        capture: str | int = "names",
+        store: str | int = "names",
+    ) -> Hologram:
+        """Live-probe N terms with tracing — one lens per name.
+
+        Traces the engine (auto-detects Tracer vs Stain), re-evaluates
+        each term's theorem WFF to capture runtime edges, then builds
+        lenses with live_probe.
+
+        Parameters:
+            names: Term names to probe (theorems are re-evaluated under trace).
+            capture: Capture mode (only affects legacy Stain engine).
+            store: live_probe store mode ("names", "heads", "all", or int N).
+        """
+        path = str(Path(path).resolve()) if path else self._require_current()
+        result = self._ensure_live_result(path)
+        engine = result.system.engine
+        _, _, _, loader = self._mem[path]
+        persp = perspectives or [MDebuggerPerspective(loader)]
+        from .vital import live_probe, trace_engine
+
+        traced = trace_engine(engine, names=list(names), capture=capture)
+
+        lenses = []
+        for name in names:
+            structure = live_probe(name, engine, traced, store=store)
+            lenses.append(Lens(structure, list(persp)))
+        return Hologram(lenses, labels=list(names))
+
     # ── Observe: health ──
 
-    def evaluate(self, path: str | None = None) -> Evaluation:
-        """Consistency observation — an Evaluation with focus, search, filtering."""
+    def screen(self, path: str | None = None) -> Screen:
+        """Consistency observation — a Screen with focus, search, filtering."""
         path = str(Path(path).resolve()) if path else self._require_current()
         if path not in self._mem:
             self.prepare(path)
-        return self._technician._load_evaluate(path, self._mem.get(path))
+        return self._technician._load_screen(path, self._mem.get(path))
+
+    # Backwards compat
+    evaluate = screen
 
     # ── Search ──
 
@@ -210,50 +259,66 @@ class Bench:
         )
 
     def eval(self, query: str):
-        """Evaluate an S-expression in the eval system (main + std + scopes)."""
+        """Evaluate an S-expression. Pure — never polluted by interpret()."""
         from parseltongue.core.lang import PGStringParser
 
         path = self._require_current()
-        if path not in self._mem:
-            self.prepare(path)
-        eval_loader, eval_system = self._ensure_eval_system(path)
+        loader, system = self._ensure_eval_system(path)
         expr = PGStringParser.translate(query)
-        expr = eval_loader.prepare_script(expr, eval_system)
-        return eval_system.engine.evaluate(expr)
+        expr = loader.prepare_script(expr, system)
+        return system.engine.evaluate(expr)
 
     def interpret(self, query: str):
-        """Interpret a directive or evaluate an expression in the eval system."""
+        """Interpret a directive or expression. Accumulates state; clean() resets."""
         path = self._require_current()
-        if path not in self._mem:
-            self.prepare(path)
-        _, eval_system = self._ensure_eval_system(path)
-        _, result = eval_system.interpret(query)
+        _, system = self._ensure_experiment_system(path)
+        _, result = system.interpret(query)
         return result
 
-    def _ensure_eval_system(self, path: str):
-        """Build or return cached eval system: live bench + scopes."""
-        if not hasattr(self, "_eval_sys_mem"):
-            self._eval_sys_mem: dict[str, tuple] = {}
-        if path in self._eval_sys_mem:
-            return self._eval_sys_mem[path]
+    def _prepare_bench_system(self, path: str):
+        """Get the best available bench system — live if ready, frozen otherwise.
 
+        Scopes (lens, screen, search, ops, viz) are registered by the
+        Technician's _register_scopes — no need to re-register here.
+        """
+        live = self._technician._live.get(path)
+        if live:
+            return live, False
+
+        # Fall back to frozen
+        frozen = self._technician._frozen
+        if frozen:
+            log.warning("Serving from frozen system (live still loading)")
+            return frozen, True
+
+        raise RuntimeError(f"No bench system for {path} — is it loaded?")
+
+    def _copy_bench_system(self, path: str, name: str) -> tuple:
+        """Copy the best available bench system with scopes + count operator."""
         from parseltongue.core.atoms import Symbol
 
-        live = self._technician._live.get(path)
-        if not live:
-            raise RuntimeError(f"No live system for {path} — is it loaded?")
+        bench_sys, is_frozen = self._prepare_bench_system(path)
+        copy = bench_sys.system.copy(name=name, overridable=True)
+        copy.engine.env[Symbol("count")] = lambda *args: (
+            len(args[0]) if args and isinstance(args[0], (dict, list)) else 0
+        )
+        return bench_sys._loader, copy
 
-        system = live.system
-        engine = system.engine
+    def _ensure_eval_system(self, path: str):
+        """Cached clean copy of live. Never mutated."""
+        if not hasattr(self, "_eval_mem"):
+            self._eval_mem: dict[str, tuple] = {}
+        if path not in self._eval_mem:
+            self._eval_mem[path] = self._copy_bench_system(path, "eval")
+        return self._eval_mem[path]
 
-        # Register scopes
-        live.register_scope("lens", self.lens(path).search_system)
-        live.register_scope("evaluation", self.evaluate(path).search_system)
-        live.register_scope("search", self._technician.search_engine(path)._system)
-        engine.env[Symbol("count")] = lambda *args: len(args[0]) if args and isinstance(args[0], (dict, list)) else 0
-
-        self._eval_sys_mem[path] = (live._loader, system)
-        return live._loader, system
+    def _ensure_experiment_system(self, path: str):
+        """Cached copy of live for interpret(). clean() resets it."""
+        if not hasattr(self, "_experiment_mem"):
+            self._experiment_mem: dict[str, tuple] = {}
+        if path not in self._experiment_mem:
+            self._experiment_mem[path] = self._copy_bench_system(path, "experiment")
+        return self._experiment_mem[path]
 
     @property
     def index(self):
@@ -273,7 +338,19 @@ class Bench:
         """The engine of the current sample."""
         return self.result().system.engine
 
+    @property
+    def eval_system(self):
+        """The eval system — clean copy of live with scopes registered."""
+        path = self._require_current()
+        _, system = self._ensure_eval_system(path)
+        return system
+
     # ── Cache management ──
+
+    def clean(self):
+        """Reset the experiment system. Eval and live stay warm."""
+        if hasattr(self, "_experiment_mem"):
+            self._experiment_mem.clear()
 
     def invalidate(self, path: str | None = None):
         """Clear cache for a path, or all if None."""

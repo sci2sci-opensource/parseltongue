@@ -1,0 +1,69 @@
+; ==========================================================
+; Utility axioms for data governance checker
+; ==========================================================
+;
+; concat: map prefix+suffix over list elements
+; ==========================================================
+
+; ── cons-prepend: prepend element to list ──
+(defterm cons-prepend
+  :evidence (evidence "governance_protocol"
+    :quotes ("Technical catalog CSVs are parsed row-by-row")
+    :explanation "prepend element to list"))
+(axiom cons-prepend-rule
+  (= (cons-prepend ?x (?...rest))
+     (?x ?...rest))
+  :evidence (evidence "governance_protocol"
+    :quotes ("Technical catalog CSVs are parsed row-by-row")
+    :explanation "splice element into list head"))
+
+; ── concat: prefix + list elements + suffix ──
+; (concat "pre" ("a") "suf")     → "preasuf"
+; (concat "pre" ("a" "b") "suf") → ("preasuf" "prebsuf")
+(defterm concat
+  :evidence (evidence "governance_protocol"
+    :quotes ("Technical catalog CSVs are parsed row-by-row")
+    :explanation "map prefix+suffix over list elements"))
+(axiom concat-one
+  (= (concat ?pre (?x) ?suf)
+     (+ (+ ?pre ?x) ?suf))
+  :evidence (evidence "governance_protocol"
+    :quotes ("Technical catalog CSVs are parsed row-by-row")
+    :explanation "single-element list: return string"))
+(axiom concat-two
+  (= (concat ?pre (?x ?y) ?suf)
+     ((+ (+ ?pre ?x) ?suf) (+ (+ ?pre ?y) ?suf)))
+  :evidence (evidence "governance_protocol"
+    :quotes ("Technical catalog CSVs are parsed row-by-row")
+    :explanation "two-element list: return pair"))
+(axiom concat-many
+  (= (concat ?pre (?x ?y ?z ?...rest) ?suf)
+     (strict (cons-prepend (+ (+ ?pre ?x) ?suf) (strict (concat ?pre (?y ?z ?...rest) ?suf)))))
+  :evidence (evidence "governance_protocol"
+    :quotes ("Technical catalog CSVs are parsed row-by-row")
+    :explanation "3+ element list: prepend head, recurse on tail"))
+
+; ── resolve-all: map s over a list of names ──
+; (resolve-all ("name1" "name2")) → (val1 val2)
+(defterm resolve-all
+  :evidence (evidence "governance_protocol"
+    :quotes ("each row's `dataset_id` column identifies a dataset")
+    :explanation "resolve list of fact names to their values"))
+(axiom resolve-all-one
+  (= (resolve-all (?x))
+     ((s ?x)))
+  :evidence (evidence "governance_protocol"
+    :quotes ("each row's `dataset_id` column identifies a dataset")
+    :explanation "single name: resolve and wrap in list"))
+(axiom resolve-all-two
+  (= (resolve-all (?x ?y))
+     ((s ?x) (s ?y)))
+  :evidence (evidence "governance_protocol"
+    :quotes ("each row's `dataset_id` column identifies a dataset")
+    :explanation "two names: resolve both"))
+(axiom resolve-all-many
+  (= (resolve-all (?x ?y ?z ?...rest))
+     (strict (cons-prepend (s ?x) (strict (resolve-all (?y ?z ?...rest))))))
+  :evidence (evidence "governance_protocol"
+    :quotes ("each row's `dataset_id` column identifies a dataset")
+    :explanation "3+ names: resolve head, prepend onto recursive resolve of tail"))

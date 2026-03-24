@@ -3,6 +3,7 @@
 import os
 
 from ...loader.lazy_loader import LazyLoader
+from ..form_renderer import FormRenderer
 from ..perspective import Perspective
 from ..probe_core_to_consequence import (
     Consumer,
@@ -26,7 +27,7 @@ def _pltg_block_located(content: str, title: str = "", loc: str = "") -> str:
     return f"```scheme\n{header}\n{content}\n```"
 
 
-class MDebuggerPerspective(Perspective[Markdown]):
+class MDebuggerPerspective(Perspective[Markdown], FormRenderer):
     """Markdown perspective that annotates nodes with source file:line from the loader AST."""
 
     def __init__(self, loader: LazyLoader):

@@ -7,6 +7,7 @@
 ;   count → count-forms
 ;   limit → limit-forms
 
+(import (quote std.std))
 (import (quote .general_ops))
 (import (quote .specialized_ops))
 
@@ -22,3 +23,7 @@
 (defterm not-forms specialized_ops.not-forms :origin "alias")
 (defterm count-forms general_ops.count-forms :origin "alias")
 (defterm limit-forms general_ops.limit-forms :origin "alias")
+(defterm keys specialized_ops.keys :origin "alias")
+(defterm cons std.std.lists.cons :origin "alias")
+(defterm cons-prepend std.std.lists.cons-prepend :origin "alias")
+(defterm concat std.std.lists.concat :origin "alias")

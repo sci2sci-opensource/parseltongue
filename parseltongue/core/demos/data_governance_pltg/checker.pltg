@@ -1,0 +1,919 @@
+; ==========================================================
+; Data Governance Checker
+; ==========================================================
+;
+; Hand-written.  Imports the generated manifest (all facts),
+; the policy rules (axioms + predicates + splat reductions),
+; and the governance documents.  Uses general-purpose operators
+; (csv-rows, regex-match, list-tree-paths, doc-text) to
+; discover entities from raw source documents, then fans out
+; compliance checks via axiom pattern matching and folds
+; results with splat reductions.
+;
+; The checker is independent of HOW facts are generated —
+; it discovers what exists and validates against policy.
+;
+; *** LIB PATH ***
+;
+; This demo requires lib_paths=[parseltongue/core/] so the
+; loader qualifies sub-module facts with the full dotted path
+; (e.g. src.manifest.technical.ds_5385-source-type).  Without
+; lib_paths the facts lack the "src.manifest." prefix and the
+; (s ...) effect can't resolve them.  pg-bench supplies this
+; automatically via Bench.STD_PATH; standalone scripts must
+; pass lib_paths=[core_dir] to LazyLoader.
+;
+; *** CRITICAL: :using IN DERIVES ***
+;
+; :using is NOT a convenience annotation — it controls which axioms
+; are in scope during rewrite-based evaluation.  Adding unnecessary
+; axioms to :using causes INCORRECT structural rewrites: an axiom
+; you didn't intend to fire will pattern-match your intermediate
+; expressions and destructure them before they evaluate.
+;
+; Rules:
+;   1. MINIMAL :using — only the axioms/terms the derive actually needs.
+;      Deps expand transitively, so you never need to list indirect deps.
+;   2. Do NOT dump "all the things" into :using.  Every extra axiom is
+;      a potential unwanted rewrite that silently corrupts evaluation.
+;   3. Use (strict ...) to force evaluation of subexpressions BEFORE
+;      they reach axiom pattern matching.  Axiom matching is structural:
+;      (strict X) as an arg to a non-callable head gets force-evaluated
+;      at the call site (engine line 884), producing a concrete value
+;      that the next axiom sees instead of an unevaluated expression.
+;   4. Nest stricts when needed: (strict (util.concat "" (strict (regex-match ...)) ""))
+;      — inner strict forces regex-match before concat, outer strict forces
+;      concat before the consuming axiom's pattern matching.
+;
+; ==========================================================
+
+(load-document "governance_protocol" "resources/governance_protocol.md")
+(load-document "governance_policy" "resources/governance_policy.md")
+
+; Import all generated facts via manifest
+(import (quote src.manifest))
+
+; Import policy axioms + compliance predicates + splat reductions
+(import (quote policy_rules))
+
+; Import utility axioms (unwrap, fact-name builders)
+(import (quote util))
+
+; Re-export policy_rules terms into local scope
+(defterm contract-ok      policy_rules.contract-ok
+  :evidence (evidence "governance_policy"
+    :quotes ("Any dataset sourced from a commercial provider must be covered by a contract")
+    :explanation "per-dataset contract compliance predicate"))
+(defterm class-ok         policy_rules.class-ok
+  :evidence (evidence "governance_policy"
+    :quotes ("A product's effective classification is the most restrictive classification among all its source datasets.")
+    :explanation "per-source classification compliance predicate"))
+(defterm contract-valid   policy_rules.contract-valid
+  :evidence (evidence "governance_policy"
+    :quotes ("An expired contract revokes all permitted uses for the datasets it covers.")
+    :explanation "contract validity predicate"))
+(defterm cadence-rank     policy_rules.cadence-rank
+  :evidence (evidence "governance_policy"
+    :quotes ("the contractual refresh SLA for a dataset must be at least as frequent as the technical refresh cadence")
+    :explanation "cadence frequency ranking for SLA comparison"))
+(defterm sla-ok           policy_rules.sla-ok
+  :evidence (evidence "governance_policy"
+    :quotes ("If the technical cadence is faster than the contractual SLA, the platform may be pulling data more frequently than the provider guarantees, creating a reliability risk.")
+    :explanation "SLA alignment predicate"))
+(defterm retention-ok     policy_rules.retention-ok
+  :evidence (evidence "governance_policy"
+    :quotes ("Data products must not retain records longer than the shortest retention limit specified by any contract covering their source datasets.")
+    :explanation "retention limit compliance predicate"))
+(defterm all-true         policy_rules.all-true
+  :evidence (evidence "governance_policy"
+    :quotes ("Any dataset sourced from a commercial provider must be covered by a contract")
+    :explanation "variadic AND — all items must be compliant"))
+(defterm count-violations policy_rules.count-violations
+  :evidence (evidence "governance_policy"
+    :quotes ("A commercial dataset without a valid contract, or with an expired contract, is non-compliant and must be quarantined.")
+    :explanation "variadic violation counter"))
+(defterm any-true         policy_rules.any-true
+  :evidence (evidence "governance_policy"
+    :quotes ("Data products consuming datasets covered only by expired contracts must be flagged for review.")
+    :explanation "variadic OR — any violation triggers flag"))
+
+
+; ── fact-name helpers: use util.concat to build namespaced fact names ──
+; These replace inline (+ (strict (fact-X (strict (regex-match ...)))) "-suffix") chains.
+; Each takes a raw ID/doc-name and a suffix, returns the resolved fact name string.
+
+(defterm tech-fact
+  :evidence (evidence "governance_protocol"
+    :quotes ("each row's `dataset_id` column identifies a dataset")
+    :explanation "build and resolve technical fact name from dataset ID"))
+(axiom tech-fact-rule
+  (= (tech-fact ?id ?suffix)
+     (s (util.concat "src.manifest.technical.ds_" (strict (regex-match "\\d+" ?id)) ?suffix)))
+  :evidence (evidence "governance_protocol"
+    :quotes ("each row's `dataset_id` column identifies a dataset")
+    :explanation "extract numeric ID, build fact name, resolve via s"))
+
+(defterm ctr-fact
+  :evidence (evidence "governance_policy"
+    :quotes ("An expired contract revokes all permitted uses for the datasets it covers.")
+    :explanation "build and resolve contract fact name from doc name"))
+(axiom ctr-fact-rule
+  (= (ctr-fact ?doc-name ?suffix)
+     (s (util.concat "src.manifest.contracts.ctr-" (strict (regex-match "contract:(.*)" ?doc-name)) ?suffix)))
+  :evidence (evidence "governance_policy"
+    :quotes ("An expired contract revokes all permitted uses for the datasets it covers.")
+    :explanation "extract slug, build fact name, resolve via s"))
+
+(defterm bp-fact
+  :evidence (evidence "governance_policy"
+    :quotes ("A product's effective classification is the most restrictive classification among all its source datasets.")
+    :explanation "build and resolve business product fact name from doc name"))
+(axiom bp-fact-rule
+  (= (bp-fact ?doc-name ?suffix)
+     (s (util.concat "src.manifest.business.bp-" (strict (regex-match "business:(.*)" ?doc-name)) ?suffix)))
+  :evidence (evidence "governance_policy"
+    :quotes ("A product's effective classification is the most restrictive classification among all its source datasets.")
+    :explanation "extract slug, build fact name, resolve via s"))
+
+
+; ==========================================================
+; HOW FACT RETRIEVAL AND RESOLUTION WORKS
+; ==========================================================
+;
+; The manifest (src.manifest) generates flat facts from raw documents:
+;   technical.ds_5385-source-type = "external"
+;   contracts.ctr-10x_genomics-classification = "restricted"
+;   business.bp-genomic_variant_panel-classification = "restricted"
+;
+; The checker discovers entities at runtime from the same raw documents
+; via effects (csv-rows, regex-match, list-tree-paths, doc-text).
+; It needs to resolve manifest facts by name — but names depend on
+; IDs extracted from the raw docs, so they can't be hardcoded.
+;
+; Pipeline for a single fact:
+;   1. regex-match extracts the variable part from raw data
+;      e.g. (regex-match "\\d+" "DS-5385") → ("5385")
+;   2. strict forces the regex-match effect to evaluate NOW,
+;      before axiom pattern matching tries to match the result
+;   3. util.concat maps prefix+suffix over the regex result list:
+;      (util.concat "technical.ds_" ("5385") "-source-type")
+;      → "technical.ds_5385-source-type"
+;   4. s resolves the constructed name string as a Symbol in the
+;      engine env, returning the fact's value: "external"
+;
+; For multi-match (regex returns multiple hits):
+;   (regex-match "DS-\\d+" text) → ("DS-1488" "DS-6408")
+;   util.concat maps over the list:
+;   (util.concat "technical.ds_" ("1488" "6408") "-source-type")
+;   → ("technical.ds_1488-source-type" "technical.ds_6408-source-type")
+;   util.resolve-all maps s over the name list:
+;   (util.resolve-all (...)) → (value1 value2)
+;
+; The three helpers — tech-fact, ctr-fact, bp-fact — encapsulate
+; this pipeline. Each takes a raw identifier and a suffix:
+;   (tech-fact "DS-5385" "-source-type")   → "external"
+;   (ctr-fact "contract:10x_genomics" "-classification") → "restricted"
+;   (bp-fact "business:genomic_variant_panel" "-classification") → "restricted"
+;
+; OLD PATTERN (sections 6, 8 still use this — to be replaced):
+;   (s (+ (strict (fact-id (strict (regex-match ...)))) "-suffix"))
+;   Problems: wrong "src.manifest." prefix, manual + chaining,
+;   fact-id/fact-ctr-prefix/fact-bp-prefix each only handle
+;   single-element regex results (no multi-match support).
+;
+; NEW PATTERN (use tech-fact/ctr-fact/bp-fact):
+;   (tech-fact ?id "-source-type")
+;   Handles single AND multi-match via util.concat internally.
+
+
+; ==========================================================
+; STRATEGY FOR EACH COMPLIANCE CHECK
+; ==========================================================
+;
+; ── 3. CONTRACT COVERAGE (per-row, already implemented) ──
+;   For each CSV row: if source-type = "external", search all
+;   contract text for the dataset ID. Uses regex-match + if/true/false.
+;   No fact resolution needed — pure document search.
+;   STATUS: Done, working. No changes needed.
+;
+; ── 4. EXPIRED CONTRACTS (per-doc, already implemented) ──
+;   For each contract doc: regex for "expired" in doc text.
+;   Applies contract-valid predicate. Pure document search.
+;   STATUS: Done, working. No changes needed.
+;
+; ── 5. PHANTOM REFERENCES (cross-catalog, already implemented) ──
+;   Extract all DS-NNNN from business docs, check each exists
+;   in tech catalog text. Pure document search.
+;   STATUS: Done, working. No changes needed.
+;
+; ── 6. CLASSIFICATION PROPAGATION (cross-match, needs update) ──
+;   For each business product: extract source DS-IDs, find which
+;   contract covers each, get contract classification, check against
+;   product classification via class-ok.
+;   CURRENT: Uses fact-bp-prefix + fact-ctr-prefix with wrong
+;   "src.manifest." prefix and manual (+ (strict ...) "-suffix").
+;   FIX: Replace with (ctr-fact ?doc-name "-classification") and
+;   (bp-fact ?product-doc "-classification"). The inner fold
+;   find-ds-contract-class scans contracts for a DS-ID and resolves
+;   the covering contract's classification — replace its s+fact-ctr-prefix
+;   chain with ctr-fact. check-product-class-rule resolves the product's
+;   own classification — replace its s+fact-bp-prefix chain with bp-fact.
+;
+; ── 7. OMICS CLASSIFICATION (per-contract, needs update) ──
+;   For each contract: regex for omics keywords, if present check
+;   classification = "restricted" via omics-ok predicate.
+;   CURRENT: Uses fact-ctr-prefix with wrong prefix.
+;   FIX: Replace (s (+ (strict (fact-ctr-prefix ...)) "-classification"))
+;   with (ctr-fact ?doc-name "-classification").
+;
+; ── 8a. TECH CATALOG CROSS-CHECK (per-row, needs update) ──
+;   For each CSV row: resolve 5 facts by constructed name, compare
+;   to positionally-extracted CSV values.
+;   CURRENT: Uses fact-id with wrong "src.manifest." prefix and
+;   5 repeated (s (+ (strict (fact-id ...)) "-suffix")) chains.
+;   FIX: Replace each with (tech-fact ?id "-suffix"):
+;     (= ?stype (tech-fact ?id "-source-type"))
+;     (= ?cadence (tech-fact ?id "-cadence"))
+;     etc. Cleaner AND handles multi-match if needed.
+;
+; ── 8b. CONTRACT CROSS-CHECK (per-doc, needs update) ──
+;   For each contract doc: resolve status fact, apply contract-valid.
+;   CURRENT: Uses fact-ctr-prefix with wrong prefix.
+;   FIX: Replace with (ctr-fact ?doc-name "-status").
+;
+; ── 8c. BUSINESS CROSS-CHECK (per-doc, needs update) ──
+;   For each business doc: resolve classification fact, apply class-ok.
+;   CURRENT: Uses fact-bp-prefix with wrong prefix.
+;   FIX: Replace with (bp-fact ?product-doc "-classification").
+;
+; ── 9. FINAL POLICY (already implemented) ──
+;   ANDs all check results. No fact resolution.
+;   STATUS: Done. Will work once upstream checks are fixed.
+;   NOTE: policy-consistent currently has a loader error because
+;   _build_restricted_env re-evaluates theorem WFFs containing
+;   strict, hitting bare symbol. Fixing sections 6-8 to use
+;   the new helpers (which still use strict internally) won't
+;   fix this — the _build_restricted_env issue is an engine bug.
+
+
+; ── csv-rows tag ──
+(defterm dx
+  :evidence (evidence "governance_protocol"
+    :quotes ("Technical catalog CSVs are parsed row-by-row")
+    :explanation "csv-rows tag for dataset rows"))
+
+
+; ══════════════════════════════════════════════════════════
+; 1. DISCOVERY — what entities exist in the raw documents?
+; ══════════════════════════════════════════════════════════
+
+; Discover technical catalog CSV documents
+(defterm tech-docs
+  (list-tree-paths "tech:*")
+  :evidence (evidence "governance_protocol"
+    :quotes ("Technical catalog CSVs are parsed row-by-row")
+    :explanation "technical catalog document names"))
+
+; Parse each CSV — tagged rows with all columns
+; CSV columns: dataset_id, name, storage_path, table_name, schema_columns,
+;              format, refresh_cadence, source_type, provider, owner,
+;              created_date, row_count
+(defterm discovery-rows
+  (csv-rows "tech:discovery" "dx")
+  :evidence (evidence "governance_protocol"
+    :quotes ("each row's `dataset_id` column identifies a dataset")
+    :explanation "discovery department rows"))
+
+(defterm translational-rows
+  (csv-rows "tech:translational" "dx")
+  :evidence (evidence "governance_protocol"
+    :quotes ("each row's `dataset_id` column identifies a dataset")
+    :explanation "translational department rows"))
+
+(defterm clinical-rows
+  (csv-rows "tech:clinical" "dx")
+  :evidence (evidence "governance_protocol"
+    :quotes ("each row's `dataset_id` column identifies a dataset")
+    :explanation "clinical department rows"))
+
+(defterm commercial-rows
+  (csv-rows "tech:commercial" "dx")
+  :evidence (evidence "governance_protocol"
+    :quotes ("each row's `dataset_id` column identifies a dataset")
+    :explanation "commercial department rows"))
+
+; Discover contract documents
+(defterm contract-docs
+  (list-tree-paths "contract:*")
+  :evidence (evidence "governance_protocol"
+    :quotes ("Contract markdown files are parsed for provider metadata")
+    :explanation "contract document names"))
+
+; Discover business catalog documents
+(defterm business-docs
+  (list-tree-paths "business:*")
+  :evidence (evidence "governance_protocol"
+    :quotes ("Business catalog markdown files are parsed for product metadata")
+    :explanation "business catalog document names"))
+
+; Combined document texts for cross-document searches
+(defterm all-contract-text
+  (doc-text "contract:*")
+  :evidence (evidence "governance_protocol"
+    :quotes ("Contract markdown files are parsed for provider metadata")
+    :explanation "combined text of all contract documents"))
+
+(defterm all-tech-text
+  (doc-text "tech:*")
+  :evidence (evidence "governance_protocol"
+    :quotes ("Technical catalog CSVs are parsed row-by-row")
+    :explanation "combined text of all technical catalog documents"))
+
+(defterm all-business-text
+  (doc-text "business:*")
+  :evidence (evidence "governance_protocol"
+    :quotes ("Business catalog markdown files are parsed for product metadata")
+    :explanation "combined text of all business catalog documents"))
+
+
+; ══════════════════════════════════════════════════════════
+; 2. PER-ROW EXTRACTION — pull fields from CSV tagged rows
+; ══════════════════════════════════════════════════════════
+
+; Extract dataset ID from a tagged CSV row
+(defterm row-id
+  :evidence (evidence "governance_protocol"
+    :quotes ("each row's `dataset_id` column identifies a dataset")
+    :explanation "dataset_id from row"))
+(axiom row-id-rule
+  (= (row-id (dx ?id ?name ?path ?table ?schema ?fmt ?cadence ?stype ?provider ?owner ?created ?rows))
+     ?id)
+  :evidence (evidence "governance_protocol"
+    :quotes ("each row's `dataset_id` column identifies a dataset")
+    :explanation "First column is the dataset identifier"))
+
+; Extract source-type from a tagged CSV row
+(defterm row-source-type
+  :evidence (evidence "governance_protocol"
+    :quotes ("{id}-source-type")
+    :explanation "source_type from row"))
+(axiom row-source-type-rule
+  (= (row-source-type (dx ?id ?name ?path ?table ?schema ?fmt ?cadence ?stype ?provider ?owner ?created ?rows))
+     ?stype)
+  :evidence (evidence "governance_protocol"
+    :quotes ("{id}-source-type")
+    :explanation "source_type column from technical catalog"))
+
+; Extract cadence from a tagged CSV row
+(defterm row-cadence
+  :evidence (evidence "governance_protocol"
+    :quotes ("{id}-cadence")
+    :explanation "refresh_cadence from row"))
+(axiom row-cadence-rule
+  (= (row-cadence (dx ?id ?name ?path ?table ?schema ?fmt ?cadence ?stype ?provider ?owner ?created ?rows))
+     ?cadence)
+  :evidence (evidence "governance_protocol"
+    :quotes ("{id}-cadence")
+    :explanation "refresh_cadence column from technical catalog"))
+
+; Extract path from a tagged CSV row
+(defterm row-path
+  :evidence (evidence "governance_protocol"
+    :quotes ("{id}-path")
+    :explanation "storage_path from row"))
+(axiom row-path-rule
+  (= (row-path (dx ?id ?name ?path ?table ?schema ?fmt ?cadence ?stype ?provider ?owner ?created ?rows))
+     ?path)
+  :evidence (evidence "governance_protocol"
+    :quotes ("{id}-path")
+    :explanation "storage_path column from technical catalog"))
+
+; Extract table from a tagged CSV row
+(defterm row-table
+  :evidence (evidence "governance_protocol"
+    :quotes ("{id}-table")
+    :explanation "table_name from row"))
+(axiom row-table-rule
+  (= (row-table (dx ?id ?name ?path ?table ?schema ?fmt ?cadence ?stype ?provider ?owner ?created ?rows))
+     ?table)
+  :evidence (evidence "governance_protocol"
+    :quotes ("{id}-table")
+    :explanation "table_name column from technical catalog"))
+
+
+; ══════════════════════════════════════════════════════════
+; 3. CONTRACT COVERAGE — per external dataset
+; ══════════════════════════════════════════════════════════
+;
+; For each CSV row: external datasets must appear in at
+; least one contract document (coverage + permitted use).
+; Internal datasets are exempt.
+
+(defterm check-row-contract
+  :evidence (evidence "governance_policy"
+    :quotes ("Any dataset sourced from a commercial provider must be covered by a contract with valid start and end dates and a specified permitted-use policy.")
+    :explanation "per-row contract compliance"))
+
+(axiom check-row-contract-external
+  (= (check-row-contract (dx ?id ?name ?path ?table ?schema ?fmt ?cadence "external" ?provider ?owner ?created ?rows))
+     (contract-ok "external"
+       (if (regex-match ?id all-contract-text) true false)
+       (if (regex-match ?id all-contract-text) true false)))
+  :evidence (evidence "governance_policy"
+    :quotes ("Any dataset sourced from a commercial provider must be covered by a contract with valid start and end dates and a specified permitted-use policy.")
+    :explanation "External datasets require contract coverage — search all contract docs for dataset ID"))
+
+(axiom check-row-contract-internal
+  (= (check-row-contract (dx ?id ?name ?path ?table ?schema ?fmt ?cadence "internal" ?provider ?owner ?created ?rows))
+     true)
+  :evidence (evidence "governance_policy"
+    :quotes ("Any dataset sourced from a commercial provider must be covered by a contract")
+    :explanation "Internal datasets are exempt from contract requirements"))
+
+; Fold per department — splat recursion
+(defterm check-dept-contracts
+  :evidence (evidence "governance_policy"
+    :quotes ("Any dataset sourced from a commercial provider must be covered by a contract")
+    :explanation "department contract compliance"))
+
+(axiom check-dept-contracts-base
+  (= (check-dept-contracts (?row))
+     (check-row-contract ?row))
+  :evidence (evidence "governance_policy"
+    :quotes ("Any dataset sourced from a commercial provider must be covered by a contract")
+    :explanation "Single row: its own compliance"))
+
+(axiom check-dept-contracts-step
+  (= (check-dept-contracts (?row ?...rest))
+     (and (check-row-contract ?row) (check-dept-contracts (?...rest))))
+  :evidence (evidence "governance_policy"
+    :quotes ("Any dataset sourced from a commercial provider must be covered by a contract")
+    :explanation "All rows must pass"))
+
+; Per-department contract compliance
+(derive discovery-contracts-ok
+  (check-dept-contracts (strict discovery-rows))
+  :using (discovery-rows check-dept-contracts check-dept-contracts-base
+          check-dept-contracts-step check-row-contract-external
+          check-row-contract-internal contract-ok policy_rules.contract-ok-rule
+          all-contract-text))
+
+(derive translational-contracts-ok
+  (check-dept-contracts (strict translational-rows))
+  :using (translational-rows check-dept-contracts check-dept-contracts-base
+          check-dept-contracts-step check-row-contract-external
+          check-row-contract-internal contract-ok policy_rules.contract-ok-rule
+          all-contract-text))
+
+(derive clinical-contracts-ok
+  (check-dept-contracts (strict clinical-rows))
+  :using (clinical-rows check-dept-contracts check-dept-contracts-base
+          check-dept-contracts-step check-row-contract-external
+          check-row-contract-internal contract-ok policy_rules.contract-ok-rule
+          all-contract-text))
+
+(derive commercial-contracts-ok
+  (check-dept-contracts (strict commercial-rows))
+  :using (commercial-rows check-dept-contracts check-dept-contracts-base
+          check-dept-contracts-step check-row-contract-external
+          check-row-contract-internal contract-ok policy_rules.contract-ok-rule
+          all-contract-text))
+
+; All departments
+(derive all-contracts-ok
+  (all-true discovery-contracts-ok translational-contracts-ok
+            clinical-contracts-ok commercial-contracts-ok)
+  :using (discovery-contracts-ok translational-contracts-ok
+          clinical-contracts-ok commercial-contracts-ok
+          all-true policy_rules.all-true-base policy_rules.all-true-step))
+
+
+; ══════════════════════════════════════════════════════════
+; 4. EXPIRED CONTRACTS — contract validity check
+; ══════════════════════════════════════════════════════════
+;
+; Extract "Status: ..." from each contract doc via regex,
+; apply contract-valid predicate.  Fold with all-true.
+
+(defterm check-contract-valid
+  :evidence (evidence "governance_policy"
+    :quotes ("An expired contract revokes all permitted uses for the datasets it covers.")
+    :explanation "per-contract validity check"))
+(axiom check-contract-valid-rule
+  (= (check-contract-valid ?doc-name)
+     (contract-valid
+       (if (regex-match "expired" (doc-text ?doc-name))
+           "expired"
+           "active")))
+  :evidence (evidence "governance_policy"
+    :quotes ("An expired contract revokes all permitted uses for the datasets it covers.")
+    :explanation "Check contract status via regex on document text"))
+
+; Fold over all contract docs
+(defterm check-all-contracts-valid
+  :evidence (evidence "governance_policy"
+    :quotes ("An expired contract revokes all permitted uses for the datasets it covers.")
+    :explanation "all contracts validity fold"))
+(axiom check-all-contracts-valid-base
+  (= (check-all-contracts-valid (?doc))
+     (check-contract-valid ?doc))
+  :evidence (evidence "governance_policy"
+    :quotes ("An expired contract revokes all permitted uses for the datasets it covers.")
+    :explanation "Single contract: its own validity"))
+
+(axiom check-all-contracts-valid-step
+  (= (check-all-contracts-valid (?doc ?...rest))
+     (and (check-contract-valid ?doc) (check-all-contracts-valid ?...rest)))
+  :evidence (evidence "governance_policy"
+    :quotes ("An expired contract revokes all permitted uses for the datasets it covers.")
+    :explanation "All contracts must be valid"))
+
+(derive all-contracts-valid
+  (check-all-contracts-valid (contract-docs))
+  :using (contract-docs check-all-contracts-valid check-all-contracts-valid-base
+          check-all-contracts-valid-step check-contract-valid check-contract-valid-rule
+          contract-valid policy_rules.contract-valid-rule))
+
+
+; ══════════════════════════════════════════════════════════
+; 5. PHANTOM REFERENCES — business→tech existence
+; ══════════════════════════════════════════════════════════
+;
+; Every dataset ID referenced by a business product must
+; exist in the technical catalog.  Extract all DS-NNNN IDs
+; from business docs, check each against tech catalog text.
+
+(defterm business-ds-ids
+  (regex-match "DS-\\d+" (doc-text "business:*"))
+  :evidence (evidence "governance_policy"
+    :quotes ("A reference to a non-existent dataset is a phantom reference and indicates catalog drift.")
+    :explanation "all dataset IDs referenced in business catalog"))
+
+(defterm check-not-phantom
+  :evidence (evidence "governance_policy"
+    :quotes ("A reference to a non-existent dataset is a phantom reference and indicates catalog drift.")
+    :explanation "single dataset existence check"))
+(axiom check-not-phantom-rule
+  (= (check-not-phantom ?id)
+     (if (regex-match ?id all-tech-text) true false))
+  :evidence (evidence "governance_policy"
+    :quotes ("A reference to a non-existent dataset is a phantom reference and indicates catalog drift.")
+    :explanation "Dataset ID must appear in technical catalog"))
+
+; Fold over all business-referenced IDs
+(defterm check-no-phantoms
+  :evidence (evidence "governance_policy"
+    :quotes ("A reference to a non-existent dataset is a phantom reference and indicates catalog drift.")
+    :explanation "no phantom references fold"))
+(axiom check-no-phantoms-base
+  (= (check-no-phantoms (?id))
+     (check-not-phantom ?id))
+  :evidence (evidence "governance_policy"
+    :quotes ("A reference to a non-existent dataset is a phantom reference and indicates catalog drift.")
+    :explanation "Single ID: its own existence"))
+
+(axiom check-no-phantoms-step
+  (= (check-no-phantoms (?id ?...rest))
+     (and (check-not-phantom ?id) (check-no-phantoms (?...rest))))
+  :evidence (evidence "governance_policy"
+    :quotes ("A reference to a non-existent dataset is a phantom reference and indicates catalog drift.")
+    :explanation "All referenced IDs must exist"))
+
+(derive no-phantoms-ok
+  (check-no-phantoms (strict business-ds-ids))
+  :using (business-ds-ids check-no-phantoms check-no-phantoms-base
+          check-no-phantoms-step check-not-phantom check-not-phantom-rule
+          all-tech-text))
+
+
+; ══════════════════════════════════════════════════════════
+; 6. CLASSIFICATION — product ≥ most restrictive source
+; ══════════════════════════════════════════════════════════
+;
+; Dynamic cross-match: for each product, extract source DS-IDs,
+; then for each DS-ID fold over contract-docs to find the covering
+; contract and get its classification.  Check class-ok per pair.
+;
+; Three nested folds:
+;   outer: products (from business-docs)
+;   middle: source DS-IDs (from product doc text)
+;   inner: contract-docs (find covering contract for DS-ID)
+
+; Inner fold: given a DS-ID and a list of contract docs,
+; find the covering contract's classification.
+; Returns the classification string, or "internal" if no contract covers it.
+(defterm find-ds-contract-class
+  :evidence (evidence "governance_policy"
+    :quotes ("A product's effective classification is the most restrictive classification among all its source datasets.")
+    :explanation "find contract classification for a dataset by scanning contracts"))
+(axiom find-ds-contract-class-base
+  (= (find-ds-contract-class ?ds-id (?ctr-doc))
+     (if (regex-match ?ds-id (doc-text ?ctr-doc))
+         (ctr-fact ?ctr-doc "-classification")
+         "internal"))
+  :evidence (evidence "governance_policy"
+    :quotes ("A product's effective classification is the most restrictive classification among all its source datasets.")
+    :explanation "Base: check last contract, fallback to internal"))
+(axiom find-ds-contract-class-step
+  (= (find-ds-contract-class ?ds-id (?ctr-doc ?...rest))
+     (if (regex-match ?ds-id (doc-text ?ctr-doc))
+         (ctr-fact ?ctr-doc "-classification")
+         (find-ds-contract-class ?ds-id (?...rest))))
+  :evidence (evidence "governance_policy"
+    :quotes ("A product's effective classification is the most restrictive classification among all its source datasets.")
+    :explanation "Step: if contract covers DS-ID return its class, else recurse"))
+
+; Middle fold: for each source DS-ID, find contract class
+; and check class-ok against the product's classification.
+(defterm check-sources-class
+  :evidence (evidence "governance_policy"
+    :quotes ("Any data product that consumes a restricted source dataset must itself be classified as restricted.")
+    :explanation "fold class-ok over source DS-IDs"))
+(axiom check-sources-class-base
+  (= (check-sources-class (?ds-id) ?product-class ?ctr-docs)
+     (class-ok (find-ds-contract-class ?ds-id ?ctr-docs) ?product-class))
+  :evidence (evidence "governance_policy"
+    :quotes ("Any data product that consumes a restricted source dataset must itself be classified as restricted.")
+    :explanation "Single source: find contract class, check against product"))
+(axiom check-sources-class-step
+  (= (check-sources-class (?ds-id ?...rest) ?product-class ?ctr-docs)
+     (and (class-ok (find-ds-contract-class ?ds-id ?ctr-docs) ?product-class)
+          (check-sources-class (?...rest) ?product-class ?ctr-docs)))
+  :evidence (evidence "governance_policy"
+    :quotes ("Any data product that consumes a restricted source dataset must itself be classified as restricted.")
+    :explanation "All sources must satisfy classification propagation"))
+
+; Per product: resolve classification, extract source DS-IDs, check all
+(defterm check-product-class
+  :evidence (evidence "governance_policy"
+    :quotes ("Any data product that consumes a restricted source dataset must itself be classified as restricted.")
+    :explanation "per-product classification check"))
+(axiom check-product-class-rule
+  (= (check-product-class ?product-doc ?ctr-docs)
+     (strict (check-sources-class
+       (strict (util.concat "" (strict (regex-match "DS-\\d+" (doc-text ?product-doc))) ""))
+       (bp-fact ?product-doc "-classification")
+       ?ctr-docs)))
+  :evidence (evidence "governance_policy"
+    :quotes ("Any data product that consumes a restricted source dataset must itself be classified as restricted.")
+    :explanation "Extract product class and source IDs, cross-match against contracts"))
+
+; Outer fold: over all business product docs
+(defterm check-all-products-class
+  :evidence (evidence "governance_policy"
+    :quotes ("A product's effective classification is the most restrictive classification among all its source datasets.")
+    :explanation "all products classification fold"))
+(axiom check-all-products-class-base
+  (= (check-all-products-class (?doc) ?ctr-docs)
+     (check-product-class ?doc ?ctr-docs))
+  :evidence (evidence "governance_policy"
+    :quotes ("A product's effective classification is the most restrictive classification among all its source datasets.")
+    :explanation "Single product classification check"))
+(axiom check-all-products-class-step
+  (= (check-all-products-class (?doc ?...rest) ?ctr-docs)
+     (and (check-product-class ?doc ?ctr-docs)
+          (check-all-products-class (?...rest) ?ctr-docs)))
+  :evidence (evidence "governance_policy"
+    :quotes ("A product's effective classification is the most restrictive classification among all its source datasets.")
+    :explanation "All products must satisfy classification propagation"))
+
+(derive all-products-class-ok
+  (check-all-products-class (strict business-docs) (strict contract-docs))
+  :using (check-all-products-class business-docs contract-docs))
+
+
+; ══════════════════════════════════════════════════════════
+; 7. OMICS CLASSIFICATION — omics data must be restricted
+; ══════════════════════════════════════════════════════════
+;
+; Per contract doc: if covered dataset names contain omics
+; keywords (genomic, proteomic, transcriptomic, omics, CRISPR,
+; RNA-seq, WGS), the contract's classification must be
+; "restricted".  Each contract doc is self-contained with
+; both the covered dataset names and the classification.
+
+(defterm omics-ok         policy_rules.omics-ok
+  :evidence (evidence "governance_policy"
+    :quotes ("All genomic, proteomic, and transcriptomic datasets — collectively \"omics data\" — are classified as restricted regardless of their origin.")
+    :explanation "omics data must be classified restricted"))
+
+(defterm check-contract-omics
+  :evidence (evidence "governance_policy"
+    :quotes ("All genomic, proteomic, and transcriptomic datasets — collectively \"omics data\" — are classified as restricted regardless of their origin.")
+    :explanation "per-contract omics classification check"))
+(axiom check-contract-omics-rule
+  (= (check-contract-omics ?doc-name)
+     (omics-ok
+       (regex-match "(?i)genom|proteom|transcriptom|omics|crispr|rna.seq|wgs" (doc-text ?doc-name))
+       (ctr-fact ?doc-name "-classification")))
+  :evidence (evidence "governance_policy"
+    :quotes ("All genomic, proteomic, and transcriptomic datasets — collectively \"omics data\" — are classified as restricted regardless of their origin.")
+    :explanation "If contract covers omics data, classification must be restricted"))
+
+; Fold over all contract docs
+(defterm check-all-omics
+  :evidence (evidence "governance_policy"
+    :quotes ("All genomic, proteomic, and transcriptomic datasets — collectively \"omics data\" — are classified as restricted regardless of their origin.")
+    :explanation "all contracts omics classification fold"))
+(axiom check-all-omics-base
+  (= (check-all-omics (?doc))
+     (check-contract-omics ?doc))
+  :evidence (evidence "governance_policy"
+    :quotes ("All genomic, proteomic, and transcriptomic datasets — collectively \"omics data\" — are classified as restricted regardless of their origin.")
+    :explanation "Single contract omics check"))
+
+(axiom check-all-omics-step
+  (= (check-all-omics (?doc ?...rest))
+     (and (check-contract-omics ?doc) (check-all-omics ?...rest)))
+  :evidence (evidence "governance_policy"
+    :quotes ("All genomic, proteomic, and transcriptomic datasets — collectively \"omics data\" — are classified as restricted regardless of their origin.")
+    :explanation "All contracts with omics data must have restricted classification"))
+
+(derive all-omics-ok
+  (check-all-omics (strict contract-docs))
+  :using (contract-docs check-all-omics check-all-omics-base
+          check-all-omics-step check-contract-omics check-contract-omics-rule
+          ctr-fact ctr-fact-rule util.concat util.concat-one util.concat-two util.concat-many
+          util.cons-prepend util.cons-prepend-rule
+          omics-ok policy_rules.omics-ok-rule))
+
+
+; ══════════════════════════════════════════════════════════
+; 8. CROSS-CHECK — CSV discovery vs generated facts
+; ══════════════════════════════════════════════════════════
+;
+; The generated src.* facts were extracted from the same raw
+; documents. Cross-check: for each CSV row, resolve the
+; corresponding fact by constructed name and verify it matches
+; the positionally-extracted value from the CSV.  This consumes
+; the generated facts (making them non-dangling) and validates
+; that the extraction pipeline is consistent.
+
+; --- 8a. Technical catalog facts ---
+; CSV row gives ?id = "DS-5385", fact name is technical.ds_5385-source-type
+; Extract number via regex, build name with +, resolve with s.
+
+(defterm check-row-fact
+  :evidence (evidence "governance_protocol"
+    :quotes ("each row's `dataset_id` column identifies a dataset")
+    :explanation "per-row cross-check: CSV vs generated fact"))
+(axiom check-row-fact-rule
+  (= (check-row-fact (dx ?id ?name ?path ?table ?schema ?fmt ?cadence ?stype ?provider ?owner ?created ?rows))
+     (and (= ?stype (tech-fact ?id "-source-type"))
+          (= ?cadence (tech-fact ?id "-cadence"))
+          (= ?path (tech-fact ?id "-path"))
+          (= ?table (tech-fact ?id "-table"))
+          (= ?owner (tech-fact ?id "-owner"))))
+  :evidence (evidence "governance_protocol"
+    :quotes ("each row's `dataset_id` column identifies a dataset")
+    :explanation "Every CSV field must match the corresponding generated fact"))
+
+; Fold per department
+(defterm check-dept-facts
+  :evidence (evidence "governance_protocol"
+    :quotes ("each row's `dataset_id` column identifies a dataset")
+    :explanation "department fact cross-check fold"))
+(axiom check-dept-facts-base
+  (= (check-dept-facts (?row))
+     (check-row-fact ?row))
+  :evidence (evidence "governance_protocol"
+    :quotes ("each row's `dataset_id` column identifies a dataset")
+    :explanation "Single row cross-check"))
+
+(axiom check-dept-facts-step
+  (= (check-dept-facts (?row ?...rest))
+     (and (check-row-fact ?row) (check-dept-facts (?...rest))))
+  :evidence (evidence "governance_protocol"
+    :quotes ("each row's `dataset_id` column identifies a dataset")
+    :explanation "All rows must match their facts"))
+
+(derive discovery-facts-ok
+  (check-dept-facts (strict discovery-rows))
+  :using (discovery-rows check-dept-facts))
+
+(derive translational-facts-ok
+  (check-dept-facts (strict translational-rows))
+  :using (translational-rows check-dept-facts))
+
+(derive clinical-facts-ok
+  (check-dept-facts (strict clinical-rows))
+  :using (clinical-rows check-dept-facts))
+
+(derive commercial-facts-ok
+  (check-dept-facts (strict commercial-rows))
+  :using (commercial-rows check-dept-facts))
+
+(derive all-facts-ok
+  (all-true discovery-facts-ok translational-facts-ok
+            clinical-facts-ok commercial-facts-ok)
+  :using (discovery-facts-ok translational-facts-ok
+          clinical-facts-ok commercial-facts-ok all-true))
+
+; --- 8b. Contract facts ---
+; Doc name "contract:10x_genomics", fact name contracts.ctr-10x_genomics-status
+(defterm check-contract-fact
+  :evidence (evidence "governance_policy"
+    :quotes ("An expired contract revokes all permitted uses for the datasets it covers.")
+    :explanation "per-contract cross-check: doc vs generated fact"))
+(axiom check-contract-fact-rule
+  (= (check-contract-fact ?doc-name)
+     (contract-valid
+       (ctr-fact ?doc-name "-status")))
+  :evidence (evidence "governance_policy"
+    :quotes ("An expired contract revokes all permitted uses for the datasets it covers.")
+    :explanation "Contract status fact must match document extraction"))
+
+; Fold over all contract docs
+(defterm check-all-contract-facts
+  :evidence (evidence "governance_policy"
+    :quotes ("An expired contract revokes all permitted uses for the datasets it covers.")
+    :explanation "all contracts fact cross-check fold"))
+(axiom check-all-contract-facts-base
+  (= (check-all-contract-facts (?doc))
+     (check-contract-fact ?doc))
+  :evidence (evidence "governance_policy"
+    :quotes ("An expired contract revokes all permitted uses for the datasets it covers.")
+    :explanation "Single contract fact check"))
+
+(axiom check-all-contract-facts-step
+  (= (check-all-contract-facts (?doc ?...rest))
+     (and (check-contract-fact ?doc) (check-all-contract-facts (?...rest))))
+  :evidence (evidence "governance_policy"
+    :quotes ("An expired contract revokes all permitted uses for the datasets it covers.")
+    :explanation "All contracts must match their facts"))
+
+(derive all-contract-facts-ok
+  (check-all-contract-facts (strict contract-docs))
+  :using (contract-docs check-all-contract-facts check-contract-fact))
+
+; --- 8c. Business catalog facts ---
+; Doc name "business:genomic_variant_panel", fact name business.bp-genomic_variant_panel-classification
+; Uses bp-fact helper (section 1) to construct fact name from doc name
+
+(defterm check-product-fact
+  :evidence (evidence "governance_policy"
+    :quotes ("A product's effective classification is the most restrictive classification among all its source datasets.")
+    :explanation "per-product cross-check: doc vs generated fact"))
+(axiom check-product-fact-rule
+  (= (check-product-fact ?product-doc)
+     (class-ok
+       (bp-fact ?product-doc "-classification")))
+  :evidence (evidence "governance_policy"
+    :quotes ("A product's effective classification is the most restrictive classification among all its source datasets.")
+    :explanation "Product classification fact must match document extraction"))
+
+; Fold over all business product docs
+(defterm check-all-product-facts
+  :evidence (evidence "governance_policy"
+    :quotes ("A product's effective classification is the most restrictive classification among all its source datasets.")
+    :explanation "all products fact cross-check fold"))
+(axiom check-all-product-facts-base
+  (= (check-all-product-facts (?doc))
+     (check-product-fact ?doc))
+  :evidence (evidence "governance_policy"
+    :quotes ("A product's effective classification is the most restrictive classification among all its source datasets.")
+    :explanation "Single product fact check"))
+
+(axiom check-all-product-facts-step
+  (= (check-all-product-facts (?doc ?...rest))
+     (and (check-product-fact ?doc) (check-all-product-facts (?...rest))))
+  :evidence (evidence "governance_policy"
+    :quotes ("A product's effective classification is the most restrictive classification among all its source datasets.")
+    :explanation "All products must match their facts"))
+
+(derive all-product-facts-ok
+  (check-all-product-facts (strict business-docs))
+  :using (business-docs check-all-product-facts check-product-fact))
+
+
+; ══════════════════════════════════════════════════════════
+; 9. FINAL POLICY — combine all checks
+; ══════════════════════════════════════════════════════════
+
+(derive contract-violations
+  (count-violations discovery-contracts-ok translational-contracts-ok
+                    clinical-contracts-ok commercial-contracts-ok)
+  :using (discovery-contracts-ok translational-contracts-ok
+          clinical-contracts-ok commercial-contracts-ok count-violations))
+
+(derive policy-consistent
+  (and (= contract-violations 0)
+       all-contracts-valid
+       no-phantoms-ok
+       all-products-class-ok
+       all-omics-ok
+       all-facts-ok
+       all-contract-facts-ok
+       all-product-facts-ok)
+  :using (contract-violations all-contracts-valid no-phantoms-ok
+          all-products-class-ok all-omics-ok
+          all-facts-ok all-contract-facts-ok all-product-facts-ok))
+
+(fact expected-compliant true
+  :evidence (evidence "governance_protocol"
+    :quotes ("A dataset estate is **policy-consistent** when the total violation count across all rules is zero.")
+    :explanation "Policy says zero violations means compliant"))
+
+(diff policy-check
+  :replace policy-consistent
+  :with expected-compliant)
