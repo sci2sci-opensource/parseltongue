@@ -2001,6 +2001,29 @@ def search(query: str, limit: int, offset: int, page: int, go_next: bool, go_pre
     _print_result(_query(cmd))
 
 
+def _stream_index_progress(cmd: dict, every: int) -> None:
+    """Stream index progress, printing every N files (0 = every file)."""
+    step = max(every, 1) if every else 1
+    last_len = 0
+    started = False
+    _UP = "\033[A"  # ANSI: cursor up one line
+    for msg in _query_stream(cmd):
+        if msg.get("progress"):
+            count, total = msg["count"], msg["total"]
+            if count % step == 0 or count == total:
+                text = f"  {count}/{total} files indexed..."
+                pad = max(0, last_len - len(text))
+                if started:
+                    # Move up + overwrite. Dumb terminals ignore ANSI, get clean newlines.
+                    click.echo(f"{_UP}\r{text}{' ' * pad}")
+                else:
+                    click.echo(text)
+                    started = True
+                last_len = len(text)
+        elif msg.get("done"):
+            _print_result(msg)
+
+
 @cli.command("index")
 @click.argument("directory", default=".")
 @click.option(
@@ -2017,7 +2040,10 @@ def search(query: str, limit: int, offset: int, page: int, go_next: bool, go_pre
     help="Glob patterns to exclude (repeatable, in addition to .pgignore).",
 )
 @click.option("--force", is_flag=True, help="Ignore stat/hash caches — full re-read of every file.")
-def index_dir(directory: str, extensions: tuple[str, ...], excludes: tuple[str, ...], force: bool):
+@click.option(
+    "--progress-every", type=int, default=25, show_default=True, help="Print progress every N files (0 = every file)."
+)
+def index_dir(directory: str, extensions: tuple[str, ...], excludes: tuple[str, ...], force: bool, progress_every: int):
     """Index all files in DIRECTORY into the search engine.
 
     \b
@@ -2033,27 +2059,20 @@ def index_dir(directory: str, extensions: tuple[str, ...], excludes: tuple[str, 
         cmd["exclude"] = list(excludes)
     if force:
         cmd["force"] = True
-    for msg in _query_stream(cmd):
-        if msg.get("progress"):
-            click.echo(f"\r  {msg['count']}/{msg['total']}  {msg['file']}", nl=False)
-        elif msg.get("done"):
-            click.echo()  # newline after progress
-            _print_result(msg)
+    _stream_index_progress(cmd, progress_every)
 
 
 @cli.command()
 @click.option("--force", is_flag=True, help="Ignore stat/hash caches — full re-read of every file.")
-def reindex(force: bool):
+@click.option(
+    "--progress-every", type=int, default=25, show_default=True, help="Print progress every N files (0 = every file)."
+)
+def reindex(force: bool, progress_every: int):
     """Re-index all previously indexed directories (detects file changes)."""
     cmd: dict = {"action": "reindex"}
     if force:
         cmd["force"] = True
-    for msg in _query_stream(cmd):
-        if msg.get("progress"):
-            click.echo(f"\r  {msg['count']}/{msg['total']}  {msg['file']}", nl=False)
-        elif msg.get("done"):
-            click.echo()
-            _print_result(msg)
+    _stream_index_progress(cmd, progress_every)
 
 
 @cli.command()
