@@ -94,8 +94,9 @@ def _fmt_value(val_str: str) -> str:
 
 # ── Markdown → HTML with footnote-style refs ──
 
-# Global footnote counter (reset per build_notebook_html call)
+# Global footnote state (reset per build_notebook_html call)
 _footnote_counter: int = 0
+_footnote_map: dict[str, int] = {}  # node_id → footnote number
 
 
 def _wrap_with_margin(
@@ -184,12 +185,12 @@ def _render_blocks(
             parts.append(_wrap_with_margin(html, refs[before:], tainted=_t, taint_sources=_ts, taint_reasons=_tr))
 
         elif tt == "block_text":
-            # tight list item content — no <p> wrapper
+            # tight list item content — no <p> wrapper, but still gets pills
+            before = len(refs)
             inner = _render_inline(tok.get("children", []), node_index, refs, _t, _ts)
-            parts.append(inner)
+            parts.append(_wrap_with_margin(inner, refs[before:], tainted=_t, taint_sources=_ts, taint_reasons=_tr))
 
         elif tt == "list":
-            before = len(refs)
             ordered = tok.get("attrs", {}).get("ordered", False)
             if ordered:
                 start = tok.get("attrs", {}).get("start", 1)
@@ -205,7 +206,7 @@ def _render_blocks(
                     li_inner = _render_blocks(child.get("children", []), node_index, refs, _t, _ts, _tr)
                     items_html.append(f"<li>{li_inner}</li>")
             html = tag_open + "\n" + "\n".join(items_html) + "\n" + tag_close
-            parts.append(_wrap_with_margin(html, refs[before:], tainted=_t, taint_sources=_ts, taint_reasons=_tr))
+            parts.append(html)
 
         elif tt == "block_code":
             code = html_mod.escape(tok.get("raw", ""))
@@ -223,7 +224,9 @@ def _render_blocks(
             )
 
         elif tt == "table":
-            parts.append(_render_table(tok, node_index, refs, _t, _ts))
+            before = len(refs)
+            html = _render_table(tok, node_index, refs, _t, _ts)
+            parts.append(_wrap_with_margin(html, refs[before:], tainted=_t, taint_sources=_ts, taint_reasons=_tr))
 
         elif tt == "thematic_break":
             parts.append('<hr class="border-surface1 my-6">')
@@ -380,10 +383,16 @@ def _render_pgmd_ref(
     node_id = node["id"]
     color = _KIND_COLORS.get(node["kind"], "subtext")
     val = _fmt_value(node["value"])
-    _footnote_counter += 1
-    fn_num = _footnote_counter
     is_tainted = node_id in _t
     is_source = node_id in _ts
+
+    # Reuse footnote number for repeated refs to the same node
+    if node_id in _footnote_map:
+        fn_num = _footnote_map[node_id]
+    else:
+        _footnote_counter += 1
+        fn_num = _footnote_counter
+        _footnote_map[node_id] = fn_num
 
     refs.append(
         {
@@ -457,11 +466,15 @@ def _block_def_names(content: str) -> list[str]:
 
 
 def _render_footnote_list(refs: list[dict]) -> str:
-    """Render a compact footnote list below the prose section."""
+    """Render a compact footnote list below the prose section (deduplicated)."""
     if not refs:
         return ""
+    seen: set[int] = set()
     rows = []
     for r in refs:
+        if r["num"] in seen:
+            continue
+        seen.add(r["num"])
         c = _KIND_COLORS.get(r["kind"], "subtext")
         val_html = f' = {html_mod.escape(r["value"])}' if r["value"] else ''
         rows.append(
@@ -538,8 +551,9 @@ def build_notebook_html(
     """Render pgmd blocks into notebook view HTML (goes inside #notebook-container)."""
     from parseltongue.core.inspect.notebooks.executor import BlockOutput
 
-    global _footnote_counter
+    global _footnote_counter, _footnote_map
     _footnote_counter = 0
+    _footnote_map = {}
 
     # Build taint sets for pill styling
     taint_sources: set[str] = set(taint_result.sources) if taint_result else set()
@@ -790,8 +804,8 @@ def render_notebook(
 .nb-pill-active { outline: 2px solid var(--mauve); outline-offset: 1px; background: var(--surface1) !important; }
 .nb-prose-row { position: relative; }
 .nb-margin-notes {
-  display: flex; flex-wrap: wrap; gap: 3px; align-items: flex-start;
-  margin-top: 4px;
+  display: flex; flex-wrap: wrap; gap: 4px 6px; align-items: center;
+  margin-top: 6px; padding: 2px 0;
 }
 .nb-margin-pill { line-height: 1.4; }
 .nb-fn:hover sup { color: var(--mauve); }
@@ -800,22 +814,23 @@ def render_notebook(
 #app { transition: margin-right 0.2s ease; }
 #app.detail-open { margin-right: min(420px, 35vw); }
 
-/* Wide screens: margin notes float to the right */
+/* Wide screens: margin notes float to the right, still wrap horizontally */
 @media (min-width: 1100px) {
   .nb-margin-notes {
-    position: absolute; right: -200px; top: 0; width: 185px;
-    flex-direction: column; flex-wrap: nowrap; margin-top: 0;
+    position: absolute; right: -220px; top: 0; width: 205px;
+    margin-top: 0;
   }
 }
 @media (min-width: 1400px) {
   .nb-margin-notes {
-    right: -240px; width: 225px;
+    right: -260px; width: 245px;
   }
 }
 </style>
 <script>
 // After DOM ready, ensure prose rows are tall enough for their margin pills
 document.addEventListener('DOMContentLoaded', function() {
+  if (window.innerWidth < 1100) return; // only needed for absolute-positioned pills
   document.querySelectorAll('.nb-prose-row').forEach(function(row) {
     var notes = row.querySelector('.nb-margin-notes');
     if (!notes) return;
