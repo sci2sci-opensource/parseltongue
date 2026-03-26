@@ -624,15 +624,28 @@ def render_notebook(
 .nb-pill-active { outline: 2px solid var(--mauve); outline-offset: 1px; background: var(--surface1) !important; }
 .nb-prose-row { position: relative; }
 .nb-margin-notes {
-  position: absolute; right: -200px; top: 0; width: 185px;
-  display: flex; flex-direction: column; gap: 3px; align-items: flex-start;
+  display: flex; flex-wrap: wrap; gap: 3px; align-items: flex-start;
+  margin-top: 4px;
 }
 .nb-margin-pill { line-height: 1.4; }
 .nb-fn:hover sup { color: var(--mauve); }
 .nb-taint-source { text-decoration: underline wavy var(--red); text-underline-offset: 3px; }
 .nb-taint-propagated { text-decoration: underline dashed var(--yellow); text-underline-offset: 3px; }
 #app { transition: margin-right 0.2s ease; }
-#app.detail-open { margin-right: 420px; }
+#app.detail-open { margin-right: min(420px, 35vw); }
+
+/* Wide screens: margin notes float to the right */
+@media (min-width: 1100px) {
+  .nb-margin-notes {
+    position: absolute; right: -200px; top: 0; width: 185px;
+    flex-direction: column; flex-wrap: nowrap; margin-top: 0;
+  }
+}
+@media (min-width: 1400px) {
+  .nb-margin-notes {
+    right: -240px; width: 225px;
+  }
+}
 </style>
 <script>
 // After DOM ready, ensure prose rows are tall enough for their margin pills
@@ -667,7 +680,7 @@ document.addEventListener('DOMContentLoaded', function() {
     notebook_view = (
         '  <!-- Notebook View -->\n'
         '  <div id="notebook-view" class="p-4 overflow-visible">\n'
-        f'    <div id="notebook-container" class="max-w-[860px] mx-auto">{notebook_html}</div>\n'
+        f'    <div id="notebook-container" class="max-w-[min(860px,90vw)] mx-auto">{notebook_html}</div>\n'
         '  </div>\n\n'
     )
     base = base.replace('  <!-- Source View -->', notebook_view + '  <!-- Source View -->')
