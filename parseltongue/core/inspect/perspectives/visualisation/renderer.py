@@ -62,16 +62,22 @@ class VizRenderer(FormRenderer):
             self._store.save_viz(self._merkle_root, key, str(result))
         return result
 
+    @property
+    def _logbook(self) -> list[dict]:
+        if self._store:
+            return self._store.read_logbook()
+        return []
+
     def render_form(self, form: list) -> str:
         tag = _base_tag(form)
         if tag in ("ln", "ln-fmt"):
-            return _render_app(_extract_ln_items([form]), "ln", _ln_title(form), self._structure)
+            return _render_app(_extract_ln_items([form]), "ln", _ln_title(form), self._structure, logbook=self._logbook)
         if tag in ("sr", "sr-fmt"):
-            return _render_app(_extract_sr_items([form]), "sr", "Search result", self._structure)
+            return _render_app(_extract_sr_items([form]), "sr", "Search result", self._structure, logbook=self._logbook)
         if tag in ("dx", "dx-fmt"):
-            return _render_app(_extract_dx_items([form]), "dx", "Diagnostic", self._structure)
+            return _render_app(_extract_dx_items([form]), "dx", "Diagnostic", self._structure, logbook=self._logbook)
         if tag in ("hn", "hn-fmt"):
-            return _render_app(_extract_hn_items([form]), "hn", "Hologram", self._structure)
+            return _render_app(_extract_hn_items([form]), "hn", "Hologram", self._structure, logbook=self._logbook)
         return self.fmt_value(form)
 
     def render_form_list(self, forms: list[list]) -> str:
@@ -80,13 +86,15 @@ class VizRenderer(FormRenderer):
         tag = _base_tag(forms[0])
         n = len(forms)
         if tag in ("ln", "ln-fmt"):
-            return _render_app(_extract_ln_items(forms), "ln", f"{n} nodes", self._structure)
+            return _render_app(_extract_ln_items(forms), "ln", f"{n} nodes", self._structure, logbook=self._logbook)
         if tag in ("sr", "sr-fmt"):
-            return _render_app(_extract_sr_items(forms), "sr", f"{n} results", self._structure)
+            return _render_app(_extract_sr_items(forms), "sr", f"{n} results", self._structure, logbook=self._logbook)
         if tag in ("dx", "dx-fmt"):
-            return _render_app(_extract_dx_items(forms), "dx", f"{n} diagnostics", self._structure)
+            return _render_app(
+                _extract_dx_items(forms), "dx", f"{n} diagnostics", self._structure, logbook=self._logbook
+            )
         if tag in ("hn", "hn-fmt"):
-            return _render_app(_extract_hn_items(forms), "hn", f"{n} holograms", self._structure)
+            return _render_app(_extract_hn_items(forms), "hn", f"{n} holograms", self._structure, logbook=self._logbook)
         return self.fmt_value(forms)
 
     def fmt_value(self, val: Any) -> str:
@@ -435,6 +443,7 @@ def _enrich_items_from_structure(items: list[dict], structure) -> None:
                     "explanation": origin.explanation,
                     "verified": origin.verified,
                     "status": ev_status,
+                    "signature": origin.signature,
                 }
             ]
         elif isinstance(atom, Theorem) or origin == "derived":
@@ -701,7 +710,9 @@ def _build_sr_structure_data(sr_items: list[dict], structure) -> list[dict]:
     return _build_named_structure_data(caller_names, structure)
 
 
-def _render_app(items: list[dict], form_type: str, title: str, structure: "Any | None" = None) -> str:
+def _render_app(
+    items: list[dict], form_type: str, title: str, structure: "Any | None" = None, logbook: list[dict] | None = None
+) -> str:
     structure_items = items  # default: structure tab shows same data
     layers_data: dict[str, list] = {"layers": [], "edges": []}
 
@@ -776,12 +787,23 @@ def _render_app(items: list[dict], form_type: str, title: str, structure: "Any |
         structure_items = _build_named_structure_data(set(merged_graph), structure)
         _enrich_items_from_structure(structure_items, structure)
 
+    # Compute taints from structure data + edges
+    from .taints import compute_taints
+
+    taint_result = compute_taints(
+        items=structure_items,
+        edges=layers_data.get("edges", []),
+        structure_items=structure_items,
+        logbook=logbook,
+    )
+
     tmpl = Template(_read_template("app.html"))
     return tmpl.safe_substitute(
         title=_html_escape(title),
         data_json=json.dumps(items, separators=(",", ":")),
         structure_json=json.dumps(structure_items, separators=(",", ":")),
         layers_json=json.dumps(layers_data, separators=(",", ":")),
+        taint_json=json.dumps(taint_result.to_json(), separators=(",", ":")),
         form_type=form_type,
         item_count=str(len(items)),
         core_js=_read_template("core.js"),

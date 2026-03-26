@@ -43,6 +43,8 @@ pg-bench up main.pltg --assistant "Claude"
 
 Booking appends a session entry to `.parseltongue-bench/logbook.jsonl` — a persistent, append-only log of who used the bench and when. Either or both flags work. The session is also available in-memory via `bench.session`.
 
+**The logbook is CWD-relative.** `.parseltongue-bench/` is created in the current working directory. Always `cd` into the project directory before running `pg-bench` commands — this ensures the logbook, cache, and session history all live next to the project files. Running from a parent directory writes the logbook to the wrong location.
+
 **NEVER use `kill -9` or `pkill -9` on the daemon.** This skips the signal handler that cleans up the Unix socket at `~/.parseltongue/bench.sock`. Use normal `pkill -f bench_cli` (SIGTERM) or just `pg reload`.
 
 **If the socket is stale** (daemon died or was killed with -9): `rm -f /root/.parseltongue/bench.sock` before restarting.
@@ -582,6 +584,62 @@ pandoc -f html -t plain resources/raw/page.html > resources/page_clean.txt
 - **Not reading `pg eval --help`** → it's a full language reference. Read it first.
 - **Not `--force` after first index of new files** → content may not appear in search until forced.
 - **Summarizing or paraphrasing source documents** → the system quotes exact text. If your "document" is an LLM summary, every quote verification will fail or be meaningless. Always use direct file downloads converted to txt/md. If your sandbox blocks downloads, search for how to enable it (MCP tools, browser-use, file upload) and tell the user what to enable — do not silently fall back to summaries. Only rewrite content as a last resort, and confirm with the user it matches exactly.
+
+## Taint tracking
+
+Every visualization view shows taint status — which nodes are trusted and which aren't. Taint is computed server-side in Python and embedded as `TAINT_DATA` in the HTML. All views (cards, layers, graph, detail panel, notebook) consume the same pre-computed result.
+
+### What gets tainted
+
+A node is a **taint source** if:
+- It has no evidence at all
+- Its evidence has a status other than `verified`, `derived`, or `manual`
+- It was manually verified but the signature doesn't match a known session participant
+- It was manually verified with no signature
+- It was manually verified but there's no logbook (no session was booked)
+
+A node is **tainted** (propagated) if any of its inputs are taint sources or tainted themselves. Propagation is transitive through the full dependency graph.
+
+### Session booking drives taint
+
+The logbook (`.parseltongue-bench/logbook.jsonl`) records who used the bench. The taint predicate checks manual verification signatures against known participants from the logbook.
+
+**Without a booked session, ALL manually verified items are tainted.** Always book:
+
+```bash
+pg start main.pltg --user "Alice" --assistant "Claude"
+pg-bench render notebook.pgmd --user "Alice" --assistant "Claude" -o out.html
+```
+
+### Visual treatment
+
+| Context | Taint source | Tainted (propagated) | Clean |
+|---------|-------------|---------------------|-------|
+| Cards | Red border, "taint source" tag | Yellow dashed border, "tainted" tag | Normal |
+| Layers pills | Red solid stroke | Yellow dashed stroke | Kind color |
+| Graph nodes | Red stroke | Yellow stroke | Kind color |
+| Detail panel | Red "Taint source" section with reason | Yellow "Tainted" section with reason | No section |
+| Notebook margin pills | Red border, ✖ icon | Yellow dashed border, ⚠ icon | No border |
+| Notebook inline refs | Red wavy underline | Yellow dashed underline | Normal |
+
+Taint reasons explain why: "no evidence", "unverified (unknown)", "manually verified (no session log)", "signed by 'X' — not a known session participant", or "depends on tainted: Y".
+
+### verify-manual and taint
+
+`verify-manual` signs an axiom or fact as reviewed. The signature must match a logbook participant for the item to be clean:
+
+```scheme
+;; Clean — "Claude" is a known assistant in the logbook
+(verify-manual (quote my-axiom) "Claude")
+
+;; Tainted — no signature
+(verify-manual (quote my-axiom))
+
+;; Tainted — "Unknown Intern" not in the logbook
+(verify-manual (quote my-axiom) "Unknown Intern")
+```
+
+Separate review files (`review-*.pltg`) contain post-session verifications. See `pg-bench learn to-connect` for the full verification protocol.
 
 ## See also
 

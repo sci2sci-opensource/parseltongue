@@ -90,19 +90,30 @@ class Technician:
 
     # ── Logbook ──
 
+    def _log_action(self, action: str, **extra):
+        """Append an action to the logbook, always carrying current session info."""
+        entry = dict(self._session) if self._session else {"user": "", "assistant": ""}
+        entry["action"] = {"type": action, **extra}
+        entry["started"] = datetime.now(timezone.utc).isoformat()
+        self._store.log_session(entry)
+
     def log_session(self, user: str, assistant: str):
         """Record who booked this bench session. Persists to logbook."""
         self._session = {
             "user": user,
             "assistant": assistant,
-            "started": datetime.now(timezone.utc).isoformat(),
         }
-        self._store.log_session(self._session)
+        self._log_action("booked")
         log.info("Bench booked: user=%s assistant=%s", user, assistant)
 
     @property
     def session(self) -> dict | None:
         return self._session
+
+    @property
+    def logbook(self) -> list[dict]:
+        """All session entries from the logbook."""
+        return self._store.read_logbook()
 
     # ── Frozen / Live systems ──
 
@@ -404,6 +415,7 @@ class Technician:
 
         # Cold — full reload (_cold_load registers live scopes + frozen)
         sample = self._cold_load(path)
+        self._log_action("loaded", path=path)
         return sample, None
 
     def ensure_live(

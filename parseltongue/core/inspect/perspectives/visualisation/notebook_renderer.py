@@ -100,17 +100,31 @@ def _fmt_value(val_str: str) -> str:
 _footnote_counter: int = 0
 
 
-def _wrap_with_margin(element_html: str, element_refs: list[dict]) -> str:
+def _wrap_with_margin(
+    element_html: str,
+    element_refs: list[dict],
+    tainted: set[str] | None = None,
+    taint_sources: set[str] | None = None,
+    taint_reasons: dict[str, str] | None = None,
+) -> str:
     """Wrap an HTML element with per-element margin pills if it introduced refs."""
     if not element_refs:
         return element_html
-    pills = _render_margin_pills(element_refs)
+    pills = _render_margin_pills(
+        element_refs, tainted=tainted, taint_sources=taint_sources, taint_reasons=taint_reasons
+    )
     return (
         f'<div class="nb-prose-row relative">' f'{element_html}' f'<div class="nb-margin-notes">{pills}</div>' f'</div>'
     )
 
 
-def _md_to_html(text: str, node_index: dict) -> tuple[str, list[dict]]:
+def _md_to_html(
+    text: str,
+    node_index: dict,
+    tainted: set[str] | None = None,
+    taint_sources: set[str] | None = None,
+    taint_reasons: dict[str, str] | None = None,
+) -> tuple[str, list[dict]]:
     """Convert markdown to HTML, returning (html, collected_refs).
 
     Refs become inline footnotes; collected_refs is a list of
@@ -124,13 +138,16 @@ def _md_to_html(text: str, node_index: dict) -> tuple[str, list[dict]]:
     in_list = False
     list_start = 0  # index into refs where current list began
     list_lines: list[str] = []  # list item HTML accumulated
+    _t = tainted or set()
+    _ts = taint_sources or set()
+    _tr = taint_reasons or {}
 
     def _flush_list():
         nonlocal in_list, list_start, list_lines
         if not in_list:
             return
         ul = '<ul class="list-disc ml-6 mb-4 space-y-1">\n' + "\n".join(list_lines) + "\n</ul>"
-        out.append(_wrap_with_margin(ul, refs[list_start:]))
+        out.append(_wrap_with_margin(ul, refs[list_start:], tainted=_t, taint_sources=_ts, taint_reasons=_tr))
         in_list = False
         list_lines = []
 
@@ -139,38 +156,46 @@ def _md_to_html(text: str, node_index: dict) -> tuple[str, list[dict]]:
         if s.startswith("### "):
             _flush_list()
             before = len(refs)
-            html = f'<h3 class="text-lg font-bold text-mauve mt-6 mb-2">{_inline(s[4:], node_index, refs)}</h3>'
-            out.append(_wrap_with_margin(html, refs[before:]))
+            html = f'<h3 class="text-lg font-bold text-mauve mt-6 mb-2">{_inline(s[4:], node_index, refs, tainted=_t, taint_sources=_ts)}</h3>'
+            out.append(_wrap_with_margin(html, refs[before:], tainted=_t, taint_sources=_ts, taint_reasons=_tr))
         elif s.startswith("## "):
             _flush_list()
             before = len(refs)
-            html = f'<h2 class="text-xl font-bold text-mauve mt-8 mb-3">{_inline(s[3:], node_index, refs)}</h2>'
-            out.append(_wrap_with_margin(html, refs[before:]))
+            html = f'<h2 class="text-xl font-bold text-mauve mt-8 mb-3">{_inline(s[3:], node_index, refs, tainted=_t, taint_sources=_ts)}</h2>'
+            out.append(_wrap_with_margin(html, refs[before:], tainted=_t, taint_sources=_ts, taint_reasons=_tr))
         elif s.startswith("# "):
             _flush_list()
             before = len(refs)
-            html = f'<h1 class="text-2xl font-bold text-mauve mt-8 mb-4">{_inline(s[2:], node_index, refs)}</h1>'
-            out.append(_wrap_with_margin(html, refs[before:]))
+            html = f'<h1 class="text-2xl font-bold text-mauve mt-8 mb-4">{_inline(s[2:], node_index, refs, tainted=_t, taint_sources=_ts)}</h1>'
+            out.append(_wrap_with_margin(html, refs[before:], tainted=_t, taint_sources=_ts, taint_reasons=_tr))
         elif s.startswith("- "):
             if not in_list:
                 in_list = True
                 list_start = len(refs)
                 list_lines = []
-            list_lines.append(f"<li>{_inline(s[2:], node_index, refs)}</li>")
+            list_lines.append(f"<li>{_inline(s[2:], node_index, refs, tainted=_t, taint_sources=_ts)}</li>")
         elif not s:
             _flush_list()
             out.append("")
         else:
             _flush_list()
             before = len(refs)
-            html = f'<p class="mb-3 leading-relaxed">{_inline(s, node_index, refs)}</p>'
-            out.append(_wrap_with_margin(html, refs[before:]))
+            html = f'<p class="mb-3 leading-relaxed">{_inline(s, node_index, refs, tainted=_t, taint_sources=_ts)}</p>'
+            out.append(_wrap_with_margin(html, refs[before:], tainted=_t, taint_sources=_ts, taint_reasons=_tr))
     _flush_list()
     return "\n".join(out), refs
 
 
-def _inline(text: str, node_index: dict, refs: list[dict] | None = None) -> str:
+def _inline(
+    text: str,
+    node_index: dict,
+    refs: list[dict] | None = None,
+    tainted: set[str] | None = None,
+    taint_sources: set[str] | None = None,
+) -> str:
     global _footnote_counter
+    _t = tainted or set()
+    _ts = taint_sources or set()
     text = html_mod.escape(text)
     text = re.sub(r"`([^`]+)`", r'<code class="bg-surface0 px-1.5 py-0.5 rounded text-peach text-sm">\1</code>', text)
     text = re.sub(r"\*\*([^*]+)\*\*", r"<strong>\1</strong>", text)
@@ -184,33 +209,47 @@ def _inline(text: str, node_index: dict, refs: list[dict] | None = None) -> str:
         suffix = m.group(5)  # e.g. "%" or "x" after ]]
         node = _resolve_node(ref_name, node_index)
         if node:
+            node_id = node["id"]
             color = _KIND_COLORS.get(node["kind"], "subtext")
             val = _fmt_value(node["value"])
             _footnote_counter += 1
             fn_num = _footnote_counter
+            is_tainted = node_id in _t
+            is_source = node_id in _ts
             if refs is not None:
                 refs.append(
                     {
                         "num": fn_num,
                         "name": ref_name,
-                        "node_id": node["id"],
+                        "node_id": node_id,
                         "kind": node["kind"],
                         "value": val,
                         "silent": silent,
+                        "tainted": is_tainted,
+                        "taint_source": is_source,
                     }
                 )
+            # Taint decoration for inline refs
+            taint_cls = ""
+            taint_indicator = ""
+            if is_source:
+                taint_cls = " nb-taint-source"
+                taint_indicator = '<span class="text-red text-[0.6em] ml-0.5" title="taint source">&#x2716;</span>'
+            elif is_tainted:
+                taint_cls = " nb-taint-propagated"
+                taint_indicator = '<span class="text-yellow text-[0.6em] ml-0.5" title="tainted">&#x26a0;</span>'
             if silent:
                 return (
-                    f'{prefix}<span class="nb-fn cursor-pointer" '
-                    f'data-node="{html_mod.escape(node["id"])}" data-fn="{fn_num}">'
-                    f'<sup class="text-{color} text-[0.65em] font-bold">{fn_num}</sup></span>{suffix}'
+                    f'{prefix}<span class="nb-fn cursor-pointer{taint_cls}" '
+                    f'data-node="{html_mod.escape(node_id)}" data-fn="{fn_num}">'
+                    f'<sup class="text-{color} text-[0.65em] font-bold">{fn_num}</sup>{taint_indicator}</span>{suffix}'
                 )
             val_display = html_mod.escape(val) if val else html_mod.escape(ref_name)
             return (
                 f'<span class="nb-fn text-{color} font-semibold cursor-pointer '
-                f'hover:underline decoration-dotted" '
-                f'data-node="{html_mod.escape(node["id"])}" data-fn="{fn_num}">'
-                f'{prefix}{val_display}{suffix}<sup class="text-{color} text-[0.6em] ml-0.5">{fn_num}</sup></span>'
+                f'hover:underline decoration-dotted{taint_cls}" '
+                f'data-node="{html_mod.escape(node_id)}" data-fn="{fn_num}">'
+                f'{prefix}{val_display}{suffix}<sup class="text-{color} text-[0.6em] ml-0.5">{fn_num}</sup>{taint_indicator}</span>'
             )
         return f'{prefix}<span class="text-overlay0">{ref_type}:{ref_name}</span>{suffix}'
 
@@ -271,10 +310,18 @@ def _render_footnote_list(refs: list[dict]) -> str:
     return '<div class="nb-footnote-list border-t border-surface1 mt-3 pt-2 text-xs">' + "\n".join(rows) + '</div>'
 
 
-def _render_margin_pills(refs: list[dict]) -> str:
+def _render_margin_pills(
+    refs: list[dict],
+    tainted: set[str] | None = None,
+    taint_sources: set[str] | None = None,
+    taint_reasons: dict[str, str] | None = None,
+) -> str:
     """Render margin pills for a prose section's collected refs."""
     if not refs:
         return ""
+    _t = tainted or set()
+    _ts = taint_sources or set()
+    _tr = taint_reasons or {}
     # Deduplicate by node_id, keep first occurrence (and its footnote num)
     seen: set[str] = set()
     unique: list[dict] = []
@@ -285,14 +332,31 @@ def _render_margin_pills(refs: list[dict]) -> str:
     pills = []
     for r in unique:
         c = _KIND_COLORS.get(r["kind"], "subtext")
+        node_id = r["node_id"]
+        is_source = node_id in _ts
+        is_tainted = node_id in _t
+        # Taint styling: dashed border + color change
+        if is_source:
+            border_cls = "border border-red"
+            taint_icon = ' <span class="text-red">&#x2716;</span>'
+            title = html_mod.escape(_tr.get(node_id, "taint source"))
+        elif is_tainted:
+            border_cls = "border border-dashed border-yellow"
+            taint_icon = ' <span class="text-yellow">&#x26a0;</span>'
+            title = html_mod.escape(_tr.get(node_id, "tainted"))
+        else:
+            border_cls = ""
+            taint_icon = ""
+            title = ""
+        title_attr = f' title="{title}"' if title else ""
         pills.append(
             f'<span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 '
             f'rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 '
-            f'transition-colors whitespace-nowrap" '
-            f'data-node="{html_mod.escape(r["node_id"])}" data-fn="{r["num"]}">'
+            f'transition-colors whitespace-nowrap {border_cls}"{title_attr} '
+            f'data-node="{html_mod.escape(node_id)}" data-fn="{r["num"]}">'
             f'<span class="text-overlay0 font-mono">{r["num"]}</span>'
             f'<span class="w-1.5 h-1.5 rounded-full bg-{c} shrink-0"></span>'
-            f'<span class="text-{c} font-medium">{html_mod.escape(r["name"])}</span></span>'
+            f'<span class="text-{c} font-medium">{html_mod.escape(r["name"])}</span>{taint_icon}</span>'
         )
     return "\n".join(pills)
 
@@ -303,6 +367,7 @@ def build_notebook_html(
     node_index: dict,  # {name: item_dict}
     diagnostics: list[dict] | None = None,
     engine: Any = None,
+    taint_result: Any = None,  # TaintResult from taints.py
 ) -> str:
     """Render pgmd blocks into notebook view HTML (goes inside #notebook-container)."""
     from parseltongue.core.inspect.notebooks.executor import BlockOutput
@@ -310,13 +375,20 @@ def build_notebook_html(
     global _footnote_counter
     _footnote_counter = 0
 
+    # Build taint sets for pill styling
+    taint_sources: set[str] = set(taint_result.sources) if taint_result else set()
+    tainted: set[str] = set(taint_result.tainted) if taint_result else set()
+    taint_reasons: dict[str, str] = dict(taint_result.reasons) if taint_result else {}
+
     sections: list[str] = []
     all_refs: list[dict] = []
     pltg_counter = 0
 
     for block in blocks:
         if block.kind == "prose":
-            prose_html, refs = _md_to_html(block.content, node_index)
+            prose_html, refs = _md_to_html(
+                block.content, node_index, tainted=tainted, taint_sources=taint_sources, taint_reasons=taint_reasons
+            )
             all_refs.extend(refs)
             sections.append(prose_html)
 
@@ -366,12 +438,24 @@ def build_notebook_html(
                     c = _KIND_COLORS.get(node["kind"], "subtext")
                     val = _fmt_value(node["value"])
                     val_html = f' <span class="text-subtext">= {html_mod.escape(val)}</span>' if val else ''
+                    node_id = node["id"]
+                    is_source = node_id in taint_sources
+                    is_tainted_node = node_id in tainted
+                    if is_source:
+                        pill_border = "border border-red"
+                        taint_icon = ' <span class="text-red text-[0.7em]">&#x2716;</span>'
+                    elif is_tainted_node:
+                        pill_border = "border border-dashed border-yellow"
+                        taint_icon = ' <span class="text-yellow text-[0.7em]">&#x26a0;</span>'
+                    else:
+                        pill_border = ""
+                        taint_icon = ""
                     pills.append(
                         f'<span class="nb-node-pill inline-flex items-center gap-1 bg-surface0 '
-                        f'rounded-full px-2 py-0.5 text-xs cursor-pointer hover:bg-surface1" '
-                        f'data-node="{html_mod.escape(node["id"])}">'
+                        f'rounded-full px-2 py-0.5 text-xs cursor-pointer hover:bg-surface1 {pill_border}" '
+                        f'data-node="{html_mod.escape(node_id)}">'
                         f'<span class="w-1.5 h-1.5 rounded-full bg-{c}"></span>'
-                        f'<span class="text-{c}">{html_mod.escape(bname)}</span>{val_html}</span>'
+                        f'<span class="text-{c}">{html_mod.escape(bname)}</span>{val_html}{taint_icon}</span>'
                     )
             pills_row = ""
             if pills:
@@ -526,6 +610,7 @@ def render_notebook(
     items: list[dict],
     layers_data: dict,
     structure_items: list[dict] | None = None,
+    logbook: list[dict] | None = None,
 ) -> str:
     """Render the full notebook app HTML.
 
@@ -544,6 +629,8 @@ def render_notebook(
 }
 .nb-margin-pill { line-height: 1.4; }
 .nb-fn:hover sup { color: var(--mauve); }
+.nb-taint-source { text-decoration: underline wavy var(--red); text-underline-offset: 3px; }
+.nb-taint-propagated { text-decoration: underline dashed var(--yellow); text-underline-offset: 3px; }
 #app { transition: margin-right 0.2s ease; }
 #app.detail-open { margin-right: 420px; }
 </style>
@@ -609,12 +696,23 @@ document.addEventListener('DOMContentLoaded', function() {
     if structure_items is None:
         structure_items = items
 
+    # Compute taints
+    from .taints import compute_taints
+
+    taint_result = compute_taints(
+        items=structure_items,
+        edges=layers_data.get("edges", []),
+        structure_items=structure_items,
+        logbook=logbook,
+    )
+
     tmpl = Template(base)
     return tmpl.safe_substitute(
         title=_html_escape(title),
         data_json=json.dumps(items, separators=(",", ":")),
         structure_json=json.dumps(structure_items, separators=(",", ":")),
         layers_json=json.dumps(layers_data, separators=(",", ":")),
+        taint_json=json.dumps(taint_result.to_json(), separators=(",", ":")),
         form_type="ln",
         item_count=str(len(items)),
         core_js=core_js,

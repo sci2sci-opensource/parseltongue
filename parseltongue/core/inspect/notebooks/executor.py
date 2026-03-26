@@ -41,8 +41,17 @@ class NotebookResult:
     error: str | None = None
 
 
-def execute_pgmd(pgmd_path: str | Path) -> NotebookResult:
+def execute_pgmd(
+    pgmd_path: str | Path,
+    user: str | None = None,
+    assistant: str | None = None,
+) -> NotebookResult:
     """Execute a .pgmd file and return bench + execution artifacts.
+
+    Args:
+        pgmd_path: Path to the .pgmd file.
+        user: Optional user name for session booking.
+        assistant: Optional assistant name for session booking.
 
     Pipeline:
     1. Parse pgmd → blocks (prose + pltg + code)
@@ -89,6 +98,8 @@ def execute_pgmd(pgmd_path: str | Path) -> NotebookResult:
     # Step 2: Load through bench for full probe
     bench = Bench()
     bench.purge()
+    if user or assistant:
+        bench.book(user or "", assistant or "")
     try:
         bench.prepare(str(comp_path))
     except Exception:

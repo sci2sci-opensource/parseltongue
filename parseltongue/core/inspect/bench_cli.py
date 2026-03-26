@@ -2319,7 +2319,9 @@ def learn(what: str):
 @click.argument("pgmd_path", type=click.Path(exists=True))
 @click.option("-o", "--output", type=click.Path(), default=None, help="Output HTML file. Defaults to stdout.")
 @click.option("-t", "--title", default=None, help="Page title. Defaults to filename.")
-def render(pgmd_path: str, output: str | None, title: str | None):
+@click.option("--user", default=None, help="User name for session booking.")
+@click.option("--assistant", default=None, help="Assistant name for session booking.")
+def render(pgmd_path: str, output: str | None, title: str | None, user: str | None, assistant: str | None):
     """Render a .pgmd notebook to self-contained HTML.
 
     \b
@@ -2327,10 +2329,11 @@ def render(pgmd_path: str, output: str | None, title: str | None):
       pg-bench render analysis.pgmd                    # stdout
       pg-bench render analysis.pgmd -o out.html        # write to file
       pg-bench render analysis.pgmd -t "Q3 Report"     # custom title
+      pg-bench render analysis.pgmd --user Alice --assistant Claude
     """
     from .notebooks import render_pgmd
 
-    html = render_pgmd(pgmd_path, title)
+    html = render_pgmd(pgmd_path, title, user=user, assistant=assistant)
     if output:
         Path(output).write_text(html)
         click.echo(f"Rendered → {output} ({len(html):,} bytes)", err=True)

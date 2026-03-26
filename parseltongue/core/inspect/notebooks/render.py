@@ -18,12 +18,19 @@ from parseltongue.core.inspect.perspectives.visualisation.notebook_renderer impo
 from .executor import NotebookResult, execute_pgmd
 
 
-def render_pgmd(pgmd_path: str | Path, title: str | None = None) -> str:
+def render_pgmd(
+    pgmd_path: str | Path,
+    title: str | None = None,
+    user: str | None = None,
+    assistant: str | None = None,
+) -> str:
     """Execute a .pgmd notebook and render to self-contained HTML.
 
     Args:
         pgmd_path: Path to the .pgmd file.
         title: Optional title. Defaults to filename stem.
+        user: Optional user name for session booking.
+        assistant: Optional assistant name for session booking.
 
     Returns:
         Complete HTML string with notebook view + viz app.
@@ -32,7 +39,7 @@ def render_pgmd(pgmd_path: str | Path, title: str | None = None) -> str:
     if title is None:
         title = pgmd_path.stem.replace("_", " ").replace("-", " ").title()
 
-    result = execute_pgmd(pgmd_path)
+    result = execute_pgmd(pgmd_path, user=user, assistant=assistant)
     return render_result(result, title)
 
 
@@ -73,5 +80,18 @@ def render_result(result: NotebookResult, title: str) -> str:
         except Exception as e:
             print(f"Warning: screen failed: {e}", file=sys.stderr)
 
-    notebook_html = build_notebook_html(result.blocks, result.block_outputs, node_index, diagnostics, engine)
-    return render_notebook(title, notebook_html, items, layers_data)
+    # Compute taints (shared with all viz views)
+    from parseltongue.core.inspect.perspectives.visualisation.taints import compute_taints
+
+    logbook = bench.logbook if bench is not None else []
+    taint_result = compute_taints(
+        items=items,
+        edges=layers_data.get("edges", []),
+        structure_items=items,
+        logbook=logbook,
+    )
+
+    notebook_html = build_notebook_html(
+        result.blocks, result.block_outputs, node_index, diagnostics, engine, taint_result=taint_result
+    )
+    return render_notebook(title, notebook_html, items, layers_data, logbook=logbook)

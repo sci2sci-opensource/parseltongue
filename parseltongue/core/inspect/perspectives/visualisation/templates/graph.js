@@ -121,35 +121,12 @@ function renderGraph() {
   const mainLeaves = leaves.filter(n => mainComp.has(n.id));
   const interconnectivity = leaves.length > 0 ? mainLeaves.length / leaves.length : 1;
 
-  // ── Taint computation (sources + BFS propagation) ──
-  const taintSources = new Set();
-  nodes.forEach(n => {
-    const item = ITEM_BY_ID[n.id];
-    if (!item) return;
-    const hasEv = item.evidence && item.evidence.length > 0;
-    if (!hasEv) { taintSources.add(n.id); return; }
-    const allOk = item.evidence.every(e => e.status === 'verified' || e.status === 'derived' || e.status === 'manual');
-    if (!allOk) taintSources.add(n.id);
-  });
-
-  // BFS forward from taint sources through children
-  const dirChildren = {};
-  links.forEach(l => {
-    const sid = typeof l.source === 'string' ? l.source : l.source.id;
-    const tid = typeof l.target === 'string' ? l.target : l.target.id;
-    if (!dirChildren[sid]) dirChildren[sid] = [];
-    dirChildren[sid].push(tid);
-  });
-  const taintPropagated = new Set();
-  const tq = [...taintSources];
-  const tVisited = new Set();
-  while (tq.length) {
-    const cur = tq.pop();
-    if (tVisited.has(cur)) continue;
-    tVisited.add(cur);
-    if (!taintSources.has(cur)) taintPropagated.add(cur);
-    (dirChildren[cur] || []).forEach(c => tq.push(c));
-  }
+  // ── Taint data (pre-computed by Python, single source of truth) ──
+  const _gtd = (typeof TAINT_DATA !== 'undefined') ? TAINT_DATA : {sources:[], tainted:[], reasons:{}};
+  const taintSources = new Set(_gtd.sources);
+  const _gAllTainted = new Set(_gtd.tainted);
+  const taintPropagated = new Set([..._gAllTainted].filter(n => !taintSources.has(n)));
+  const taintReasons = _gtd.reasons || {};
 
   // ── Depth bands ──
   const maxDepth = Math.max(0, ...nodes.filter(n => !n.dangling).map(n => n.depth));

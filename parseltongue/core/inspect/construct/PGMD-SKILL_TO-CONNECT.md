@@ -15,9 +15,21 @@ A `.pgmd` notebook interleaves markdown prose with `pltg` computation blocks. Ev
 pg-bench render notebook.pgmd -o output.html        # render to file
 pg-bench render notebook.pgmd                        # render to stdout
 pg-bench render notebook.pgmd -t "Q3 Report"         # custom title
+pg-bench render notebook.pgmd --user Alice --assistant Claude -o out.html
 ```
 
 The renderer executes all pltg blocks, builds a bench (lens + diagnostics), and produces self-contained HTML with a notebook view, structure view, layers, and graph.
+
+**Session booking is critical for taint analysis.** Pass `--user` and/or `--assistant` to record who is working on this notebook. The logbook (`.parseltongue-bench/logbook.jsonl`) feeds into taint computation — without it, the taint system cannot trace signatures back to session participants. Either or both flags work.
+
+**The logbook is CWD-relative.** `.parseltongue-bench/` is created in the current working directory. Always `cd` into the project directory before rendering:
+
+```bash
+cd my-analysis/
+pg-bench render notebooks/report.pgmd --user "Alice" --assistant "Claude" -o out.html
+```
+
+Running from a parent directory writes the logbook to the wrong location — the taint system won't find the session history next to the notebook.
 
 ## File format
 
@@ -251,6 +263,40 @@ The review file imports the modules it needs to verify, then references names wi
 6. Import it in `main.pltg` and reload
 
 The logbook (`.parseltongue-bench/logbook.jsonl`) records who booked the bench session, so signatures trace back to a real session entry.
+
+## Taint tracking
+
+Every rendered view (notebook pills, layers, graph, cards, detail panel) shows taint status. Taint propagates through the dependency graph — if a source is untrusted, everything derived from it is tainted.
+
+### What is tainted
+
+A node is a **taint source** (red) if:
+- It has no evidence at all
+- Its evidence is unverified (not `verified`, `derived`, or `manual`)
+
+A node is **tainted** (yellow/dashed) if any of its inputs are tainted. This propagates transitively through the full derivation chain.
+
+### Logbook drives taint
+
+The taint predicate receives the full logbook history. This means custom predicates can check:
+- Whether a signature matches a known session participant
+- Whether a verification was made in the current or a prior session
+- Session timing — e.g. was the verification done before or after a source change
+
+**Without `--user`/`--assistant` on render, the logbook is empty and taint falls back to evidence-only checks.** Always book a session for full taint analysis.
+
+### Visual treatment
+
+| Context | Taint source | Tainted (propagated) | Clean |
+|---------|-------------|---------------------|-------|
+| Notebook margin pills | Red border, ✖ icon | Yellow dashed border, ⚠ icon | No border |
+| Notebook inline refs | Red wavy underline | Yellow dashed underline | Normal |
+| Layers pills | Red solid stroke | Yellow dashed stroke | Kind color stroke |
+| Graph nodes | Red stroke | Yellow stroke | Kind color |
+| Cards | Red border, "taint source" tag | Yellow dashed border, "tainted" tag | Normal border |
+| Detail panel | Red "Taint source" section with reason | Yellow "Tainted" section with reason | No section |
+
+Taint reasons are shown on hover (margin pills) and in the detail panel. They explain why: "no evidence", "unverified", or "depends on tainted: X".
 
 ## Working example
 

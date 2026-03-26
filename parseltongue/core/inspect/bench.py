@@ -127,6 +127,11 @@ class Bench:
         """Current session info, or None if not booked."""
         return self._technician.session
 
+    @property
+    def logbook(self) -> list[dict]:
+        """All session entries from the logbook."""
+        return self._technician.logbook
+
     # ── Status callback (given to Technician) ──
 
     def _on_status(self, path: str, integrity: str, status: str):

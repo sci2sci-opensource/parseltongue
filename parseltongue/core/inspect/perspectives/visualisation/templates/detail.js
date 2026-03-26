@@ -165,6 +165,22 @@ function showDetail(d) {
       html += `</div>`;
     }
 
+    // ── Taint status ──
+    {
+      const _td = (typeof TAINT_DATA !== 'undefined') ? TAINT_DATA : {sources:[], tainted:[], reasons:{}};
+      const _tSrc = new Set(_td.sources);
+      const _tAll = new Set(_td.tainted);
+      if (_tAll.has(d.id)) {
+        const isSource = _tSrc.has(d.id);
+        const reason = (_td.reasons || {})[d.id] || (isSource ? 'taint source' : 'tainted');
+        html += `<div class="border-t border-surface2 pt-3"><span class="text-overlay0 font-bold">Taint</span>`;
+        html += `<div class="mt-1 bg-crust rounded-lg p-3 text-xs">`;
+        html += `<div class="${isSource ? 'text-red' : 'text-yellow'} font-bold">${isSource ? '&#x2716; Taint source' : '&#x26a0; Tainted'}</div>`;
+        html += `<div class="text-subtext mt-1">${esc(reason)}</div>`;
+        html += `</div></div>`;
+      }
+    }
+
     // ── Derivation tree (last) ──
     if (d.inputs && d.inputs.length) {
       const tree = buildDerivationTree(d.id, 15);

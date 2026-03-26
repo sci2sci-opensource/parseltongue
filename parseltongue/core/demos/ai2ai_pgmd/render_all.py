@@ -26,7 +26,7 @@ for rel_path, title in NOTEBOOKS:
     stem = pgmd_path.stem
     print(f"Rendering {stem}...")
     try:
-        html = render_pgmd(pgmd_path, title)
+        html = render_pgmd(pgmd_path, title, user="V", assistant="Claude")
         out = OUTPUT_DIR / f"{stem}.html"
         out.write_text(html)
         print(f"  → {out} ({len(html):,} bytes)")
