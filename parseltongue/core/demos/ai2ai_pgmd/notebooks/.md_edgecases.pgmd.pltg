@@ -1,4 +1,4 @@
-;; @@block 0 23a07993e7ba4dfc80cf9bc62225a814c0bcfc240b15e6eb8041a4cf2863e9d5
+;; @@block 0 f3f944a6be662dfc935f706767de6fecc78a814ebf62afc4793739f6bb641ab5
 ;; pltg — minimal facts for ref testing
 (load-document "memo" "../source/series_a_memo.txt")
 
@@ -27,5 +27,12 @@
 
 (axiom retention-ok (> ?n 130) :origin "NRR > 130%")
 (derive retention-check retention-ok :bind ((?n nrr)) :using (nrr retention-ok))
+
+;; defterm, diff coverage
+(defterm burn-ratio (/ cac arr) :using (cac arr))
+(defterm health-label (if (> ltv-to-cac 3.0) "healthy" "weak") :using (ltv-to-cac))
+(defterm arr-stated 2800000 :origin "memo states ARR is $2.8M")
+
+(diff arr-vs-memo :replace arr :with arr-stated)
 
 ;; @@end 0

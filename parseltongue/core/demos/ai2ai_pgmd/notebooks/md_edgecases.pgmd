@@ -31,7 +31,24 @@ Pattern: **test harness** — exercises every markdown construct the notebook re
 
 (axiom retention-ok (> ?n 130) :origin "NRR > 130%")
 (derive retention-check retention-ok :bind ((?n nrr)) :using (nrr retention-ok))
+
+;; defterm, diff coverage
+(defterm burn-ratio (/ cac arr) :using (cac arr))
+(defterm health-label (if (> ltv-to-cac 3.0) "healthy" "weak") :using (ltv-to-cac))
+(defterm arr-stated 2800000 :origin "memo states ARR is $2.8M")
+
+(diff arr-vs-memo :replace arr :with arr-stated)
 ```
+
+## All node kinds
+
+Every kind the renderer must color correctly:
+
+- Fact: $[[fact:arr]] ARR
+- Axiom: [[axiom:retention-ok]] threshold
+- Derive: [[term:retention-check]] check
+- Defterm: [[term:burn-ratio]] burn ratio, [[term:health-label]] label
+- Diff: [[diff:arr-vs-memo]] validation
 
 ## Inline formatting
 

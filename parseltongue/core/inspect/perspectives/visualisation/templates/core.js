@@ -175,11 +175,24 @@ function switchView(v) {
       ? 'px-3 py-1 rounded-lg text-xs bg-mauve text-crust font-bold'
       : 'px-3 py-1 rounded-lg text-xs bg-surface0 text-subtext hover:bg-surface1';
   });
+  // Adjust full-height views to account for actual header size
+  _syncViewHeight();
   if (v === 'source') renderSource();
   if (v === 'structure') render();
   if (v === 'graph') renderGraph();
   if (v === 'layers') renderLayers();
 }
+
+function _syncViewHeight() {
+  const header = document.querySelector('#app > .sticky');
+  if (!header) return;
+  const h = header.offsetHeight;
+  ['layers-view', 'graph-view'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.height = 'calc(100vh - ' + h + 'px)';
+  });
+}
+window.addEventListener('resize', _syncViewHeight);
 
 // ── Filter logic ──
 function filtered(source) {
