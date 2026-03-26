@@ -490,6 +490,30 @@ function renderGraph() {
 
   updateGraphStats(null);
 
+  // ── External focus API ──
+  window._graphFocusNode = function(name) {
+    const target = nodes.find(n => n.id === name);
+    if (!target) return;
+    taintMode = false;
+    taintBtnEl.classList.remove('bg-red', 'text-crust', 'border-red');
+    taintBtnEl.classList.add('bg-surface0', 'text-subtext', 'border-surface2');
+    const path = collectGraphPath(name);
+    selectedPath = path;
+    selectedFocusId = name;
+    applySelectionVisuals(path, name);
+    updateGraphStats(path);
+    // Zoom to center on the focused node
+    const scale = 1.2;
+    const tx = width / 2 - target.x * scale;
+    const ty = height / 2 - target.y * scale;
+    svg.transition().duration(600).call(
+      zoomBehavior.transform, d3.zoomIdentity.translate(tx, ty).scale(scale)
+    );
+    // Open detail panel
+    const item = ITEM_BY_ID[name];
+    if (item) showDetail(item);
+  };
+
   // ── Depth band labels ──
   for (let d = 0; d <= maxDepth; d++) {
     gRoot.append("text")

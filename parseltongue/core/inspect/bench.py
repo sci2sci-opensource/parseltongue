@@ -294,14 +294,9 @@ class Bench:
         raise RuntimeError(f"No bench system for {path} — is it loaded?")
 
     def _copy_bench_system(self, path: str, name: str) -> tuple:
-        """Copy the best available bench system with scopes + count operator."""
-        from parseltongue.core.atoms import Symbol
-
+        """Copy the best available bench system."""
         bench_sys, is_frozen = self._prepare_bench_system(path)
         copy = bench_sys.system.copy(name=name, overridable=True)
-        copy.engine.env[Symbol("count")] = lambda *args: (
-            len(args[0]) if args and isinstance(args[0], (dict, list)) else 0
-        )
         return bench_sys._loader, copy
 
     def _ensure_eval_system(self, path: str):

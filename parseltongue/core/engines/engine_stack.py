@@ -577,7 +577,7 @@ class Engine(EngineProtocol):
 
                 # ── quote ──
                 if head == QUOTE:
-                    result = expr[1]
+                    result = expr[1] if len(expr) == 2 else list(expr[1:])
 
                 # ── strict ──
                 elif head == STRICT:

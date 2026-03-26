@@ -1,0 +1,74 @@
+"""Render a .pgmd notebook to self-contained HTML via bench.
+
+Combines executor (bench pipeline) with notebook_renderer (viz integration).
+"""
+
+from __future__ import annotations
+
+import sys
+import traceback
+from pathlib import Path
+
+from parseltongue.core.inspect.perspectives.visualisation.notebook_renderer import (
+    build_notebook_html,
+    build_viz_data,
+    render_notebook,
+)
+
+from .executor import NotebookResult, execute_pgmd
+
+
+def render_pgmd(pgmd_path: str | Path, title: str | None = None) -> str:
+    """Execute a .pgmd notebook and render to self-contained HTML.
+
+    Args:
+        pgmd_path: Path to the .pgmd file.
+        title: Optional title. Defaults to filename stem.
+
+    Returns:
+        Complete HTML string with notebook view + viz app.
+    """
+    pgmd_path = Path(pgmd_path).resolve()
+    if title is None:
+        title = pgmd_path.stem.replace("_", " ").replace("-", " ").title()
+
+    result = execute_pgmd(pgmd_path)
+    return render_result(result, title)
+
+
+def render_result(result: NotebookResult, title: str) -> str:
+    """Render an already-executed NotebookResult to HTML."""
+    items: list[dict] = []
+    layers_data: dict = {"layers": [], "edges": []}
+    node_index: dict = {}
+    engine = None
+    diagnostics: list[dict] = []
+
+    bench = result.bench
+    if bench is not None:
+        try:
+            lens = bench.lens()
+            items, layers_data, node_index = build_viz_data(lens._structure)
+        except Exception as e:
+            print(f"Warning: lens failed: {e}", file=sys.stderr)
+            traceback.print_exc(file=sys.stderr)
+
+        try:
+            engine = bench.engine
+        except Exception:
+            pass
+
+        try:
+            screen = bench.screen()
+            for item in screen._items:
+                sev = (
+                    "error"
+                    if item.category in ("issue", "loader")
+                    else "warning" if item.category == "warning" else "info"
+                )
+                diagnostics.append({"severity": sev, "message": f"[{item.type}] {item.name} @ {item.loc}"})
+        except Exception as e:
+            print(f"Warning: screen failed: {e}", file=sys.stderr)
+
+    notebook_html = build_notebook_html(result.blocks, result.block_outputs, node_index, diagnostics, engine)
+    return render_notebook(title, notebook_html, items, layers_data)

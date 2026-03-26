@@ -62,9 +62,35 @@ function renderTree(tree) {
   return renderNode(tree, true, '');
 }
 
+// ── Focus helpers (switch view + highlight node) ──
+// Graph and layers views register these callbacks on init.
+window._graphFocusNode = null;
+window._layersFocusNode = null;
+
+function focusInGraph(name) {
+  searchEl.value = name;
+  searchQuery = name.toLowerCase();
+  switchView('graph');
+  setTimeout(() => {
+    if (window._graphFocusNode) window._graphFocusNode(name);
+  }, 100);
+}
+function focusInLayers(name) {
+  searchEl.value = name;
+  searchQuery = name.toLowerCase();
+  switchView('layers');
+  setTimeout(() => {
+    if (window._layersFocusNode) window._layersFocusNode(name);
+  }, 100);
+}
+
 // ── Detail panel ──
 const panel = document.getElementById('detail-panel');
-document.getElementById('detail-close').onclick = () => panel.classList.add('translate-x-full');
+const appEl = document.getElementById('app');
+document.getElementById('detail-close').onclick = () => {
+  panel.classList.add('translate-x-full');
+  appEl.classList.remove('detail-open');
+};
 
 function _itemType(d) {
   // Detect item type from properties, not FORM_TYPE
@@ -78,6 +104,7 @@ function _itemType(d) {
 function showDetail(d) {
   if (!d) return;
   panel.classList.remove('translate-x-full');
+  appEl.classList.add('detail-open');
   document.getElementById('detail-title').textContent = d.id || d.doc || '';
   const body = document.getElementById('detail-body');
   let html = '';
@@ -94,6 +121,12 @@ function showDetail(d) {
     const displayVal = noVal ? 'No value' : d.value;
     html += `<div><span class="text-overlay0">value:</span><div class="mt-1 bg-surface0 rounded p-2 text-xs whitespace-pre-wrap ${noVal ? 'text-overlay0 italic' : ''}">${esc(displayVal)}</div></div>`;
     if (d.depth > 0) html += `<div><span class="text-overlay0">depth:</span> ${d.depth}</div>`;
+
+    // ── Focus actions ──
+    html += `<div class="flex gap-2 pt-1">`;
+    html += `<button class="px-2 py-1 rounded text-[10px] bg-surface0 text-subtext hover:bg-surface1 hover:text-mauve border border-surface2" onclick="focusInLayers('${d.id.replace(/'/g, "\\'")}')">Focus in Layers</button>`;
+    html += `<button class="px-2 py-1 rounded text-[10px] bg-surface0 text-subtext hover:bg-surface1 hover:text-mauve border border-surface2" onclick="focusInGraph('${d.id.replace(/'/g, "\\'")}')">Focus in Graph</button>`;
+    html += `</div>`;
 
     // ── Definition (WFF) ──
     if (d.definition) {

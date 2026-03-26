@@ -195,11 +195,34 @@ class BenchSystem:
         hs = HologramSystem(engine=engine or self.system.engine)
         self.register_scope("hologram", hs)
 
+    def ensure_builtins(self):
+        """Install built-in operators: count, nb.
+
+        Called once after scopes/renderers are registered. Idempotent.
+        """
+        if getattr(self, "_builtins_installed", False):
+            return
+        self._builtins_installed = True
+
+        # (count list-or-dict) → length
+        self.system.engine.env[Symbol("count")] = lambda *args: (
+            len(args[0]) if args and isinstance(args[0], (dict, list)) else 0
+        )
+
+        # (nb "path.pgmd") → execute notebook, render to HTML string
+        def _nb(pgmd_path_str, *_args):
+            from parseltongue.core.inspect.notebooks.render import render_pgmd
+
+            return render_pgmd(str(pgmd_path_str))
+
+        self.system.engine.env[Symbol("nb")] = _nb
+
     def register_renderer(self, name: str, renderer: "FormRenderer"):
         """Register a FormRenderer for (fmt "name" value)."""
         self.__init_perspectives__()
         self._perspectives[name] = renderer
         self._ensure_fmt()
+        self.ensure_builtins()
 
     def get_renderer(self, name: str) -> "FormRenderer | None":
         """Get a registered FormRenderer by name."""

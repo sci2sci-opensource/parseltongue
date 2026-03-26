@@ -236,10 +236,10 @@ def namespace_refs(text: str, bare_to_ns: dict[str, str], prefix: str = "") -> s
     """
 
     def _replace(m: re.Match) -> str:
-        ref_type, ref_name = m.group(1), m.group(2)
+        silent, ref_type, ref_name = m.group(1), m.group(2), m.group(3)
         if ref_name in bare_to_ns:
             ns = f"{prefix}{bare_to_ns[ref_name]}.{ref_name}"
-            return f"[[{ref_type}:{ns}]]"
+            return f"[[{silent}{ref_type}:{ns}]]"
         return m.group(0)
 
-    return re.sub(r"\[\[(\w+):([^\]]+)\]\]", _replace, text)
+    return re.sub(r"\[\[(~?)(\w+):([^\]]+)\]\]", _replace, text)

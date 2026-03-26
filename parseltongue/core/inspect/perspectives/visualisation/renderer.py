@@ -284,19 +284,13 @@ def _build_layers_data(structure: CoreToConsequenceStructure, item_names: set[st
       layers: [{depth, nodes: [{name, kind, value, uses, declares, pulls, module}]}]
       edges: [{source, target, type}]  — type: use/declare/pull
     """
-    from parseltongue.core.atoms import SILENCE
     from parseltongue.core.atoms import Symbol as _Sym
-    from parseltongue.core.lang import to_sexp as _to_sexp_val
+    from parseltongue.core.grammar import ParseltongueGrammar
 
     if structure is None:
         return {"layers": [], "edges": []}
 
-    def _fmt_val(v):
-        if v is None or v is SILENCE:
-            return str(SILENCE)
-        if isinstance(v, (list, _Sym)):
-            return _to_sexp_val(v)
-        return repr(v)
+    _enc = ParseltongueGrammar.enc
 
     def _keep(name):
         return item_names is None or name in item_names
@@ -310,7 +304,7 @@ def _build_layers_data(structure: CoreToConsequenceStructure, item_names: set[st
         for c in ly.consumers:
             if c.name.startswith("__") or not _keep(c.name):
                 continue
-            val_s = _fmt_val(c.value) if c.value else ""
+            val_s = _enc(c.value) if c.value else ""
             node = {
                 "name": c.name,
                 "kind": str(c.kind),
@@ -650,8 +644,7 @@ def _localize_multi(structure, seeds: set[str]):
 def _build_named_structure_data(names: set[str], structure) -> list[dict]:
     """Build ln-like structure items for a set of node names found in structure."""
     from parseltongue.core.atoms import SILENCE
-    from parseltongue.core.atoms import Symbol as _Sym
-    from parseltongue.core.lang import to_sexp as _to_sexp_val
+    from parseltongue.core.grammar import ParseltongueGrammar
 
     if structure is None:
         return []
@@ -661,12 +654,7 @@ def _build_named_structure_data(names: set[str], structure) -> list[dict]:
     if not graph:
         return []
 
-    def _fmt_val(v):
-        if v is None or v is SILENCE:
-            return str(SILENCE)
-        if isinstance(v, (list, _Sym)):
-            return _to_sexp_val(v)
-        return repr(v)
+    _enc = ParseltongueGrammar.enc
 
     items = []
     for name in sorted(names):
@@ -679,7 +667,7 @@ def _build_named_structure_data(names: set[str], structure) -> list[dict]:
         depth = depths.get(name, 0)
         inputs = list(node.inputs) if hasattr(node, "inputs") else []
         module = name.split(".")[0] if "." in name else ""
-        value = _fmt_val(getattr(node, "value", None))
+        value = _enc(getattr(node, "value", SILENCE))
         items.append(
             {
                 "id": name,

@@ -1,0 +1,133 @@
+# AI2AI Quick Assessment
+
+Pattern: **Standalone** — facts, computation, and prose all in one file. No external imports. Self-contained analysis that can be shared as a single document.
+
+## Source Data
+
+```scheme
+;; pltg Core Facts
+(load-document "memo" "../source/series_a_memo.txt")
+
+(fact arr 2800000
+  :evidence (evidence "memo"
+    :quotes ("Annual Recurring Revenue (ARR): $2,800,000")
+    :explanation "Current ARR"))
+(fact mrr 245000
+  :evidence (evidence "memo"
+    :quotes ("Monthly Recurring Revenue (MRR): $245,000")
+    :explanation "Current MRR"))
+(fact revenue 2400000
+  :evidence (evidence "memo"
+    :quotes ("Gross Revenue (TTM): $2,400,000")
+    :explanation "TTM revenue"))
+(fact cogs 480000
+  :evidence (evidence "memo"
+    :quotes ("Cost of Goods Sold (TTM): $480,000")
+    :explanation "TTM COGS"))
+(fact cash 8200000
+  :evidence (evidence "memo"
+    :quotes ("Cash on Hand: $8,200,000")
+    :explanation "Current cash"))
+(fact monthly-burn 380000
+  :evidence (evidence "memo"
+    :quotes ("Monthly Burn Rate: $380,000")
+    :explanation "Monthly burn"))
+(fact round-size 18000000
+  :evidence (evidence "memo"
+    :quotes ("Round Size: $18,000,000")
+    :explanation "Series A size"))
+(fact pre-money 55000000
+  :evidence (evidence "memo"
+    :quotes ("Pre-Money Valuation: $55,000,000")
+    :explanation "Pre-money valuation"))
+(fact nrr 180
+  :evidence (evidence "memo"
+    :quotes ("Net Revenue Retention (NRR): 180%")
+    :explanation "NRR"))
+(fact ltv 89400
+  :evidence (evidence "memo"
+    :quotes ("Estimated Customer Lifetime Value (LTV): $89,400")
+    :explanation "Customer LTV"))
+(fact cac 18200
+  :evidence (evidence "memo"
+    :quotes ("Customer Acquisition Cost (CAC): $18,200")
+    :explanation "CAC"))
+(fact monthly-churn-pct 1.4
+  :evidence (evidence "memo"
+    :quotes ("Monthly Logo Churn Rate: 1.4%")
+    :explanation "Monthly churn"))
+(fact enterprise-customers 6
+  :evidence (evidence "memo"
+    :quotes ("Enterprise (>$50K ACV): 6")
+    :explanation "Enterprise count"))
+(fact total-customers 43
+  :evidence (evidence "memo"
+    :quotes ("Total Paying Customers: 43")
+    :explanation "Total customers"))
+(fact active-pilots 12
+  :evidence (evidence "memo"
+    :quotes ("Active Enterprise Pilots: 12")
+    :explanation "Active pilots"))
+(fact dau 1450
+  :evidence (evidence "memo"
+    :quotes ("Daily Active Users (cloud): 1,450")
+    :explanation "DAU"))
+(fact wau 2800
+  :evidence (evidence "memo"
+    :quotes ("Weekly Active Users (cloud): 2,800")
+    :explanation "WAU"))
+(print "Facts loaded:")
+arr
+```
+
+AI2AI: $[[fact:arr]] ARR, [[fact:enterprise-customers]] enterprise customers, [[fact:total-customers]] total. Raising $[[fact:round-size]] at $[[fact:pre-money]] pre-money.
+
+## Key Metrics
+
+```scheme
+;; pltg Computed Metrics
+(derive gross-margin (/ (- revenue cogs) revenue) :using (revenue cogs))
+(derive ltv-to-cac (/ ltv cac) :using (ltv cac))
+(derive runway-months (/ cash monthly-burn) :using (cash monthly-burn))
+(derive post-raise-cash (+ cash round-size) :using (cash round-size))
+(derive post-raise-runway (/ post-raise-cash monthly-burn) :using (post-raise-cash monthly-burn))
+(derive arr-multiple (/ pre-money arr) :using (pre-money arr))
+(derive dau-wau-ratio (/ dau wau) :using (dau wau))
+(print "Gross margin:")
+gross-margin
+```
+
+- Gross margin: **[[term:gross-margin]]%**
+- LTV/CAC: **[[term:ltv-to-cac]]x**
+- NRR: **[[fact:nrr]]%**
+- Runway: [[term:runway-months]] months pre-raise → **[[term:post-raise-runway]] months post-raise**
+- Valuation: **[[term:arr-multiple]]x ARR**
+- DAU/WAU: **[[term:dau-wau-ratio]]**
+
+## Validation
+
+```scheme
+;; pltg Business Rules
+(axiom margin-ok (> ?m 0.6) :origin "gross margin > 60%")
+(derive margin-check margin-ok :bind ((?m gross-margin)) :using (gross-margin margin-ok))
+
+(axiom ltv-cac-ok (> ?r 3.0) :origin "LTV/CAC > 3x")
+(derive ltv-cac-check ltv-cac-ok :bind ((?r ltv-to-cac)) :using (ltv-to-cac ltv-cac-ok))
+
+(axiom retention-ok (> ?n 130) :origin "NRR > 130%")
+(derive retention-check retention-ok :bind ((?n nrr)) :using (nrr retention-ok))
+
+(axiom churn-ok (< ?c 2.0) :origin "monthly churn < 2%")
+(derive churn-check churn-ok :bind ((?c monthly-churn-pct)) :using (monthly-churn-pct churn-ok))
+
+(axiom valuation-ok (< ?v 25) :origin "ARR multiple < 25x")
+(derive valuation-check valuation-ok :bind ((?v arr-multiple)) :using (arr-multiple valuation-ok))
+(print "All checks:")
+valuation-check
+```
+
+All checks: margin[[~term:margin-check]], LTV/CAC[[~term:ltv-cac-check]], retention[[~term:retention-check]], churn[[~term:churn-check]], valuation[[~term:valuation-check]].
+
+## Verdict
+
+Strong deal. [[term:ltv-to-cac]]x LTV/CAC with [[fact:nrr]]% NRR at [[term:arr-multiple]]x ARR is compelling for Series A. [[term:post-raise-runway]] months of post-raise runway provides ample time to reach $10M. [[fact:active-pilots]] active pilots de-risk near-term growth. Recommend proceeding.

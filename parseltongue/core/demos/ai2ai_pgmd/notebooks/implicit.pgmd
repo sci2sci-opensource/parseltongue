@@ -1,0 +1,68 @@
+# AI2AI Series A Due Diligence
+
+Pattern: **Implicit** — all computation lives in `ai2ai_rules.pltg`. This notebook imports the pre-computed analysis and focuses on narrative, using footnote references to cite facts and derived metrics.
+
+```scheme
+;; pltg Load Analysis
+(import (quote ..facts.ai2ai_facts))
+(import (quote ..analysis.ai2ai_rules))
+```
+
+## Investment Thesis
+
+AI2AI is building the verification layer for AI-assisted software development. As LLMs generate more code, the need for formal guarantees grows proportionally. AI2AI's neurosymbolic approach — LLMs propose, symbolic engines prove — addresses this directly.
+
+The company operates an open-core model comparable to GitLab's early trajectory: a widely-adopted open-source tool ([[fact:ai2ai_facts.github-stars]] GitHub stars, [[fact:ai2ai_facts.contributors]] contributors) that converts into enterprise revenue. With [[fact:ai2ai_facts.teams-using]] teams already integrated into CI/CD pipelines, the distribution moat is real.
+
+## Financial Position
+
+AI2AI has reached $[[fact:ai2ai_facts.arr]] ARR growing at [[fact:ai2ai_facts.yoy-growth-pct]]% year-over-year. The revenue mix skews enterprise: [[term:ai2ai_rules.enterprise-arr-pct]] of ARR comes from [[fact:ai2ai_facts.enterprise-customers]] enterprise accounts at $[[fact:ai2ai_facts.enterprise-acv]] average ACV.
+
+Gross margin stands at [[term:ai2ai_rules.gross-margin]][[~term:ai2ai_rules.margin-check]], healthy for a cloud-delivered developer tool with some managed infrastructure costs. For reference, GitLab operated at similar margins pre-IPO, expanding as self-serve scaled.
+
+The company holds $[[fact:ai2ai_facts.cash]] in cash with [[term:ai2ai_rules.runway-months]] months of runway at current burn[[~term:ai2ai_rules.runway-check]]. Post-raise, this extends to [[term:ai2ai_rules.post-raise-runway]] months — ample time to reach the next milestone.
+
+## Unit Economics
+
+The unit economics are the strongest signal in this deal:
+
+- **LTV/CAC: [[term:ai2ai_rules.ltv-to-cac]]x**[[~term:ai2ai_rules.ltv-cac-check]] — enterprise customers pay back acquisition cost within the first year, then expand
+- **NRR: [[fact:ai2ai_facts.nrr]]%**[[~term:ai2ai_rules.retention-check]] — exceptional. Best-in-class developer tools (Datadog, HashiCorp) operate at 130–140%. AI2AI's 180% reflects deep within-account expansion as teams discover new use cases
+- **Monthly churn: [[fact:ai2ai_facts.monthly-churn-pct]]%**[[~term:ai2ai_rules.churn-check]] — well below the 2% threshold
+- **ARR per customer: $[[term:ai2ai_rules.arr-per-customer]]** — room to grow as mid-market accounts expand
+
+The JetBrains comparison is instructive: deep code intelligence creates high switching costs. Once a team's rule library is built on AI2AI's language, migration cost is substantial. This is visible in the [[fact:ai2ai_facts.grr]]% gross retention.
+
+## Growth Trajectory
+
+The path to $10M ARR is built on three pillars:
+
+**Pipeline conversion.** [[fact:ai2ai_facts.active-pilots]] enterprise pilots are active, with a historical [[fact:ai2ai_facts.pilot-conversion-pct]]% close rate. Expected conversion: $[[term:ai2ai_rules.expected-pipeline-conversion]].
+
+**Account expansion.** Existing accounts are projected to generate $[[fact:ai2ai_facts.expansion-revenue]] in expansion revenue over the next 12 months, driven by the 180% NRR dynamic.
+
+**Projected ARR.** Combining current ARR, pipeline conversion, and expansion: **$[[term:ai2ai_rules.projected-arr-12mo]] projected in 12 months**[[~term:ai2ai_rules.pipeline-check]]. The remaining gap to $10M is achievable through continued new logo acquisition at current rates.
+
+## Product & Engagement
+
+Daily engagement is strong at [[term:ai2ai_rules.dau-wau-ratio]] DAU/WAU[[~term:ai2ai_rules.engagement-check]], indicating the product is part of daily developer workflow — not a periodic audit tool. Each active user processes [[term:ai2ai_rules.reviews-per-dau]] code reviews per month, and the platform handles [[fact:ai2ai_facts.monthly-rule-evals]] rule evaluations monthly.
+
+The OSS community ([[fact:ai2ai_facts.contributors]] contributors) provides a durable acquisition channel: 34% of new users discover AI2AI organically through GitHub. This mirrors Snyk's early flywheel — developer adoption drives enterprise demand.
+
+## Valuation
+
+At $[[fact:ai2ai_facts.pre-money]] pre-money on $[[fact:ai2ai_facts.arr]] ARR, the deal prices at **[[term:ai2ai_rules.arr-multiple]]x ARR**[[~term:ai2ai_rules.valuation-check]]. Given 340% growth, 180% NRR, and strong enterprise traction, this is within range for comparable Series A rounds:
+
+- Snyk (2019 Series A): ~25x ARR, similar OSS-first model
+- Semgrep (Series B): ~20x ARR, comparable static analysis positioning
+- GitLab (Series A): ~18x ARR, open-core developer tools
+
+The [[fact:ai2ai_facts.dilution-pct]]% dilution is standard for an $18M Series A.
+
+## Risk Factors
+
+Enterprise sales cycles average 4-6 months, creating lumpy revenue. The CTO is the primary symbolic engine architect — key person risk that should be mitigated through the planned engineering expansion (current [[fact:ai2ai_facts.eng-headcount]], targeting [[fact:ai2ai_facts.eng-target-12mo]] in 12 months). Competition from Semgrep and GitHub Copilot is real but AI2AI's formal verification depth is differentiated.
+
+## Recommendation
+
+**Proceed at proposed terms.** All quantitative checks pass[[~term:ai2ai_rules.margin-check]][[~term:ai2ai_rules.ltv-cac-check]][[~term:ai2ai_rules.retention-check]][[~term:ai2ai_rules.churn-check]][[~term:ai2ai_rules.engagement-check]][[~term:ai2ai_rules.valuation-check]][[~term:ai2ai_rules.pipeline-check]]. The combination of exceptional NRR, proven open-source traction, and a clear path to $10M ARR makes this a compelling Series A. Revenue efficiency ([[term:ai2ai_rules.sales-efficiency]]x ARR per S&M dollar) and [[term:ai2ai_rules.burn-multiple]]x burn multiple indicate capital-efficient growth.

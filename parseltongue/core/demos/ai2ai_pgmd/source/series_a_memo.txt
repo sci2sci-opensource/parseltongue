@@ -1,0 +1,187 @@
+AI2AI — Series A Investment Memo
+Prepared for: Meridian Partners | Date: Q1 2026
+Lead: Meridian Partners ($18M) | Co-investor: Construct Ventures ($4M)
+
+═══════════════════════════════════════════════════════════════════
+1. COMPANY OVERVIEW
+═══════════════════════════════════════════════════════════════════
+
+AI2AI is building neurosymbolic AI for code understanding and business
+rule validation. The platform combines large language models with formal
+verification — LLMs propose, symbolic engines prove. The result is AI
+that can explain its reasoning and guarantee correctness for critical
+code paths and business logic.
+
+Founded: March 2024 (2 years ago)
+Headquarters: San Francisco, CA
+Employees: 45
+Sector: Developer Tools / AI Infrastructure
+
+The company operates an open-core model:
+  - AI2AI Community (MIT License): core symbolic engine, code analysis
+    primitives, rule language, and CLI tools. Available on GitHub with
+    4,200 stars, 215 contributors, and ~800 teams using it in CI/CD.
+  - AI2AI Enterprise: managed cloud deployment, SSO/SAML, compliance
+    dashboards, audit trails, team workspaces, priority support, and
+    advanced integrations (Jira, Linear, Datadog).
+
+Comparable companies:
+  - GitLab: open-core developer platform, PLG → enterprise motion
+  - JetBrains: deep code intelligence, freemium → paid conversion
+  - Snyk: developer-first security, OSS adoption → enterprise upsell
+  - Semgrep (r2c): static analysis with custom rules, OSS → enterprise
+
+═══════════════════════════════════════════════════════════════════
+2. FINANCIALS
+═══════════════════════════════════════════════════════════════════
+
+Annual Recurring Revenue (ARR): $2,800,000
+Monthly Recurring Revenue (MRR): $245,000
+Gross Revenue (TTM): $2,400,000
+Cost of Goods Sold (TTM): $480,000
+Revenue Growth Rate (YoY): 340%
+
+Revenue Breakdown:
+  - Enterprise contracts: $2,100,000 (75% of ARR)
+  - Self-serve pro tier: $560,000 (20% of ARR)
+  - Support & services: $140,000 (5% of ARR)
+
+═══════════════════════════════════════════════════════════════════
+3. OPERATING EXPENSES
+═══════════════════════════════════════════════════════════════════
+
+Engineering: $3,200,000
+Sales & Marketing: $1,400,000
+General & Administrative: $520,000
+Total Operating Expenses: $5,120,000
+
+Monthly Burn Rate: $380,000
+
+R&D as % of OpEx: 62.5%
+
+═══════════════════════════════════════════════════════════════════
+4. CASH POSITION
+═══════════════════════════════════════════════════════════════════
+
+Cash on Hand: $8,200,000
+Source: $10M seed round (Construct Ventures, June 2024)
+Monthly Burn Rate: $380,000
+Implied Runway: ~21 months (without new revenue growth)
+
+═══════════════════════════════════════════════════════════════════
+5. CUSTOMER METRICS
+═══════════════════════════════════════════════════════════════════
+
+Total Paying Customers: 43
+  - Enterprise (>$50K ACV): 6
+  - Mid-market ($10K-$50K): 14
+  - Self-serve pro: 23
+
+Average Contract Value (ACV): $65,116
+Enterprise ACV: $127,500
+Net Revenue Retention (NRR): 180%
+Gross Revenue Retention (GRR): 94%
+Monthly Logo Churn Rate: 1.4%
+Customer Acquisition Cost (CAC): $18,200
+Estimated Customer Lifetime Value (LTV): $89,400
+
+Enterprise customers:
+  1. Meridian Financial — $150K ACV (regulatory code compliance)
+  2. NovaTech Systems — $140K ACV (embedded systems verification)
+  3. Constellation Health — $130K ACV (HIPAA rule validation)
+  4. Apex Logistics — $120K ACV (supply chain rule engine)
+  5. Redwood Analytics — $105K ACV (financial model verification)
+  6. Stratos Cloud — $90K ACV (infrastructure policy checks)
+
+═══════════════════════════════════════════════════════════════════
+6. PIPELINE & GROWTH TRAJECTORY
+═══════════════════════════════════════════════════════════════════
+
+Active Enterprise Pilots: 12
+Pilot → Paid Conversion Rate: 75%
+Expected ARR from Pipeline: $1,800,000 (next 2 quarters)
+Expansion Revenue (existing accounts, next 12 months): $1,200,000
+
+Path to $10M ARR:
+  - Current ARR: $2,800,000
+  - Pipeline conversion (75% of $1.8M): +$1,350,000
+  - Existing account expansion: +$1,200,000
+  - Self-serve growth (60% YoY): +$336,000
+  - New enterprise (4 deals/quarter at $100K): +$3,200,000
+  - Projected ARR in 18 months: $8,886,000
+  - Buffer to $10M: achievable with one strong quarter
+
+Pipeline Deals (>$100K):
+  - Vertex Semiconductor: $180K (in negotiation, Q2 close)
+  - Pacific Mutual Insurance: $200K (pilot started, 8 weeks in)
+  - GlobalTrade Corp: $160K (pilot starting Q2)
+  - Federal contractor (unnamed): $250K (RFP stage, FedRAMP pending)
+
+═══════════════════════════════════════════════════════════════════
+7. PRODUCT & ENGAGEMENT
+═══════════════════════════════════════════════════════════════════
+
+GitHub Stars: 4,200
+Contributors: 215
+Teams Using (CI/CD integrations): 812
+Daily Active Users (cloud): 1,450
+Weekly Active Users (cloud): 2,800
+Monthly Code Reviews Processed: 62,000
+Monthly Rule Evaluations: 340,000
+
+DAU/WAU Ratio: 51.8%
+Avg Session Duration: 12 minutes
+
+OSS adoption channels:
+  - 34% organic (GitHub discovery, Hacker News, word of mouth)
+  - 28% content (blog posts, conference talks, tutorials)
+  - 22% integrations (VS Code extension, GitHub Action)
+  - 16% referrals (existing users, community Slack)
+
+═══════════════════════════════════════════════════════════════════
+8. TEAM
+═══════════════════════════════════════════════════════════════════
+
+Employees: 45
+Engineering: 28 (incl. 4 PhDs in formal methods/PL theory)
+Sales: 8
+Marketing: 4
+Operations: 5
+
+Key hires in last 6 months:
+  - VP Engineering (ex-Datadog, 12 years infra)
+  - Head of Sales (ex-Snyk, built $20M enterprise book)
+  - Staff Eng, Symbolic Systems (ex-Galois, Haskell/Coq expert)
+
+Engineering headcount plan post-raise:
+  - Current: 28
+  - 12-month target: 42 (+14)
+  - Focus: enterprise features, rule language v2, IDE integrations
+
+═══════════════════════════════════════════════════════════════════
+9. DEAL TERMS
+═══════════════════════════════════════════════════════════════════
+
+Round Size: $18,000,000
+Lead Investor: Meridian Partners ($14,000,000)
+Co-investor: Construct Ventures ($4,000,000, pro-rata from seed)
+Pre-Money Valuation: $55,000,000
+Post-Money Valuation: $73,000,000
+Dilution: 24.7%
+
+Board: 2 founders + 1 Meridian + 1 Construct + 1 independent
+Liquidation preference: 1x non-participating
+Pro-rata rights: all investors
+Option pool: expanded to 15% post-money
+
+═══════════════════════════════════════════════════════════════════
+10. RISKS
+═══════════════════════════════════════════════════════════════════
+
+  - Enterprise sales cycle: 4-6 month average, capital intensive
+  - Key person risk: CTO is primary symbolic engine architect
+  - Competition: Semgrep expanding into verification, GitHub Copilot
+    adding rule-checking features
+  - Open-source sustainability: community engagement requires ongoing
+    investment; risk of fork if enterprise features diverge too far
+  - FedRAMP certification: 6-12 month process, needed for gov pipeline

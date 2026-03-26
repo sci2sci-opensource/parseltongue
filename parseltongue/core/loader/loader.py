@@ -185,16 +185,39 @@ class Loader:
     def _make_loader_effects(self):
         """Create loader-specific effects that close over this Loader."""
 
+        def _register_alias(engine, alias: str, canonical: str):
+            """Register alias on loader engine + system engine (facts, terms, axioms, theorems, env)."""
+            self._engine.register_alias(alias, canonical)
+            for reg in (engine.facts, engine.terms, engine.axioms, engine.theorems):
+                for key in list(reg):
+                    if key.startswith(f"{canonical}."):
+                        reg[alias + key[len(canonical) :]] = reg[key]
+            for key in list(engine.env):
+                ks = str(key)
+                if ks.startswith(f"{canonical}."):
+                    engine.env[Symbol(alias + ks[len(canonical) :])] = engine.env[key]
+            log.info("Aliased '%s' → '%s'", alias, canonical)
+
         def import_effect(system: System, module_sym) -> bool:
-            """Effect: (import (quote some.module))
+            """Effect: (import (quote some.module [alias]))
 
             Supports Python-style relative imports with leading dots:
               (import (quote .sibling))       →  ./sibling.pltg
               (import (quote ..std.counting)) →  ../std/counting.pltg
               (import (quote ...pkg.mod))     →  ../../pkg/mod.pltg
             Without leading dots, resolves relative to current directory.
+
+            Optional alias (second element in quote) registers a short name:
+              (import (quote ..facts.ai2ai_facts ai2ai_facts))
+            makes ai2ai_facts.X resolve to facts.ai2ai_facts.X.
             """
             from .loader_engine import module_to_path, parse_module_name
+
+            # Support (import (quote module alias)) — module_sym is a list
+            alias_sym = None
+            if isinstance(module_sym, (list, tuple)) and len(module_sym) == 2:
+                alias_sym = module_sym[1]
+                module_sym = module_sym[0]
 
             raw_name = str(module_sym)
             module_name, dots = parse_module_name(raw_name)
@@ -218,6 +241,8 @@ class Loader:
                         )
                     else:
                         log.debug("Module '%s' already imported, skipping", module_name)
+                if alias_sym is not None:
+                    _register_alias(system.engine, str(alias_sym), original)
                 return True
 
             from .loader_engine import resolve_module_path
@@ -256,6 +281,10 @@ class Loader:
                 self._file_stack.pop()
 
             log.info("Imported module '%s' from %s", module_name, abs_path)
+
+            if alias_sym is not None:
+                _register_alias(system.engine, str(alias_sym), module_name)
+
             return True
 
         def run_on_entry_effect(system: System, *quoted_exprs) -> bool:

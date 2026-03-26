@@ -1,0 +1,216 @@
+;; AI2AI — raw facts extracted from Series A investment memo
+
+(load-document "memo" "../source/series_a_memo.txt")
+
+;; ── Financials ──
+(fact arr 2800000
+  :evidence (evidence "memo"
+    :quotes ("Annual Recurring Revenue (ARR): $2,800,000")
+    :explanation "Current ARR"))
+
+(fact mrr 245000
+  :evidence (evidence "memo"
+    :quotes ("Monthly Recurring Revenue (MRR): $245,000")
+    :explanation "Current MRR"))
+
+(fact revenue 2400000
+  :evidence (evidence "memo"
+    :quotes ("Gross Revenue (TTM): $2,400,000")
+    :explanation "Trailing twelve months gross revenue"))
+
+(fact cogs 480000
+  :evidence (evidence "memo"
+    :quotes ("Cost of Goods Sold (TTM): $480,000")
+    :explanation "TTM cost of goods sold"))
+
+(fact yoy-growth-pct 340
+  :evidence (evidence "memo"
+    :quotes ("Revenue Growth Rate (YoY): 340%")
+    :explanation "Year-over-year revenue growth percentage"))
+
+(fact enterprise-arr 2100000
+  :evidence (evidence "memo"
+    :quotes ("Enterprise contracts: $2,100,000 (75% of ARR)")
+    :explanation "Enterprise tier ARR"))
+
+(fact self-serve-arr 560000
+  :evidence (evidence "memo"
+    :quotes ("Self-serve pro tier: $560,000 (20% of ARR)")
+    :explanation "Self-serve pro tier ARR"))
+
+;; ── Operating expenses ──
+(fact eng-expense 3200000
+  :evidence (evidence "memo"
+    :quotes ("Engineering: $3,200,000")
+    :explanation "Annual engineering spend"))
+
+(fact sales-expense 1400000
+  :evidence (evidence "memo"
+    :quotes ("Sales & Marketing: $1,400,000")
+    :explanation "Annual S&M spend"))
+
+(fact ga-expense 520000
+  :evidence (evidence "memo"
+    :quotes ("General & Administrative: $520,000")
+    :explanation "Annual G&A spend"))
+
+(fact total-opex 5120000
+  :evidence (evidence "memo"
+    :quotes ("Total Operating Expenses: $5,120,000")
+    :explanation "Total annual operating expenses"))
+
+;; ── Cash ──
+(fact cash 8200000
+  :evidence (evidence "memo"
+    :quotes ("Cash on Hand: $8,200,000")
+    :explanation "Current cash position"))
+
+(fact monthly-burn 380000
+  :evidence (evidence "memo"
+    :quotes ("Monthly Burn Rate: $380,000")
+    :explanation "Current monthly burn rate"))
+
+;; ── Customer metrics ──
+(fact total-customers 43
+  :evidence (evidence "memo"
+    :quotes ("Total Paying Customers: 43")
+    :explanation "Current paying customer count"))
+
+(fact enterprise-customers 6
+  :evidence (evidence "memo"
+    :quotes ("Enterprise (>$50K ACV): 6")
+    :explanation "Enterprise tier customers"))
+
+(fact mid-market-customers 14
+  :evidence (evidence "memo"
+    :quotes ("Mid-market ($10K-$50K): 14")
+    :explanation "Mid-market tier customers"))
+
+(fact acv 65116
+  :evidence (evidence "memo"
+    :quotes ("Average Contract Value (ACV): $65,116")
+    :explanation "Blended average contract value"))
+
+(fact enterprise-acv 127500
+  :evidence (evidence "memo"
+    :quotes ("Enterprise ACV: $127,500")
+    :explanation "Enterprise average contract value"))
+
+(fact nrr 180
+  :evidence (evidence "memo"
+    :quotes ("Net Revenue Retention (NRR): 180%")
+    :explanation "Net revenue retention percentage"))
+
+(fact grr 94
+  :evidence (evidence "memo"
+    :quotes ("Gross Revenue Retention (GRR): 94%")
+    :explanation "Gross revenue retention percentage"))
+
+(fact monthly-churn-pct 1.4
+  :evidence (evidence "memo"
+    :quotes ("Monthly Logo Churn Rate: 1.4%")
+    :explanation "Monthly customer churn rate"))
+
+(fact cac 18200
+  :evidence (evidence "memo"
+    :quotes ("Customer Acquisition Cost (CAC): $18,200")
+    :explanation "Cost to acquire one customer"))
+
+(fact ltv 89400
+  :evidence (evidence "memo"
+    :quotes ("Estimated Customer Lifetime Value (LTV): $89,400")
+    :explanation "Estimated customer lifetime value"))
+
+;; ── Pipeline ──
+(fact active-pilots 12
+  :evidence (evidence "memo"
+    :quotes ("Active Enterprise Pilots: 12")
+    :explanation "Current enterprise pilots"))
+
+(fact pilot-conversion-pct 75
+  :evidence (evidence "memo"
+    :quotes ("Pilot → Paid Conversion Rate: 75%")
+    :explanation "Historical pilot to paid conversion rate"))
+
+(fact pipeline-arr 1800000
+  :evidence (evidence "memo"
+    :quotes ("Expected ARR from Pipeline: $1,800,000 (next 2 quarters)")
+    :explanation "Expected ARR from current pipeline"))
+
+(fact expansion-revenue 1200000
+  :evidence (evidence "memo"
+    :quotes ("Expansion Revenue (existing accounts, next 12 months): $1,200,000")
+    :explanation "Expected expansion from existing accounts"))
+
+;; ── Product & engagement ──
+(fact github-stars 4200
+  :evidence (evidence "memo"
+    :quotes ("GitHub Stars: 4,200")
+    :explanation "GitHub star count"))
+
+(fact contributors 215
+  :evidence (evidence "memo"
+    :quotes ("Contributors: 215")
+    :explanation "Open source contributors"))
+
+(fact teams-using 812
+  :evidence (evidence "memo"
+    :quotes ("Teams Using (CI/CD integrations): 812")
+    :explanation "Teams with active CI/CD integration"))
+
+(fact dau 1450
+  :evidence (evidence "memo"
+    :quotes ("Daily Active Users (cloud): 1,450")
+    :explanation "Daily active users on cloud platform"))
+
+(fact wau 2800
+  :evidence (evidence "memo"
+    :quotes ("Weekly Active Users (cloud): 2,800")
+    :explanation "Weekly active users on cloud platform"))
+
+(fact monthly-reviews 62000
+  :evidence (evidence "memo"
+    :quotes ("Monthly Code Reviews Processed: 62,000")
+    :explanation "Monthly code reviews processed"))
+
+(fact monthly-rule-evals 340000
+  :evidence (evidence "memo"
+    :quotes ("Monthly Rule Evaluations: 340,000")
+    :explanation "Monthly symbolic rule evaluations"))
+
+;; ── Team ──
+(fact headcount 45
+  :evidence (evidence "memo"
+    :quotes ("Employees: 45")
+    :explanation "Total headcount"))
+
+(fact eng-headcount 28
+  :evidence (evidence "memo"
+    :quotes ("Engineering: 28 (incl. 4 PhDs in formal methods/PL theory)")
+    :explanation "Engineering team size"))
+
+(fact eng-target-12mo 42
+  :evidence (evidence "memo"
+    :quotes ("12-month target: 42 (+14)")
+    :explanation "Engineering headcount target in 12 months"))
+
+;; ── Deal terms ──
+(fact round-size 18000000
+  :evidence (evidence "memo"
+    :quotes ("Round Size: $18,000,000")
+    :explanation "Proposed Series A round size"))
+
+(fact pre-money 55000000
+  :evidence (evidence "memo"
+    :quotes ("Pre-Money Valuation: $55,000,000")
+    :explanation "Pre-money valuation"))
+
+(fact post-money 73000000
+  :evidence (evidence "memo"
+    :quotes ("Post-Money Valuation: $73,000,000")
+    :explanation "Post-money valuation"))
+
+(fact dilution-pct 24.7
+  :evidence (evidence "memo"
+    :quotes ("Dilution: 24.7%")
+    :explanation "Dilution percentage"))

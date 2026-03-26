@@ -1423,4 +1423,26 @@ function renderLayers() {
     applyTaints();
     if (_focusStack.length) applyFocusTaints();
   }
+
+  // ── External focus API ──
+  window._layersFocusNode = function(name) {
+    const pill = g.select(`.pill-node[data-name="${name}"]`);
+    if (!pill.empty()) {
+      selectNode(name);
+      // Extract translate(x,y) from the pill's transform attribute (coords in g-space)
+      const tAttr = pill.attr("transform") || '';
+      const m = tAttr.match(/translate\(\s*([\d.e+-]+)\s*,\s*([\d.e+-]+)/);
+      if (m) {
+        const bbox = pill.node().getBBox();
+        const cx = parseFloat(m[1]) + bbox.width / 2;
+        const cy = parseFloat(m[2]) + bbox.height / 2;
+        const scale = 1.5;
+        const tx = W / 2 - cx * scale;
+        const ty = H / 2 - cy * scale;
+        svg.transition().duration(600).call(
+          zoomBehavior.transform, d3.zoomIdentity.translate(tx, ty).scale(scale)
+        );
+      }
+    }
+  };
 }
