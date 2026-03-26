@@ -195,20 +195,25 @@ class Engine(EngineProtocol):
             return self.terms[name]
         return None
 
-    def verify_manual(self, name: str):
+    def verify_manual(self, name: str, signature: str = "system"):
         item = self._lookup(name)
         if item is None:
             raise KeyError(f"Unknown: {name}")
 
         origin = item.origin
         if isinstance(origin, Evidence):
-            new_origin = replace(origin, verify_manual=True)
+            explanation = (
+                f"{origin.explanation} [Signed: {signature}]" if origin.explanation else f"[Signed: {signature}]"
+            )
+            new_origin = replace(origin, verify_manual=True, signature=signature, explanation=explanation)
         else:
+            base = origin if isinstance(origin, str) else str(origin)
             new_origin = Evidence(
                 document="manual",
                 quotes=[],
-                explanation=origin if isinstance(origin, str) else str(origin),
+                explanation=f"{base} [Signed: {signature}]",
                 verify_manual=True,
+                signature=signature,
             )
 
         # Write back to the correct store with narrowed type
@@ -1658,11 +1663,14 @@ class Engine(EngineProtocol):
                     if name in store:
                         origin = store[name].origin
                         if isinstance(origin, Evidence):
-                            manual_details[name] = (
-                                f"document={origin.document}, "
-                                f"quotes={origin.quotes}, "
-                                f"explanation={origin.explanation}"
-                            )
+                            parts = []
+                            if origin.explanation:
+                                parts.append(origin.explanation)
+                            if origin.quotes:
+                                parts.append(f"quotes: {origin.quotes}")
+                            if origin.document and origin.document != "manual":
+                                parts.append(f"(source: {origin.document})")
+                            manual_details[name] = " ".join(parts) if parts else "manually verified"
                         elif origin:
                             manual_details[name] = str(origin)
                         else:

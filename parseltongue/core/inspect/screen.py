@@ -159,6 +159,7 @@ class Screen:
 
         for warning, located in lc.located_warnings():
             for li in located:
+                detail = warning.details.get(li.name) or li.item
                 items.append(
                     ScreenItem(
                         name=li.name,
@@ -166,7 +167,7 @@ class Screen:
                         type=warning.type.value,
                         kind=li.kind,
                         loc=li.loc,
-                        detail=li.item,
+                        detail=detail,
                     )
                 )
 
@@ -352,10 +353,18 @@ class Screen:
                 if len(by_kind) > 1:
                     lines.append(f"  {k}:")
                     for item in items:
-                        lines.append(f"    {item.name} @ {item.loc}")
+                        line = f"    {item.name} @ {item.loc}"
+                        if item.detail and item.detail != item.name:
+                            lines.append(f"{line}\n      {item.detail}")
+                        else:
+                            lines.append(line)
                 else:
                     for item in items:
-                        lines.append(f"  {item.name} @ {item.loc}")
+                        line = f"  {item.name} @ {item.loc}"
+                        if item.detail and item.detail != item.name:
+                            lines.append(f"{line}\n    {item.detail}")
+                        else:
+                            lines.append(line)
 
         return "\n".join(lines)
 

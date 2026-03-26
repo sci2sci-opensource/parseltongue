@@ -6,6 +6,7 @@ Pattern: **Implicit** — all computation lives in `ai2ai_rules.pltg`. This note
 ;; pltg Load Analysis
 (import (quote ..facts.ai2ai_facts))
 (import (quote ..analysis.ai2ai_rules))
+(import (quote review-implicit))
 ```
 
 ## Investment Thesis

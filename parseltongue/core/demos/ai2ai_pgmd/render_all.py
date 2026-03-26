@@ -16,10 +16,10 @@ NOTEBOOKS = [
     ("notebooks/standalone.pgmd", "AI2AI — Standalone Pattern"),
 ]
 
-OUTPUT_DIR = project_root / "temp" / "pgmd_output"
-OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-
 demo_dir = Path(__file__).resolve().parent
+
+OUTPUT_DIR = demo_dir / "pgmd_out"
+OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 for rel_path, title in NOTEBOOKS:
     pgmd_path = demo_dir / rel_path

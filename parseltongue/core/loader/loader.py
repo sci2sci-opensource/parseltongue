@@ -379,9 +379,9 @@ class Loader:
                 print(report)
                 return True
 
-        def verify_manual_effect(system: System, name) -> bool:
-            """Effect: (verify-manual name) — manually verify a fact/term/axiom."""
-            system.verify_manual(str(name))
+        def verify_manual_effect(system: System, name, signature="system") -> bool:
+            """Effect: (verify-manual name [signature]) — manually verify a fact/term/axiom."""
+            system.verify_manual(str(name), signature=str(signature))
             return True
 
         def dangerously_eval_effect(system: System, *args):

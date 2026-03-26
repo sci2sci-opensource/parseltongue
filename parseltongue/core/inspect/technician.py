@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import logging
 import threading
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING, Callable
 
@@ -73,6 +74,7 @@ class Technician:
         self._affected: dict[str, set[str]] = {}
         self._search_mem: dict = {}  # path → Search
         self._ops: "OperationsSystem | None" = None  # shared, stateless
+        self._session: dict | None = None  # logbook session entry
 
     @property
     def file_lists(self) -> dict[str, list[str]]:
@@ -85,6 +87,22 @@ class Technician:
     @property
     def bg_reload(self) -> dict[str, threading.Thread]:
         return self._bg_reload
+
+    # ── Logbook ──
+
+    def log_session(self, user: str, assistant: str):
+        """Record who booked this bench session. Persists to logbook."""
+        self._session = {
+            "user": user,
+            "assistant": assistant,
+            "started": datetime.now(timezone.utc).isoformat(),
+        }
+        self._store.log_session(self._session)
+        log.info("Bench booked: user=%s assistant=%s", user, assistant)
+
+    @property
+    def session(self) -> dict | None:
+        return self._session
 
     # ── Frozen / Live systems ──
 

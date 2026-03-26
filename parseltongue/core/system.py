@@ -108,8 +108,8 @@ class AbstractSystem(Rewriter, Interpreter):
     def set_fact(self, name, value, origin):
         self.engine.set_fact(name, value, origin)
 
-    def verify_manual(self, name):
-        self.engine.verify_manual(name)
+    def verify_manual(self, name, signature: str = "system"):
+        self.engine.verify_manual(name, signature=signature)
 
     def register_document(self, name, text):
         self.engine.register_document(name, text)

@@ -116,6 +116,17 @@ class Bench:
         self.integrity = self.Integrity()
         self.status = self.Status()
 
+    # ── Booking ──
+
+    def book(self, user: str, assistant: str):
+        """Book this bench for a session. Logs user/assistant with the technician."""
+        self._technician.log_session(user, assistant)
+
+    @property
+    def session(self) -> dict | None:
+        """Current session info, or None if not booked."""
+        return self._technician.session
+
     # ── Status callback (given to Technician) ──
 
     def _on_status(self, path: str, integrity: str, status: str):

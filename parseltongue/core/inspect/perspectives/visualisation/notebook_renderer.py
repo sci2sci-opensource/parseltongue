@@ -439,7 +439,7 @@ def build_notebook_html(
     <span class="text-overlay0 text-xs">{len(items_list)}</span>
     <span class="nb-arrow text-overlay0 text-xs ml-auto">&#9656;</span>
   </div>
-  <div class="nb-block-code hidden">{rows}</div>
+  <div class="nb-block-code hidden max-h-64 overflow-y-auto">{rows}</div>
 </div>'''
 
         sections.append(
@@ -483,6 +483,8 @@ def build_viz_data(structure: "CoreToConsequenceStructure") -> tuple[list[dict],
     """
     items: list[dict] = []
     for name, node in structure.graph.items():
+        if name == "__output__":
+            continue
         kind = node.kind.value if hasattr(node.kind, "value") else str(node.kind)
         from parseltongue.core.grammar import ParseltongueGrammar
 

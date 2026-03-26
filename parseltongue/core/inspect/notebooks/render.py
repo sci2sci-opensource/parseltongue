@@ -66,7 +66,10 @@ def render_result(result: NotebookResult, title: str) -> str:
                     if item.category in ("issue", "loader")
                     else "warning" if item.category == "warning" else "info"
                 )
-                diagnostics.append({"severity": sev, "message": f"[{item.type}] {item.name} @ {item.loc}"})
+                msg = f"[{item.type}] {item.name} @ {item.loc}"
+                if item.detail and str(item.detail) != item.name:
+                    msg += f"\n  {item.detail}"
+                diagnostics.append({"severity": sev, "message": msg})
         except Exception as e:
             print(f"Warning: screen failed: {e}", file=sys.stderr)
 

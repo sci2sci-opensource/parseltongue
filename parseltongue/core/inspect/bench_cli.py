@@ -151,13 +151,23 @@ def _recv(sock: socket.socket) -> dict:
 class BenchServer:
     """Holds a Bench instance, dispatches commands from socket clients."""
 
-    def __init__(self, pltg_path: str, *, background: bool = False, effects: dict | None = None):
+    def __init__(
+        self,
+        pltg_path: str,
+        *,
+        background: bool = False,
+        effects: dict | None = None,
+        user: str | None = None,
+        assistant: str | None = None,
+    ):
         from .bench import Bench
 
         self.bench = Bench()
         self.pltg_path = pltg_path
         self._effects = effects
         self._last_search: dict | None = None  # cached last search query+params
+        if user or assistant:
+            self.bench.book(user or "", assistant or "")
         if not background:
             self.bench.prepare(pltg_path, effects=effects)
 
@@ -363,7 +373,13 @@ class BenchServer:
                     text = "\n".join(parts).strip() if items else "No loader errors."
                 elif what == "warnings":
                     items = dx.warnings()
-                    text = "\n".join(str(i) for i in items) if items else "No warnings."
+                    parts = []
+                    for i in items:
+                        parts.append(f"[{i.type}] {i.name} @ {i.loc}")
+                        if i.detail and i.detail != i.name:
+                            parts.append(f"  {i.detail}")
+                        parts.append("")
+                    text = "\n".join(parts).strip() if items else "No warnings."
                 elif what == "danglings":
                     items = dx.danglings()
                     text = "\n".join(str(i) for i in items) if items else "No danglings."
@@ -1000,7 +1016,13 @@ def _setup_file_logging(console_level: str):
 
 
 def _run_server(
-    pltg_path: str, sock_path: Path, refresh_s: int = 0, log_level: str = "ERROR", effects: dict | None = None
+    pltg_path: str,
+    sock_path: Path,
+    refresh_s: int = 0,
+    log_level: str = "ERROR",
+    effects: dict | None = None,
+    user: str | None = None,
+    assistant: str | None = None,
 ):
     _setup_file_logging(log_level)
     sock_path.parent.mkdir(parents=True, exist_ok=True)
@@ -1012,7 +1034,7 @@ def _run_server(
     sock.bind(str(sock_path))
     sock.listen(4)
 
-    server = BenchServer(pltg_path, background=True, effects=effects)
+    server = BenchServer(pltg_path, background=True, effects=effects, user=user, assistant=assistant)
     click.echo(f"Listening on {sock_path}")
     click.echo(f"Loading {pltg_path} ...")
     server.start_background_load()
@@ -1190,6 +1212,11 @@ def cli():
       pg-bench ping   pg-bench status   pg-bench reload   pg-bench purge
 
     \b
+    NOTEBOOKS (.pgmd → HTML):
+      pg-bench render analysis.pgmd              # render to stdout
+      pg-bench render analysis.pgmd -o out.html  # render to file
+
+    \b
     See advanced usage patterns in parseltongue/core/demos/ and
     parseltongue/llm/demos/ — governance pipelines, spec validation,
     revenue reports, all driven by eval/interpret + scopes + fmt.
@@ -1263,6 +1290,8 @@ def _serve_options(fn):
         default=None,
         help="Effects dict as 'module:attr', e.g. 'mypackage.ops:EFFECTS'.",
     )(fn)
+    fn = click.option("--user", default=None, help="Book bench: user name.")(fn)
+    fn = click.option("--assistant", default=None, help="Book bench: assistant name.")(fn)
     fn = click.option("--verbose", "-v", is_flag=False, help="Shorthand for --log-level INFO.")(fn)
     fn = click.option(
         "--log-level",
@@ -1279,7 +1308,15 @@ def _resolve_log_level(verbose: bool, log_level: str) -> str:
     return "INFO" if verbose else log_level
 
 
-def _daemonize(path: str, sock: str, refresh_s: int, log_level: str, effects: dict | None = None):
+def _daemonize(
+    path: str,
+    sock: str,
+    refresh_s: int,
+    log_level: str,
+    effects: dict | None = None,
+    user: str | None = None,
+    assistant: str | None = None,
+):
     """Double-fork daemonize, then exec _run_server in the grandchild."""
     pid = os.fork()
     if pid > 0:
@@ -1299,39 +1336,77 @@ def _daemonize(path: str, sock: str, refresh_s: int, log_level: str, effects: di
     os.dup2(devnull, 2)
     os.close(devnull)
 
-    _run_server(path, Path(sock), refresh_s=refresh_s, log_level=log_level, effects=effects)
+    _run_server(
+        path, Path(sock), refresh_s=refresh_s, log_level=log_level, effects=effects, user=user, assistant=assistant
+    )
     os._exit(0)
 
 
 @cli.command()
 @_serve_options
 @_serve_doc(_LIFECYCLE_HELP, _INDEX_HELP, _VARIANTS_HELP)
-def serve(path: str, sock: str, refresh_s: int, effects_spec: str | None, verbose: bool, log_level: str):
+def serve(
+    path: str,
+    sock: str,
+    refresh_s: int,
+    effects_spec: str | None,
+    user: str | None,
+    assistant: str | None,
+    verbose: bool,
+    log_level: str,
+):
     """Start the bench server in the foreground (blocking)."""
     effects = _import_effects(effects_spec) if effects_spec else None
     _run_server(
-        path, Path(sock), refresh_s=refresh_s, log_level=_resolve_log_level(verbose, log_level), effects=effects
+        path,
+        Path(sock),
+        refresh_s=refresh_s,
+        log_level=_resolve_log_level(verbose, log_level),
+        effects=effects,
+        user=user,
+        assistant=assistant,
     )
 
 
 @cli.command()
 @_serve_options
 @_serve_doc(_LIFECYCLE_HELP, _INDEX_HELP, _VARIANTS_HELP)
-def start(path: str, sock: str, refresh_s: int, effects_spec: str | None, verbose: bool, log_level: str):
+def start(
+    path: str,
+    sock: str,
+    refresh_s: int,
+    effects_spec: str | None,
+    user: str | None,
+    assistant: str | None,
+    verbose: bool,
+    log_level: str,
+):
     """Start the bench server as a daemon (returns immediately).
 
     \b
     Double-fork daemonization — the server survives terminal close.
     """
     effects = _import_effects(effects_spec) if effects_spec else None
-    _daemonize(path, sock, refresh_s, _resolve_log_level(verbose, log_level), effects=effects)
+    _daemonize(
+        path, sock, refresh_s, _resolve_log_level(verbose, log_level), effects=effects, user=user, assistant=assistant
+    )
 
 
 @cli.command()
 @_serve_options
 @click.option("-d", "--detach", is_flag=True, help="Detach — run as daemon (like start).")
 @_serve_doc(_LIFECYCLE_HELP, _INDEX_HELP)
-def up(path: str, sock: str, refresh_s: int, effects_spec: str | None, verbose: bool, log_level: str, detach: bool):
+def up(
+    path: str,
+    sock: str,
+    refresh_s: int,
+    effects_spec: str | None,
+    user: str | None,
+    assistant: str | None,
+    verbose: bool,
+    log_level: str,
+    detach: bool,
+):
     """Start the bench server. Foreground by default, -d to detach.
 
     \b
@@ -1342,9 +1417,11 @@ def up(path: str, sock: str, refresh_s: int, effects_spec: str | None, verbose: 
     level = _resolve_log_level(verbose, log_level)
     effects = _import_effects(effects_spec) if effects_spec else None
     if detach:
-        _daemonize(path, sock, refresh_s, level, effects=effects)
+        _daemonize(path, sock, refresh_s, level, effects=effects, user=user, assistant=assistant)
     else:
-        _run_server(path, Path(sock), refresh_s=refresh_s, log_level=level, effects=effects)
+        _run_server(
+            path, Path(sock), refresh_s=refresh_s, log_level=level, effects=effects, user=user, assistant=assistant
+        )
 
 
 def _read_expression(expression: str | None, file: str | None) -> str:
@@ -2225,16 +2302,40 @@ def learn(what: str):
       pg-bench learn kung-fu           # full pg-bench skill for LLM agents
       pg-bench learn kung-fu > pg.md   # save to file
     """
-    skills = {"kung-fu": "PG-SKILL.md"}
-    filename = skills.get(what)
-    if not filename:
-        click.echo(f"Unknown skill: {what}. Available: {', '.join(skills)}", err=True)
+    from .construct import list_skills, load_skill
+
+    try:
+        click.echo(load_skill(what))
+    except KeyError:
+        for name, desc in list_skills():
+            click.echo(f"  {name:20s} {desc}", err=True)
         raise SystemExit(1)
-    skill_path = Path(__file__).parent / "skills" / filename
-    if not skill_path.exists():
-        click.echo(f"Skill file not found: {skill_path}", err=True)
+    except FileNotFoundError as e:
+        click.echo(str(e), err=True)
         raise SystemExit(1)
-    click.echo(skill_path.read_text())
+
+
+@cli.command("render")
+@click.argument("pgmd_path", type=click.Path(exists=True))
+@click.option("-o", "--output", type=click.Path(), default=None, help="Output HTML file. Defaults to stdout.")
+@click.option("-t", "--title", default=None, help="Page title. Defaults to filename.")
+def render(pgmd_path: str, output: str | None, title: str | None):
+    """Render a .pgmd notebook to self-contained HTML.
+
+    \b
+    Usage:
+      pg-bench render analysis.pgmd                    # stdout
+      pg-bench render analysis.pgmd -o out.html        # write to file
+      pg-bench render analysis.pgmd -t "Q3 Report"     # custom title
+    """
+    from .notebooks import render_pgmd
+
+    html = render_pgmd(pgmd_path, title)
+    if output:
+        Path(output).write_text(html)
+        click.echo(f"Rendered → {output} ({len(html):,} bytes)", err=True)
+    else:
+        click.echo(html)
 
 
 if __name__ == "__main__":

@@ -84,6 +84,7 @@ class Evidence:
     verification: list = field(default_factory=list)  # filled by verifier
     verified: bool = False  # all quotes verified?
     verify_manual: bool = False  # manually verified by user?
+    signature: str | None = None  # who verified — set by verify_manual
 
     @property
     def is_grounded(self) -> bool:

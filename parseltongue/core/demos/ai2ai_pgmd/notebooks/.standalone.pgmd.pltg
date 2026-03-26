@@ -1,10 +1,4 @@
-# AI2AI Quick Assessment
-
-Pattern: **Standalone** — facts, computation, and prose all in one file. No external imports. Self-contained analysis that can be shared as a single document.
-
-## Source Data
-
-```scheme
+;; @@block 0 7aa74cf7ca5c53b8e37c6ed21bbb29acf76b4efc399f883bfeae7269f66bc5d9
 ;; pltg Core Facts
 (load-document "memo" "../source/series_a_memo.txt")
 
@@ -78,13 +72,9 @@ Pattern: **Standalone** — facts, computation, and prose all in one file. No ex
     :explanation "WAU"))
 (print "Facts loaded:")
 arr
-```
 
-AI2AI: $[[fact:arr]] ARR, [[fact:enterprise-customers]] enterprise customers, [[fact:total-customers]] total. Raising $[[fact:round-size]] at $[[fact:pre-money]] pre-money.
-
-## Key Metrics
-
-```scheme
+;; @@end 0
+;; @@block 1 3d826bbad1e32c075a4f579617280c818e6e1dc482121de348bb3b6f99f33241
 ;; pltg Computed Metrics
 (derive gross-margin (/ (- revenue cogs) revenue) :using (revenue cogs))
 (derive ltv-to-cac (/ ltv cac) :using (ltv cac))
@@ -95,18 +85,9 @@ AI2AI: $[[fact:arr]] ARR, [[fact:enterprise-customers]] enterprise customers, [[
 (derive dau-wau-ratio (/ dau wau) :using (dau wau))
 (print "Gross margin:")
 gross-margin
-```
 
-- Gross margin: **[[term:gross-margin]]%**
-- LTV/CAC: **[[term:ltv-to-cac]]x**
-- NRR: **[[fact:nrr]]%**
-- Runway: [[term:runway-months]] months pre-raise → **[[term:post-raise-runway]] months post-raise**
-- Valuation: **[[term:arr-multiple]]x ARR**
-- DAU/WAU: **[[term:dau-wau-ratio]]**
-
-## Validation
-
-```scheme
+;; @@end 1
+;; @@block 2 b7e8efb1ec581b96f9c9a9accabde78e79c01877475860c5a288f7cf9496b44f
 ;; pltg Business Rules
 (axiom margin-ok (> ?m 0.6) :origin "gross margin > 60%")
 (derive margin-check margin-ok :bind ((?m gross-margin)) :using (gross-margin margin-ok))
@@ -124,17 +105,12 @@ gross-margin
 (derive valuation-check valuation-ok :bind ((?v arr-multiple)) :using (arr-multiple valuation-ok))
 (print "All checks:")
 valuation-check
-```
 
-All checks: margin[[~term:margin-check]], LTV/CAC[[~term:ltv-cac-check]], retention[[~term:retention-check]], churn[[~term:churn-check]], valuation[[~term:valuation-check]].
-
-## Verdict
-
-Strong deal. [[term:ltv-to-cac]]x LTV/CAC with [[fact:nrr]]% NRR at [[term:arr-multiple]]x ARR is compelling for Series A. [[term:post-raise-runway]] months of post-raise runway provides ample time to reach $10M. [[fact:active-pilots]] active pilots de-risk near-term growth. Recommend proceeding.
-
-```scheme
+;; @@end 2
+;; @@block 3 26c52f79c303712bee74ca4a07f47dc00161d92c51427f42f729021dd185a0a4
 ;; pltg Review
 (verify-manual (quote margin-ok) "Claude")
 (verify-manual (quote ltv-cac-ok) "Claude")
 (verify-manual (quote churn-ok) "Claude")
-```
+
+;; @@end 3

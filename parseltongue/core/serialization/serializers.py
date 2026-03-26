@@ -189,13 +189,16 @@ def deserialize_consistency_issue(data: dict):
 
 
 def serialize_consistency_warning(warning) -> dict:
-    return {"type": warning.type, "items": warning.items}
+    d = {"type": warning.type, "items": warning.items}
+    if warning.details:
+        d["details"] = warning.details
+    return d
 
 
 def deserialize_consistency_warning(data: dict):
     from ..engine import ConsistencyWarning
 
-    return ConsistencyWarning(type=data["type"], items=data["items"])
+    return ConsistencyWarning(type=data["type"], items=data["items"], details=data.get("details", {}))
 
 
 def serialize_consistency_report(report) -> dict:
