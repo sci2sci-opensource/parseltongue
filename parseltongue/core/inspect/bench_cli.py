@@ -1131,9 +1131,9 @@ def cli():
     """pg-bench — persistent .pltg inspection daemon.
 
     \b
-    LLM AGENTS — learn kung-fu:
-      pg-bench learn kung-fu           # full skill reference
-      This is the one skill an LLM should acquire before using pg-bench.
+    LLM AGENTS — learn:
+      pg-bench learn kung-fu           # bench mastery
+      pg-bench learn to-connect        # pgmd notebooks
 
     \b
     eval and interpret are the primary interface. eval is pure (clean
@@ -1222,9 +1222,9 @@ def cli():
     revenue reports, all driven by eval/interpret + scopes + fmt.
 
     \b
-    LLM AGENTS — learn kung-fu:
-      pg-bench learn kung-fu           # full skill reference
-      This is the one skill an LLM should acquire before using pg-bench.
+    LLM AGENTS — learn:
+      pg-bench learn kung-fu           # bench mastery
+      pg-bench learn to-connect        # pgmd notebooks
     """
 
 
@@ -2292,16 +2292,27 @@ def history_compact(yes: bool):
     _print_result(_query({"action": "history", "sub": "compact", "confirm": True}))
 
 
+def _learn_doc():
+    """Decorator: build learn help from construct registry."""
+    from .construct import list_skills
+
+    def decorator(fn):
+        lines = ["Available skills:"]
+        for name, desc in list_skills():
+            lines.append(f"  pg-bench learn {name:20s} # {desc}")
+        base = (fn.__doc__ or "").rstrip()
+        base += "\n\n    \b\n    " + "\n    ".join(lines)
+        fn.__doc__ = base
+        return fn
+
+    return decorator
+
+
 @cli.command("learn")
 @click.argument("what", default="kung-fu")
+@_learn_doc()
 def learn(what: str):
-    """I know kung-fu.
-
-    \b
-    Usage:
-      pg-bench learn kung-fu           # full pg-bench skill for LLM agents
-      pg-bench learn kung-fu > pg.md   # save to file
-    """
+    """I know kung-fu."""
     from .construct import list_skills, load_skill
 
     try:
