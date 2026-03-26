@@ -1,0 +1,31 @@
+;; @@block 0 23a07993e7ba4dfc80cf9bc62225a814c0bcfc240b15e6eb8041a4cf2863e9d5
+;; pltg — minimal facts for ref testing
+(load-document "memo" "../source/series_a_memo.txt")
+
+(fact arr 2800000
+  :evidence (evidence "memo"
+    :quotes ("Annual Recurring Revenue (ARR): $2,800,000")
+    :explanation "Current ARR"))
+(fact nrr 180
+  :evidence (evidence "memo"
+    :quotes ("Net Revenue Retention (NRR): 180%")
+    :explanation "NRR"))
+(fact cac 18200
+  :evidence (evidence "memo"
+    :quotes ("Customer Acquisition Cost (CAC): $18,200")
+    :explanation "CAC"))
+(fact ltv 89400
+  :evidence (evidence "memo"
+    :quotes ("Estimated Customer Lifetime Value (LTV): $89,400")
+    :explanation "Customer LTV"))
+(fact cash 8200000
+  :evidence (evidence "memo"
+    :quotes ("Cash on Hand: $8,200,000")
+    :explanation "Current cash"))
+
+(derive ltv-to-cac (/ ltv cac) :using (ltv cac))
+
+(axiom retention-ok (> ?n 130) :origin "NRR > 130%")
+(derive retention-check retention-ok :bind ((?n nrr)) :using (nrr retention-ok))
+
+;; @@end 0

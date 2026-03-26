@@ -14,6 +14,7 @@ NOTEBOOKS = [
     ("notebooks/explicit.pgmd", "AI2AI — Explicit Pattern"),
     ("notebooks/implicit.pgmd", "AI2AI — Implicit Pattern"),
     ("notebooks/standalone.pgmd", "AI2AI — Standalone Pattern"),
+    ("notebooks/md_edgecases.pgmd", "AI2AI — Markdown Edge Cases"),
 ]
 
 demo_dir = Path(__file__).resolve().parent

@@ -59,8 +59,6 @@ _KIND_COLORS = {
     "synthetic": "overlay0",
 }
 
-_REF_RE = re.compile(r"([^\s,\[]*?)\[\[(~?)(\w+):([^\]]+)\]\]([^\s,.:;!?\[)]*)")
-
 
 # ── Value formatting ──
 
@@ -125,138 +123,306 @@ def _md_to_html(
     taint_sources: set[str] | None = None,
     taint_reasons: dict[str, str] | None = None,
 ) -> tuple[str, list[dict]]:
-    """Convert markdown to HTML, returning (html, collected_refs).
+    """Convert markdown to HTML via AST, returning (html, collected_refs).
 
+    Parses markdown into an AST first, then walks block tokens.
     Refs become inline footnotes; collected_refs is a list of
     {num, name, node_id, kind, value} dicts for margin pill rendering.
-    Each paragraph/heading/list gets its own margin pills aligned to it.
+    Each block-level element gets its own margin pills aligned to it.
     """
+    from parseltongue.core.notebooks.mdparser import parse_md_ast
+
     global _footnote_counter
     refs: list[dict] = []
-    lines = text.strip().split("\n")
-    out: list[str] = []
-    in_list = False
-    list_start = 0  # index into refs where current list began
-    list_lines: list[str] = []  # list item HTML accumulated
     _t = tainted or set()
     _ts = taint_sources or set()
     _tr = taint_reasons or {}
 
-    def _flush_list():
-        nonlocal in_list, list_start, list_lines
-        if not in_list:
-            return
-        ul = '<ul class="list-disc ml-6 mb-4 space-y-1">\n' + "\n".join(list_lines) + "\n</ul>"
-        out.append(_wrap_with_margin(ul, refs[list_start:], tainted=_t, taint_sources=_ts, taint_reasons=_tr))
-        in_list = False
-        list_lines = []
-
-    for line in lines:
-        s = line.strip()
-        if s.startswith("### "):
-            _flush_list()
-            before = len(refs)
-            html = f'<h3 class="text-lg font-bold text-mauve mt-6 mb-2">{_inline(s[4:], node_index, refs, tainted=_t, taint_sources=_ts)}</h3>'
-            out.append(_wrap_with_margin(html, refs[before:], tainted=_t, taint_sources=_ts, taint_reasons=_tr))
-        elif s.startswith("## "):
-            _flush_list()
-            before = len(refs)
-            html = f'<h2 class="text-xl font-bold text-mauve mt-8 mb-3">{_inline(s[3:], node_index, refs, tainted=_t, taint_sources=_ts)}</h2>'
-            out.append(_wrap_with_margin(html, refs[before:], tainted=_t, taint_sources=_ts, taint_reasons=_tr))
-        elif s.startswith("# "):
-            _flush_list()
-            before = len(refs)
-            html = f'<h1 class="text-2xl font-bold text-mauve mt-8 mb-4">{_inline(s[2:], node_index, refs, tainted=_t, taint_sources=_ts)}</h1>'
-            out.append(_wrap_with_margin(html, refs[before:], tainted=_t, taint_sources=_ts, taint_reasons=_tr))
-        elif s.startswith("- "):
-            if not in_list:
-                in_list = True
-                list_start = len(refs)
-                list_lines = []
-            list_lines.append(f"<li>{_inline(s[2:], node_index, refs, tainted=_t, taint_sources=_ts)}</li>")
-        elif not s:
-            _flush_list()
-            out.append("")
-        else:
-            _flush_list()
-            before = len(refs)
-            html = f'<p class="mb-3 leading-relaxed">{_inline(s, node_index, refs, tainted=_t, taint_sources=_ts)}</p>'
-            out.append(_wrap_with_margin(html, refs[before:], tainted=_t, taint_sources=_ts, taint_reasons=_tr))
-    _flush_list()
-    return "\n".join(out), refs
+    tokens = parse_md_ast(text)
+    out = _render_blocks(tokens, node_index, refs, _t, _ts, _tr)
+    return out, refs
 
 
-def _inline(
-    text: str,
+# ── Heading level → CSS classes ──
+
+_HEADING_CLASSES = {
+    1: "text-2xl font-bold text-mauve mt-8 mb-4",
+    2: "text-xl font-bold text-mauve mt-8 mb-3",
+    3: "text-lg font-bold text-mauve mt-6 mb-2",
+    4: "text-base font-bold text-mauve mt-4 mb-2",
+    5: "text-sm font-bold text-mauve mt-3 mb-1",
+    6: "text-sm font-bold text-mauve mt-3 mb-1",
+}
+
+
+def _render_blocks(
+    tokens: list[dict],
     node_index: dict,
-    refs: list[dict] | None = None,
-    tainted: set[str] | None = None,
-    taint_sources: set[str] | None = None,
+    refs: list[dict],
+    _t: set[str],
+    _ts: set[str],
+    _tr: dict[str, str],
 ) -> str:
-    global _footnote_counter
-    _t = tainted or set()
-    _ts = taint_sources or set()
-    text = html_mod.escape(text)
-    text = re.sub(r"`([^`]+)`", r'<code class="bg-surface0 px-1.5 py-0.5 rounded text-peach text-sm">\1</code>', text)
-    text = re.sub(r"\*\*([^*]+)\*\*", r"<strong>\1</strong>", text)
-    text = re.sub(r"\*([^*]+)\*", r"<em>\1</em>", text)
+    """Walk a list of block-level AST tokens and return HTML."""
+    parts: list[str] = []
+    for tok in tokens:
+        tt = tok["type"]
 
-    def _ref_replace(m):
-        global _footnote_counter
-        prefix = m.group(1)  # e.g. "$" or "**" before [[
-        silent = bool(m.group(2))  # ~ prefix
-        ref_type, ref_name = m.group(3), m.group(4)
-        suffix = m.group(5)  # e.g. "%" or "x" after ]]
-        node = _resolve_node(ref_name, node_index)
-        if node:
-            node_id = node["id"]
-            color = _KIND_COLORS.get(node["kind"], "subtext")
-            val = _fmt_value(node["value"])
-            _footnote_counter += 1
-            fn_num = _footnote_counter
-            is_tainted = node_id in _t
-            is_source = node_id in _ts
-            if refs is not None:
-                refs.append(
-                    {
-                        "num": fn_num,
-                        "name": ref_name,
-                        "node_id": node_id,
-                        "kind": node["kind"],
-                        "value": val,
-                        "silent": silent,
-                        "tainted": is_tainted,
-                        "taint_source": is_source,
-                    }
-                )
-            # Taint decoration for inline refs
-            taint_cls = ""
-            taint_indicator = ""
-            if is_source:
-                taint_cls = " nb-taint-source"
-                taint_indicator = '<span class="text-red text-[0.6em] ml-0.5" title="taint source">&#x2716;</span>'
-            elif is_tainted:
-                taint_cls = " nb-taint-propagated"
-                taint_indicator = '<span class="text-yellow text-[0.6em] ml-0.5" title="tainted">&#x26a0;</span>'
-            if silent:
-                return (
-                    f'{prefix}<span class="nb-fn cursor-pointer{taint_cls}" '
-                    f'data-node="{html_mod.escape(node_id)}" data-fn="{fn_num}">'
-                    f'<sup class="text-{color} text-[0.65em] font-bold">{fn_num}</sup>{taint_indicator}</span>{suffix}'
-                )
-            val_display = html_mod.escape(val) if val else html_mod.escape(ref_name)
-            return (
-                f'<span class="nb-fn text-{color} font-semibold cursor-pointer '
-                f'hover:underline decoration-dotted{taint_cls}" '
-                f'data-node="{html_mod.escape(node_id)}" data-fn="{fn_num}">'
-                f'{prefix}{val_display}{suffix}<sup class="text-{color} text-[0.6em] ml-0.5">{fn_num}</sup>{taint_indicator}</span>'
+        if tt == "heading":
+            before = len(refs)
+            level = tok.get("attrs", {}).get("level", 1)
+            cls = _HEADING_CLASSES.get(level, _HEADING_CLASSES[3])
+            tag = f"h{level}"
+            inner = _render_inline(tok.get("children", []), node_index, refs, _t, _ts)
+            html = f'<{tag} class="{cls}">{inner}</{tag}>'
+            parts.append(_wrap_with_margin(html, refs[before:], tainted=_t, taint_sources=_ts, taint_reasons=_tr))
+
+        elif tt == "paragraph":
+            before = len(refs)
+            inner = _render_inline(tok.get("children", []), node_index, refs, _t, _ts)
+            html = f'<p class="mb-3 leading-relaxed">{inner}</p>'
+            parts.append(_wrap_with_margin(html, refs[before:], tainted=_t, taint_sources=_ts, taint_reasons=_tr))
+
+        elif tt == "block_text":
+            # tight list item content — no <p> wrapper
+            inner = _render_inline(tok.get("children", []), node_index, refs, _t, _ts)
+            parts.append(inner)
+
+        elif tt == "list":
+            before = len(refs)
+            ordered = tok.get("attrs", {}).get("ordered", False)
+            if ordered:
+                start = tok.get("attrs", {}).get("start", 1)
+                start_attr = f' start="{start}"' if start != 1 else ""
+                tag_open = f'<ol class="list-decimal ml-6 mb-4 space-y-1"{start_attr}>'
+                tag_close = "</ol>"
+            else:
+                tag_open = '<ul class="list-disc ml-6 mb-4 space-y-1">'
+                tag_close = "</ul>"
+            items_html = []
+            for child in tok.get("children", []):
+                if child["type"] == "list_item":
+                    li_inner = _render_blocks(child.get("children", []), node_index, refs, _t, _ts, _tr)
+                    items_html.append(f"<li>{li_inner}</li>")
+            html = tag_open + "\n" + "\n".join(items_html) + "\n" + tag_close
+            parts.append(_wrap_with_margin(html, refs[before:], tainted=_t, taint_sources=_ts, taint_reasons=_tr))
+
+        elif tt == "block_code":
+            code = html_mod.escape(tok.get("raw", ""))
+            info = (tok.get("attrs") or {}).get("info", "")
+            lang_cls = f' class="language-{html_mod.escape(info)}"' if info else ""
+            parts.append(
+                f'<pre class="bg-crust border border-surface1 rounded-lg p-4 my-4 text-sm overflow-x-auto">'
+                f"<code{lang_cls}>{code}</code></pre>"
             )
-        return f'{prefix}<span class="text-overlay0">{ref_type}:{ref_name}</span>{suffix}'
 
-    text = _REF_RE.sub(_ref_replace, text)
-    # Prevent clustering: insert superscript comma between adjacent footnotes
-    text = re.sub(r'(</span>)\s*(<span class="nb-fn[ "])', r'\1<sup class="text-overlay0 text-[0.6em]">,</sup>\2', text)
-    return text
+        elif tt == "block_quote":
+            inner = _render_blocks(tok.get("children", []), node_index, refs, _t, _ts, _tr)
+            parts.append(
+                f'<blockquote class="border-l-4 border-surface1 pl-4 my-4 text-subtext italic">{inner}</blockquote>'
+            )
+
+        elif tt == "table":
+            parts.append(_render_table(tok, node_index, refs, _t, _ts))
+
+        elif tt == "thematic_break":
+            parts.append('<hr class="border-surface1 my-6">')
+
+        elif tt == "block_html":
+            parts.append(tok.get("raw", ""))
+
+        elif tt == "blank_line":
+            pass  # skip blank line tokens
+
+        else:
+            # Fallback: render children if present, otherwise raw
+            if "children" in tok:
+                parts.append(_render_blocks(tok["children"], node_index, refs, _t, _ts, _tr))
+            elif "raw" in tok:
+                parts.append(html_mod.escape(tok["raw"]))
+
+    return "\n".join(parts)
+
+
+def _render_table(
+    tok: dict,
+    node_index: dict,
+    refs: list[dict],
+    _t: set[str],
+    _ts: set[str],
+) -> str:
+    """Render a table AST token to HTML."""
+    parts = ['<table class="w-full border-collapse my-4 text-sm">']
+    for section in tok.get("children", []):
+        st = section["type"]
+        if st == "table_head":
+            parts.append("<thead>")
+            parts.append("<tr>")
+            for cell in section.get("children", []):
+                align = (cell.get("attrs") or {}).get("align")
+                style = f' style="text-align:{align}"' if align else ""
+                inner = _render_inline(cell.get("children", []), node_index, refs, _t, _ts)
+                parts.append(
+                    f'<th class="border border-surface1 px-3 py-1.5 bg-surface0 text-left font-bold"{style}>{inner}</th>'
+                )
+            parts.append("</tr>")
+            parts.append("</thead>")
+        elif st == "table_body":
+            parts.append("<tbody>")
+            for row in section.get("children", []):
+                parts.append("<tr>")
+                for cell in row.get("children", []):
+                    align = (cell.get("attrs") or {}).get("align")
+                    style = f' style="text-align:{align}"' if align else ""
+                    inner = _render_inline(cell.get("children", []), node_index, refs, _t, _ts)
+                    parts.append(f'<td class="border border-surface1 px-3 py-1.5"{style}>{inner}</td>')
+                parts.append("</tr>")
+            parts.append("</tbody>")
+    parts.append("</table>")
+    return "\n".join(parts)
+
+
+def _render_inline(
+    tokens: list[dict],
+    node_index: dict,
+    refs: list[dict],
+    _t: set[str],
+    _ts: set[str],
+) -> str:
+    """Walk a list of inline AST tokens and return HTML string."""
+    global _footnote_counter
+    parts: list[str] = []
+    for tok in tokens:
+        tt = tok["type"]
+
+        if tt == "text":
+            parts.append(html_mod.escape(tok.get("raw", "")))
+
+        elif tt == "strong":
+            inner = _render_inline(tok.get("children", []), node_index, refs, _t, _ts)
+            parts.append(f"<strong>{inner}</strong>")
+
+        elif tt == "emphasis":
+            inner = _render_inline(tok.get("children", []), node_index, refs, _t, _ts)
+            parts.append(f"<em>{inner}</em>")
+
+        elif tt == "codespan":
+            code = html_mod.escape(tok.get("raw", ""))
+            parts.append(f'<code class="bg-surface0 px-1.5 py-0.5 rounded text-peach text-sm">{code}</code>')
+
+        elif tt == "link":
+            url = html_mod.escape((tok.get("attrs") or {}).get("url", ""))
+            title = (tok.get("attrs") or {}).get("title")
+            title_attr = f' title="{html_mod.escape(title)}"' if title else ""
+            inner = _render_inline(tok.get("children", []), node_index, refs, _t, _ts)
+            parts.append(f'<a href="{url}" class="text-blue underline"{title_attr}>{inner}</a>')
+
+        elif tt == "image":
+            url = html_mod.escape((tok.get("attrs") or {}).get("url", ""))
+            title = (tok.get("attrs") or {}).get("title")
+            alt = ""
+            for child in tok.get("children", []):
+                if child.get("raw"):
+                    alt = html_mod.escape(child["raw"])
+            title_attr = f' title="{html_mod.escape(title)}"' if title else ""
+            parts.append(f'<img src="{url}" alt="{alt}"{title_attr} class="max-w-full">')
+
+        elif tt == "linebreak":
+            parts.append("<br>")
+
+        elif tt == "softbreak":
+            parts.append("\n")
+
+        elif tt == "inline_html":
+            parts.append(tok.get("raw", ""))
+
+        elif tt == "pgmd_ref":
+            parts.append(_render_pgmd_ref(tok, node_index, refs, _t, _ts))
+
+        else:
+            # Fallback: children or raw
+            if "children" in tok:
+                parts.append(_render_inline(tok["children"], node_index, refs, _t, _ts))
+            elif "raw" in tok:
+                parts.append(html_mod.escape(tok["raw"]))
+
+    result = "".join(parts)
+    # Prevent clustering: insert superscript comma between adjacent footnotes.
+    # Allow intervening closing tags (</strong>, </em>) between ref spans.
+    result = re.sub(
+        r'(</span>)((?:</(?:strong|em|a)>)*)\s*(<span class="nb-fn[ "])',
+        r'\1\2<sup class="text-overlay0 text-[0.6em]">,</sup>\3',
+        result,
+    )
+    return result
+
+
+def _render_pgmd_ref(
+    tok: dict,
+    node_index: dict,
+    refs: list[dict],
+    _t: set[str],
+    _ts: set[str],
+) -> str:
+    """Render a pgmd_ref inline token into an annotated footnote span."""
+    global _footnote_counter
+    attrs = tok.get("attrs", {})
+    prefix = html_mod.escape(attrs.get("prefix", ""))
+    suffix = html_mod.escape(attrs.get("suffix", ""))
+    silent = attrs.get("silent", False)
+    ref_type = attrs.get("ref_type", "")
+    ref_name = attrs.get("ref_name", "")
+
+    node = _resolve_node(ref_name, node_index)
+    if not node:
+        return f'{prefix}<span class="text-overlay0">{html_mod.escape(ref_type)}:{html_mod.escape(ref_name)}</span>{suffix}'
+
+    node_id = node["id"]
+    color = _KIND_COLORS.get(node["kind"], "subtext")
+    val = _fmt_value(node["value"])
+    _footnote_counter += 1
+    fn_num = _footnote_counter
+    is_tainted = node_id in _t
+    is_source = node_id in _ts
+
+    refs.append(
+        {
+            "num": fn_num,
+            "name": ref_name,
+            "node_id": node_id,
+            "kind": node["kind"],
+            "value": val,
+            "silent": silent,
+            "tainted": is_tainted,
+            "taint_source": is_source,
+        }
+    )
+
+    # Taint decoration — inside <sup> to stay aligned with footnote number
+    taint_cls = ""
+    taint_icon = ""
+    if is_source:
+        taint_cls = " nb-taint-source"
+        taint_icon = '<span class="text-red ml-0.5" title="taint source">&#x2716;</span>'
+    elif is_tainted:
+        taint_cls = " nb-taint-propagated"
+        taint_icon = '<span class="text-yellow ml-0.5" title="tainted">&#x26a0;</span>'
+
+    esc_id = html_mod.escape(node_id)
+    if silent:
+        return (
+            f'{prefix}<span class="nb-fn cursor-pointer{taint_cls}" '
+            f'data-node="{esc_id}" data-fn="{fn_num}">'
+            f'<sup class="text-{color} text-[0.65em] font-bold">{fn_num}{taint_icon}</sup></span>{suffix}'
+        )
+
+    val_display = html_mod.escape(val) if val else html_mod.escape(ref_name)
+    return (
+        f'<span class="nb-fn text-{color} font-semibold cursor-pointer '
+        f'hover:underline decoration-dotted{taint_cls}" '
+        f'data-node="{esc_id}" data-fn="{fn_num}">'
+        f'{prefix}{val_display}{suffix}<sup class="text-{color} text-[0.6em] ml-0.5">{fn_num}{taint_icon}</sup></span>'
+    )
 
 
 def _resolve_node(name: str, node_index: dict) -> dict | None:
