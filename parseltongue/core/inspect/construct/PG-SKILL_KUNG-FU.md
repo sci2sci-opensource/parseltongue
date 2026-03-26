@@ -18,7 +18,7 @@ pg-bench is a persistent inspection daemon for `.pltg` formal logic files. It lo
 ## Quick reference
 
 ```bash
-pg start main.pltg --log-level ERROR   # start daemon
+pg start main.pltg --user "Alice" --assistant "Claude"  # start + book
 pg wait --timeout 120                   # wait for load
 pg status                               # check state
 pg reload                               # reload after file changes
@@ -32,6 +32,16 @@ pg eval '(fmt "viz" (scope lens (find ".*")))' > viz.html  # generate visualizat
 ## Daemon lifecycle
 
 **Start** with `pg start main.pltg`. **Wait** with `pg wait`. **Check** with `pg status`. **Reload** with `pg reload` after file changes. **Purge** with `pg purge --yes` for nuclear reset.
+
+**Book a session** with `--user` and/or `--assistant` on any start command:
+
+```bash
+pg-bench serve main.pltg --user "Alice" --assistant "Claude"
+pg-bench start main.pltg --user "Alice"
+pg-bench up main.pltg --assistant "Claude"
+```
+
+Booking appends a session entry to `.parseltongue-bench/logbook.jsonl` — a persistent, append-only log of who used the bench and when. Either or both flags work. The session is also available in-memory via `bench.session`.
 
 **NEVER use `kill -9` or `pkill -9` on the daemon.** This skips the signal handler that cleans up the Unix socket at `~/.parseltongue/bench.sock`. Use normal `pkill -f bench_cli` (SIGTERM) or just `pg reload`.
 
@@ -572,3 +582,7 @@ pandoc -f html -t plain resources/raw/page.html > resources/page_clean.txt
 - **Not reading `pg eval --help`** → it's a full language reference. Read it first.
 - **Not `--force` after first index of new files** → content may not appear in search until forced.
 - **Summarizing or paraphrasing source documents** → the system quotes exact text. If your "document" is an LLM summary, every quote verification will fail or be meaningless. Always use direct file downloads converted to txt/md. If your sandbox blocks downloads, search for how to enable it (MCP tools, browser-use, file upload) and tell the user what to enable — do not silently fall back to summaries. Only rewrite content as a last resort, and confirm with the user it matches exactly.
+
+## See also
+
+- `pg-bench learn to-connect` — writing .pgmd notebooks (literate analysis with prose + pltg blocks, rendered to HTML)
