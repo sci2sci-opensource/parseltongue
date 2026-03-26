@@ -1,0 +1,84 @@
+name: Deploy demos to GitHub Pages
+
+on:
+  push:
+    branches: [master]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -e "."
+
+      - name: Render demos
+        working-directory: parseltongue/core/demos/ai2ai_pgmd
+        run: python render_all.py
+
+      - name: Assemble site
+        run: |
+          mkdir -p _site/demos
+          cp parseltongue/core/demos/ai2ai_pgmd/pgmd_out/*.html _site/demos/
+          cat > _site/index.html << 'INDEXEOF'
+          <!DOCTYPE html>
+          <html lang="en">
+          <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+            <title>parseltongue demos</title>
+            <style>
+              body { font-family: system-ui, sans-serif; max-width: 640px; margin: 4rem auto; padding: 0 1rem; color: #cdd6f4; background: #1e1e2e; }
+              a { color: #b4befe; }
+              a:hover { color: #cba6f7; }
+              h1 { font-size: 1.5rem; }
+              ul { list-style: none; padding: 0; }
+              li { margin: 0.75rem 0; }
+              li a { display: inline-block; padding: 0.5rem 1rem; background: #313244; border-radius: 0.5rem; text-decoration: none; }
+              li a:hover { background: #45475a; }
+              .dim { color: #6c7086; font-size: 0.85rem; }
+            </style>
+          </head>
+          <body>
+            <h1>parseltongue demos</h1>
+            <p class="dim">AI2AI pgmd notebook patterns — rendered from <code>.pgmd</code> files.</p>
+            <ul>
+              <li><a href="demos/explicit.html">Explicit pattern</a></li>
+              <li><a href="demos/implicit.html">Implicit pattern</a></li>
+              <li><a href="demos/standalone.html">Standalone pattern</a></li>
+              <li><a href="demos/md_edgecases.html">Markdown edge cases</a></li>
+            </ul>
+          </body>
+          </html>
+          INDEXEOF
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
