@@ -36,7 +36,7 @@ def _to_sexp(val: Any) -> str:
 
 
 #: Tags recognized as bench forms.
-FORM_TAGS = frozenset({"sr", "ln", "dx", "hn", "sr-fmt", "ln-fmt", "dx-fmt", "hn-fmt"})
+FORM_TAGS = frozenset({"sr", "ln", "dx", "hn", "df", "sr-fmt", "ln-fmt", "dx-fmt", "hn-fmt"})
 
 
 def _is_form(val) -> bool:

@@ -304,6 +304,8 @@ class BenchServer:
                     results.extend(self.bench.lens().find(pattern, mx))
                 if scope in ("all", "screen"):
                     results.extend(self.bench.screen().find(pattern, mx))
+                if scope in ("all", "hologram"):
+                    results.extend(self.bench.hologram.find(pattern, mx))
                 return {"ok": True, "results": results[:mx]}
 
             elif action == "fuzzy":
@@ -315,6 +317,8 @@ class BenchServer:
                     results.extend(self.bench.lens().fuzzy(query, mx))
                 if scope in ("all", "screen"):
                     results.extend(self.bench.screen().fuzzy(query, mx))
+                if scope in ("all", "hologram"):
+                    results.extend(self.bench.hologram.fuzzy(query, mx))
                 return {"ok": True, "results": results[:mx]}
 
             elif action == "view":
@@ -1716,13 +1720,13 @@ def interpret_cmd(expression: str | None, file: str | None, raw: bool):
 @cli.command()
 @click.argument("pattern")
 @click.option("--max", "max_results", default=50, help="Max results.")
-@click.option("--scope", default="all", type=click.Choice(["all", "lens", "screen"]), help="Search scope.")
+@click.option("--scope", default="all", type=click.Choice(["all", "lens", "screen", "hologram"]), help="Search scope.")
 def find(pattern: str, max_results: int, scope: str):
-    """Regex search over pltg names — lens graph + screen items.
+    """Regex search over pltg names — lens graph + screen items + hologram diffs.
 
     \b
     Returns matching names with kind/category and source file:line.
-    By default searches both lens (structure) and screen (consistency).
+    By default searches lens (structure), screen (consistency), and hologram (diffs).
     Use --scope to narrow: lens for definitions, screen for issues/danglings.
 
     \b
@@ -1738,14 +1742,14 @@ def find(pattern: str, max_results: int, scope: str):
 @cli.command()
 @click.argument("query")
 @click.option("--max", "max_results", default=10, help="Max results.")
-@click.option("--scope", default="all", type=click.Choice(["all", "lens", "screen"]), help="Search scope.")
+@click.option("--scope", default="all", type=click.Choice(["all", "lens", "screen", "hologram"]), help="Search scope.")
 def fuzzy(query: str, max_results: int, scope: str):
-    """Ranked substring search over pltg names — lens graph + screen items.
+    """Ranked substring search over pltg names — lens graph + screen items + hologram diffs.
 
     \b
     Scores by match quality: exact > suffix > prefix > infix.
     Returns names with kind/category and source file:line.
-    By default searches both lens and screen. Use --scope to narrow.
+    By default searches lens, screen, and hologram. Use --scope to narrow.
 
     \b
     Examples:

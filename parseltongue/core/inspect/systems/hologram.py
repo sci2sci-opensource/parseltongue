@@ -44,15 +44,24 @@ class HologramSystem:
     """
 
     tag = Symbol("hn")
+    diff_tag = Symbol("df")
     name = "hologram"
 
-    def __init__(self, hologram: "Hologram | None" = None, engine=None):
+    def __init__(self, hologram: "Hologram | None" = None, engine=None, result=None):
         log.info("HologramSystem init: hologram=%s engine=%s", hologram is not None, engine is not None)
         self._hologram = hologram
         self._engine = engine
         self._lens_systems: list[LensSearchSystem] = []
         self._all_names: set[str] = set()
         self._names_per_lens: list[set[str]] = []
+        self._diff_meta: list | None = None
+
+        if result is not None:
+            from ..probe_core_to_consequence import probe_diffs
+
+            self._diff_meta = probe_diffs(result)
+            if engine is None:
+                self._engine = result.system.engine
 
         if hologram is not None:
             self._init_from_hologram(hologram)
@@ -174,7 +183,13 @@ class HologramSystem:
             diff = eng.diffs[diff_name]
             left = Lens(_do_probe(diff["replace"], eng, live))
             right = Lens(_do_probe(diff["with"], eng, live))
-            holo = Hologram([left, right], name=diff_name, labels=[diff["replace"], diff["with"]])
+            diff_result = eng.eval_diff(diff_name)
+            holo = Hologram(
+                [left, right],
+                name=diff_name,
+                labels=[diff["replace"], diff["with"]],
+                diff_result=diff_result,
+            )
             sys._init_from_hologram(holo)
             if args:
                 return sys._system.evaluate(args[0] if len(args) == 1 else list(args))
@@ -252,40 +267,53 @@ class HologramSystem:
             self._names_per_lens.append(names)
             self._all_names |= names
 
+    def _diff_names(self) -> set[str]:
+        """All diff names from the engine (available even without a hologram)."""
+        if self._engine is not None and hasattr(self._engine, "diffs"):
+            return set(self._engine.diffs)
+        return set()
+
+    def _diff_meta_by_name(self) -> dict:
+        """Index probe_diffs metadata by name."""
+        if self._diff_meta is None:
+            return {}
+        return {dm.name: dm for dm in self._diff_meta}
+
+    def _enrich(self, name: str) -> str:
+        """Enrich a name with metadata from probe_diffs."""
+        meta = self._diff_meta_by_name()
+        if name in meta:
+            dm = meta[name]
+            loc = f"{dm.source_file}:{dm.source_line}" if dm.source_file else ""
+            return f"{name}  diff  {dm.replace} ({dm.replace_kind}) → {dm.with_} ({dm.with_kind})  {loc}"
+        return name
+
     def find(self, pattern: str, max_results: int = 50) -> list[str]:
         import re as _re
 
         rx = _re.compile(pattern)
-        seen: set[str] = set()
-        for ls in self._lens_systems:
-            for name in ls.index.documents:
-                if name not in seen and rx.search(name):
-                    seen.add(name)
-        return sorted(seen)[:max_results]
+        pool = self._all_names | self._diff_names()
+        matches = sorted(n for n in pool if rx.search(n))
+        return [self._enrich(n) for n in matches[:max_results]]
 
     def fuzzy(self, query: str, max_results: int = 10) -> list[str]:
         query_lower = query.lower()
         scored = []
-        seen: set[str] = set()
-        for ls in self._lens_systems:
-            for name in ls.index.documents:
-                if name in seen:
-                    continue
-                seen.add(name)
-                name_lower = name.lower()
-                if query_lower not in name_lower:
-                    continue
-                if name_lower == query_lower:
-                    score = 0
-                elif name_lower.endswith(query_lower):
-                    score = 1
-                elif name_lower.startswith(query_lower):
-                    score = 2
-                else:
-                    score = 3
-                scored.append((score, len(name), name))
+        for name in self._all_names | self._diff_names():
+            name_lower = name.lower()
+            if query_lower not in name_lower:
+                continue
+            if name_lower == query_lower:
+                score = 0
+            elif name_lower.endswith(query_lower):
+                score = 1
+            elif name_lower.startswith(query_lower):
+                score = 2
+            else:
+                score = 3
+            scored.append((score, len(name), name))
         scored.sort()
-        return [name for _, _, name in scored[:max_results]]
+        return [self._enrich(name) for _, _, name in scored[:max_results]]
 
     class _HnOpsMorphism:
         __slots__ = ()
@@ -392,7 +420,24 @@ class HologramSystem:
             return posting
 
     def _posting_to_hn(self, posting: dict) -> list:
-        return self.posting_morphism.transform(posting)
+        forms = self.posting_morphism.transform(posting)
+        # Append diff head form when hologram was created via dissect
+        holo = self._hologram
+        if holo is not None and getattr(holo, "_diff_result", None) is not None:
+            dr = holo._diff_result
+            d = dr.to_dict()
+            forms.append(
+                [
+                    self.diff_tag,
+                    holo._name,
+                    d.get("replace", ""),
+                    d.get("with", ""),
+                    d.get("value_a", ""),
+                    d.get("value_b", ""),
+                    d.get("divergences", {}),
+                ]
+            )
+        return forms
 
     def evaluate(self, expr, local_env=None):
         """Evaluate a query — string or s-expression."""

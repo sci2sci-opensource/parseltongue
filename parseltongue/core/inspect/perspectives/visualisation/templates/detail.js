@@ -162,6 +162,24 @@ function showDetail(d) {
           html += `</div>`;
         }
       }
+      // Contaminated — other diffs reference the same replace side (warning, not failure)
+      if (df.contaminated) {
+        const contKeys = Object.keys(df.contaminated);
+        if (contKeys.length) {
+          html += `<div class="border-t border-surface2 pt-2 mt-2">`;
+          html += `<div class="text-yellow text-[10px] font-bold mb-1">Contaminated diffs (${contKeys.length})</div>`;
+          html += `<div class="text-[10px] text-overlay0 mb-1">Other diffs reference the same replace side — not a real value divergence.</div>`;
+          contKeys.forEach(k => {
+            const cv = df.contaminated[k];
+            const nameSpan = ITEM_BY_ID[k]
+              ? `<span class="text-text font-bold cursor-pointer hover:text-mauve" onclick="showDetail(ITEM_BY_ID['${k.replace(/'/g, "\\'")}'])">${esc(k)}</span>`
+              : `<span class="text-text">${esc(k)}</span>`;
+            html += `<div class="text-xs mt-1">${nameSpan}</div>`;
+            html += `<div class="text-[10px] ml-3 text-overlay0">${esc(cv.before)}</div>`;
+          });
+          html += `</div>`;
+        }
+      }
       html += `</div>`;
     } else {
       const noVal = !d.value || d.value === '()' || d.value === "''" || d.value === '""' || d.value === "''";

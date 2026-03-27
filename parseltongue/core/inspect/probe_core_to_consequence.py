@@ -525,3 +525,63 @@ def probe_all(result: "LazyLoadResult") -> CoreToConsequenceStructure:
     if not roots:
         return CoreToConsequenceStructure(layers=[], graph={}, depths={}, max_depth=0)
     return probe(roots, result.system.engine)
+
+
+@dataclass
+class DiffMeta:
+    """Lightweight metadata for one engine diff — no evaluation."""
+
+    name: str
+    replace: str
+    with_: str
+    replace_kind: str  # NodeKind value or "unknown"
+    with_kind: str
+    source_file: str
+    source_line: int
+
+
+def _resolve_kind(name: str, engine: Engine) -> str:
+    """Resolve the kind of a name without evaluating anything."""
+    if name in engine.facts:
+        return NodeKind.FACT
+    if name in engine.axioms:
+        return NodeKind.AXIOM
+    if name in engine.theorems:
+        return NodeKind.THEOREM
+    if name in engine.terms:
+        t = engine.terms[name]
+        return NodeKind.TERM_COMP if t.definition is not None else NodeKind.TERM_FWD
+    return "unknown"
+
+
+def probe_diffs(result: "LazyLoadResult") -> list[DiffMeta]:
+    """Walk the AST for diff directives and collect metadata.
+
+    Pulls source_file:source_line from DirectiveNodes in result.loaded,
+    resolves replace/with kinds from the engine. No diff evaluation.
+    """
+    engine = result.system.engine
+    if not hasattr(engine, "diffs"):
+        return []
+
+    # Index AST diff nodes by name for source locations
+    diff_nodes = {}
+    for node in result.loaded:
+        if node.kind == "diff" and node.name:
+            diff_nodes[node.name] = node
+
+    results = []
+    for name, diff in engine.diffs.items():
+        ast_node = diff_nodes.get(name)
+        results.append(
+            DiffMeta(
+                name=name,
+                replace=diff.get("replace", ""),
+                with_=diff.get("with", ""),
+                replace_kind=_resolve_kind(diff.get("replace", ""), engine),
+                with_kind=_resolve_kind(diff.get("with", ""), engine),
+                source_file=ast_node.source_file if ast_node else "",
+                source_line=ast_node.source_line if ast_node else 0,
+            )
+        )
+    return results

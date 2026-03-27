@@ -117,6 +117,7 @@ class Hologram(Optics):
         name: str = "",
         labels: list[str] | None = None,
         _bias: Bias | None = None,
+        diff_result: Any = None,
     ):
         if len(lenses) < 2:
             raise ValueError("Hologram requires at least 2 lenses")
@@ -125,6 +126,7 @@ class Hologram(Optics):
         self._labels = labels or [f"L{i}" for i in range(len(lenses))]
         self._bias = _bias or Bias.NEUTRAL
         self._search: HologramSystem | None = None
+        self._diff_result = diff_result
 
     @property
     def search_system(self) -> "HologramSystem":
@@ -165,7 +167,7 @@ class Hologram(Optics):
 
     def bias(self, b: Bias) -> "Hologram":
         """Return a new Hologram with a different bias. Same lenses."""
-        return Hologram(self._lenses, self._name, self._labels, b)
+        return Hologram(self._lenses, self._name, self._labels, b, diff_result=self._diff_result)
 
     def _not_found(self, name: str) -> KeyError:
         suggestions = self.fuzzy(name)
