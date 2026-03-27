@@ -8,7 +8,8 @@ from pathlib import Path
 project_root = Path(__file__).resolve().parents[4]
 sys.path.insert(0, str(project_root))
 
-from parseltongue.core.inspect.notebooks import render_pgmd  # noqa: E402
+from parseltongue.core.inspect.notebooks.executor import execute_pgmd  # noqa: E402
+from parseltongue.core.inspect.notebooks.render import render_result  # noqa: E402
 
 NOTEBOOKS = [
     ("notebooks/explicit.pgmd", "AI2AI — Explicit Pattern"),
@@ -27,7 +28,12 @@ for rel_path, title in NOTEBOOKS:
     stem = pgmd_path.stem
     print(f"Rendering {stem}...")
     try:
-        html = render_pgmd(pgmd_path, title, user="V", assistant="Claude")
+        result = execute_pgmd(pgmd_path, user="V", assistant="Claude")
+        if result.error:
+            print(f"  BENCH ERROR: {result.error}", file=sys.stderr)
+        if result.bench is None:
+            print("  WARNING: bench is None — viz data will be empty", file=sys.stderr)
+        html = render_result(result, title)
         out = OUTPUT_DIR / f"{stem}.html"
         out.write_text(html)
         print(f"  → {out} ({len(html):,} bytes)")
