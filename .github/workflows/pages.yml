@@ -35,38 +35,8 @@ jobs:
         run: |
           mkdir -p _site/demos
           touch _site/.nojekyll
+          cp pages/index.html _site/index.html
           cp parseltongue/core/demos/ai2ai_pgmd/pgmd_out/*.html _site/demos/
-          cat > _site/index.html << 'INDEXEOF'
-          <!DOCTYPE html>
-          <html lang="en">
-          <head>
-            <meta charset="utf-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1">
-            <title>parseltongue demos</title>
-            <style>
-              body { font-family: system-ui, sans-serif; max-width: 640px; margin: 4rem auto; padding: 0 1rem; color: #cdd6f4; background: #1e1e2e; }
-              a { color: #b4befe; }
-              a:hover { color: #cba6f7; }
-              h1 { font-size: 1.5rem; }
-              ul { list-style: none; padding: 0; }
-              li { margin: 0.75rem 0; }
-              li a { display: inline-block; padding: 0.5rem 1rem; background: #313244; border-radius: 0.5rem; text-decoration: none; }
-              li a:hover { background: #45475a; }
-              .dim { color: #6c7086; font-size: 0.85rem; }
-            </style>
-          </head>
-          <body>
-            <h1>parseltongue demos</h1>
-            <p class="dim">Analysis of a fictional AI2AI Series A investor memo. Each notebook pattern extracts facts from the memo, derives financial metrics, validates business rules, and renders a grounded narrative where every claim links back to source evidence.</p>
-            <ul>
-              <li><a href="demos/standalone.html">Standalone</a><br><span class="dim">Everything in one file — facts, computation, and prose. Self-contained analysis of ARR, margins, and unit economics.</span></li>
-              <li><a href="demos/explicit.html">Explicit</a><br><span class="dim">Imports a shared facts module, derives metrics inline. Shows how notebooks connect to larger pltg systems.</span></li>
-              <li><a href="demos/implicit.html">Implicit</a><br><span class="dim">Pure narrative — imports pre-computed facts and rules. Clean prose with grounded references, no visible computation.</span></li>
-              <li><a href="demos/md_edgecases.html">Markdown edge cases</a><br><span class="dim">Stress test of the renderer — headings, tables, nested lists, blockquotes, inline formatting, and adjacent refs.</span></li>
-            </ul>
-          </body>
-          </html>
-          INDEXEOF
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3

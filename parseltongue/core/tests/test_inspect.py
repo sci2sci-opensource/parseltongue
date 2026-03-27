@@ -544,5 +544,108 @@ class TestDataStructures(unittest.TestCase):
         self.assertEqual(s.root_names, set())
 
 
+# ==============================================================
+# probe_diffs_to_possibilities
+# ==============================================================
+
+
+class TestProbeDiffsToPossibilities(unittest.TestCase):
+    def setUp(self):
+        self.system = _build_simple_system()
+        self.engine = self.system.engine
+
+    def test_returns_structure(self):
+        from ..inspect.vital import probe_diffs_to_possibilities
+
+        structure = probe_diffs_to_possibilities(self.engine)
+        self.assertIsInstance(structure, CoreToConsequenceStructure)
+
+    def test_empty_when_no_diffs(self):
+        from ..inspect.vital import probe_diffs_to_possibilities
+
+        s = _make_system()
+        structure = probe_diffs_to_possibilities(s.engine)
+        self.assertEqual(len(structure.graph), 0)
+
+    def test_diff_node_present(self):
+        from ..inspect.vital import probe_diffs_to_possibilities
+
+        structure = probe_diffs_to_possibilities(self.engine)
+        self.assertIn("diff-rev", structure.graph)
+        self.assertEqual(structure.graph["diff-rev"].kind, NodeKind.DIFF)
+
+    def test_diff_branches_traced(self):
+        """Both sides of the diff (revenue, margin) appear as upstream nodes."""
+        from ..inspect.vital import probe_diffs_to_possibilities
+
+        structure = probe_diffs_to_possibilities(self.engine)
+        # The diff compares revenue vs margin — both should be in the graph
+        self.assertIn("revenue", structure.graph)
+        self.assertIn("margin", structure.graph)
+
+    def test_diff_inputs_are_branches(self):
+        """The diff node's inputs should reference its two sides."""
+        from ..inspect.vital import probe_diffs_to_possibilities
+
+        structure = probe_diffs_to_possibilities(self.engine)
+        diff_node = structure.graph["diff-rev"]
+        input_names = [i.name if hasattr(i, "name") else i for i in diff_node.inputs]
+        self.assertIn("revenue", input_names)
+        self.assertIn("margin", input_names)
+
+    def test_diff_value_has_divergence_info(self):
+        """The diff node value should contain DiffResult data (value_a, value_b, divergences)."""
+        from ..inspect.vital import probe_diffs_to_possibilities
+
+        structure = probe_diffs_to_possibilities(self.engine)
+        diff_node = structure.graph["diff-rev"]
+        # value is DiffResult.to_dict() — should have divergences key
+        self.assertIn("divergences", diff_node.value)
+
+    def test_output_node_collects_diffs(self):
+        from ..inspect.vital import probe_diffs_to_possibilities
+
+        structure = probe_diffs_to_possibilities(self.engine)
+        self.assertIn("__output__", structure.graph)
+        output = structure.graph["__output__"]
+        output_input_names = [i.name if hasattr(i, "name") else i for i in output.inputs]
+        self.assertIn("diff-rev", output_input_names)
+
+    def test_layers_include_diff_depth(self):
+        """Diff node should be at a deeper layer than its inputs."""
+        from ..inspect.vital import probe_diffs_to_possibilities
+
+        structure = probe_diffs_to_possibilities(self.engine)
+        # Facts at depth 0, diff consumes them so should be deeper
+        self.assertGreater(structure.depths.get("diff-rev", 0), 0)
+
+    def test_with_explicit_stain(self):
+        """Works when stain is provided explicitly (no auto-trace)."""
+        from ..inspect.vital import probe_diffs_to_possibilities, trace_engine
+
+        stain = trace_engine(self.engine)
+        structure = probe_diffs_to_possibilities(self.engine, stain=stain)
+        self.assertIn("diff-rev", structure.graph)
+        self.assertIn("revenue", structure.graph)
+
+    def test_multiple_diffs(self):
+        """All diffs appear when engine has more than one."""
+        from ..inspect.vital import probe_diffs_to_possibilities
+
+        # Add a second diff
+        ev = Evidence(document="doc", quotes=["Q3 revenue was $15M"])
+        _quiet(self.system.set_fact, "growth", 15, ev)
+        _quiet(self.system.register_diff, "diff-growth", "revenue", "growth")
+
+        structure = probe_diffs_to_possibilities(self.engine)
+        self.assertIn("diff-rev", structure.graph)
+        self.assertIn("diff-growth", structure.graph)
+        # Both should feed into output
+        output = structure.graph["__output__"]
+        output_names = [i.name if hasattr(i, "name") else i for i in output.inputs]
+        self.assertIn("diff-rev", output_names)
+        self.assertIn("diff-growth", output_names)
+
+
 if __name__ == "__main__":
     unittest.main()

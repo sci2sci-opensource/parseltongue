@@ -117,9 +117,75 @@ function showDetail(d) {
     }
     html += `<div><span class="text-overlay0">name:</span> <span class="text-text font-bold">${esc(d.id)}</span></div>`;
     html += `<div><span class="text-overlay0">kind:</span> <span class="${kindText(d.kind)} font-bold">${esc(d.kind)}</span></div>`;
-    const noVal = !d.value || d.value === '()' || d.value === "''" || d.value === '""' || d.value === "''";
-    const displayVal = noVal ? 'No value' : d.value;
-    html += `<div><span class="text-overlay0">value:</span><div class="mt-1 bg-surface0 rounded p-2 text-xs whitespace-pre-wrap ${noVal ? 'text-overlay0 italic' : ''}">${esc(displayVal)}</div></div>`;
+    // ── Diff-specific rendering ──
+    if (d.kind === 'diff' && d.diff) {
+      const df = d.diff;
+      const icon = df.coherent ? '&#x2713;' : '&#x2260;';
+      const stCls = df.coherent ? 'text-green' : 'text-red';
+      const stLabel = df.coherent ? 'Coherent' : 'Divergent';
+      html += `<div class="mt-1 flex items-center gap-2"><span class="${stCls} font-bold">${icon} ${stLabel}</span></div>`;
+      html += `<div class="mt-2 bg-crust rounded-lg p-3 space-y-2">`;
+      // Branch A (replace)
+      html += `<div class="flex items-center gap-2">`;
+      html += `<span class="text-overlay0 text-[10px] w-14 shrink-0">replace</span>`;
+      html += `<span class="text-text font-bold cursor-pointer hover:text-mauve" onclick="showDetail(ITEM_BY_ID['${(df.replace||'').replace(/'/g, "\\'")}'])">${esc(df.replace)}</span>`;
+      if (df.value_a != null) html += `<span class="text-subtext text-xs">= ${esc(df.value_a)}</span>`;
+      html += `</div>`;
+      // Branch B (with)
+      html += `<div class="flex items-center gap-2">`;
+      html += `<span class="text-overlay0 text-[10px] w-14 shrink-0">with</span>`;
+      html += `<span class="text-text font-bold cursor-pointer hover:text-mauve" onclick="showDetail(ITEM_BY_ID['${(df['with']||'').replace(/'/g, "\\'")}'])">${esc(df['with'])}</span>`;
+      if (df.value_b != null) html += `<span class="text-subtext text-xs">= ${esc(df.value_b)}</span>`;
+      html += `</div>`;
+      // Divergences — downstream terms that change under substitution
+      if (df.divergences) {
+        const divKeys = Object.keys(df.divergences);
+        if (divKeys.length) {
+          html += `<div class="border-t border-surface2 pt-2 mt-2">`;
+          html += `<div class="text-red text-[10px] font-bold mb-1">Downstream divergences (${divKeys.length})</div>`;
+          divKeys.forEach(k => {
+            const dv = df.divergences[k];
+            const nameSpan = ITEM_BY_ID[k]
+              ? `<span class="text-text font-bold cursor-pointer hover:text-mauve" onclick="showDetail(ITEM_BY_ID['${k.replace(/'/g, "\\'")}'])">${esc(k)}</span>`
+              : `<span class="text-text">${esc(k)}</span>`;
+            if (dv && dv.before !== undefined) {
+              html += `<div class="text-xs mt-1">${nameSpan}</div>`;
+              html += `<div class="text-[10px] ml-3 text-subtext">${esc(dv.before)} <span class="text-red">&rarr;</span> ${esc(dv.after)}</div>`;
+            } else {
+              html += `<div class="text-xs mt-1">${nameSpan}: <span class="text-red">${esc(String(dv))}</span></div>`;
+            }
+          });
+          html += `</div>`;
+        } else if (df.coherent) {
+          html += `<div class="border-t border-surface2 pt-2 mt-2">`;
+          html += `<div class="text-green text-[10px]">No downstream divergences</div>`;
+          html += `</div>`;
+        }
+      }
+      // Contaminated — other diffs reference the same replace side (warning, not failure)
+      if (df.contaminated) {
+        const contKeys = Object.keys(df.contaminated);
+        if (contKeys.length) {
+          html += `<div class="border-t border-surface2 pt-2 mt-2">`;
+          html += `<div class="text-yellow text-[10px] font-bold mb-1">Contaminated diffs (${contKeys.length})</div>`;
+          html += `<div class="text-[10px] text-overlay0 mb-1">Other diffs reference the same replace side — not a real value divergence.</div>`;
+          contKeys.forEach(k => {
+            const cv = df.contaminated[k];
+            const nameSpan = ITEM_BY_ID[k]
+              ? `<span class="text-text font-bold cursor-pointer hover:text-mauve" onclick="showDetail(ITEM_BY_ID['${k.replace(/'/g, "\\'")}'])">${esc(k)}</span>`
+              : `<span class="text-text">${esc(k)}</span>`;
+            html += `<div class="text-xs mt-1">${nameSpan}</div>`;
+            html += `<div class="text-[10px] ml-3 text-overlay0">${esc(cv.before)}</div>`;
+          });
+          html += `</div>`;
+        }
+      }
+      html += `</div>`;
+    } else {
+      const noVal = !d.value || d.value === '()' || d.value === "''" || d.value === '""' || d.value === "''";
+      const displayVal = noVal ? 'No value' : d.value;
+      html += `<div><span class="text-overlay0">value:</span><div class="mt-1 bg-surface0 rounded p-2 text-xs whitespace-pre-wrap ${noVal ? 'text-overlay0 italic' : ''}">${esc(displayVal)}</div></div>`;
+    }
     if (d.depth > 0) html += `<div><span class="text-overlay0">depth:</span> ${d.depth}</div>`;
 
     // ── Focus actions ──

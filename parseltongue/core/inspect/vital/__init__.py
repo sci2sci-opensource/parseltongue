@@ -6,8 +6,8 @@ trace_engine: auto-detect and trace.
 live_probe merges traced edges with static structure.
 """
 
-from .live_probe import live_probe, trace_engine
+from .live_probe import live_probe, probe_diffs_to_possibilities, trace_engine
 from .stain import Edge, Stain, Trace
 from .tracer import Tracer
 
-__all__ = ["Edge", "Stain", "Trace", "Tracer", "live_probe", "trace_engine"]
+__all__ = ["Edge", "Stain", "Trace", "Tracer", "live_probe", "probe_diffs_to_possibilities", "trace_engine"]

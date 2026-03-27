@@ -62,7 +62,7 @@ function renderGraph() {
     });
   });
 
-  const TYPE_COLOR = {'use':C.green,'declare':C.overlay0,'pull':C.blue,'axiom-ref':C.peach};
+  const TYPE_COLOR = {'use':C.green,'declare':C.overlay0,'pull':C.blue,'axiom-ref':C.peach,'diff':C.patronus};
 
   // ── Identify dangling nodes (no edges) ──
   const connectedSet = new Set();
@@ -149,18 +149,21 @@ function renderGraph() {
   danglingKinds.forEach((k, i) => { danglingKindY[k] = (i + 1) * DANGLE_BAND_H; });
 
   // ── Force simulation ──
+  const DIFF_Y = height + 120;  // push diff nodes below main structure
   const sim = d3.forceSimulation(nodes)
     .force("link", d3.forceLink(links).id(d => d.id).distance(80).strength(0.3))
     .force("charge", d3.forceManyBody().strength(-200))
     .force("collide", d3.forceCollide().radius(28))
     .force("depthX", d3.forceX(d => {
       if (d.dangling) return DANGLE_X;
+      if (d.kind === 'diff') return PAD_LEFT + maxDepth * BAND_W;  // right side
       return PAD_LEFT + d.depth * BAND_W;
-    }).strength(d => d.dangling ? 0.8 : 0.85))
+    }).strength(d => d.dangling ? 0.8 : d.kind === 'diff' ? 0.9 : 0.85))
     .force("centerY", d3.forceY(d => {
       if (d.dangling) return danglingKindY[d.kind] || height / 2;
+      if (d.kind === 'diff') return DIFF_Y;
       return height / 2;
-    }).strength(d => d.dangling ? 0.3 : 0.05));
+    }).strength(d => d.dangling ? 0.3 : d.kind === 'diff' ? 0.7 : 0.05));
 
   // ── Draw edges ──
   const linkG = gRoot.append("g");

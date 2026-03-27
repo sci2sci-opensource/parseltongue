@@ -45,11 +45,13 @@ class VizRenderer(FormRenderer):
         merkle_root: str = "",
         structure: "Any | None" = None,
         loc_fn: "Callable[[str], str] | None" = None,
+        diff_structure: "Any | None" = None,
     ):
         self._store = store
         self._merkle_root = merkle_root
         self._structure = structure  # CoreToConsequenceStructure for rail layout
         self._loc_fn = loc_fn
+        self._diff_structure = diff_structure  # from probe_diffs_to_possibilities
 
     def fmt(self, val: Any) -> str:
         key = _content_hash(_to_sexp(val))
@@ -70,14 +72,37 @@ class VizRenderer(FormRenderer):
 
     def render_form(self, form: list) -> str:
         tag = _base_tag(form)
+        ds = self._diff_structure
         if tag in ("ln", "ln-fmt"):
-            return _render_app(_extract_ln_items([form]), "ln", _ln_title(form), self._structure, logbook=self._logbook)
+            return _render_app(
+                _extract_ln_items([form]),
+                "ln",
+                _ln_title(form),
+                self._structure,
+                logbook=self._logbook,
+                diff_structure=ds,
+            )
         if tag in ("sr", "sr-fmt"):
-            return _render_app(_extract_sr_items([form]), "sr", "Search result", self._structure, logbook=self._logbook)
+            return _render_app(
+                _extract_sr_items([form]),
+                "sr",
+                "Search result",
+                self._structure,
+                logbook=self._logbook,
+                diff_structure=ds,
+            )
         if tag in ("dx", "dx-fmt"):
-            return _render_app(_extract_dx_items([form]), "dx", "Diagnostic", self._structure, logbook=self._logbook)
+            return _render_app(
+                _extract_dx_items([form]), "dx", "Diagnostic", self._structure, logbook=self._logbook, diff_structure=ds
+            )
         if tag in ("hn", "hn-fmt"):
-            return _render_app(_extract_hn_items([form]), "hn", "Hologram", self._structure, logbook=self._logbook)
+            return _render_app(
+                _extract_hn_items([form]), "hn", "Hologram", self._structure, logbook=self._logbook, diff_structure=ds
+            )
+        if tag == "df":
+            df_item = _extract_df_item(form)
+            items = [df_item] if df_item is not None else []
+            return _render_app(items, "hn", "Diff", self._structure, logbook=self._logbook, diff_structure=ds)
         return self.fmt_value(form)
 
     def render_form_list(self, forms: list[list]) -> str:
@@ -85,16 +110,45 @@ class VizRenderer(FormRenderer):
             return self.fmt_value([])
         tag = _base_tag(forms[0])
         n = len(forms)
+        ds = self._diff_structure
         if tag in ("ln", "ln-fmt"):
-            return _render_app(_extract_ln_items(forms), "ln", f"{n} nodes", self._structure, logbook=self._logbook)
+            return _render_app(
+                _extract_ln_items(forms), "ln", f"{n} nodes", self._structure, logbook=self._logbook, diff_structure=ds
+            )
         if tag in ("sr", "sr-fmt"):
-            return _render_app(_extract_sr_items(forms), "sr", f"{n} results", self._structure, logbook=self._logbook)
+            return _render_app(
+                _extract_sr_items(forms),
+                "sr",
+                f"{n} results",
+                self._structure,
+                logbook=self._logbook,
+                diff_structure=ds,
+            )
         if tag in ("dx", "dx-fmt"):
             return _render_app(
-                _extract_dx_items(forms), "dx", f"{n} diagnostics", self._structure, logbook=self._logbook
+                _extract_dx_items(forms),
+                "dx",
+                f"{n} diagnostics",
+                self._structure,
+                logbook=self._logbook,
+                diff_structure=ds,
             )
-        if tag in ("hn", "hn-fmt"):
-            return _render_app(_extract_hn_items(forms), "hn", f"{n} holograms", self._structure, logbook=self._logbook)
+        if tag in ("hn", "hn-fmt", "df"):
+            hn_forms = [f for f in forms if _base_tag(f) in ("hn", "hn-fmt")]
+            df_forms = [f for f in forms if _base_tag(f) == "df"]
+            items = _extract_hn_items(hn_forms)
+            for df in df_forms:
+                df_item = _extract_df_item(df)
+                if df_item is not None:
+                    items.insert(0, df_item)
+            return _render_app(
+                items,
+                "hn",
+                f"{len(items)} holograms",
+                self._structure,
+                logbook=self._logbook,
+                diff_structure=ds,
+            )
         return self.fmt_value(forms)
 
     def fmt_value(self, val: Any) -> str:
@@ -215,6 +269,58 @@ def _extract_dx_items(forms: list[list]) -> list[dict]:
         detail = str(f[4]) if len(f) > 4 else ""
         items.append({"id": name, "category": cat, "kind": kind, "type": typ, "detail": detail, "module": cat})
     return items
+
+
+def _extract_df_item(form: list) -> dict | None:
+    """Extract a single df (diff head) form into a viz item.
+
+    (df name replace with value_a value_b divergences)
+
+    Divergences are split into two categories:
+    - real: actual value differences (before → after)
+    - contaminated: other diffs reference the same replace side (warning only)
+      Detected by after value matching ``<contaminated: ...>``
+    """
+    f = form[1:]
+    if len(f) < 6:
+        return None
+    name = str(f[0])
+    replace = str(f[1])
+    with_ = str(f[2])
+    value_a = f[3]
+    value_b = f[4]
+    divergences = f[5] if isinstance(f[5], dict) else {}
+    real_divs: dict[str, dict] = {}
+    contaminated: dict[str, dict] = {}
+    for dn, dv in divergences.items():
+        if isinstance(dv, (list, tuple)) and len(dv) >= 2:
+            before, after = str(dv[0]), str(dv[1])
+        else:
+            before, after = str(dv), ""
+        if after.startswith("<contaminated:"):
+            contaminated[dn] = {"before": before, "after": after}
+        else:
+            real_divs[dn] = {"before": before, "after": after}
+    coherent = value_a == value_b and len(real_divs) == 0
+    display = f"{value_a} = {value_b}" if coherent else f"{value_a} \u2260 {value_b}"
+    module = name.split(".")[0] if "." in name else ""
+    return {
+        "id": name,
+        "kind": "diff",
+        "value": display,
+        "depth": 0,
+        "module": module,
+        "inputs": [replace, with_],
+        "diff": {
+            "replace": replace,
+            "with": with_,
+            "value_a": str(value_a),
+            "value_b": str(value_b),
+            "coherent": coherent,
+            "divergences": real_divs,
+            "contaminated": contaminated,
+        },
+    }
 
 
 def _extract_hn_items(forms: list[list]) -> list[dict]:
@@ -720,7 +826,12 @@ def _build_sr_structure_data(sr_items: list[dict], structure) -> list[dict]:
 
 
 def _render_app(
-    items: list[dict], form_type: str, title: str, structure: "Any | None" = None, logbook: list[dict] | None = None
+    items: list[dict],
+    form_type: str,
+    title: str,
+    structure: "Any | None" = None,
+    logbook: list[dict] | None = None,
+    diff_structure: "Any | None" = None,
 ) -> str:
     structure_items = items  # default: structure tab shows same data
     layers_data: dict[str, list] = {"layers": [], "edges": []}
@@ -789,12 +900,38 @@ def _render_app(
             if key not in seen_edges:
                 seen_edges.add(key)
                 unique_edges.append(e)
+        # Inject df (diff head) items into layers and edges
+        for item in items:
+            if item.get("kind") != "diff" or "diff" not in item:
+                continue
+            diff_name = item["id"]
+            diff_inputs = item.get("inputs", [])
+            max_d = max(merged_depths.values()) if merged_depths else -1
+            diff_depth = max_d + 1
+            merged_depths[diff_name] = diff_depth
+            layer_nodes = merged_layers_by_depth.setdefault(diff_depth, [])
+            layer_nodes.append({"name": diff_name, "kind": "diff"})
+            for inp in diff_inputs:
+                unique_edges.append({"source": inp, "target": diff_name, "type": "diff"})
+
         layers_data = {
             "layers": [{"depth": d, "nodes": ns} for d, ns in sorted(merged_layers_by_depth.items())],
             "edges": unique_edges,
         }
         structure_items = _build_named_structure_data(set(merged_graph), structure)
+        # Add df items to structure_items so they appear in layers/graph
+        for item in items:
+            if item.get("kind") != "diff" or "diff" not in item:
+                continue
+            structure_items.append(item)
         _enrich_items_from_structure(structure_items, structure)
+
+    # Merge diff possibilities if provided
+    if diff_structure is not None:
+        from .notebook_renderer import merge_diff_structure
+
+        node_index = {it["id"]: it for it in structure_items}
+        merge_diff_structure(structure_items, layers_data, node_index, diff_structure)
 
     # Compute taints from structure data + edges
     from .taints import compute_taints

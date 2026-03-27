@@ -7,7 +7,7 @@ const C = {};
 function refreshPalette() {
   const names = ['base','mantle','crust','surface0','surface1','surface2',
     'overlay0','text','subtext','green','red','yellow','blue','mauve',
-    'teal','peach','flamingo','sky','lavender'];
+    'teal','peach','flamingo','sky','lavender','patronus'];
   names.forEach(n => { C[n] = getColor(n); });
   C.pill = getColor('base-light') || C.surface0;
 }
@@ -16,18 +16,18 @@ refreshPalette();
 // ── Constants ──
 const KIND_COLORS = {
   fact:'bg-green',axiom:'bg-peach',defterm:'bg-blue',theorem:'bg-mauve',
-  diff:'bg-red',derive:'bg-mauve',evidence:'bg-overlay0','search-result':'bg-green',
+  diff:'bg-patronus',derive:'bg-mauve',evidence:'bg-overlay0','search-result':'bg-green',
   diagnostic:'bg-red',hologram:'bg-teal',document:'bg-sky',input:'bg-surface2',
   lens:'bg-lavender',unknown:'bg-surface2'
 };
 const KIND_TEXT = {
   fact:'text-green',axiom:'text-peach',defterm:'text-blue',theorem:'text-mauve',
-  diff:'text-red',derive:'text-mauve',evidence:'text-overlay0','search-result':'text-green',
+  diff:'text-patronus',derive:'text-mauve',evidence:'text-overlay0','search-result':'text-green',
   diagnostic:'text-red',hologram:'text-teal',document:'text-sky',lens:'text-lavender'
 };
 const KIND_DOT_VAR = {
   fact:'green',axiom:'peach',defterm:'blue',theorem:'mauve',
-  diff:'red',derive:'mauve',evidence:'overlay0','search-result':'green',
+  diff:'patronus',derive:'mauve',evidence:'overlay0','search-result':'green',
   diagnostic:'red',hologram:'teal',document:'sky',input:'surface2',
   lens:'lavender'
 };

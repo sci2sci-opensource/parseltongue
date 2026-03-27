@@ -265,6 +265,7 @@ class Store:
             dir_nodes.append(dn)
         loader._all_nodes = dir_nodes
         loader._result._all_nodes = dir_nodes
+        loader._result.loaded = set(dir_nodes)
         return structure, loader
 
     # ── Screen cache ──

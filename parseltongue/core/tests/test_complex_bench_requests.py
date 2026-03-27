@@ -722,6 +722,96 @@ class TestDiffEvaluation(_Base):
         posting = dx.search('(focus "diff-")')
         self.assertIsInstance(posting, list)
 
+    def test_dissect_diff_node_is_head(self):
+        """Dissected hologram includes the diff node itself in both lenses."""
+        bench = self._prepare()
+        h = bench.dissect("diff-rev-vs-income")
+        # Diff node should be in both lens structures
+        self.assertIn("diff-rev-vs-income", h.left._structure.graph)
+        self.assertIn("diff-rev-vs-income", h.right._structure.graph)
+
+    def test_dissect_diff_node_kind(self):
+        """The diff node has NodeKind.DIFF."""
+        from ..inspect.probe_core_to_consequence import NodeKind
+
+        bench = self._prepare()
+        h = bench.dissect("diff-rev-vs-income")
+        node = h.left._structure.graph["diff-rev-vs-income"]
+        self.assertEqual(node.kind, NodeKind.DIFF)
+
+    def test_dissect_diff_node_at_max_depth(self):
+        """The diff node sits at the deepest layer (head of the hologram)."""
+        bench = self._prepare()
+        h = bench.dissect("diff-rev-vs-income")
+        struct = h.left._structure
+        diff_depth = struct.depths["diff-rev-vs-income"]
+        other_depths = [d for n, d in struct.depths.items() if n != "diff-rev-vs-income" and n != "__output__"]
+        self.assertGreaterEqual(diff_depth, max(other_depths))
+
+    def test_dissect_diff_node_inputs_are_branches(self):
+        """The diff node's inputs reference the two sides of the diff."""
+        bench = self._prepare()
+        h = bench.dissect("diff-rev-vs-income")
+        node = h.left._structure.graph["diff-rev-vs-income"]
+        input_names = [i if isinstance(i, str) else i.name for i in node.inputs]
+        self.assertIn("revenue", input_names)
+        self.assertIn("net-income", input_names)
+
+    def test_dissect_diff_result_attached(self):
+        """Hologram carries the DiffResult for viz rendering."""
+        bench = self._prepare()
+        h = bench.dissect("diff-rev-vs-income")
+        self.assertIsNotNone(h._diff_result)
+        self.assertEqual(h._diff_result.name, "diff-rev-vs-income")
+        self.assertTrue(h._diff_result.values_diverge)
+
+    def test_dissect_diff_result_preserved_on_bias(self):
+        """DiffResult survives bias changes."""
+        from ..inspect.optics.hologram import Bias
+
+        bench = self._prepare()
+        h = bench.dissect("diff-rev-vs-income")
+        biased = h.bias(Bias.DIVERGENCE)
+        self.assertIsNotNone(biased._diff_result)
+        self.assertEqual(biased._diff_result.name, "diff-rev-vs-income")
+
+    def test_dissect_find_includes_diff(self):
+        """find() on dissected hologram returns the diff node."""
+        bench = self._prepare()
+        h = bench.dissect("diff-rev-vs-income")
+        results = h.find("diff-rev")
+        self.assertIn("diff-rev-vs-income", results)
+
+    def test_dissect_fuzzy_includes_diff(self):
+        """fuzzy() on dissected hologram returns the diff node."""
+        bench = self._prepare()
+        h = bench.dissect("diff-rev-vs-income")
+        results = h.fuzzy("rev-vs-income")
+        self.assertIn("diff-rev-vs-income", results)
+
+    def test_dissect_coherent_diff(self):
+        """Dissecting a coherent diff (same values) has no value divergence."""
+        # Add a coherent diff: revenue (15) vs a constant defterm also 15
+        coherent_pltg = (
+            PLTG_SOURCE
+            + '\n(defterm rev-stated 15 :origin "stated revenue")\n(diff diff-rev-stated :replace revenue :with rev-stated)\n'
+        )
+        self._write("report.txt", DOC_TEXT)
+        path = self._write("main.pltg", coherent_pltg)
+        bench = self._bench()
+        bench.prepare(path)
+        self._stub_sample(bench)
+        h = bench.dissect("diff-rev-stated")
+        self.assertFalse(h._diff_result.values_diverge)
+
+    def test_dissect_uses_live_probe(self):
+        """Dissect uses live probing — structures may have runtime edges."""
+        bench = self._prepare()
+        h = bench.dissect("diff-rev-vs-income")
+        # Live probe structures should have nodes (at minimum the probed term + diff)
+        self.assertGreater(len(h.left._structure.graph), 1)
+        self.assertGreater(len(h.right._structure.graph), 1)
+
 
 # ── Stained Holograms ──
 

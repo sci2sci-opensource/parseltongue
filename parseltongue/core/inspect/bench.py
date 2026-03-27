@@ -146,6 +146,15 @@ class Bench:
             if bg is not None and bg[0] == path:
                 self._mem[path] = bg[1]
                 self._technician._bg_result = None
+        # Live transition registers new scopes (hologram etc.) — invalidate
+        # cached eval/experiment systems so they get a fresh copy with all scopes.
+        if status == Technician.LIVE:
+            if hasattr(self, "_eval_mem"):
+                self._eval_mem.pop(path, None)
+            if hasattr(self, "_experiment_mem"):
+                self._experiment_mem.pop(path, None)
+            if hasattr(self, "_hologram_mem"):
+                self._hologram_mem.pop(path, None)
 
     # ── Prepare ──
 
@@ -190,15 +199,32 @@ class Bench:
         result = self._ensure_live_result(path)
         engine = result.system.engine
         diff = engine.diffs[diff_name]
+        from .probe_core_to_consequence import Node, NodeKind
         from .probe_core_to_consequence import probe as _probe
 
         l_struct = _probe(diff["replace"], engine)
         r_struct = _probe(diff["with"], engine)
+
+        # Inject the diff node itself into both structures
+        for struct in (l_struct, r_struct):
+            inputs = [diff["replace"], diff["with"]]
+            max_d = max(struct.depths.values()) if struct.depths else 0
+            struct.graph[diff_name] = Node(name=diff_name, kind=NodeKind.DIFF, value="", inputs=inputs)
+            struct.depths[diff_name] = max_d + 1
+            if struct.max_depth < max_d + 1:
+                struct.max_depth = max_d + 1
+            # Add to layers
+            while len(struct.layers) <= max_d + 1:
+                struct.layers.append([])
+            struct.layers[max_d + 1].append(diff_name)
+
+        diff_result = engine.eval_diff(diff_name)
+
         _, _, _, loader = self._mem[path]
         persp = perspectives or [MDebuggerPerspective(loader)]
         left = Lens(l_struct, list(persp))
         right = Lens(r_struct, list(persp))
-        return Hologram([left, right], name=diff_name, labels=[diff["replace"], diff["with"]])
+        return Hologram([left, right], name=diff_name, labels=[diff["replace"], diff["with"]], diff_result=diff_result)
 
     def compose(self, *names: str, path: str | None = None, perspectives: list | None = None) -> Hologram:
         """Compose N system names into a Hologram — one lens per name."""
@@ -348,6 +374,18 @@ class Bench:
     def engine(self):
         """The engine of the current sample."""
         return self.result().system.engine
+
+    @property
+    def hologram(self):
+        """HologramSystem for the current sample — exposes find/fuzzy over diffs."""
+        path = self._require_current()
+        if not hasattr(self, "_hologram_mem"):
+            self._hologram_mem: dict = {}
+        if path not in self._hologram_mem:
+            from .systems.hologram import HologramSystem
+
+            self._hologram_mem[path] = HologramSystem(result=self.result(path))
+        return self._hologram_mem[path]
 
     @property
     def eval_system(self):
