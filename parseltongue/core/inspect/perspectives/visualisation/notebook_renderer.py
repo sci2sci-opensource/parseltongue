@@ -75,11 +75,15 @@ def _fmt_value(val_str: str) -> str:
         return ""
     try:
         v = float(val_str)
-        if v == int(v) and abs(v) >= 1_000_000:
+        av = abs(v)
+        # Scientific notation for very small or very large values
+        if v != 0 and (av < 1e-3 or av >= 1e12):
+            return f"{v:.2e}"
+        if v == int(v) and av >= 1_000_000:
             return f"{v / 1_000_000:.1f}M"
-        if v == int(v) and abs(v) >= 1000:
+        if v == int(v) and av >= 1000:
             return f"{v:,.0f}"
-        if 0 < abs(v) < 1:
+        if 0 < av < 1:
             return f"{v:.2%}"
         if v == int(v):
             return str(int(v))
