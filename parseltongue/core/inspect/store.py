@@ -119,6 +119,31 @@ class Store:
     def __init__(self, bench_dir: str | Path | None = None):
         self._dir = Path(bench_dir or BENCH_DIR)
 
+    # ── Logbook ──
+
+    def log_session(self, entry: dict):
+        """Append a session entry to the logbook (JSONL)."""
+        self._dir.mkdir(parents=True, exist_ok=True)
+        logbook = self._dir / "logbook.jsonl"
+        with open(logbook, "a") as f:
+            f.write(json.dumps(entry) + "\n")
+        log.info("Logbook entry written to %s", logbook)
+
+    def read_logbook(self) -> list[dict]:
+        """Read all session entries from the logbook."""
+        logbook = self._dir / "logbook.jsonl"
+        if not logbook.exists():
+            return []
+        entries = []
+        for line in logbook.read_text().splitlines():
+            line = line.strip()
+            if line:
+                try:
+                    entries.append(json.loads(line))
+                except json.JSONDecodeError:
+                    continue
+        return entries
+
     # ── File hashing ──
 
     def hash_files(self, files: list[str]) -> dict[str, str]:

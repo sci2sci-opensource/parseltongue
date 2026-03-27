@@ -5,11 +5,27 @@ like Jupyter notebooks for pltg.  Code blocks are fenced with
 ``scheme`` language tag and annotated with ``;; pltg`` on the first
 line.  Non-annotated scheme blocks are display-only.
 
+Inline references
+-----------------
+
+Prose sections can reference nodes defined in pltg blocks using
+``[[type:name]]`` syntax.  The renderer resolves these to values
+from the loaded system.
+
+    [[fact:revenue]]        → value shown inline + footnote number
+    [[term:gross-margin]]   → same, for derived terms
+    [[~fact:revenue]]       → silent footnote (number only, no inline value)
+
+The ``~`` prefix produces a silent ref: only a superscript footnote
+number appears in the prose, but the node still shows in the margin
+pill cluster and the footnote list below the paragraph.
+
 Example::
 
     # My Analysis
 
     Revenue analysis with [[fact:revenue]] reference.
+    Strong unit economics[[~term:ltv-to-cac]] support the thesis.
 
     ```scheme
     ;; pltg
@@ -91,3 +107,38 @@ def extract_pltg(text: str) -> str:
     """Extract concatenated pltg source from all executable blocks."""
     parts = [b.content for b in parse_pgmd(text) if b.kind == "pltg"]
     return "\n\n".join(parts)
+
+
+# ── Inline reference helpers ──
+
+_REF_RE = re.compile(r"\[\[(~?)(\w+):([^\]]+)\]\]")
+
+
+@dataclass
+class PgmdRef:
+    """An inline reference found in prose."""
+
+    name: str
+    ref_type: str  # "fact", "term", "axiom", etc.
+    silent: bool  # True when prefixed with ~
+    start: int  # char offset in source text
+    end: int
+
+
+def extract_refs(text: str) -> list[PgmdRef]:
+    """Extract all inline ``[[type:name]]`` / ``[[~type:name]]`` refs from text."""
+    return [
+        PgmdRef(
+            name=m.group(3),
+            ref_type=m.group(2),
+            silent=bool(m.group(1)),
+            start=m.start(),
+            end=m.end(),
+        )
+        for m in _REF_RE.finditer(text)
+    ]
+
+
+def ref_names(text: str) -> set[str]:
+    """Return the set of node names referenced in text."""
+    return {r.name for r in extract_refs(text)}

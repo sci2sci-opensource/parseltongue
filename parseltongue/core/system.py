@@ -59,6 +59,7 @@ class AbstractSystem(Rewriter, Interpreter):
         self._docs = docs
 
         self._unresolved = set()
+        self._effects = dict(effects)
 
         for name, fn in effects.items():
             self.engine.env[Symbol(name)] = lambda *args, _fn=fn: _fn(self, *args)
@@ -107,8 +108,8 @@ class AbstractSystem(Rewriter, Interpreter):
     def set_fact(self, name, value, origin):
         self.engine.set_fact(name, value, origin)
 
-    def verify_manual(self, name):
-        self.engine.verify_manual(name)
+    def verify_manual(self, name, signature: str = "system"):
+        self.engine.verify_manual(name, signature=signature)
 
     def register_document(self, name, text):
         self.engine.register_document(name, text)
@@ -147,6 +148,10 @@ class AbstractSystem(Rewriter, Interpreter):
         clone.engine.diffs = dict(self.engine.diffs)
         clone.engine.diff_refs = {k: set(v) for k, v in self.engine.diff_refs.items()}
         clone.engine.documents = dict(self.engine.documents)
+        # Rebind effect lambdas to reference clone, not original
+        clone._effects = dict(self._effects)
+        for ename, fn in clone._effects.items():
+            clone.engine.env[Symbol(ename)] = lambda *args, _fn=fn: _fn(clone, *args)
         return clone
 
     def derive(self, name, wff, using):

@@ -121,35 +121,12 @@ function renderGraph() {
   const mainLeaves = leaves.filter(n => mainComp.has(n.id));
   const interconnectivity = leaves.length > 0 ? mainLeaves.length / leaves.length : 1;
 
-  // ── Taint computation (sources + BFS propagation) ──
-  const taintSources = new Set();
-  nodes.forEach(n => {
-    const item = ITEM_BY_ID[n.id];
-    if (!item) return;
-    const hasEv = item.evidence && item.evidence.length > 0;
-    if (!hasEv) { taintSources.add(n.id); return; }
-    const allOk = item.evidence.every(e => e.status === 'verified' || e.status === 'derived' || e.status === 'manual');
-    if (!allOk) taintSources.add(n.id);
-  });
-
-  // BFS forward from taint sources through children
-  const dirChildren = {};
-  links.forEach(l => {
-    const sid = typeof l.source === 'string' ? l.source : l.source.id;
-    const tid = typeof l.target === 'string' ? l.target : l.target.id;
-    if (!dirChildren[sid]) dirChildren[sid] = [];
-    dirChildren[sid].push(tid);
-  });
-  const taintPropagated = new Set();
-  const tq = [...taintSources];
-  const tVisited = new Set();
-  while (tq.length) {
-    const cur = tq.pop();
-    if (tVisited.has(cur)) continue;
-    tVisited.add(cur);
-    if (!taintSources.has(cur)) taintPropagated.add(cur);
-    (dirChildren[cur] || []).forEach(c => tq.push(c));
-  }
+  // ── Taint data (pre-computed by Python, single source of truth) ──
+  const _gtd = (typeof TAINT_DATA !== 'undefined') ? TAINT_DATA : {sources:[], tainted:[], reasons:{}};
+  const taintSources = new Set(_gtd.sources);
+  const _gAllTainted = new Set(_gtd.tainted);
+  const taintPropagated = new Set([..._gAllTainted].filter(n => !taintSources.has(n)));
+  const taintReasons = _gtd.reasons || {};
 
   // ── Depth bands ──
   const maxDepth = Math.max(0, ...nodes.filter(n => !n.dangling).map(n => n.depth));
@@ -489,6 +466,30 @@ function renderGraph() {
   }
 
   updateGraphStats(null);
+
+  // ── External focus API ──
+  window._graphFocusNode = function(name) {
+    const target = nodes.find(n => n.id === name);
+    if (!target) return;
+    taintMode = false;
+    taintBtnEl.classList.remove('bg-red', 'text-crust', 'border-red');
+    taintBtnEl.classList.add('bg-surface0', 'text-subtext', 'border-surface2');
+    const path = collectGraphPath(name);
+    selectedPath = path;
+    selectedFocusId = name;
+    applySelectionVisuals(path, name);
+    updateGraphStats(path);
+    // Zoom to center on the focused node
+    const scale = 1.2;
+    const tx = width / 2 - target.x * scale;
+    const ty = height / 2 - target.y * scale;
+    svg.transition().duration(600).call(
+      zoomBehavior.transform, d3.zoomIdentity.translate(tx, ty).scale(scale)
+    );
+    // Open detail panel
+    const item = ITEM_BY_ID[name];
+    if (item) showDetail(item);
+  };
 
   // ── Depth band labels ──
   for (let d = 0; d <= maxDepth; d++) {

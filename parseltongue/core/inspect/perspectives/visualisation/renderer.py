@@ -62,16 +62,22 @@ class VizRenderer(FormRenderer):
             self._store.save_viz(self._merkle_root, key, str(result))
         return result
 
+    @property
+    def _logbook(self) -> list[dict]:
+        if self._store:
+            return self._store.read_logbook()
+        return []
+
     def render_form(self, form: list) -> str:
         tag = _base_tag(form)
         if tag in ("ln", "ln-fmt"):
-            return _render_app(_extract_ln_items([form]), "ln", _ln_title(form), self._structure)
+            return _render_app(_extract_ln_items([form]), "ln", _ln_title(form), self._structure, logbook=self._logbook)
         if tag in ("sr", "sr-fmt"):
-            return _render_app(_extract_sr_items([form]), "sr", "Search result", self._structure)
+            return _render_app(_extract_sr_items([form]), "sr", "Search result", self._structure, logbook=self._logbook)
         if tag in ("dx", "dx-fmt"):
-            return _render_app(_extract_dx_items([form]), "dx", "Diagnostic", self._structure)
+            return _render_app(_extract_dx_items([form]), "dx", "Diagnostic", self._structure, logbook=self._logbook)
         if tag in ("hn", "hn-fmt"):
-            return _render_app(_extract_hn_items([form]), "hn", "Hologram", self._structure)
+            return _render_app(_extract_hn_items([form]), "hn", "Hologram", self._structure, logbook=self._logbook)
         return self.fmt_value(form)
 
     def render_form_list(self, forms: list[list]) -> str:
@@ -80,13 +86,15 @@ class VizRenderer(FormRenderer):
         tag = _base_tag(forms[0])
         n = len(forms)
         if tag in ("ln", "ln-fmt"):
-            return _render_app(_extract_ln_items(forms), "ln", f"{n} nodes", self._structure)
+            return _render_app(_extract_ln_items(forms), "ln", f"{n} nodes", self._structure, logbook=self._logbook)
         if tag in ("sr", "sr-fmt"):
-            return _render_app(_extract_sr_items(forms), "sr", f"{n} results", self._structure)
+            return _render_app(_extract_sr_items(forms), "sr", f"{n} results", self._structure, logbook=self._logbook)
         if tag in ("dx", "dx-fmt"):
-            return _render_app(_extract_dx_items(forms), "dx", f"{n} diagnostics", self._structure)
+            return _render_app(
+                _extract_dx_items(forms), "dx", f"{n} diagnostics", self._structure, logbook=self._logbook
+            )
         if tag in ("hn", "hn-fmt"):
-            return _render_app(_extract_hn_items(forms), "hn", f"{n} holograms", self._structure)
+            return _render_app(_extract_hn_items(forms), "hn", f"{n} holograms", self._structure, logbook=self._logbook)
         return self.fmt_value(forms)
 
     def fmt_value(self, val: Any) -> str:
@@ -284,19 +292,13 @@ def _build_layers_data(structure: CoreToConsequenceStructure, item_names: set[st
       layers: [{depth, nodes: [{name, kind, value, uses, declares, pulls, module}]}]
       edges: [{source, target, type}]  — type: use/declare/pull
     """
-    from parseltongue.core.atoms import SILENCE
     from parseltongue.core.atoms import Symbol as _Sym
-    from parseltongue.core.lang import to_sexp as _to_sexp_val
+    from parseltongue.core.grammar import ParseltongueGrammar
 
     if structure is None:
         return {"layers": [], "edges": []}
 
-    def _fmt_val(v):
-        if v is None or v is SILENCE:
-            return str(SILENCE)
-        if isinstance(v, (list, _Sym)):
-            return _to_sexp_val(v)
-        return repr(v)
+    _enc = ParseltongueGrammar.enc
 
     def _keep(name):
         return item_names is None or name in item_names
@@ -310,7 +312,7 @@ def _build_layers_data(structure: CoreToConsequenceStructure, item_names: set[st
         for c in ly.consumers:
             if c.name.startswith("__") or not _keep(c.name):
                 continue
-            val_s = _fmt_val(c.value) if c.value else ""
+            val_s = _enc(c.value) if c.value else ""
             node = {
                 "name": c.name,
                 "kind": str(c.kind),
@@ -434,13 +436,23 @@ def _enrich_items_from_structure(items: list[dict], structure) -> None:
                 ev_status = "manual"
             else:
                 ev_status = "unverified"
+            # Build per-quote context from verification results
+            quote_contexts = {}
+            for vr in origin.verification or []:
+                q = vr.get("quote", "")
+                ctx = vr.get("context")
+                if q and ctx:
+                    quote_contexts[q] = {"before": ctx.get("before", ""), "after": ctx.get("after", "")}
+
             item["evidence"] = [
                 {
                     "doc": origin.document,
                     "quotes": origin.quotes,
+                    "quote_contexts": quote_contexts,
                     "explanation": origin.explanation,
                     "verified": origin.verified,
                     "status": ev_status,
+                    "signature": origin.signature,
                 }
             ]
         elif isinstance(atom, Theorem) or origin == "derived":
@@ -650,8 +662,7 @@ def _localize_multi(structure, seeds: set[str]):
 def _build_named_structure_data(names: set[str], structure) -> list[dict]:
     """Build ln-like structure items for a set of node names found in structure."""
     from parseltongue.core.atoms import SILENCE
-    from parseltongue.core.atoms import Symbol as _Sym
-    from parseltongue.core.lang import to_sexp as _to_sexp_val
+    from parseltongue.core.grammar import ParseltongueGrammar
 
     if structure is None:
         return []
@@ -661,12 +672,7 @@ def _build_named_structure_data(names: set[str], structure) -> list[dict]:
     if not graph:
         return []
 
-    def _fmt_val(v):
-        if v is None or v is SILENCE:
-            return str(SILENCE)
-        if isinstance(v, (list, _Sym)):
-            return _to_sexp_val(v)
-        return repr(v)
+    _enc = ParseltongueGrammar.enc
 
     items = []
     for name in sorted(names):
@@ -679,7 +685,7 @@ def _build_named_structure_data(names: set[str], structure) -> list[dict]:
         depth = depths.get(name, 0)
         inputs = list(node.inputs) if hasattr(node, "inputs") else []
         module = name.split(".")[0] if "." in name else ""
-        value = _fmt_val(getattr(node, "value", None))
+        value = _enc(getattr(node, "value", SILENCE))
         items.append(
             {
                 "id": name,
@@ -713,7 +719,9 @@ def _build_sr_structure_data(sr_items: list[dict], structure) -> list[dict]:
     return _build_named_structure_data(caller_names, structure)
 
 
-def _render_app(items: list[dict], form_type: str, title: str, structure: "Any | None" = None) -> str:
+def _render_app(
+    items: list[dict], form_type: str, title: str, structure: "Any | None" = None, logbook: list[dict] | None = None
+) -> str:
     structure_items = items  # default: structure tab shows same data
     layers_data: dict[str, list] = {"layers": [], "edges": []}
 
@@ -788,12 +796,23 @@ def _render_app(items: list[dict], form_type: str, title: str, structure: "Any |
         structure_items = _build_named_structure_data(set(merged_graph), structure)
         _enrich_items_from_structure(structure_items, structure)
 
+    # Compute taints from structure data + edges
+    from .taints import compute_taints
+
+    taint_result = compute_taints(
+        items=structure_items,
+        edges=layers_data.get("edges", []),
+        structure_items=structure_items,
+        logbook=logbook,
+    )
+
     tmpl = Template(_read_template("app.html"))
     return tmpl.safe_substitute(
         title=_html_escape(title),
         data_json=json.dumps(items, separators=(",", ":")),
         structure_json=json.dumps(structure_items, separators=(",", ":")),
         layers_json=json.dumps(layers_data, separators=(",", ":")),
+        taint_json=json.dumps(taint_result.to_json(), separators=(",", ":")),
         form_type=form_type,
         item_count=str(len(items)),
         core_js=_read_template("core.js"),

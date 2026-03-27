@@ -37,7 +37,13 @@ function render() {
 
     groups[mod].forEach(d => {
       const card = document.createElement('div');
-      card.className = 'bg-surface0 border border-surface1 rounded-lg p-3 hover:border-mauve/50 cursor-pointer transition-colors';
+      const _td = (typeof TAINT_DATA !== 'undefined') ? TAINT_DATA : {sources:[], tainted:[], reasons:{}};
+      const _tSrc = new Set(_td.sources);
+      const _tAll = new Set(_td.tainted);
+      const isTaintSource = d.id && _tSrc.has(d.id);
+      const isTainted = d.id && _tAll.has(d.id);
+      const taintBorder = isTaintSource ? 'border-red' : isTainted ? 'border-yellow border-dashed' : 'border-surface1';
+      card.className = `bg-surface0 border ${taintBorder} rounded-lg p-3 hover:border-mauve/50 cursor-pointer transition-colors`;
       card.onclick = () => showDetail(d);
 
       if (d.id) {
@@ -47,6 +53,8 @@ function render() {
         const val = d.value || '';
         const hasEv = d.evidence && d.evidence.length > 0;
         const verified = hasEv && d.evidence[0].verified;
+        const taintTag = isTaintSource ? '<span class="text-red">&#x2716; taint source</span>'
+          : isTainted ? '<span class="text-yellow">&#x26a0; tainted</span>' : '';
         card.innerHTML = `
           <div class="flex items-start justify-between gap-2 mb-1">
             <span class="text-xs font-bold text-text truncate" title="${esc(name)}">${esc(short)}</span>
@@ -57,6 +65,7 @@ function render() {
             ${d.inputs && d.inputs.length ? `<span>&#x2190; ${d.inputs.length} inputs</span>` : ''}
             ${hasEv ? `<span class="${verified ? 'text-green' : 'text-yellow'}">${verified ? '&#x2713; verified' : '&#x25cb; unverified'}</span>` : ''}
             ${d.depth > 0 ? `<span>depth ${d.depth}</span>` : ''}
+            ${taintTag}
           </div>
         `;
       } else if (FORM_TYPE === 'sr') {

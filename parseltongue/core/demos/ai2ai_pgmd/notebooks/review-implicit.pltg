@@ -1,0 +1,18 @@
+;; review-implicit.pltg — post-session verification
+;; Session: analyst + Claude, 2026-03-26
+;;
+;; These 8 axioms are business rules assumed by the assistant
+;; during analysis. They are not grounded in the source memo —
+;; they encode standard VC due-diligence thresholds.
+
+;; Assistant-signed: analyst conventions, not from the memo
+(import (quote ..analysis.ai2ai_rules))
+
+(verify-manual (quote ai2ai_rules.margin-healthy) "V")
+(verify-manual (quote ai2ai_rules.runway-sufficient) "V")
+(verify-manual (quote ai2ai_rules.ltv-cac-healthy) "V")
+(verify-manual (quote ai2ai_rules.retention-strong) "Claude")
+(verify-manual (quote ai2ai_rules.churn-acceptable) "Claude")
+(verify-manual (quote ai2ai_rules.engagement-strong) "Unknown Intern")
+(verify-manual (quote ai2ai_rules.valuation-reasonable))
+(verify-manual (quote ai2ai_rules.pipeline-covers-gap) "V")

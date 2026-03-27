@@ -1,0 +1,180 @@
+# Markdown Edge Cases
+
+Pattern: **test harness** — exercises every markdown construct the notebook renderer must handle, mixed with `[[ref]]` syntax.
+
+```scheme
+;; pltg — minimal facts for ref testing
+(load-document "memo" "../source/series_a_memo.txt")
+
+(fact arr 2800000
+  :evidence (evidence "memo"
+    :quotes ("Annual Recurring Revenue (ARR): $2,800,000")
+    :explanation "Current ARR"))
+(fact nrr 180
+  :evidence (evidence "memo"
+    :quotes ("Net Revenue Retention (NRR): 180%")
+    :explanation "NRR"))
+(fact cac 18200
+  :evidence (evidence "memo"
+    :quotes ("Customer Acquisition Cost (CAC): $18,200")
+    :explanation "CAC"))
+(fact ltv 89400
+  :evidence (evidence "memo"
+    :quotes ("Estimated Customer Lifetime Value (LTV): $89,400")
+    :explanation "Customer LTV"))
+(fact cash 8200000
+  :evidence (evidence "memo"
+    :quotes ("Cash on Hand: $8,200,000")
+    :explanation "Current cash"))
+
+(derive ltv-to-cac (/ ltv cac) :using (ltv cac))
+
+(axiom retention-ok (> ?n 130) :origin "NRR > 130%")
+(derive retention-check retention-ok :bind ((?n nrr)) :using (nrr retention-ok))
+
+;; defterm, diff coverage
+(defterm burn-ratio (/ cac arr) :using (cac arr))
+(defterm health-label (if (> ltv-to-cac 3.0) "healthy" "weak") :using (ltv-to-cac))
+(defterm arr-stated 2800000 :origin "memo states ARR is $2.8M")
+
+(diff arr-vs-memo :replace arr :with arr-stated)
+```
+
+## All node kinds
+
+Every kind the renderer must color correctly:
+
+- Fact: $[[fact:arr]] ARR
+- Axiom: [[axiom:retention-ok]] threshold
+- Derive: [[term:retention-check]] check
+- Defterm: [[term:burn-ratio]] burn ratio, [[term:health-label]] label
+- Diff: [[diff:arr-vs-memo]] validation
+
+## Inline formatting
+
+Plain text with **bold**, *italic*, ***bold-italic***, and `inline code`. Also **bold with `code` inside** and *italic with `code` inside*.
+
+Refs inside formatting: **$[[fact:arr]]** revenue, *[[fact:nrr]]%* retention, `not a ref [[fact:arr]]` (code escapes refs).
+
+Adjacent refs: [[fact:arr]][[fact:nrr]][[fact:cac]] — these should get comma separators.
+
+Silent refs work too[[~term:retention-check]] — just a footnote number.
+
+### Heading level 3
+
+#### Heading level 4 with **bold** and [[fact:arr]]
+
+##### Heading level 5
+
+###### Heading level 6
+
+---
+
+## Lists
+
+### Unordered
+
+- First item with [[fact:arr]] ref
+- Second item with **bold** and *italic*
+- Third item with `code` and a [[term:ltv-to-cac]]x ratio
+
+### Ordered
+
+1. Revenue: $[[fact:arr]]
+2. Retention: [[fact:nrr]]%
+3. Unit economics: [[term:ltv-to-cac]]x LTV/CAC
+
+### Nested lists
+
+- Top level
+  - Nested item with [[fact:cash]] cash
+  - Another nested
+    - Deep nested with **bold ref [[fact:nrr]]%**
+- Back to top
+
+### Mixed content in items
+
+- This item has `code`, **bold**, *italic*, and $[[fact:arr]] all in one line
+- This one just has plain text
+
+## Tables
+
+| Metric | Value | Status |
+|--------|------:|:------:|
+| ARR | $[[fact:arr]] | good |
+| NRR | [[fact:nrr]]% | **strong** |
+| LTV/CAC | [[term:ltv-to-cac]]x | *excellent* |
+| CAC | $[[fact:cac]] | `ok` |
+
+### Table without refs
+
+| Left | Center | Right |
+|:-----|:------:|------:|
+| a | b | c |
+| **bold** | *italic* | `code` |
+
+## Block quotes
+
+> This is a block quote with [[fact:arr]] ARR.
+> It spans **multiple lines** with *formatting*.
+
+> Nested quote with a ref: [[fact:nrr]]% NRR is well above the [[term:retention-check]] threshold.
+
+## Code blocks
+
+Fenced with info string:
+
+```python
+def check_metrics(arr, nrr):
+    """Not parsed for [[refs]] — raw code."""
+    return arr > 1_000_000 and nrr > 130
+```
+
+Fenced without info:
+
+```
+plain fenced block
+no highlighting, no [[ref]] parsing
+```
+
+## Thematic breaks
+
+Above the break.
+
+---
+
+Below the break.
+
+***
+
+Another break style.
+
+## Edge cases
+
+### Empty emphasis
+
+Text with ** ** empty bold and * * empty italic (should render literally).
+
+### Refs at boundaries
+
+Start of paragraph: [[fact:arr]] is the ARR.
+
+End of paragraph: the ARR is [[fact:arr]]
+
+Ref alone: [[fact:nrr]]
+
+### Multiple refs in one sentence
+
+The company has $[[fact:arr]] ARR with [[fact:nrr]]% NRR, $[[fact:ltv]] LTV vs $[[fact:cac]] CAC giving [[term:ltv-to-cac]]x ratio and $[[fact:cash]] cash.
+
+### Prefixed and suffixed refs
+
+$[[fact:arr]] with dollar prefix, [[fact:nrr]]% with percent suffix, [[term:ltv-to-cac]]x with x suffix.
+
+### Silent refs in prose
+
+All checks pass[[~term:retention-check]] and metrics look healthy.
+
+## Summary
+
+$[[fact:arr]] ARR | [[fact:nrr]]% NRR | [[term:ltv-to-cac]]x LTV/CAC — **strong fundamentals** with $[[fact:cash]] runway.

@@ -63,9 +63,103 @@ allKinds.forEach(k => {
   filtersEl.appendChild(btn);
 });
 
-// ── Search ──
+// ── Search with suggestions ──
 const searchEl = document.getElementById('search');
-searchEl.addEventListener('input', (e) => { searchQuery = e.target.value.toLowerCase(); render(); });
+const suggestionsEl = document.getElementById('search-suggestions');
+
+// All known node names for suggestions (lazy — ITEM_BY_ID defined later)
+let _allNames = null;
+function _getAllNames() {
+  if (!_allNames) _allNames = Object.keys(ITEM_BY_ID);
+  return _allNames;
+}
+
+function _updateSuggestions(query) {
+  if (!query || query.length < 2) {
+    suggestionsEl.classList.add('hidden');
+    return;
+  }
+  const q = query.toLowerCase();
+  // Exact prefix matches first, then substring matches
+  const prefix = [];
+  const substr = [];
+  _getAllNames().forEach(name => {
+    const short = name.includes('.') ? name.split('.').slice(1).join('.') : name;
+    const low = name.toLowerCase();
+    const slowLow = short.toLowerCase();
+    if (slowLow.startsWith(q) || low.startsWith(q)) prefix.push(name);
+    else if (low.includes(q) || slowLow.includes(q)) substr.push(name);
+  });
+  const matches = prefix.concat(substr).slice(0, 12);
+  if (!matches.length) {
+    suggestionsEl.classList.add('hidden');
+    return;
+  }
+  suggestionsEl.innerHTML = matches.map(name => {
+    const item = ITEM_BY_ID[name];
+    const kind = item ? item.kind : '';
+    const dotVar = KIND_DOT_VAR[kind] || 'surface2';
+    const short = name.includes('.') ? name.split('.').slice(1).join('.') : name;
+    const val = item && item.value ? (' = ' + esc(String(item.value).slice(0, 30))) : '';
+    return `<div class="search-suggestion px-3 py-1.5 cursor-pointer hover:bg-surface0 flex items-center gap-2 text-sm" data-name="${esc(name)}">
+      <span class="w-2 h-2 rounded-full shrink-0" style="background:var(--${dotVar})"></span>
+      <span class="text-text truncate">${esc(short)}</span>
+      <span class="text-overlay0 text-xs truncate">${esc(kind)}</span>
+      <span class="text-subtext text-xs ml-auto shrink-0">${val}</span>
+    </div>`;
+  }).join('');
+  suggestionsEl.classList.remove('hidden');
+}
+
+suggestionsEl.addEventListener('click', (e) => {
+  const row = e.target.closest('.search-suggestion');
+  if (!row) return;
+  const name = row.dataset.name;
+  searchEl.value = name;
+  searchQuery = name.toLowerCase();
+  suggestionsEl.classList.add('hidden');
+  focusCurrentView(name);
+});
+
+// Close suggestions on outside click or Escape
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('#search') && !e.target.closest('#search-suggestions')) {
+    suggestionsEl.classList.add('hidden');
+  }
+});
+searchEl.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') suggestionsEl.classList.add('hidden');
+  if (e.key === 'Enter') {
+    const first = suggestionsEl.querySelector('.search-suggestion');
+    if (first && !suggestionsEl.classList.contains('hidden')) {
+      e.preventDefault();
+      const name = first.dataset.name;
+      searchEl.value = name;
+      searchQuery = name.toLowerCase();
+      suggestionsEl.classList.add('hidden');
+      focusCurrentView(name);
+    }
+  }
+});
+
+searchEl.addEventListener('input', (e) => {
+  searchQuery = e.target.value.toLowerCase();
+  _updateSuggestions(e.target.value);
+  render();
+});
+
+// ── Focus dispatch for current view ──
+function focusCurrentView(name) {
+  const item = ITEM_BY_ID[name];
+  if (currentView === 'graph' && window._graphFocusNode) {
+    window._graphFocusNode(name);
+  } else if (currentView === 'layers' && window._layersFocusNode) {
+    window._layersFocusNode(name);
+  } else if (item) {
+    showDetail(item);
+  }
+  render();
+}
 
 // ── View toggle ──
 const VIEW_BTNS = ['source', 'structure', 'layers', 'graph'];
@@ -81,11 +175,24 @@ function switchView(v) {
       ? 'px-3 py-1 rounded-lg text-xs bg-mauve text-crust font-bold'
       : 'px-3 py-1 rounded-lg text-xs bg-surface0 text-subtext hover:bg-surface1';
   });
+  // Adjust full-height views to account for actual header size
+  _syncViewHeight();
   if (v === 'source') renderSource();
   if (v === 'structure') render();
   if (v === 'graph') renderGraph();
   if (v === 'layers') renderLayers();
 }
+
+function _syncViewHeight() {
+  const header = document.querySelector('#app > .sticky');
+  if (!header) return;
+  const h = header.offsetHeight;
+  ['layers-view', 'graph-view'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.height = 'calc(100vh - ' + h + 'px)';
+  });
+}
+window.addEventListener('resize', _syncViewHeight);
 
 // ── Filter logic ──
 function filtered(source) {

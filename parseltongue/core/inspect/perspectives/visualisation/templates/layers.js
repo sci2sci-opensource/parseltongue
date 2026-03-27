@@ -291,34 +291,12 @@ function renderLayers() {
     curX = resultX + resultColW + GAP_X;
   });
 
-  // ── Taint computation (needed for stats) ──
-  // Evidence lives in STRUCTURE_DATA, not DATA — build lookup
-  const _evById = {};
-  if (typeof STRUCTURE_DATA !== 'undefined') STRUCTURE_DATA.forEach(d => { if (d.evidence) _evById[d.id] = d.evidence; });
-  const _structIds = new Set(Object.keys(_evById));
-  const taintSources = new Set();
-  DATA.forEach(d => {
-    // Only consider items that are in the structure — isolated items (e.g. diff anchors)
-    // have no connections and can't propagate taint
-    if (!_structIds.has(d.id)) return;
-    const ev = _evById[d.id] || d.evidence;
-    const hasEv = ev && ev.length > 0;
-    if (!hasEv) { taintSources.add(d.id); return; }
-    const allOk = ev.every(e => e.status === 'verified' || e.status === 'derived' || e.status === 'manual');
-    if (!allOk) taintSources.add(d.id);
-  });
-  function computeTainted() {
-    const tainted = new Set(taintSources);
-    const q = [...taintSources];
-    while (q.length) {
-      const n = q.pop();
-      (childrenOf[n] || []).forEach(c => {
-        if (!tainted.has(c)) { tainted.add(c); q.push(c); }
-      });
-    }
-    return tainted;
-  }
-  const _allTainted = computeTainted();
+  // ── Taint data (pre-computed by Python, single source of truth) ──
+  const _taintData = (typeof TAINT_DATA !== 'undefined') ? TAINT_DATA : {sources:[], tainted:[], reasons:{}};
+  const taintSources = new Set(_taintData.sources);
+  const _allTainted = new Set(_taintData.tainted);
+  const taintReasons = _taintData.reasons || {};
+  function computeTainted() { return new Set(_allTainted); }
 
   // ── Draw layer labels + stats widget ──
   function pct(n, t) { return t ? Math.round(n / t * 100) : 0; }
@@ -1423,4 +1401,26 @@ function renderLayers() {
     applyTaints();
     if (_focusStack.length) applyFocusTaints();
   }
+
+  // ── External focus API ──
+  window._layersFocusNode = function(name) {
+    const pill = g.select(`.pill-node[data-name="${name}"]`);
+    if (!pill.empty()) {
+      selectNode(name);
+      // Extract translate(x,y) from the pill's transform attribute (coords in g-space)
+      const tAttr = pill.attr("transform") || '';
+      const m = tAttr.match(/translate\(\s*([\d.e+-]+)\s*,\s*([\d.e+-]+)/);
+      if (m) {
+        const bbox = pill.node().getBBox();
+        const cx = parseFloat(m[1]) + bbox.width / 2;
+        const cy = parseFloat(m[2]) + bbox.height / 2;
+        const scale = 1.5;
+        const tx = W / 2 - cx * scale;
+        const ty = H / 2 - cy * scale;
+        svg.transition().duration(600).call(
+          zoomBehavior.transform, d3.zoomIdentity.translate(tx, ty).scale(scale)
+        );
+      }
+    }
+  };
 }

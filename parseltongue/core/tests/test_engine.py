@@ -1186,8 +1186,9 @@ class TestConsistency(unittest.TestCase):
         self.assertEqual(len(manual_warnings), 1)
         self.assertIn("x", manual_warnings[0].details)
         detail = manual_warnings[0].details["x"]
-        self.assertIn("document=Doc", detail)
-        self.assertIn("explanation=test reason", detail)
+        self.assertIn("test reason", detail)
+        self.assertIn("[Signed: system]", detail)
+        self.assertIn("(source: Doc)", detail)
 
     def test_report_verbose_includes_detailed_warnings(self):
         """ConsistencyReport.verbose() includes detailed warning section."""

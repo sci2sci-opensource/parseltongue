@@ -62,9 +62,35 @@ function renderTree(tree) {
   return renderNode(tree, true, '');
 }
 
+// ── Focus helpers (switch view + highlight node) ──
+// Graph and layers views register these callbacks on init.
+window._graphFocusNode = null;
+window._layersFocusNode = null;
+
+function focusInGraph(name) {
+  searchEl.value = name;
+  searchQuery = name.toLowerCase();
+  switchView('graph');
+  setTimeout(() => {
+    if (window._graphFocusNode) window._graphFocusNode(name);
+  }, 100);
+}
+function focusInLayers(name) {
+  searchEl.value = name;
+  searchQuery = name.toLowerCase();
+  switchView('layers');
+  setTimeout(() => {
+    if (window._layersFocusNode) window._layersFocusNode(name);
+  }, 100);
+}
+
 // ── Detail panel ──
 const panel = document.getElementById('detail-panel');
-document.getElementById('detail-close').onclick = () => panel.classList.add('translate-x-full');
+const appEl = document.getElementById('app');
+document.getElementById('detail-close').onclick = () => {
+  panel.classList.add('translate-x-full');
+  appEl.classList.remove('detail-open');
+};
 
 function _itemType(d) {
   // Detect item type from properties, not FORM_TYPE
@@ -78,6 +104,7 @@ function _itemType(d) {
 function showDetail(d) {
   if (!d) return;
   panel.classList.remove('translate-x-full');
+  appEl.classList.add('detail-open');
   document.getElementById('detail-title').textContent = d.id || d.doc || '';
   const body = document.getElementById('detail-body');
   let html = '';
@@ -94,6 +121,12 @@ function showDetail(d) {
     const displayVal = noVal ? 'No value' : d.value;
     html += `<div><span class="text-overlay0">value:</span><div class="mt-1 bg-surface0 rounded p-2 text-xs whitespace-pre-wrap ${noVal ? 'text-overlay0 italic' : ''}">${esc(displayVal)}</div></div>`;
     if (d.depth > 0) html += `<div><span class="text-overlay0">depth:</span> ${d.depth}</div>`;
+
+    // ── Focus actions ──
+    html += `<div class="flex gap-2 pt-1">`;
+    html += `<button class="px-2 py-1 rounded text-[10px] bg-surface0 text-subtext hover:bg-surface1 hover:text-mauve border border-surface2" onclick="focusInLayers('${d.id.replace(/'/g, "\\'")}')">Focus in Layers</button>`;
+    html += `<button class="px-2 py-1 rounded text-[10px] bg-surface0 text-subtext hover:bg-surface1 hover:text-mauve border border-surface2" onclick="focusInGraph('${d.id.replace(/'/g, "\\'")}')">Focus in Graph</button>`;
+    html += `</div>`;
 
     // ── Definition (WFF) ──
     if (d.definition) {
@@ -114,9 +147,19 @@ function showDetail(d) {
         html += `<div class="mt-2 bg-crust rounded-lg p-3 space-y-1">`;
         if (ev.doc) html += `<div class="text-xs"><span class="text-overlay0">doc:</span> <span class="text-sky">${esc(ev.doc)}</span></div>`;
         if (ev.quotes && ev.quotes.length) {
+          const ctxs = ev.quote_contexts || {};
           ev.quotes.forEach(q => {
             const bc = st === 'verified' ? 'border-green' : 'border-yellow';
-            html += `<div class="text-xs bg-surface0 rounded p-2 mt-1 whitespace-pre-wrap border-l-2 ${bc}">${esc(q)}</div>`;
+            const ctx = ctxs[q];
+            if (ctx && (ctx.before || ctx.after)) {
+              html += `<div class="text-xs bg-surface0 rounded p-2 mt-1 whitespace-pre-wrap border-l-2 ${bc}">`;
+              if (ctx.before) html += `<span class="text-overlay0">${esc(ctx.before)}</span>`;
+              html += `<span class="font-bold text-text bg-highlight rounded-sm px-0.5">${esc(q)}</span>`;
+              if (ctx.after) html += `<span class="text-overlay0">${esc(ctx.after)}</span>`;
+              html += `</div>`;
+            } else {
+              html += `<div class="text-xs bg-surface0 rounded p-2 mt-1 whitespace-pre-wrap border-l-2 ${bc}">${esc(q)}</div>`;
+            }
           });
         } else if (ev.quote) {
           const bc = st === 'verified' ? 'border-green' : 'border-yellow';
@@ -130,6 +173,22 @@ function showDetail(d) {
         html += `</div>`;
       });
       html += `</div>`;
+    }
+
+    // ── Taint status ──
+    {
+      const _td = (typeof TAINT_DATA !== 'undefined') ? TAINT_DATA : {sources:[], tainted:[], reasons:{}};
+      const _tSrc = new Set(_td.sources);
+      const _tAll = new Set(_td.tainted);
+      if (_tAll.has(d.id)) {
+        const isSource = _tSrc.has(d.id);
+        const reason = (_td.reasons || {})[d.id] || (isSource ? 'taint source' : 'tainted');
+        html += `<div class="border-t border-surface2 pt-3"><span class="text-overlay0 font-bold">Taint</span>`;
+        html += `<div class="mt-1 bg-crust rounded-lg p-3 text-xs">`;
+        html += `<div class="${isSource ? 'text-red' : 'text-yellow'} font-bold">${isSource ? '&#x2716; Taint source' : '&#x26a0; Tainted'}</div>`;
+        html += `<div class="text-subtext mt-1">${esc(reason)}</div>`;
+        html += `</div></div>`;
+      }
     }
 
     // ── Derivation tree (last) ──

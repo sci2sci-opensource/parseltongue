@@ -1,0 +1,7 @@
+;; @@block 0 82889a806169f3dead6e95dd252ff4ae54aaab362f026454c8e39cd2f6ac3703
+;; pltg Load Analysis
+(import (quote ..facts.ai2ai_facts))
+(import (quote ..analysis.ai2ai_rules))
+(import (quote review-implicit))
+
+;; @@end 0

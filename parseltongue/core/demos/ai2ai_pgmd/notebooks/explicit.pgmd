@@ -1,0 +1,162 @@
+# AI2AI Series A: Explicit Analysis
+
+Pattern: **Explicit** — computation happens inline. Each pltg block derives metrics from imported facts, and prose references the results.
+
+## Data
+
+```scheme
+;; pltg Load Facts
+(import (quote ..facts.ai2ai_facts ai2ai_facts))
+```
+
+## Margin Analysis
+
+```scheme
+;; pltg Gross Margin
+(derive gross-profit (- ai2ai_facts.revenue ai2ai_facts.cogs) :using (ai2ai_facts.revenue ai2ai_facts.cogs))
+(derive gross-margin (/ gross-profit ai2ai_facts.revenue) :using (gross-profit ai2ai_facts.revenue))
+(print "Gross profit:")
+gross-margin
+```
+
+AI2AI reports $[[fact:ai2ai_facts.revenue]] in TTM revenue against $[[fact:ai2ai_facts.cogs]] COGS, yielding $[[term:gross-profit]] gross profit — a **[[term:gross-margin]] gross margin**. For a software company with managed cloud delivery, this is strong but leaves room for improvement as infrastructure costs scale.
+
+```scheme
+;; pltg Margin Validation
+(axiom margin-healthy (> ?margin 0.6)
+  :origin "business rule: gross margin must exceed 60% for software")
+(derive margin-check margin-healthy
+  :bind ((?margin gross-margin))
+  :using (gross-margin margin-healthy))
+margin-check
+```
+
+## Unit Economics
+
+```scheme
+;; pltg LTV/CAC
+(derive ltv-to-cac (/ ai2ai_facts.ltv ai2ai_facts.cac) :using (ai2ai_facts.ltv ai2ai_facts.cac))
+(derive arr-per-customer (/ ai2ai_facts.arr ai2ai_facts.total-customers) :using (ai2ai_facts.arr ai2ai_facts.total-customers))
+(print "LTV/CAC ratio:")
+ltv-to-cac
+```
+
+- LTV: $[[fact:ai2ai_facts.ltv]] vs CAC: $[[fact:ai2ai_facts.cac]] → **LTV/CAC: [[term:ltv-to-cac]]x**
+- ARR per customer: $[[term:arr-per-customer]]
+
+```scheme
+;; pltg Retention & Churn
+(axiom ltv-cac-healthy (> ?ratio 3.0)
+  :origin "business rule: LTV/CAC must exceed 3x")
+(derive ltv-cac-check ltv-cac-healthy
+  :bind ((?ratio ltv-to-cac))
+  :using (ltv-to-cac ltv-cac-healthy))
+
+(axiom retention-strong (> ?nrr 130)
+  :origin "business rule: NRR must exceed 130% for expansion-driven model")
+(derive retention-check retention-strong
+  :bind ((?nrr ai2ai_facts.nrr))
+  :using (ai2ai_facts.nrr retention-strong))
+
+(axiom churn-acceptable (< ?churn 2.0)
+  :origin "business rule: monthly churn must be below 2%")
+(derive churn-check churn-acceptable
+  :bind ((?churn ai2ai_facts.monthly-churn-pct))
+  :using (ai2ai_facts.monthly-churn-pct churn-acceptable))
+churn-check
+```
+
+With [[fact:ai2ai_facts.nrr]]% NRR and [[fact:ai2ai_facts.monthly-churn-pct]]% monthly churn, the expansion dynamics are exceptional. For context, best-in-class developer tools (Datadog, GitLab) operate at 130–140% NRR. AI2AI at 180% suggests deep product-led expansion within accounts.
+
+## Runway & Capital Efficiency
+
+```scheme
+;; pltg Runway
+(derive runway-months (/ ai2ai_facts.cash ai2ai_facts.monthly-burn) :using (ai2ai_facts.cash ai2ai_facts.monthly-burn))
+(derive post-raise-cash (+ ai2ai_facts.cash ai2ai_facts.round-size) :using (ai2ai_facts.cash ai2ai_facts.round-size))
+(derive post-raise-runway (/ post-raise-cash ai2ai_facts.monthly-burn) :using (post-raise-cash ai2ai_facts.monthly-burn))
+(derive burn-multiple (/ ai2ai_facts.monthly-burn ai2ai_facts.mrr) :using (ai2ai_facts.monthly-burn ai2ai_facts.mrr))
+(derive sales-efficiency (/ ai2ai_facts.arr ai2ai_facts.sales-expense) :using (ai2ai_facts.arr ai2ai_facts.sales-expense))
+(print "Current runway:")
+runway-months
+```
+
+Current cash: $[[fact:ai2ai_facts.cash]], burning $[[fact:ai2ai_facts.monthly-burn]]/mo.
+
+- **Pre-raise runway: [[term:runway-months]] months** — comfortable position
+- Post-raise cash: $[[term:post-raise-cash]] → **[[term:post-raise-runway]] months runway**
+- Burn multiple: [[term:burn-multiple]]x (good: below 2x)
+- Sales efficiency: [[term:sales-efficiency]]x (ARR / S&M spend)
+
+## Pipeline & Growth Path
+
+```scheme
+;; pltg Pipeline Projection
+(derive expected-pipeline-conversion
+  (/ (* ai2ai_facts.pipeline-arr ai2ai_facts.pilot-conversion-pct) 100)
+  :using (ai2ai_facts.pipeline-arr ai2ai_facts.pilot-conversion-pct))
+
+(derive projected-arr-12mo
+  (+ (+ ai2ai_facts.arr expected-pipeline-conversion) ai2ai_facts.expansion-revenue)
+  :using (ai2ai_facts.arr expected-pipeline-conversion ai2ai_facts.expansion-revenue))
+
+(axiom pipeline-covers-gap (> ?projected 5000000)
+  :origin "business rule: projected 12-month ARR must exceed $5M")
+(derive pipeline-check pipeline-covers-gap
+  :bind ((?projected projected-arr-12mo))
+  :using (projected-arr-12mo pipeline-covers-gap))
+projected-arr-12mo
+```
+
+With [[fact:ai2ai_facts.active-pilots]] active pilots at [[fact:ai2ai_facts.pilot-conversion-pct]]% conversion, we expect $[[term:expected-pipeline-conversion]] in pipeline conversion. Combined with $[[fact:ai2ai_facts.expansion-revenue]] expansion revenue, **projected 12-month ARR reaches $[[term:projected-arr-12mo]]**. The path to $10M requires continued new logo acquisition at current rates.
+
+## Engagement
+
+```scheme
+;; pltg Engagement Metrics
+(derive dau-wau-ratio (/ ai2ai_facts.dau ai2ai_facts.wau) :using (ai2ai_facts.dau ai2ai_facts.wau))
+(derive reviews-per-dau (/ ai2ai_facts.monthly-reviews ai2ai_facts.dau) :using (ai2ai_facts.monthly-reviews ai2ai_facts.dau))
+(derive revenue-per-head (/ ai2ai_facts.revenue ai2ai_facts.headcount) :using (ai2ai_facts.revenue ai2ai_facts.headcount))
+
+(axiom engagement-strong (> ?ratio 0.4)
+  :origin "business rule: DAU/WAU should exceed 40%")
+(derive engagement-check engagement-strong
+  :bind ((?ratio dau-wau-ratio))
+  :using (dau-wau-ratio engagement-strong))
+dau-wau-ratio
+```
+
+- DAU/WAU: [[term:dau-wau-ratio]] — strong daily engagement[[~term:engagement-check]]
+- Reviews per DAU: [[term:reviews-per-dau]]/mo
+- Revenue per head: $[[term:revenue-per-head]]
+
+## Valuation
+
+```scheme
+;; pltg Valuation
+(derive arr-multiple (/ ai2ai_facts.pre-money ai2ai_facts.arr) :using (ai2ai_facts.pre-money ai2ai_facts.arr))
+(derive enterprise-pct (/ ai2ai_facts.enterprise-customers ai2ai_facts.total-customers) :using (ai2ai_facts.enterprise-customers ai2ai_facts.total-customers))
+
+(axiom valuation-reasonable (< ?multiple 25)
+  :origin "business rule: ARR multiple should be below 25x for Series A")
+(derive valuation-check valuation-reasonable
+  :bind ((?multiple arr-multiple))
+  :using (arr-multiple valuation-reasonable))
+arr-multiple
+```
+
+Pre-money $[[fact:ai2ai_facts.pre-money]] on $[[fact:ai2ai_facts.arr]] ARR → **[[term:arr-multiple]]x multiple**[[~term:valuation-check]]. At 340% growth this is within range for comparable Series A rounds (Snyk: 25x, Semgrep: 20x at similar stage).
+
+## Stress Test
+
+```scheme
+;; pltg Broken Block
+(derive phantom (/ nonexistent-metric 100) :using (nonexistent-metric))
+phantom
+```
+
+The system catches errors inline — remaining analysis is unaffected.
+
+## Recommendation
+
+All validation checks pass: margin[[~term:margin-check]], LTV/CAC[[~term:ltv-cac-check]], retention[[~term:retention-check]], churn[[~term:churn-check]], engagement[[~term:engagement-check]], valuation[[~term:valuation-check]], pipeline[[~term:pipeline-check]]. The combination of [[fact:ai2ai_facts.nrr]]% NRR, [[term:ltv-to-cac]]x LTV/CAC, and [[term:post-raise-runway]] months post-raise runway provides strong downside protection. Recommend proceeding at $[[fact:ai2ai_facts.pre-money]] pre-money.

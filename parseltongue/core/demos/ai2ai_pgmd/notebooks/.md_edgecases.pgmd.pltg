@@ -1,0 +1,38 @@
+;; @@block 0 f3f944a6be662dfc935f706767de6fecc78a814ebf62afc4793739f6bb641ab5
+;; pltg — minimal facts for ref testing
+(load-document "memo" "../source/series_a_memo.txt")
+
+(fact arr 2800000
+  :evidence (evidence "memo"
+    :quotes ("Annual Recurring Revenue (ARR): $2,800,000")
+    :explanation "Current ARR"))
+(fact nrr 180
+  :evidence (evidence "memo"
+    :quotes ("Net Revenue Retention (NRR): 180%")
+    :explanation "NRR"))
+(fact cac 18200
+  :evidence (evidence "memo"
+    :quotes ("Customer Acquisition Cost (CAC): $18,200")
+    :explanation "CAC"))
+(fact ltv 89400
+  :evidence (evidence "memo"
+    :quotes ("Estimated Customer Lifetime Value (LTV): $89,400")
+    :explanation "Customer LTV"))
+(fact cash 8200000
+  :evidence (evidence "memo"
+    :quotes ("Cash on Hand: $8,200,000")
+    :explanation "Current cash"))
+
+(derive ltv-to-cac (/ ltv cac) :using (ltv cac))
+
+(axiom retention-ok (> ?n 130) :origin "NRR > 130%")
+(derive retention-check retention-ok :bind ((?n nrr)) :using (nrr retention-ok))
+
+;; defterm, diff coverage
+(defterm burn-ratio (/ cac arr) :using (cac arr))
+(defterm health-label (if (> ltv-to-cac 3.0) "healthy" "weak") :using (ltv-to-cac))
+(defterm arr-stated 2800000 :origin "memo states ARR is $2.8M")
+
+(diff arr-vs-memo :replace arr :with arr-stated)
+
+;; @@end 0
