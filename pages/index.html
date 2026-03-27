@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 -65.5 262 262'%3E%3Cpath d='M65.5 0C29.4 0 0 29.4 0 65.5 0 101.6 29.4 131 65.5 131c27.4 0 38.6-14.2 51.5-32.8-3.8-6.2-1.5 1.2-4.7-4.7C93.6 107.6 87.9 112.3 65.5 112.3 39.7 112.3 18.7 91.3 18.7 65.5 18.7 39.5 39.5 18.7 65.5 18.7c15.1 0 24.7 5.4 33.6 14.6 8.9 9.2 16.4 22.5 24 36.5 7.6 14 15.3 28.8 26.6 40.6C161 122.4 176.6 131 196.5 131 232.6 131 262 101.6 262 65.5 262 29.4 232.6 0 196.5 0c-28.1 0-24.5 9.9-37.4 28.1 3.8 6.1-12.3 16.7-9.1 22.5C161.4 32.2 174.1 18.7 196.5 18.7c25.8 0 46.8 21 46.8 46.8 0 26-21.1 46.8-47 46.8-14.9 0-24.2-5.4-33-14.6-8.8-9.2-16.3-22.5-24-36.5-7.6-14-15.5-28.8-26.9-40.6C101.2 8.6 85.6 0 65.5 0Z' fill='%23b4befe'/%3E%3Cpath d='M93.6 121.6c9.9-3.3 19.4-12.2 24.8-24.7 2.8-8 6.1-17.5-1.2-10 -7.9 8.1-16 15-23.7 17.1v17.6Z' fill='%23b4befe'/%3E%3Cpath d='M194.9 18.7V0c-12.5-.3-17.8 4.2-29 11.9-6.4 1.2-16.9-2.4-26.6 11.2-5.6 7.9-4.9 19.7-6 21.2-1 1.6-.4 10.2 10.9 9.3 11.2-.9 30.9-21 30.9-21 5.8-4.4 13.5-13.8 19.8-14Z' fill='%23b4befe'/%3E%3C/svg%3E">
+  <title>parseltongue demos</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 640px; margin: 4rem auto; padding: 0 1rem; color: #cdd6f4; background: #1e1e2e; }
+    a { color: #b4befe; }
+    a:hover { color: #cba6f7; }
+    h1 { font-size: 1.5rem; }
+    ul { list-style: none; padding: 0; }
+    li { margin: 0.75rem 0; }
+    li a { display: inline-block; padding: 0.5rem 1rem; background: #313244; border-radius: 0.5rem; text-decoration: none; }
+    li a:hover { background: #45475a; }
+    .dim { color: #6c7086; font-size: 0.85rem; }
+  </style>
+</head>
+<body>
+  <h1>parseltongue demos</h1>
+  <p class="dim">Analysis of a fictional AI2AI Series A investor memo. Each notebook pattern extracts facts from the memo, derives financial metrics, validates business rules, and renders a grounded narrative where every claim links back to source evidence.</p>
+  <ul>
+    <li><a href="demos/standalone.html">Standalone</a><br><span class="dim">Everything in one file — facts, computation, and prose. Self-contained analysis of ARR, margins, and unit economics.</span></li>
+    <li><a href="demos/explicit.html">Explicit</a><br><span class="dim">Imports a shared facts module, derives metrics inline. Shows how notebooks connect to larger pltg systems.</span></li>
+    <li><a href="demos/implicit.html">Implicit</a><br><span class="dim">Pure narrative — imports pre-computed facts and rules. Clean prose with grounded references, no visible computation.</span></li>
+    <li><a href="demos/md_edgecases.html">Markdown edge cases</a><br><span class="dim">Stress test of the renderer — headings, tables, nested lists, blockquotes, inline formatting, and adjacent refs.</span></li>
+  </ul>
+</body>
+</html>

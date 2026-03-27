@@ -35,9 +35,24 @@ Pattern: **test harness** — exercises every markdown construct the notebook re
 ;; defterm, diff coverage
 (defterm burn-ratio (/ cac arr) :using (cac arr))
 (defterm health-label (if (> ltv-to-cac 3.0) "healthy" "weak") :using (ltv-to-cac))
-(defterm arr-stated 2800000 :origin "memo states ARR is $2.8M")
 
+;; ── Coherent diff with downstreams ──
+;; arr-stated matches arr (2.8M) → burn-ratio, health-label unchanged
+(defterm arr-stated 2800000 :origin "memo states ARR is $2.8M")
 (diff arr-vs-memo :replace arr :with arr-stated)
+
+;; ── Divergent diff with deep downstream chain ──
+;; nrr (180) vs nrr-model-estimate (155) — cascades through 5 levels:
+;;   nrr → growth-adjusted-arr → projected-q4-arr → annual-revenue-rate
+;;     → runway-months → runway-status
+(defterm nrr-model-estimate 155 :origin "model predicts NRR ~155%")
+(defterm growth-adjusted-arr (* arr (/ nrr 100)) :using (arr nrr))
+(defterm projected-q4-arr (* growth-adjusted-arr (/ nrr 100)) :using (growth-adjusted-arr nrr))
+(defterm annual-revenue-rate (+ projected-q4-arr (* growth-adjusted-arr 3)) :using (projected-q4-arr growth-adjusted-arr))
+(defterm runway-months (/ cash (/ annual-revenue-rate 12)) :using (cash annual-revenue-rate))
+(defterm runway-status (if (> runway-months 18) "safe" (if (> runway-months 12) "caution" "critical")) :using (runway-months))
+(derive runway-is-safe (= runway-status "safe") :using (runway-status))
+(diff nrr-vs-model :replace nrr :with nrr-model-estimate)
 ```
 
 ## All node kinds
@@ -48,7 +63,8 @@ Every kind the renderer must color correctly:
 - Axiom: [[axiom:retention-ok]] threshold
 - Derive: [[term:retention-check]] check
 - Defterm: [[term:burn-ratio]] burn ratio, [[term:health-label]] label
-- Diff: [[diff:arr-vs-memo]] validation
+- Diff (coherent): [[diff:arr-vs-memo]] validation
+- Diff (divergent): [[diff:nrr-vs-model]] model disagrees
 
 ## Inline formatting
 

@@ -55,7 +55,7 @@ _KIND_COLORS = {
     "term-comp": "teal",
     "derive": "mauve",
     "defterm": "blue",
-    "diff": "red",
+    "diff": "patronus",
     "synthetic": "overlay0",
 }
 
@@ -783,6 +783,121 @@ def build_viz_data(structure: "CoreToConsequenceStructure") -> tuple[list[dict],
     # Rebuild index after enrichment (inputs may now be dicts)
     node_index = {it["id"]: it for it in items}
     return items, layers_data, node_index
+
+
+def merge_diff_structure(
+    items: list[dict],
+    layers_data: dict,
+    node_index: dict,
+    diff_structure: "CoreToConsequenceStructure",
+) -> None:
+    """Merge diff probe results into existing viz data (mutates in place).
+
+    Adds new nodes from the diff structure (diff nodes and any upstream
+    nodes not already present).  Existing nodes are left untouched —
+    the lens structure is authoritative for those.
+    """
+    from parseltongue.core.grammar import ParseltongueGrammar
+
+    if diff_structure is None or not diff_structure.graph:
+        return
+
+    existing_ids = set(node_index)
+    new_items: list[dict] = []
+
+    from parseltongue.core.inspect.probe_core_to_consequence import NodeKind
+
+    for name, node in diff_structure.graph.items():
+        if name == "__output__" or name in existing_ids:
+            continue
+        kind = node.kind.value if hasattr(node.kind, "value") else str(node.kind)
+        depth = diff_structure.depths.get(name, 0)
+        inputs = [str(i) for i in (node.inputs or [])]
+        module = name.split(".")[0] if "." in name else ""
+
+        # Diff nodes get structured value; others get encoded string
+        if node.kind == NodeKind.DIFF and isinstance(node.value, dict):
+            diff_val = node.value
+            value_a = diff_val.get("value_a")
+            value_b = diff_val.get("value_b")
+            divergences = diff_val.get("divergences", {})
+            coherent = value_a == value_b and len(divergences) == 0
+            # Display value: short summary for cards/inline
+            va_s = _fmt_value(str(value_a)) if value_a is not None else "?"
+            vb_s = _fmt_value(str(value_b)) if value_b is not None else "?"
+            if coherent:
+                value_str = f"{va_s} = {vb_s}"
+            else:
+                value_str = f"{va_s} \u2260 {vb_s}"
+            item_value = value_str
+            # Store full diff data for detail panel
+            # divergences: {name: [val_original, val_substituted]}
+            div_serialized = {}
+            for dk, dv in divergences.items():
+                if isinstance(dv, (list, tuple)) and len(dv) == 2:
+                    div_serialized[dk] = {"before": str(dv[0]), "after": str(dv[1])}
+                else:
+                    div_serialized[dk] = {"before": str(dv), "after": ""}
+            diff_data = {
+                "replace": diff_val.get("replace", ""),
+                "with": diff_val.get("with", ""),
+                "value_a": str(value_a) if value_a is not None else None,
+                "value_b": str(value_b) if value_b is not None else None,
+                "coherent": coherent,
+                "divergences": div_serialized,
+            }
+        else:
+            value_str = ParseltongueGrammar.enc(node.value)
+            if len(value_str) > 200:
+                value_str = value_str[:197] + "..."
+            item_value = value_str
+            diff_data = None
+
+        item = {
+            "id": name,
+            "kind": kind,
+            "value": item_value,
+            "depth": depth,
+            "inputs": inputs,
+            "evidence": [],
+            "module": module,
+        }
+        if diff_data is not None:
+            item["diff"] = diff_data
+        new_items.append(item)
+        node_index[name] = item
+
+    _enrich_items_from_structure(new_items, diff_structure)
+    items.extend(new_items)
+
+    # Merge layers and edges
+    local = _localize_multi(_strip_internal(diff_structure), set(diff_structure.graph) - {"__output__"})
+    diff_layers = _build_layers_data(local)
+
+    existing_edge_keys = {f"{e['source']}>{e['target']}>{e['type']}" for e in layers_data.get("edges", [])}
+    for edge in diff_layers.get("edges", []):
+        key = f"{edge['source']}>{edge['target']}>{edge['type']}"
+        if key not in existing_edge_keys:
+            layers_data.setdefault("edges", []).append(edge)
+            existing_edge_keys.add(key)
+
+    existing_layer_nodes: dict[int, set[str]] = {}
+    for ly in layers_data.get("layers", []):
+        existing_layer_nodes[ly["depth"]] = {n["name"] for n in ly["nodes"]}
+
+    for ly in diff_layers.get("layers", []):
+        existing = existing_layer_nodes.get(ly["depth"])
+        if existing is not None:
+            target_layer = next(la for la in layers_data["layers"] if la["depth"] == ly["depth"])
+            for n in ly["nodes"]:
+                if n["name"] not in existing:
+                    target_layer["nodes"].append(n)
+                    existing.add(n["name"])
+        else:
+            layers_data.setdefault("layers", []).append(ly)
+            existing_layer_nodes[ly["depth"]] = {n["name"] for n in ly["nodes"]}
+
+    layers_data["layers"].sort(key=lambda ly: ly["depth"])
 
 
 # ── Assemble final HTML ──

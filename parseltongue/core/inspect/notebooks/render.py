@@ -12,6 +12,7 @@ from pathlib import Path
 from parseltongue.core.inspect.perspectives.visualisation.notebook_renderer import (
     build_notebook_html,
     build_viz_data,
+    merge_diff_structure,
     render_notebook,
 )
 
@@ -23,6 +24,7 @@ def render_pgmd(
     title: str | None = None,
     user: str | None = None,
     assistant: str | None = None,
+    include_diffs: bool = True,
 ) -> str:
     """Execute a .pgmd notebook and render to self-contained HTML.
 
@@ -31,6 +33,7 @@ def render_pgmd(
         title: Optional title. Defaults to filename stem.
         user: Optional user name for session booking.
         assistant: Optional assistant name for session booking.
+        include_diffs: Probe diffs and merge into viz data (default True).
 
     Returns:
         Complete HTML string with notebook view + viz app.
@@ -40,10 +43,10 @@ def render_pgmd(
         title = pgmd_path.stem.replace("_", " ").replace("-", " ").title()
 
     result = execute_pgmd(pgmd_path, user=user, assistant=assistant)
-    return render_result(result, title)
+    return render_result(result, title, include_diffs=include_diffs)
 
 
-def render_result(result: NotebookResult, title: str) -> str:
+def render_result(result: NotebookResult, title: str, include_diffs: bool = True) -> str:
     """Render an already-executed NotebookResult to HTML."""
     items: list[dict] = []
     layers_data: dict = {"layers": [], "edges": []}
@@ -64,6 +67,16 @@ def render_result(result: NotebookResult, title: str) -> str:
             engine = bench.engine
         except Exception:
             pass
+
+        # Merge diff possibilities into viz data
+        if include_diffs and engine is not None and getattr(engine, "diffs", None):
+            try:
+                from parseltongue.core.inspect.vital import probe_diffs_to_possibilities
+
+                diff_structure = probe_diffs_to_possibilities(engine)
+                merge_diff_structure(items, layers_data, node_index, diff_structure)
+            except Exception as e:
+                print(f"Warning: diff probe failed: {e}", file=sys.stderr)
 
         try:
             screen = bench.screen()

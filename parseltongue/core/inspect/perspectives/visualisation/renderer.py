@@ -45,11 +45,13 @@ class VizRenderer(FormRenderer):
         merkle_root: str = "",
         structure: "Any | None" = None,
         loc_fn: "Callable[[str], str] | None" = None,
+        diff_structure: "Any | None" = None,
     ):
         self._store = store
         self._merkle_root = merkle_root
         self._structure = structure  # CoreToConsequenceStructure for rail layout
         self._loc_fn = loc_fn
+        self._diff_structure = diff_structure  # from probe_diffs_to_possibilities
 
     def fmt(self, val: Any) -> str:
         key = _content_hash(_to_sexp(val))
@@ -70,14 +72,33 @@ class VizRenderer(FormRenderer):
 
     def render_form(self, form: list) -> str:
         tag = _base_tag(form)
+        ds = self._diff_structure
         if tag in ("ln", "ln-fmt"):
-            return _render_app(_extract_ln_items([form]), "ln", _ln_title(form), self._structure, logbook=self._logbook)
+            return _render_app(
+                _extract_ln_items([form]),
+                "ln",
+                _ln_title(form),
+                self._structure,
+                logbook=self._logbook,
+                diff_structure=ds,
+            )
         if tag in ("sr", "sr-fmt"):
-            return _render_app(_extract_sr_items([form]), "sr", "Search result", self._structure, logbook=self._logbook)
+            return _render_app(
+                _extract_sr_items([form]),
+                "sr",
+                "Search result",
+                self._structure,
+                logbook=self._logbook,
+                diff_structure=ds,
+            )
         if tag in ("dx", "dx-fmt"):
-            return _render_app(_extract_dx_items([form]), "dx", "Diagnostic", self._structure, logbook=self._logbook)
+            return _render_app(
+                _extract_dx_items([form]), "dx", "Diagnostic", self._structure, logbook=self._logbook, diff_structure=ds
+            )
         if tag in ("hn", "hn-fmt"):
-            return _render_app(_extract_hn_items([form]), "hn", "Hologram", self._structure, logbook=self._logbook)
+            return _render_app(
+                _extract_hn_items([form]), "hn", "Hologram", self._structure, logbook=self._logbook, diff_structure=ds
+            )
         return self.fmt_value(form)
 
     def render_form_list(self, forms: list[list]) -> str:
@@ -85,16 +106,38 @@ class VizRenderer(FormRenderer):
             return self.fmt_value([])
         tag = _base_tag(forms[0])
         n = len(forms)
+        ds = self._diff_structure
         if tag in ("ln", "ln-fmt"):
-            return _render_app(_extract_ln_items(forms), "ln", f"{n} nodes", self._structure, logbook=self._logbook)
+            return _render_app(
+                _extract_ln_items(forms), "ln", f"{n} nodes", self._structure, logbook=self._logbook, diff_structure=ds
+            )
         if tag in ("sr", "sr-fmt"):
-            return _render_app(_extract_sr_items(forms), "sr", f"{n} results", self._structure, logbook=self._logbook)
+            return _render_app(
+                _extract_sr_items(forms),
+                "sr",
+                f"{n} results",
+                self._structure,
+                logbook=self._logbook,
+                diff_structure=ds,
+            )
         if tag in ("dx", "dx-fmt"):
             return _render_app(
-                _extract_dx_items(forms), "dx", f"{n} diagnostics", self._structure, logbook=self._logbook
+                _extract_dx_items(forms),
+                "dx",
+                f"{n} diagnostics",
+                self._structure,
+                logbook=self._logbook,
+                diff_structure=ds,
             )
         if tag in ("hn", "hn-fmt"):
-            return _render_app(_extract_hn_items(forms), "hn", f"{n} holograms", self._structure, logbook=self._logbook)
+            return _render_app(
+                _extract_hn_items(forms),
+                "hn",
+                f"{n} holograms",
+                self._structure,
+                logbook=self._logbook,
+                diff_structure=ds,
+            )
         return self.fmt_value(forms)
 
     def fmt_value(self, val: Any) -> str:
@@ -720,7 +763,12 @@ def _build_sr_structure_data(sr_items: list[dict], structure) -> list[dict]:
 
 
 def _render_app(
-    items: list[dict], form_type: str, title: str, structure: "Any | None" = None, logbook: list[dict] | None = None
+    items: list[dict],
+    form_type: str,
+    title: str,
+    structure: "Any | None" = None,
+    logbook: list[dict] | None = None,
+    diff_structure: "Any | None" = None,
 ) -> str:
     structure_items = items  # default: structure tab shows same data
     layers_data: dict[str, list] = {"layers": [], "edges": []}
@@ -795,6 +843,13 @@ def _render_app(
         }
         structure_items = _build_named_structure_data(set(merged_graph), structure)
         _enrich_items_from_structure(structure_items, structure)
+
+    # Merge diff possibilities if provided
+    if diff_structure is not None:
+        from .notebook_renderer import merge_diff_structure
+
+        node_index = {it["id"]: it for it in structure_items}
+        merge_diff_structure(structure_items, layers_data, node_index, diff_structure)
 
     # Compute taints from structure data + edges
     from .taints import compute_taints
