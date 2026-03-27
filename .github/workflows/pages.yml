@@ -19,6 +19,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -e "."
+
+      - name: Render demos
+        working-directory: parseltongue/core/demos/ai2ai_pgmd
+        run: python render_all.py
+
       - name: Assemble site
         run: |
           mkdir -p _site/demos
