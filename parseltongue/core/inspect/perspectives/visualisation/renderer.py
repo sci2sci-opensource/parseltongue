@@ -436,10 +436,19 @@ def _enrich_items_from_structure(items: list[dict], structure) -> None:
                 ev_status = "manual"
             else:
                 ev_status = "unverified"
+            # Build per-quote context from verification results
+            quote_contexts = {}
+            for vr in origin.verification or []:
+                q = vr.get("quote", "")
+                ctx = vr.get("context")
+                if q and ctx:
+                    quote_contexts[q] = {"before": ctx.get("before", ""), "after": ctx.get("after", "")}
+
             item["evidence"] = [
                 {
                     "doc": origin.document,
                     "quotes": origin.quotes,
+                    "quote_contexts": quote_contexts,
                     "explanation": origin.explanation,
                     "verified": origin.verified,
                     "status": ev_status,

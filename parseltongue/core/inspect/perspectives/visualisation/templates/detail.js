@@ -147,9 +147,19 @@ function showDetail(d) {
         html += `<div class="mt-2 bg-crust rounded-lg p-3 space-y-1">`;
         if (ev.doc) html += `<div class="text-xs"><span class="text-overlay0">doc:</span> <span class="text-sky">${esc(ev.doc)}</span></div>`;
         if (ev.quotes && ev.quotes.length) {
+          const ctxs = ev.quote_contexts || {};
           ev.quotes.forEach(q => {
             const bc = st === 'verified' ? 'border-green' : 'border-yellow';
-            html += `<div class="text-xs bg-surface0 rounded p-2 mt-1 whitespace-pre-wrap border-l-2 ${bc}">${esc(q)}</div>`;
+            const ctx = ctxs[q];
+            if (ctx && (ctx.before || ctx.after)) {
+              html += `<div class="text-xs bg-surface0 rounded p-2 mt-1 whitespace-pre-wrap border-l-2 ${bc}">`;
+              if (ctx.before) html += `<span class="text-overlay0">${esc(ctx.before)}</span>`;
+              html += `<span class="font-bold text-text bg-highlight rounded-sm px-0.5">${esc(q)}</span>`;
+              if (ctx.after) html += `<span class="text-overlay0">${esc(ctx.after)}</span>`;
+              html += `</div>`;
+            } else {
+              html += `<div class="text-xs bg-surface0 rounded p-2 mt-1 whitespace-pre-wrap border-l-2 ${bc}">${esc(q)}</div>`;
+            }
           });
         } else if (ev.quote) {
           const bc = st === 'verified' ? 'border-green' : 'border-yellow';
