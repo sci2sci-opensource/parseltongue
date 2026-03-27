@@ -60,6 +60,50 @@ _KIND_COLORS = {
 }
 
 
+def _diff_state(node: dict) -> str:
+    """Return 'coherent', 'tainted', or 'warn' for a diff node."""
+    df = node.get("diff")
+    if not df:
+        return "coherent"
+    if df.get("coherent"):
+        cont = df.get("contaminated")
+        return "warn" if cont and len(cont) > 0 else "coherent"
+    return "tainted"
+
+
+# Color-mixed patronus text hierarchy per diff state.
+_DIFF_TEXT = {
+    "coherent": ("var(--patronus-text-primary)", "var(--patronus-text-secondary)", "var(--patronus-text-muted)"),
+    "tainted": ("var(--patronus-taint-core)", "var(--patronus-taint-glow)", "var(--patronus-taint-outer)"),
+    "warn": ("var(--patronus-warn-core)", "var(--patronus-warn-glow)", "var(--patronus-warn-outer)"),
+}
+
+
+def _text_style(color: str, node: dict | None = None) -> str:
+    """Return inline style for primary text color of a kind.
+
+    Diff nodes use color-mixed patronus palette based on coherence state.
+    """
+    if color == "patronus":
+        st = _diff_state(node) if node else "coherent"
+        return f"color:{_DIFF_TEXT[st][0]}"
+    return f"color:var(--{color})"
+
+
+def _text_style_secondary(color: str, node: dict | None = None) -> str:
+    if color == "patronus":
+        st = _diff_state(node) if node else "coherent"
+        return f"color:{_DIFF_TEXT[st][1]}"
+    return f"color:var(--{color})"
+
+
+def _text_style_muted(color: str, node: dict | None = None) -> str:
+    if color == "patronus":
+        st = _diff_state(node) if node else "coherent"
+        return f"color:{_DIFF_TEXT[st][2]}"
+    return "color:var(--overlay0)"
+
+
 # ── Value formatting ──
 
 
@@ -408,6 +452,7 @@ def _render_pgmd_ref(
             "silent": silent,
             "tainted": is_tainted,
             "taint_source": is_source,
+            "node": node,
         }
     )
 
@@ -422,19 +467,21 @@ def _render_pgmd_ref(
         taint_icon = '<span class="text-yellow ml-0.5" title="tainted">&#x26a0;</span>'
 
     esc_id = html_mod.escape(node_id)
+    ts_pri = _text_style(color, node)
+    ts_sec = _text_style_secondary(color, node)
     if silent:
         return (
             f'{prefix}<span class="nb-fn cursor-pointer{taint_cls}" '
             f'data-node="{esc_id}" data-fn="{fn_num}">'
-            f'<sup class="text-{color} text-[0.65em] font-bold">{fn_num}{taint_icon}</sup></span>{suffix}'
+            f'<sup class="text-[0.65em] font-bold" style="{ts_sec}">{fn_num}{taint_icon}</sup></span>{suffix}'
         )
 
     val_display = html_mod.escape(val) if val else html_mod.escape(ref_name)
     return (
-        f'<span class="nb-fn text-{color} font-semibold cursor-pointer '
-        f'hover:underline decoration-dotted{taint_cls}" '
+        f'<span class="nb-fn font-semibold cursor-pointer '
+        f'hover:underline decoration-dotted{taint_cls}" style="{ts_pri}" '
         f'data-node="{esc_id}" data-fn="{fn_num}">'
-        f'{prefix}{val_display}{suffix}<sup class="text-{color} text-[0.6em] ml-0.5">{fn_num}{taint_icon}</sup></span>'
+        f'{prefix}{val_display}{suffix}<sup class="text-[0.6em] ml-0.5" style="{ts_sec}">{fn_num}{taint_icon}</sup></span>'
     )
 
 
@@ -480,13 +527,16 @@ def _render_footnote_list(refs: list[dict]) -> str:
             continue
         seen.add(r["num"])
         c = _KIND_COLORS.get(r["kind"], "subtext")
+        _node = r.get("node")
+        ts_sec = _text_style_secondary(c, _node)
+        ts_pri = _text_style(c, _node)
         val_html = f' = {html_mod.escape(r["value"])}' if r["value"] else ''
         rows.append(
             f'<div class="nb-fn-row flex items-center gap-1.5 py-0.5 cursor-pointer hover:bg-surface0 rounded px-1" '
             f'data-node="{html_mod.escape(r["node_id"])}" data-fn="{r["num"]}">'
-            f'<span class="text-{c} text-[0.7em] font-mono w-4 text-right">{r["num"]}</span>'
+            f'<span class="text-[0.7em] font-mono w-4 text-right" style="{ts_sec}">{r["num"]}</span>'
             f'<span class="w-1.5 h-1.5 rounded-full bg-{c} shrink-0"></span>'
-            f'<span class="text-{c} font-medium">{html_mod.escape(r["name"])}</span>'
+            f'<span class="font-medium" style="{ts_pri}">{html_mod.escape(r["name"])}</span>'
             f'<span class="text-subtext">{val_html}</span>'
             f'</div>'
         )
@@ -532,14 +582,17 @@ def _render_margin_pills(
             taint_icon = ""
             title = ""
         title_attr = f' title="{title}"' if title else ""
+        _node = r.get("node")
+        ts_mut = _text_style_muted(c, _node)
+        ts_pri = _text_style(c, _node)
         pills.append(
             f'<span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 '
             f'rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 '
             f'transition-colors whitespace-nowrap {border_cls}"{title_attr} '
             f'data-node="{html_mod.escape(node_id)}" data-fn="{r["num"]}">'
-            f'<span class="text-overlay0 font-mono">{r["num"]}</span>'
+            f'<span class="font-mono" style="{ts_mut}">{r["num"]}</span>'
             f'<span class="w-1.5 h-1.5 rounded-full bg-{c} shrink-0"></span>'
-            f'<span class="text-{c} font-medium">{html_mod.escape(r["name"])}</span>{taint_icon}</span>'
+            f'<span class="font-medium" style="{ts_pri}">{html_mod.escape(r["name"])}</span>{taint_icon}</span>'
         )
     return "\n".join(pills)
 
@@ -634,12 +687,13 @@ def build_notebook_html(
                     else:
                         pill_border = ""
                         taint_icon = ""
+                    ts_pri = _text_style(c, node)
                     pills.append(
                         f'<span class="nb-node-pill inline-flex items-center gap-1 bg-surface0 '
                         f'rounded-full px-2 py-0.5 text-xs cursor-pointer hover:bg-surface1 {pill_border}" '
                         f'data-node="{html_mod.escape(node_id)}">'
                         f'<span class="w-1.5 h-1.5 rounded-full bg-{c}"></span>'
-                        f'<span class="text-{c}">{html_mod.escape(bname)}</span>{val_html}{taint_icon}</span>'
+                        f'<span class="font-medium" style="{ts_pri}">{html_mod.escape(bname)}</span>{val_html}{taint_icon}</span>'
                     )
             pills_row = ""
             if pills:

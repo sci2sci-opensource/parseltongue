@@ -39,6 +39,11 @@
   --mauve:#cba6f7;--teal:#94e2d5;--peach:#fab387;--flamingo:#f2cdcd;
   --sky:#89dceb;--lavender:#b4befe;--base-light:#262637;
   --highlight:rgba(250,204,21,0.30);--patronus:#93b1e6;
+  --patronus-core:#abdaed;--patronus-glow:#82c8e3;--patronus-glow-outer:#58b5da;
+  --patronus-highlight:#d5edf6;--patronus-line:#1c627d;
+  --patronus-text-primary:#d5edf6;--patronus-text-secondary:#82c8e3;--patronus-text-muted:#2ea3d1;
+  --patronus-taint-core:#c47a9a;--patronus-taint-glow:#8a7ab5;--patronus-taint-outer:#a07aaa;
+  --patronus-warn-core:#8abfaa;--patronus-warn-glow:#a4d9c0;--patronus-warn-outer:#7ab5a0;
 }
 [data-theme="light"] {
   --base:#f9fafb;--mantle:#ffffff;--crust:#f3f4f6;
@@ -48,6 +53,51 @@
   --mauve:#7c3aed;--teal:#0d9488;--peach:#ea580c;--flamingo:#e11d48;
   --sky:#0284c7;--lavender:#4f46e5;--base-light:#f3f4f6;
   --highlight:rgba(234,179,8,0.28);--patronus:#4a72b0;
+  --patronus-core:#9ad4df;--patronus-glow:#58b5da;--patronus-glow-outer:#a4e1f9;
+  --patronus-highlight:#d4eaf2;--patronus-line:#abdaed;
+  --patronus-text-primary:#6c9aac;--patronus-text-secondary:#4e95b1;--patronus-text-muted:#2582a7;
+  --patronus-taint-core:#b0607a;--patronus-taint-glow:#7a5a95;--patronus-taint-outer:#906a90;
+  --patronus-warn-core:#6aaf8a;--patronus-warn-glow:#8ac9a0;--patronus-warn-outer:#6aa580;
+}
+</style>
+<style>
+.patronus-dot {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.patronus-dot::before {
+  content: '';
+  position: absolute;
+  inset: -40%;
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--patronus-glow) 0%, var(--patronus-glow-outer) 40%, transparent 70%);
+  opacity: 0.4;
+  animation: patronus-pulse 3s ease-in-out infinite;
+}
+.patronus-dot::after {
+  content: '';
+  position: absolute;
+  inset: 15%;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, var(--patronus-highlight) 0%, var(--patronus-core) 50%, var(--patronus-glow-outer) 100%);
+}
+.patronus-dot.tainted::before {
+  background: radial-gradient(circle, var(--patronus-taint-glow) 0%, var(--patronus-taint-outer) 40%, transparent 70%);
+}
+.patronus-dot.tainted::after {
+  background: radial-gradient(circle at 35% 35%, var(--red) 0%, var(--patronus-taint-core) 50%, var(--patronus-taint-outer) 100%);
+}
+.patronus-dot.warn::before {
+  background: radial-gradient(circle, var(--patronus-warn-glow) 0%, var(--patronus-warn-outer) 40%, transparent 70%);
+}
+.patronus-dot.warn::after {
+  background: radial-gradient(circle at 35% 35%, var(--yellow) 0%, var(--patronus-warn-core) 50%, var(--patronus-warn-outer) 100%);
+}
+@keyframes patronus-pulse {
+  0%, 100% { transform: scale(1); opacity: 0.4; }
+  50% { transform: scale(1.15); opacity: 0.25; }
 }
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
@@ -211,13 +261,13 @@ arr
 </code></pre>
   <div class="border-t border-surface1 px-4 py-2 text-sm"><span class="text-overlay0 text-xs">Out:</span> <span class="text-lavender font-bold">2800000</span></div>
 <div class="border-t border-surface1 px-4 py-2 text-sm text-green whitespace-pre-wrap">Facts loaded:</div>
-  <div class="border-t border-surface1 px-4 py-2 flex flex-wrap gap-1.5"><span class="nb-node-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-xs cursor-pointer hover:bg-surface1 " data-node="arr"><span class="w-1.5 h-1.5 rounded-full bg-green"></span><span class="text-green">arr</span> <span class="text-subtext">= 2.8M</span></span><span class="nb-node-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-xs cursor-pointer hover:bg-surface1 " data-node="mrr"><span class="w-1.5 h-1.5 rounded-full bg-green"></span><span class="text-green">mrr</span> <span class="text-subtext">= 245,000</span></span><span class="nb-node-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-xs cursor-pointer hover:bg-surface1 " data-node="revenue"><span class="w-1.5 h-1.5 rounded-full bg-green"></span><span class="text-green">revenue</span> <span class="text-subtext">= 2.4M</span></span><span class="nb-node-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-xs cursor-pointer hover:bg-surface1 " data-node="cogs"><span class="w-1.5 h-1.5 rounded-full bg-green"></span><span class="text-green">cogs</span> <span class="text-subtext">= 480,000</span></span><span class="nb-node-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-xs cursor-pointer hover:bg-surface1 " data-node="cash"><span class="w-1.5 h-1.5 rounded-full bg-green"></span><span class="text-green">cash</span> <span class="text-subtext">= 8.2M</span></span><span class="nb-node-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-xs cursor-pointer hover:bg-surface1 " data-node="monthly-burn"><span class="w-1.5 h-1.5 rounded-full bg-green"></span><span class="text-green">monthly-burn</span> <span class="text-subtext">= 380,000</span></span><span class="nb-node-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-xs cursor-pointer hover:bg-surface1 " data-node="round-size"><span class="w-1.5 h-1.5 rounded-full bg-green"></span><span class="text-green">round-size</span> <span class="text-subtext">= 18.0M</span></span><span class="nb-node-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-xs cursor-pointer hover:bg-surface1 " data-node="pre-money"><span class="w-1.5 h-1.5 rounded-full bg-green"></span><span class="text-green">pre-money</span> <span class="text-subtext">= 55.0M</span></span><span class="nb-node-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-xs cursor-pointer hover:bg-surface1 " data-node="nrr"><span class="w-1.5 h-1.5 rounded-full bg-green"></span><span class="text-green">nrr</span> <span class="text-subtext">= 180</span></span><span class="nb-node-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-xs cursor-pointer hover:bg-surface1 " data-node="ltv"><span class="w-1.5 h-1.5 rounded-full bg-green"></span><span class="text-green">ltv</span> <span class="text-subtext">= 89,400</span></span><span class="nb-node-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-xs cursor-pointer hover:bg-surface1 " data-node="cac"><span class="w-1.5 h-1.5 rounded-full bg-green"></span><span class="text-green">cac</span> <span class="text-subtext">= 18,200</span></span><span class="nb-node-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-xs cursor-pointer hover:bg-surface1 " data-node="monthly-churn-pct"><span class="w-1.5 h-1.5 rounded-full bg-green"></span><span class="text-green">monthly-churn-pct</span> <span class="text-subtext">= 1.40</span></span><span class="nb-node-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-xs cursor-pointer hover:bg-surface1 " data-node="enterprise-customers"><span class="w-1.5 h-1.5 rounded-full bg-green"></span><span class="text-green">enterprise-customers</span> <span class="text-subtext">= 6</span></span><span class="nb-node-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-xs cursor-pointer hover:bg-surface1 " data-node="total-customers"><span class="w-1.5 h-1.5 rounded-full bg-green"></span><span class="text-green">total-customers</span> <span class="text-subtext">= 43</span></span><span class="nb-node-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-xs cursor-pointer hover:bg-surface1 " data-node="active-pilots"><span class="w-1.5 h-1.5 rounded-full bg-green"></span><span class="text-green">active-pilots</span> <span class="text-subtext">= 12</span></span><span class="nb-node-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-xs cursor-pointer hover:bg-surface1 " data-node="dau"><span class="w-1.5 h-1.5 rounded-full bg-green"></span><span class="text-green">dau</span> <span class="text-subtext">= 1,450</span></span><span class="nb-node-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-xs cursor-pointer hover:bg-surface1 " data-node="wau"><span class="w-1.5 h-1.5 rounded-full bg-green"></span><span class="text-green">wau</span> <span class="text-subtext">= 2,800</span></span></div>
+  <div class="border-t border-surface1 px-4 py-2 flex flex-wrap gap-1.5"><span class="nb-node-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-xs cursor-pointer hover:bg-surface1 " data-node="arr"><span class="w-1.5 h-1.5 rounded-full bg-green"></span><span class="font-medium" style="color:var(--green)">arr</span> <span class="text-subtext">= 2.8M</span></span><span class="nb-node-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-xs cursor-pointer hover:bg-surface1 " data-node="mrr"><span class="w-1.5 h-1.5 rounded-full bg-green"></span><span class="font-medium" style="color:var(--green)">mrr</span> <span class="text-subtext">= 245,000</span></span><span class="nb-node-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-xs cursor-pointer hover:bg-surface1 " data-node="revenue"><span class="w-1.5 h-1.5 rounded-full bg-green"></span><span class="font-medium" style="color:var(--green)">revenue</span> <span class="text-subtext">= 2.4M</span></span><span class="nb-node-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-xs cursor-pointer hover:bg-surface1 " data-node="cogs"><span class="w-1.5 h-1.5 rounded-full bg-green"></span><span class="font-medium" style="color:var(--green)">cogs</span> <span class="text-subtext">= 480,000</span></span><span class="nb-node-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-xs cursor-pointer hover:bg-surface1 " data-node="cash"><span class="w-1.5 h-1.5 rounded-full bg-green"></span><span class="font-medium" style="color:var(--green)">cash</span> <span class="text-subtext">= 8.2M</span></span><span class="nb-node-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-xs cursor-pointer hover:bg-surface1 " data-node="monthly-burn"><span class="w-1.5 h-1.5 rounded-full bg-green"></span><span class="font-medium" style="color:var(--green)">monthly-burn</span> <span class="text-subtext">= 380,000</span></span><span class="nb-node-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-xs cursor-pointer hover:bg-surface1 " data-node="round-size"><span class="w-1.5 h-1.5 rounded-full bg-green"></span><span class="font-medium" style="color:var(--green)">round-size</span> <span class="text-subtext">= 18.0M</span></span><span class="nb-node-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-xs cursor-pointer hover:bg-surface1 " data-node="pre-money"><span class="w-1.5 h-1.5 rounded-full bg-green"></span><span class="font-medium" style="color:var(--green)">pre-money</span> <span class="text-subtext">= 55.0M</span></span><span class="nb-node-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-xs cursor-pointer hover:bg-surface1 " data-node="nrr"><span class="w-1.5 h-1.5 rounded-full bg-green"></span><span class="font-medium" style="color:var(--green)">nrr</span> <span class="text-subtext">= 180</span></span><span class="nb-node-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-xs cursor-pointer hover:bg-surface1 " data-node="ltv"><span class="w-1.5 h-1.5 rounded-full bg-green"></span><span class="font-medium" style="color:var(--green)">ltv</span> <span class="text-subtext">= 89,400</span></span><span class="nb-node-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-xs cursor-pointer hover:bg-surface1 " data-node="cac"><span class="w-1.5 h-1.5 rounded-full bg-green"></span><span class="font-medium" style="color:var(--green)">cac</span> <span class="text-subtext">= 18,200</span></span><span class="nb-node-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-xs cursor-pointer hover:bg-surface1 " data-node="monthly-churn-pct"><span class="w-1.5 h-1.5 rounded-full bg-green"></span><span class="font-medium" style="color:var(--green)">monthly-churn-pct</span> <span class="text-subtext">= 1.40</span></span><span class="nb-node-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-xs cursor-pointer hover:bg-surface1 " data-node="enterprise-customers"><span class="w-1.5 h-1.5 rounded-full bg-green"></span><span class="font-medium" style="color:var(--green)">enterprise-customers</span> <span class="text-subtext">= 6</span></span><span class="nb-node-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-xs cursor-pointer hover:bg-surface1 " data-node="total-customers"><span class="w-1.5 h-1.5 rounded-full bg-green"></span><span class="font-medium" style="color:var(--green)">total-customers</span> <span class="text-subtext">= 43</span></span><span class="nb-node-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-xs cursor-pointer hover:bg-surface1 " data-node="active-pilots"><span class="w-1.5 h-1.5 rounded-full bg-green"></span><span class="font-medium" style="color:var(--green)">active-pilots</span> <span class="text-subtext">= 12</span></span><span class="nb-node-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-xs cursor-pointer hover:bg-surface1 " data-node="dau"><span class="w-1.5 h-1.5 rounded-full bg-green"></span><span class="font-medium" style="color:var(--green)">dau</span> <span class="text-subtext">= 1,450</span></span><span class="nb-node-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-xs cursor-pointer hover:bg-surface1 " data-node="wau"><span class="w-1.5 h-1.5 rounded-full bg-green"></span><span class="font-medium" style="color:var(--green)">wau</span> <span class="text-subtext">= 2,800</span></span></div>
 </div>
-<div class="nb-prose-row relative"><p class="mb-3 leading-relaxed">AI2AI: <span class="nb-fn text-green font-semibold cursor-pointer hover:underline decoration-dotted" data-node="arr" data-fn="1">$2.8M<sup class="text-green text-[0.6em] ml-0.5">1</sup></span> ARR, <span class="nb-fn text-green font-semibold cursor-pointer hover:underline decoration-dotted" data-node="enterprise-customers" data-fn="2">6<sup class="text-green text-[0.6em] ml-0.5">2</sup></span> enterprise customers, <span class="nb-fn text-green font-semibold cursor-pointer hover:underline decoration-dotted" data-node="total-customers" data-fn="3">43<sup class="text-green text-[0.6em] ml-0.5">3</sup></span> total. Raising <span class="nb-fn text-green font-semibold cursor-pointer hover:underline decoration-dotted" data-node="round-size" data-fn="4">$18.0M<sup class="text-green text-[0.6em] ml-0.5">4</sup></span> at <span class="nb-fn text-green font-semibold cursor-pointer hover:underline decoration-dotted" data-node="pre-money" data-fn="5">$55.0M<sup class="text-green text-[0.6em] ml-0.5">5</sup></span> pre-money.</p><div class="nb-margin-notes"><span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap " data-node="arr" data-fn="1"><span class="text-overlay0 font-mono">1</span><span class="w-1.5 h-1.5 rounded-full bg-green shrink-0"></span><span class="text-green font-medium">arr</span></span>
-<span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap " data-node="enterprise-customers" data-fn="2"><span class="text-overlay0 font-mono">2</span><span class="w-1.5 h-1.5 rounded-full bg-green shrink-0"></span><span class="text-green font-medium">enterprise-customers</span></span>
-<span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap " data-node="total-customers" data-fn="3"><span class="text-overlay0 font-mono">3</span><span class="w-1.5 h-1.5 rounded-full bg-green shrink-0"></span><span class="text-green font-medium">total-customers</span></span>
-<span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap " data-node="round-size" data-fn="4"><span class="text-overlay0 font-mono">4</span><span class="w-1.5 h-1.5 rounded-full bg-green shrink-0"></span><span class="text-green font-medium">round-size</span></span>
-<span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap " data-node="pre-money" data-fn="5"><span class="text-overlay0 font-mono">5</span><span class="w-1.5 h-1.5 rounded-full bg-green shrink-0"></span><span class="text-green font-medium">pre-money</span></span></div></div>
+<div class="nb-prose-row relative"><p class="mb-3 leading-relaxed">AI2AI: <span class="nb-fn font-semibold cursor-pointer hover:underline decoration-dotted" style="color:var(--green)" data-node="arr" data-fn="1">$2.8M<sup class="text-[0.6em] ml-0.5" style="color:var(--green)">1</sup></span> ARR, <span class="nb-fn font-semibold cursor-pointer hover:underline decoration-dotted" style="color:var(--green)" data-node="enterprise-customers" data-fn="2">6<sup class="text-[0.6em] ml-0.5" style="color:var(--green)">2</sup></span> enterprise customers, <span class="nb-fn font-semibold cursor-pointer hover:underline decoration-dotted" style="color:var(--green)" data-node="total-customers" data-fn="3">43<sup class="text-[0.6em] ml-0.5" style="color:var(--green)">3</sup></span> total. Raising <span class="nb-fn font-semibold cursor-pointer hover:underline decoration-dotted" style="color:var(--green)" data-node="round-size" data-fn="4">$18.0M<sup class="text-[0.6em] ml-0.5" style="color:var(--green)">4</sup></span> at <span class="nb-fn font-semibold cursor-pointer hover:underline decoration-dotted" style="color:var(--green)" data-node="pre-money" data-fn="5">$55.0M<sup class="text-[0.6em] ml-0.5" style="color:var(--green)">5</sup></span> pre-money.</p><div class="nb-margin-notes"><span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap " data-node="arr" data-fn="1"><span class="font-mono" style="color:var(--overlay0)">1</span><span class="w-1.5 h-1.5 rounded-full bg-green shrink-0"></span><span class="font-medium" style="color:var(--green)">arr</span></span>
+<span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap " data-node="enterprise-customers" data-fn="2"><span class="font-mono" style="color:var(--overlay0)">2</span><span class="w-1.5 h-1.5 rounded-full bg-green shrink-0"></span><span class="font-medium" style="color:var(--green)">enterprise-customers</span></span>
+<span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap " data-node="total-customers" data-fn="3"><span class="font-mono" style="color:var(--overlay0)">3</span><span class="w-1.5 h-1.5 rounded-full bg-green shrink-0"></span><span class="font-medium" style="color:var(--green)">total-customers</span></span>
+<span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap " data-node="round-size" data-fn="4"><span class="font-mono" style="color:var(--overlay0)">4</span><span class="w-1.5 h-1.5 rounded-full bg-green shrink-0"></span><span class="font-medium" style="color:var(--green)">round-size</span></span>
+<span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap " data-node="pre-money" data-fn="5"><span class="font-mono" style="color:var(--overlay0)">5</span><span class="w-1.5 h-1.5 rounded-full bg-green shrink-0"></span><span class="font-medium" style="color:var(--green)">pre-money</span></span></div></div>
 <h2 class="text-xl font-bold text-mauve mt-8 mb-3">Key Metrics</h2>
 
 <div class="my-5 border border-surface1 rounded-lg overflow-hidden bg-mantle" id="nb-block-1">
@@ -240,16 +290,16 @@ gross-margin
 </code></pre>
   <div class="border-t border-surface1 px-4 py-2 text-sm"><span class="text-overlay0 text-xs">Out:</span> <span class="text-lavender font-bold">0.8</span></div>
 <div class="border-t border-surface1 px-4 py-2 text-sm text-green whitespace-pre-wrap">Gross margin:</div>
-  <div class="border-t border-surface1 px-4 py-2 flex flex-wrap gap-1.5"><span class="nb-node-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-xs cursor-pointer hover:bg-surface1 " data-node="gross-margin"><span class="w-1.5 h-1.5 rounded-full bg-blue"></span><span class="text-blue">gross-margin</span> <span class="text-subtext">= 80.00%</span></span><span class="nb-node-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-xs cursor-pointer hover:bg-surface1 " data-node="ltv-to-cac"><span class="w-1.5 h-1.5 rounded-full bg-blue"></span><span class="text-blue">ltv-to-cac</span> <span class="text-subtext">= 4.91</span></span><span class="nb-node-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-xs cursor-pointer hover:bg-surface1 " data-node="runway-months"><span class="w-1.5 h-1.5 rounded-full bg-blue"></span><span class="text-blue">runway-months</span> <span class="text-subtext">= 21.58</span></span><span class="nb-node-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-xs cursor-pointer hover:bg-surface1 " data-node="post-raise-cash"><span class="w-1.5 h-1.5 rounded-full bg-blue"></span><span class="text-blue">post-raise-cash</span> <span class="text-subtext">= 26.2M</span></span><span class="nb-node-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-xs cursor-pointer hover:bg-surface1 " data-node="post-raise-runway"><span class="w-1.5 h-1.5 rounded-full bg-blue"></span><span class="text-blue">post-raise-runway</span> <span class="text-subtext">= 68.95</span></span><span class="nb-node-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-xs cursor-pointer hover:bg-surface1 " data-node="arr-multiple"><span class="w-1.5 h-1.5 rounded-full bg-blue"></span><span class="text-blue">arr-multiple</span> <span class="text-subtext">= 19.64</span></span><span class="nb-node-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-xs cursor-pointer hover:bg-surface1 " data-node="dau-wau-ratio"><span class="w-1.5 h-1.5 rounded-full bg-blue"></span><span class="text-blue">dau-wau-ratio</span> <span class="text-subtext">= 51.79%</span></span></div>
+  <div class="border-t border-surface1 px-4 py-2 flex flex-wrap gap-1.5"><span class="nb-node-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-xs cursor-pointer hover:bg-surface1 " data-node="gross-margin"><span class="w-1.5 h-1.5 rounded-full bg-blue"></span><span class="font-medium" style="color:var(--blue)">gross-margin</span> <span class="text-subtext">= 80.00%</span></span><span class="nb-node-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-xs cursor-pointer hover:bg-surface1 " data-node="ltv-to-cac"><span class="w-1.5 h-1.5 rounded-full bg-blue"></span><span class="font-medium" style="color:var(--blue)">ltv-to-cac</span> <span class="text-subtext">= 4.91</span></span><span class="nb-node-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-xs cursor-pointer hover:bg-surface1 " data-node="runway-months"><span class="w-1.5 h-1.5 rounded-full bg-blue"></span><span class="font-medium" style="color:var(--blue)">runway-months</span> <span class="text-subtext">= 21.58</span></span><span class="nb-node-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-xs cursor-pointer hover:bg-surface1 " data-node="post-raise-cash"><span class="w-1.5 h-1.5 rounded-full bg-blue"></span><span class="font-medium" style="color:var(--blue)">post-raise-cash</span> <span class="text-subtext">= 26.2M</span></span><span class="nb-node-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-xs cursor-pointer hover:bg-surface1 " data-node="post-raise-runway"><span class="w-1.5 h-1.5 rounded-full bg-blue"></span><span class="font-medium" style="color:var(--blue)">post-raise-runway</span> <span class="text-subtext">= 68.95</span></span><span class="nb-node-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-xs cursor-pointer hover:bg-surface1 " data-node="arr-multiple"><span class="w-1.5 h-1.5 rounded-full bg-blue"></span><span class="font-medium" style="color:var(--blue)">arr-multiple</span> <span class="text-subtext">= 19.64</span></span><span class="nb-node-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-xs cursor-pointer hover:bg-surface1 " data-node="dau-wau-ratio"><span class="w-1.5 h-1.5 rounded-full bg-blue"></span><span class="font-medium" style="color:var(--blue)">dau-wau-ratio</span> <span class="text-subtext">= 51.79%</span></span></div>
 </div>
 <ul class="list-disc ml-6 mb-4 space-y-1">
-<li><div class="nb-prose-row relative">Gross margin: <strong><span class="nb-fn text-blue font-semibold cursor-pointer hover:underline decoration-dotted" data-node="gross-margin" data-fn="6">80.00%%<sup class="text-blue text-[0.6em] ml-0.5">6</sup></span></strong><div class="nb-margin-notes"><span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap " data-node="gross-margin" data-fn="6"><span class="text-overlay0 font-mono">6</span><span class="w-1.5 h-1.5 rounded-full bg-blue shrink-0"></span><span class="text-blue font-medium">gross-margin</span></span></div></div></li>
-<li><div class="nb-prose-row relative">LTV/CAC: <strong><span class="nb-fn text-blue font-semibold cursor-pointer hover:underline decoration-dotted" data-node="ltv-to-cac" data-fn="7">4.91x<sup class="text-blue text-[0.6em] ml-0.5">7</sup></span></strong><div class="nb-margin-notes"><span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap " data-node="ltv-to-cac" data-fn="7"><span class="text-overlay0 font-mono">7</span><span class="w-1.5 h-1.5 rounded-full bg-blue shrink-0"></span><span class="text-blue font-medium">ltv-to-cac</span></span></div></div></li>
-<li><div class="nb-prose-row relative">NRR: <strong><span class="nb-fn text-green font-semibold cursor-pointer hover:underline decoration-dotted" data-node="nrr" data-fn="8">180%<sup class="text-green text-[0.6em] ml-0.5">8</sup></span></strong><div class="nb-margin-notes"><span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap " data-node="nrr" data-fn="8"><span class="text-overlay0 font-mono">8</span><span class="w-1.5 h-1.5 rounded-full bg-green shrink-0"></span><span class="text-green font-medium">nrr</span></span></div></div></li>
-<li><div class="nb-prose-row relative">Runway: <span class="nb-fn text-blue font-semibold cursor-pointer hover:underline decoration-dotted" data-node="runway-months" data-fn="9">21.58<sup class="text-blue text-[0.6em] ml-0.5">9</sup></span> months pre-raise → <strong><span class="nb-fn text-blue font-semibold cursor-pointer hover:underline decoration-dotted" data-node="post-raise-runway" data-fn="10">68.95<sup class="text-blue text-[0.6em] ml-0.5">10</sup></span> months post-raise</strong><div class="nb-margin-notes"><span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap " data-node="runway-months" data-fn="9"><span class="text-overlay0 font-mono">9</span><span class="w-1.5 h-1.5 rounded-full bg-blue shrink-0"></span><span class="text-blue font-medium">runway-months</span></span>
-<span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap " data-node="post-raise-runway" data-fn="10"><span class="text-overlay0 font-mono">10</span><span class="w-1.5 h-1.5 rounded-full bg-blue shrink-0"></span><span class="text-blue font-medium">post-raise-runway</span></span></div></div></li>
-<li><div class="nb-prose-row relative">Valuation: <strong><span class="nb-fn text-blue font-semibold cursor-pointer hover:underline decoration-dotted" data-node="arr-multiple" data-fn="11">19.64x<sup class="text-blue text-[0.6em] ml-0.5">11</sup></span> ARR</strong><div class="nb-margin-notes"><span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap " data-node="arr-multiple" data-fn="11"><span class="text-overlay0 font-mono">11</span><span class="w-1.5 h-1.5 rounded-full bg-blue shrink-0"></span><span class="text-blue font-medium">arr-multiple</span></span></div></div></li>
-<li><div class="nb-prose-row relative">DAU/WAU: <strong><span class="nb-fn text-blue font-semibold cursor-pointer hover:underline decoration-dotted" data-node="dau-wau-ratio" data-fn="12">51.79%<sup class="text-blue text-[0.6em] ml-0.5">12</sup></span></strong><div class="nb-margin-notes"><span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap " data-node="dau-wau-ratio" data-fn="12"><span class="text-overlay0 font-mono">12</span><span class="w-1.5 h-1.5 rounded-full bg-blue shrink-0"></span><span class="text-blue font-medium">dau-wau-ratio</span></span></div></div></li>
+<li><div class="nb-prose-row relative">Gross margin: <strong><span class="nb-fn font-semibold cursor-pointer hover:underline decoration-dotted" style="color:var(--blue)" data-node="gross-margin" data-fn="6">80.00%%<sup class="text-[0.6em] ml-0.5" style="color:var(--blue)">6</sup></span></strong><div class="nb-margin-notes"><span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap " data-node="gross-margin" data-fn="6"><span class="font-mono" style="color:var(--overlay0)">6</span><span class="w-1.5 h-1.5 rounded-full bg-blue shrink-0"></span><span class="font-medium" style="color:var(--blue)">gross-margin</span></span></div></div></li>
+<li><div class="nb-prose-row relative">LTV/CAC: <strong><span class="nb-fn font-semibold cursor-pointer hover:underline decoration-dotted" style="color:var(--blue)" data-node="ltv-to-cac" data-fn="7">4.91x<sup class="text-[0.6em] ml-0.5" style="color:var(--blue)">7</sup></span></strong><div class="nb-margin-notes"><span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap " data-node="ltv-to-cac" data-fn="7"><span class="font-mono" style="color:var(--overlay0)">7</span><span class="w-1.5 h-1.5 rounded-full bg-blue shrink-0"></span><span class="font-medium" style="color:var(--blue)">ltv-to-cac</span></span></div></div></li>
+<li><div class="nb-prose-row relative">NRR: <strong><span class="nb-fn font-semibold cursor-pointer hover:underline decoration-dotted" style="color:var(--green)" data-node="nrr" data-fn="8">180%<sup class="text-[0.6em] ml-0.5" style="color:var(--green)">8</sup></span></strong><div class="nb-margin-notes"><span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap " data-node="nrr" data-fn="8"><span class="font-mono" style="color:var(--overlay0)">8</span><span class="w-1.5 h-1.5 rounded-full bg-green shrink-0"></span><span class="font-medium" style="color:var(--green)">nrr</span></span></div></div></li>
+<li><div class="nb-prose-row relative">Runway: <span class="nb-fn font-semibold cursor-pointer hover:underline decoration-dotted" style="color:var(--blue)" data-node="runway-months" data-fn="9">21.58<sup class="text-[0.6em] ml-0.5" style="color:var(--blue)">9</sup></span> months pre-raise → <strong><span class="nb-fn font-semibold cursor-pointer hover:underline decoration-dotted" style="color:var(--blue)" data-node="post-raise-runway" data-fn="10">68.95<sup class="text-[0.6em] ml-0.5" style="color:var(--blue)">10</sup></span> months post-raise</strong><div class="nb-margin-notes"><span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap " data-node="runway-months" data-fn="9"><span class="font-mono" style="color:var(--overlay0)">9</span><span class="w-1.5 h-1.5 rounded-full bg-blue shrink-0"></span><span class="font-medium" style="color:var(--blue)">runway-months</span></span>
+<span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap " data-node="post-raise-runway" data-fn="10"><span class="font-mono" style="color:var(--overlay0)">10</span><span class="w-1.5 h-1.5 rounded-full bg-blue shrink-0"></span><span class="font-medium" style="color:var(--blue)">post-raise-runway</span></span></div></div></li>
+<li><div class="nb-prose-row relative">Valuation: <strong><span class="nb-fn font-semibold cursor-pointer hover:underline decoration-dotted" style="color:var(--blue)" data-node="arr-multiple" data-fn="11">19.64x<sup class="text-[0.6em] ml-0.5" style="color:var(--blue)">11</sup></span> ARR</strong><div class="nb-margin-notes"><span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap " data-node="arr-multiple" data-fn="11"><span class="font-mono" style="color:var(--overlay0)">11</span><span class="w-1.5 h-1.5 rounded-full bg-blue shrink-0"></span><span class="font-medium" style="color:var(--blue)">arr-multiple</span></span></div></div></li>
+<li><div class="nb-prose-row relative">DAU/WAU: <strong><span class="nb-fn font-semibold cursor-pointer hover:underline decoration-dotted" style="color:var(--blue)" data-node="dau-wau-ratio" data-fn="12">51.79%<sup class="text-[0.6em] ml-0.5" style="color:var(--blue)">12</sup></span></strong><div class="nb-margin-notes"><span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap " data-node="dau-wau-ratio" data-fn="12"><span class="font-mono" style="color:var(--overlay0)">12</span><span class="w-1.5 h-1.5 rounded-full bg-blue shrink-0"></span><span class="font-medium" style="color:var(--blue)">dau-wau-ratio</span></span></div></div></li>
 </ul>
 <h2 class="text-xl font-bold text-mauve mt-8 mb-3">Validation</h2>
 
@@ -280,19 +330,19 @@ valuation-check
 </code></pre>
   <div class="border-t border-surface1 px-4 py-2 text-sm"><span class="text-overlay0 text-xs">Out:</span> <span class="text-lavender font-bold">True</span></div>
 <div class="border-t border-surface1 px-4 py-2 text-sm text-green whitespace-pre-wrap">All checks:</div>
-  <div class="border-t border-surface1 px-4 py-2 flex flex-wrap gap-1.5"><span class="nb-node-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-xs cursor-pointer hover:bg-surface1 border border-red" data-node="margin-ok"><span class="w-1.5 h-1.5 rounded-full bg-peach"></span><span class="text-peach">margin-ok</span> <span class="text-subtext">= (&gt; ?m 0.6)</span> <span class="text-red text-[0.7em]">&#x2716;</span></span><span class="nb-node-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-xs cursor-pointer hover:bg-surface1 border border-dashed border-yellow" data-node="margin-check"><span class="w-1.5 h-1.5 rounded-full bg-mauve"></span><span class="text-mauve">margin-check</span> <span class="text-subtext">= true</span> <span class="text-yellow text-[0.7em]">&#x26a0;</span></span><span class="nb-node-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-xs cursor-pointer hover:bg-surface1 border border-red" data-node="ltv-cac-ok"><span class="w-1.5 h-1.5 rounded-full bg-peach"></span><span class="text-peach">ltv-cac-ok</span> <span class="text-subtext">= (&gt; ?r 3.0)</span> <span class="text-red text-[0.7em]">&#x2716;</span></span><span class="nb-node-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-xs cursor-pointer hover:bg-surface1 border border-dashed border-yellow" data-node="ltv-cac-check"><span class="w-1.5 h-1.5 rounded-full bg-mauve"></span><span class="text-mauve">ltv-cac-check</span> <span class="text-subtext">= true</span> <span class="text-yellow text-[0.7em]">&#x26a0;</span></span><span class="nb-node-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-xs cursor-pointer hover:bg-surface1 border border-red" data-node="retention-ok"><span class="w-1.5 h-1.5 rounded-full bg-peach"></span><span class="text-peach">retention-ok</span> <span class="text-subtext">= (&gt; ?n 130)</span> <span class="text-red text-[0.7em]">&#x2716;</span></span><span class="nb-node-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-xs cursor-pointer hover:bg-surface1 border border-dashed border-yellow" data-node="retention-check"><span class="w-1.5 h-1.5 rounded-full bg-mauve"></span><span class="text-mauve">retention-check</span> <span class="text-subtext">= true</span> <span class="text-yellow text-[0.7em]">&#x26a0;</span></span><span class="nb-node-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-xs cursor-pointer hover:bg-surface1 border border-red" data-node="churn-ok"><span class="w-1.5 h-1.5 rounded-full bg-peach"></span><span class="text-peach">churn-ok</span> <span class="text-subtext">= (&lt; ?c 2.0)</span> <span class="text-red text-[0.7em]">&#x2716;</span></span><span class="nb-node-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-xs cursor-pointer hover:bg-surface1 border border-dashed border-yellow" data-node="churn-check"><span class="w-1.5 h-1.5 rounded-full bg-mauve"></span><span class="text-mauve">churn-check</span> <span class="text-subtext">= true</span> <span class="text-yellow text-[0.7em]">&#x26a0;</span></span><span class="nb-node-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-xs cursor-pointer hover:bg-surface1 border border-red" data-node="valuation-ok"><span class="w-1.5 h-1.5 rounded-full bg-peach"></span><span class="text-peach">valuation-ok</span> <span class="text-subtext">= (&lt; ?v 25)</span> <span class="text-red text-[0.7em]">&#x2716;</span></span><span class="nb-node-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-xs cursor-pointer hover:bg-surface1 border border-dashed border-yellow" data-node="valuation-check"><span class="w-1.5 h-1.5 rounded-full bg-mauve"></span><span class="text-mauve">valuation-check</span> <span class="text-subtext">= true</span> <span class="text-yellow text-[0.7em]">&#x26a0;</span></span></div>
+  <div class="border-t border-surface1 px-4 py-2 flex flex-wrap gap-1.5"><span class="nb-node-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-xs cursor-pointer hover:bg-surface1 border border-red" data-node="margin-ok"><span class="w-1.5 h-1.5 rounded-full bg-peach"></span><span class="font-medium" style="color:var(--peach)">margin-ok</span> <span class="text-subtext">= (&gt; ?m 0.6)</span> <span class="text-red text-[0.7em]">&#x2716;</span></span><span class="nb-node-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-xs cursor-pointer hover:bg-surface1 border border-dashed border-yellow" data-node="margin-check"><span class="w-1.5 h-1.5 rounded-full bg-mauve"></span><span class="font-medium" style="color:var(--mauve)">margin-check</span> <span class="text-subtext">= true</span> <span class="text-yellow text-[0.7em]">&#x26a0;</span></span><span class="nb-node-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-xs cursor-pointer hover:bg-surface1 border border-red" data-node="ltv-cac-ok"><span class="w-1.5 h-1.5 rounded-full bg-peach"></span><span class="font-medium" style="color:var(--peach)">ltv-cac-ok</span> <span class="text-subtext">= (&gt; ?r 3.0)</span> <span class="text-red text-[0.7em]">&#x2716;</span></span><span class="nb-node-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-xs cursor-pointer hover:bg-surface1 border border-dashed border-yellow" data-node="ltv-cac-check"><span class="w-1.5 h-1.5 rounded-full bg-mauve"></span><span class="font-medium" style="color:var(--mauve)">ltv-cac-check</span> <span class="text-subtext">= true</span> <span class="text-yellow text-[0.7em]">&#x26a0;</span></span><span class="nb-node-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-xs cursor-pointer hover:bg-surface1 border border-red" data-node="retention-ok"><span class="w-1.5 h-1.5 rounded-full bg-peach"></span><span class="font-medium" style="color:var(--peach)">retention-ok</span> <span class="text-subtext">= (&gt; ?n 130)</span> <span class="text-red text-[0.7em]">&#x2716;</span></span><span class="nb-node-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-xs cursor-pointer hover:bg-surface1 border border-dashed border-yellow" data-node="retention-check"><span class="w-1.5 h-1.5 rounded-full bg-mauve"></span><span class="font-medium" style="color:var(--mauve)">retention-check</span> <span class="text-subtext">= true</span> <span class="text-yellow text-[0.7em]">&#x26a0;</span></span><span class="nb-node-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-xs cursor-pointer hover:bg-surface1 border border-red" data-node="churn-ok"><span class="w-1.5 h-1.5 rounded-full bg-peach"></span><span class="font-medium" style="color:var(--peach)">churn-ok</span> <span class="text-subtext">= (&lt; ?c 2.0)</span> <span class="text-red text-[0.7em]">&#x2716;</span></span><span class="nb-node-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-xs cursor-pointer hover:bg-surface1 border border-dashed border-yellow" data-node="churn-check"><span class="w-1.5 h-1.5 rounded-full bg-mauve"></span><span class="font-medium" style="color:var(--mauve)">churn-check</span> <span class="text-subtext">= true</span> <span class="text-yellow text-[0.7em]">&#x26a0;</span></span><span class="nb-node-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-xs cursor-pointer hover:bg-surface1 border border-red" data-node="valuation-ok"><span class="w-1.5 h-1.5 rounded-full bg-peach"></span><span class="font-medium" style="color:var(--peach)">valuation-ok</span> <span class="text-subtext">= (&lt; ?v 25)</span> <span class="text-red text-[0.7em]">&#x2716;</span></span><span class="nb-node-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-xs cursor-pointer hover:bg-surface1 border border-dashed border-yellow" data-node="valuation-check"><span class="w-1.5 h-1.5 rounded-full bg-mauve"></span><span class="font-medium" style="color:var(--mauve)">valuation-check</span> <span class="text-subtext">= true</span> <span class="text-yellow text-[0.7em]">&#x26a0;</span></span></div>
 </div>
-<div class="nb-prose-row relative"><p class="mb-3 leading-relaxed">All checks: margin<span class="nb-fn cursor-pointer nb-taint-propagated" data-node="margin-check" data-fn="13"><sup class="text-mauve text-[0.65em] font-bold">13<span class="text-yellow ml-0.5" title="tainted">&#x26a0;</span></sup></span>, LTV/CAC<span class="nb-fn cursor-pointer nb-taint-propagated" data-node="ltv-cac-check" data-fn="14"><sup class="text-mauve text-[0.65em] font-bold">14<span class="text-yellow ml-0.5" title="tainted">&#x26a0;</span></sup></span>, retention<span class="nb-fn cursor-pointer nb-taint-propagated" data-node="retention-check" data-fn="15"><sup class="text-mauve text-[0.65em] font-bold">15<span class="text-yellow ml-0.5" title="tainted">&#x26a0;</span></sup></span>, churn<span class="nb-fn cursor-pointer nb-taint-propagated" data-node="churn-check" data-fn="16"><sup class="text-mauve text-[0.65em] font-bold">16<span class="text-yellow ml-0.5" title="tainted">&#x26a0;</span></sup></span>, valuation<span class="nb-fn cursor-pointer nb-taint-propagated" data-node="valuation-check" data-fn="17"><sup class="text-mauve text-[0.65em] font-bold">17<span class="text-yellow ml-0.5" title="tainted">&#x26a0;</span></sup></span>.</p><div class="nb-margin-notes"><span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap border border-dashed border-yellow" title="depends on tainted: margin-ok" data-node="margin-check" data-fn="13"><span class="text-overlay0 font-mono">13</span><span class="w-1.5 h-1.5 rounded-full bg-mauve shrink-0"></span><span class="text-mauve font-medium">margin-check</span> <span class="text-yellow">&#x26a0;</span></span>
-<span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap border border-dashed border-yellow" title="depends on tainted: ltv-cac-ok" data-node="ltv-cac-check" data-fn="14"><span class="text-overlay0 font-mono">14</span><span class="w-1.5 h-1.5 rounded-full bg-mauve shrink-0"></span><span class="text-mauve font-medium">ltv-cac-check</span> <span class="text-yellow">&#x26a0;</span></span>
-<span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap border border-dashed border-yellow" title="depends on tainted: retention-ok" data-node="retention-check" data-fn="15"><span class="text-overlay0 font-mono">15</span><span class="w-1.5 h-1.5 rounded-full bg-mauve shrink-0"></span><span class="text-mauve font-medium">retention-check</span> <span class="text-yellow">&#x26a0;</span></span>
-<span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap border border-dashed border-yellow" title="depends on tainted: churn-ok" data-node="churn-check" data-fn="16"><span class="text-overlay0 font-mono">16</span><span class="w-1.5 h-1.5 rounded-full bg-mauve shrink-0"></span><span class="text-mauve font-medium">churn-check</span> <span class="text-yellow">&#x26a0;</span></span>
-<span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap border border-dashed border-yellow" title="depends on tainted: valuation-ok" data-node="valuation-check" data-fn="17"><span class="text-overlay0 font-mono">17</span><span class="w-1.5 h-1.5 rounded-full bg-mauve shrink-0"></span><span class="text-mauve font-medium">valuation-check</span> <span class="text-yellow">&#x26a0;</span></span></div></div>
+<div class="nb-prose-row relative"><p class="mb-3 leading-relaxed">All checks: margin<span class="nb-fn cursor-pointer nb-taint-propagated" data-node="margin-check" data-fn="13"><sup class="text-[0.65em] font-bold" style="color:var(--mauve)">13<span class="text-yellow ml-0.5" title="tainted">&#x26a0;</span></sup></span>, LTV/CAC<span class="nb-fn cursor-pointer nb-taint-propagated" data-node="ltv-cac-check" data-fn="14"><sup class="text-[0.65em] font-bold" style="color:var(--mauve)">14<span class="text-yellow ml-0.5" title="tainted">&#x26a0;</span></sup></span>, retention<span class="nb-fn cursor-pointer nb-taint-propagated" data-node="retention-check" data-fn="15"><sup class="text-[0.65em] font-bold" style="color:var(--mauve)">15<span class="text-yellow ml-0.5" title="tainted">&#x26a0;</span></sup></span>, churn<span class="nb-fn cursor-pointer nb-taint-propagated" data-node="churn-check" data-fn="16"><sup class="text-[0.65em] font-bold" style="color:var(--mauve)">16<span class="text-yellow ml-0.5" title="tainted">&#x26a0;</span></sup></span>, valuation<span class="nb-fn cursor-pointer nb-taint-propagated" data-node="valuation-check" data-fn="17"><sup class="text-[0.65em] font-bold" style="color:var(--mauve)">17<span class="text-yellow ml-0.5" title="tainted">&#x26a0;</span></sup></span>.</p><div class="nb-margin-notes"><span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap border border-dashed border-yellow" title="depends on tainted: margin-ok" data-node="margin-check" data-fn="13"><span class="font-mono" style="color:var(--overlay0)">13</span><span class="w-1.5 h-1.5 rounded-full bg-mauve shrink-0"></span><span class="font-medium" style="color:var(--mauve)">margin-check</span> <span class="text-yellow">&#x26a0;</span></span>
+<span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap border border-dashed border-yellow" title="depends on tainted: ltv-cac-ok" data-node="ltv-cac-check" data-fn="14"><span class="font-mono" style="color:var(--overlay0)">14</span><span class="w-1.5 h-1.5 rounded-full bg-mauve shrink-0"></span><span class="font-medium" style="color:var(--mauve)">ltv-cac-check</span> <span class="text-yellow">&#x26a0;</span></span>
+<span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap border border-dashed border-yellow" title="depends on tainted: retention-ok" data-node="retention-check" data-fn="15"><span class="font-mono" style="color:var(--overlay0)">15</span><span class="w-1.5 h-1.5 rounded-full bg-mauve shrink-0"></span><span class="font-medium" style="color:var(--mauve)">retention-check</span> <span class="text-yellow">&#x26a0;</span></span>
+<span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap border border-dashed border-yellow" title="depends on tainted: churn-ok" data-node="churn-check" data-fn="16"><span class="font-mono" style="color:var(--overlay0)">16</span><span class="w-1.5 h-1.5 rounded-full bg-mauve shrink-0"></span><span class="font-medium" style="color:var(--mauve)">churn-check</span> <span class="text-yellow">&#x26a0;</span></span>
+<span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap border border-dashed border-yellow" title="depends on tainted: valuation-ok" data-node="valuation-check" data-fn="17"><span class="font-mono" style="color:var(--overlay0)">17</span><span class="w-1.5 h-1.5 rounded-full bg-mauve shrink-0"></span><span class="font-medium" style="color:var(--mauve)">valuation-check</span> <span class="text-yellow">&#x26a0;</span></span></div></div>
 <h2 class="text-xl font-bold text-mauve mt-8 mb-3">Verdict</h2>
-<div class="nb-prose-row relative"><p class="mb-3 leading-relaxed">Strong deal. <span class="nb-fn text-blue font-semibold cursor-pointer hover:underline decoration-dotted" data-node="ltv-to-cac" data-fn="7">4.91x<sup class="text-blue text-[0.6em] ml-0.5">7</sup></span> LTV/CAC with <span class="nb-fn text-green font-semibold cursor-pointer hover:underline decoration-dotted" data-node="nrr" data-fn="8">180%<sup class="text-green text-[0.6em] ml-0.5">8</sup></span> NRR at <span class="nb-fn text-blue font-semibold cursor-pointer hover:underline decoration-dotted" data-node="arr-multiple" data-fn="11">19.64x<sup class="text-blue text-[0.6em] ml-0.5">11</sup></span> ARR is compelling for Series A. <span class="nb-fn text-blue font-semibold cursor-pointer hover:underline decoration-dotted" data-node="post-raise-runway" data-fn="10">68.95<sup class="text-blue text-[0.6em] ml-0.5">10</sup></span> months of post-raise runway provides ample time to reach $10M. <span class="nb-fn text-green font-semibold cursor-pointer hover:underline decoration-dotted" data-node="active-pilots" data-fn="18">12<sup class="text-green text-[0.6em] ml-0.5">18</sup></span> active pilots de-risk near-term growth. Recommend proceeding.</p><div class="nb-margin-notes"><span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap " data-node="ltv-to-cac" data-fn="7"><span class="text-overlay0 font-mono">7</span><span class="w-1.5 h-1.5 rounded-full bg-blue shrink-0"></span><span class="text-blue font-medium">ltv-to-cac</span></span>
-<span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap " data-node="nrr" data-fn="8"><span class="text-overlay0 font-mono">8</span><span class="w-1.5 h-1.5 rounded-full bg-green shrink-0"></span><span class="text-green font-medium">nrr</span></span>
-<span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap " data-node="arr-multiple" data-fn="11"><span class="text-overlay0 font-mono">11</span><span class="w-1.5 h-1.5 rounded-full bg-blue shrink-0"></span><span class="text-blue font-medium">arr-multiple</span></span>
-<span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap " data-node="post-raise-runway" data-fn="10"><span class="text-overlay0 font-mono">10</span><span class="w-1.5 h-1.5 rounded-full bg-blue shrink-0"></span><span class="text-blue font-medium">post-raise-runway</span></span>
-<span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap " data-node="active-pilots" data-fn="18"><span class="text-overlay0 font-mono">18</span><span class="w-1.5 h-1.5 rounded-full bg-green shrink-0"></span><span class="text-green font-medium">active-pilots</span></span></div></div>
+<div class="nb-prose-row relative"><p class="mb-3 leading-relaxed">Strong deal. <span class="nb-fn font-semibold cursor-pointer hover:underline decoration-dotted" style="color:var(--blue)" data-node="ltv-to-cac" data-fn="7">4.91x<sup class="text-[0.6em] ml-0.5" style="color:var(--blue)">7</sup></span> LTV/CAC with <span class="nb-fn font-semibold cursor-pointer hover:underline decoration-dotted" style="color:var(--green)" data-node="nrr" data-fn="8">180%<sup class="text-[0.6em] ml-0.5" style="color:var(--green)">8</sup></span> NRR at <span class="nb-fn font-semibold cursor-pointer hover:underline decoration-dotted" style="color:var(--blue)" data-node="arr-multiple" data-fn="11">19.64x<sup class="text-[0.6em] ml-0.5" style="color:var(--blue)">11</sup></span> ARR is compelling for Series A. <span class="nb-fn font-semibold cursor-pointer hover:underline decoration-dotted" style="color:var(--blue)" data-node="post-raise-runway" data-fn="10">68.95<sup class="text-[0.6em] ml-0.5" style="color:var(--blue)">10</sup></span> months of post-raise runway provides ample time to reach $10M. <span class="nb-fn font-semibold cursor-pointer hover:underline decoration-dotted" style="color:var(--green)" data-node="active-pilots" data-fn="18">12<sup class="text-[0.6em] ml-0.5" style="color:var(--green)">18</sup></span> active pilots de-risk near-term growth. Recommend proceeding.</p><div class="nb-margin-notes"><span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap " data-node="ltv-to-cac" data-fn="7"><span class="font-mono" style="color:var(--overlay0)">7</span><span class="w-1.5 h-1.5 rounded-full bg-blue shrink-0"></span><span class="font-medium" style="color:var(--blue)">ltv-to-cac</span></span>
+<span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap " data-node="nrr" data-fn="8"><span class="font-mono" style="color:var(--overlay0)">8</span><span class="w-1.5 h-1.5 rounded-full bg-green shrink-0"></span><span class="font-medium" style="color:var(--green)">nrr</span></span>
+<span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap " data-node="arr-multiple" data-fn="11"><span class="font-mono" style="color:var(--overlay0)">11</span><span class="w-1.5 h-1.5 rounded-full bg-blue shrink-0"></span><span class="font-medium" style="color:var(--blue)">arr-multiple</span></span>
+<span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap " data-node="post-raise-runway" data-fn="10"><span class="font-mono" style="color:var(--overlay0)">10</span><span class="w-1.5 h-1.5 rounded-full bg-blue shrink-0"></span><span class="font-medium" style="color:var(--blue)">post-raise-runway</span></span>
+<span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap " data-node="active-pilots" data-fn="18"><span class="font-mono" style="color:var(--overlay0)">18</span><span class="w-1.5 h-1.5 rounded-full bg-green shrink-0"></span><span class="font-medium" style="color:var(--green)">active-pilots</span></span></div></div>
 
 <div class="my-5 border border-surface1 rounded-lg overflow-hidden bg-mantle" id="nb-block-3">
   <div class="nb-block-header px-4 py-2 flex items-center gap-2 cursor-pointer select-none">
@@ -309,24 +359,24 @@ valuation-check
   <div class="border-t border-surface1 px-4 py-2 text-sm"><span class="text-overlay0 text-xs">Out:</span> <span class="text-lavender font-bold">True</span></div>
   
 </div>
-<div class="nb-footnote-list border-t border-surface1 mt-3 pt-2 text-xs"><div class="nb-fn-row flex items-center gap-1.5 py-0.5 cursor-pointer hover:bg-surface0 rounded px-1" data-node="arr" data-fn="1"><span class="text-green text-[0.7em] font-mono w-4 text-right">1</span><span class="w-1.5 h-1.5 rounded-full bg-green shrink-0"></span><span class="text-green font-medium">arr</span><span class="text-subtext"> = 2.8M</span></div>
-<div class="nb-fn-row flex items-center gap-1.5 py-0.5 cursor-pointer hover:bg-surface0 rounded px-1" data-node="enterprise-customers" data-fn="2"><span class="text-green text-[0.7em] font-mono w-4 text-right">2</span><span class="w-1.5 h-1.5 rounded-full bg-green shrink-0"></span><span class="text-green font-medium">enterprise-customers</span><span class="text-subtext"> = 6</span></div>
-<div class="nb-fn-row flex items-center gap-1.5 py-0.5 cursor-pointer hover:bg-surface0 rounded px-1" data-node="total-customers" data-fn="3"><span class="text-green text-[0.7em] font-mono w-4 text-right">3</span><span class="w-1.5 h-1.5 rounded-full bg-green shrink-0"></span><span class="text-green font-medium">total-customers</span><span class="text-subtext"> = 43</span></div>
-<div class="nb-fn-row flex items-center gap-1.5 py-0.5 cursor-pointer hover:bg-surface0 rounded px-1" data-node="round-size" data-fn="4"><span class="text-green text-[0.7em] font-mono w-4 text-right">4</span><span class="w-1.5 h-1.5 rounded-full bg-green shrink-0"></span><span class="text-green font-medium">round-size</span><span class="text-subtext"> = 18.0M</span></div>
-<div class="nb-fn-row flex items-center gap-1.5 py-0.5 cursor-pointer hover:bg-surface0 rounded px-1" data-node="pre-money" data-fn="5"><span class="text-green text-[0.7em] font-mono w-4 text-right">5</span><span class="w-1.5 h-1.5 rounded-full bg-green shrink-0"></span><span class="text-green font-medium">pre-money</span><span class="text-subtext"> = 55.0M</span></div>
-<div class="nb-fn-row flex items-center gap-1.5 py-0.5 cursor-pointer hover:bg-surface0 rounded px-1" data-node="gross-margin" data-fn="6"><span class="text-blue text-[0.7em] font-mono w-4 text-right">6</span><span class="w-1.5 h-1.5 rounded-full bg-blue shrink-0"></span><span class="text-blue font-medium">gross-margin</span><span class="text-subtext"> = 80.00%</span></div>
-<div class="nb-fn-row flex items-center gap-1.5 py-0.5 cursor-pointer hover:bg-surface0 rounded px-1" data-node="ltv-to-cac" data-fn="7"><span class="text-blue text-[0.7em] font-mono w-4 text-right">7</span><span class="w-1.5 h-1.5 rounded-full bg-blue shrink-0"></span><span class="text-blue font-medium">ltv-to-cac</span><span class="text-subtext"> = 4.91</span></div>
-<div class="nb-fn-row flex items-center gap-1.5 py-0.5 cursor-pointer hover:bg-surface0 rounded px-1" data-node="nrr" data-fn="8"><span class="text-green text-[0.7em] font-mono w-4 text-right">8</span><span class="w-1.5 h-1.5 rounded-full bg-green shrink-0"></span><span class="text-green font-medium">nrr</span><span class="text-subtext"> = 180</span></div>
-<div class="nb-fn-row flex items-center gap-1.5 py-0.5 cursor-pointer hover:bg-surface0 rounded px-1" data-node="runway-months" data-fn="9"><span class="text-blue text-[0.7em] font-mono w-4 text-right">9</span><span class="w-1.5 h-1.5 rounded-full bg-blue shrink-0"></span><span class="text-blue font-medium">runway-months</span><span class="text-subtext"> = 21.58</span></div>
-<div class="nb-fn-row flex items-center gap-1.5 py-0.5 cursor-pointer hover:bg-surface0 rounded px-1" data-node="post-raise-runway" data-fn="10"><span class="text-blue text-[0.7em] font-mono w-4 text-right">10</span><span class="w-1.5 h-1.5 rounded-full bg-blue shrink-0"></span><span class="text-blue font-medium">post-raise-runway</span><span class="text-subtext"> = 68.95</span></div>
-<div class="nb-fn-row flex items-center gap-1.5 py-0.5 cursor-pointer hover:bg-surface0 rounded px-1" data-node="arr-multiple" data-fn="11"><span class="text-blue text-[0.7em] font-mono w-4 text-right">11</span><span class="w-1.5 h-1.5 rounded-full bg-blue shrink-0"></span><span class="text-blue font-medium">arr-multiple</span><span class="text-subtext"> = 19.64</span></div>
-<div class="nb-fn-row flex items-center gap-1.5 py-0.5 cursor-pointer hover:bg-surface0 rounded px-1" data-node="dau-wau-ratio" data-fn="12"><span class="text-blue text-[0.7em] font-mono w-4 text-right">12</span><span class="w-1.5 h-1.5 rounded-full bg-blue shrink-0"></span><span class="text-blue font-medium">dau-wau-ratio</span><span class="text-subtext"> = 51.79%</span></div>
-<div class="nb-fn-row flex items-center gap-1.5 py-0.5 cursor-pointer hover:bg-surface0 rounded px-1" data-node="margin-check" data-fn="13"><span class="text-mauve text-[0.7em] font-mono w-4 text-right">13</span><span class="w-1.5 h-1.5 rounded-full bg-mauve shrink-0"></span><span class="text-mauve font-medium">margin-check</span><span class="text-subtext"> = true</span></div>
-<div class="nb-fn-row flex items-center gap-1.5 py-0.5 cursor-pointer hover:bg-surface0 rounded px-1" data-node="ltv-cac-check" data-fn="14"><span class="text-mauve text-[0.7em] font-mono w-4 text-right">14</span><span class="w-1.5 h-1.5 rounded-full bg-mauve shrink-0"></span><span class="text-mauve font-medium">ltv-cac-check</span><span class="text-subtext"> = true</span></div>
-<div class="nb-fn-row flex items-center gap-1.5 py-0.5 cursor-pointer hover:bg-surface0 rounded px-1" data-node="retention-check" data-fn="15"><span class="text-mauve text-[0.7em] font-mono w-4 text-right">15</span><span class="w-1.5 h-1.5 rounded-full bg-mauve shrink-0"></span><span class="text-mauve font-medium">retention-check</span><span class="text-subtext"> = true</span></div>
-<div class="nb-fn-row flex items-center gap-1.5 py-0.5 cursor-pointer hover:bg-surface0 rounded px-1" data-node="churn-check" data-fn="16"><span class="text-mauve text-[0.7em] font-mono w-4 text-right">16</span><span class="w-1.5 h-1.5 rounded-full bg-mauve shrink-0"></span><span class="text-mauve font-medium">churn-check</span><span class="text-subtext"> = true</span></div>
-<div class="nb-fn-row flex items-center gap-1.5 py-0.5 cursor-pointer hover:bg-surface0 rounded px-1" data-node="valuation-check" data-fn="17"><span class="text-mauve text-[0.7em] font-mono w-4 text-right">17</span><span class="w-1.5 h-1.5 rounded-full bg-mauve shrink-0"></span><span class="text-mauve font-medium">valuation-check</span><span class="text-subtext"> = true</span></div>
-<div class="nb-fn-row flex items-center gap-1.5 py-0.5 cursor-pointer hover:bg-surface0 rounded px-1" data-node="active-pilots" data-fn="18"><span class="text-green text-[0.7em] font-mono w-4 text-right">18</span><span class="w-1.5 h-1.5 rounded-full bg-green shrink-0"></span><span class="text-green font-medium">active-pilots</span><span class="text-subtext"> = 12</span></div></div>
+<div class="nb-footnote-list border-t border-surface1 mt-3 pt-2 text-xs"><div class="nb-fn-row flex items-center gap-1.5 py-0.5 cursor-pointer hover:bg-surface0 rounded px-1" data-node="arr" data-fn="1"><span class="text-[0.7em] font-mono w-4 text-right" style="color:var(--green)">1</span><span class="w-1.5 h-1.5 rounded-full bg-green shrink-0"></span><span class="font-medium" style="color:var(--green)">arr</span><span class="text-subtext"> = 2.8M</span></div>
+<div class="nb-fn-row flex items-center gap-1.5 py-0.5 cursor-pointer hover:bg-surface0 rounded px-1" data-node="enterprise-customers" data-fn="2"><span class="text-[0.7em] font-mono w-4 text-right" style="color:var(--green)">2</span><span class="w-1.5 h-1.5 rounded-full bg-green shrink-0"></span><span class="font-medium" style="color:var(--green)">enterprise-customers</span><span class="text-subtext"> = 6</span></div>
+<div class="nb-fn-row flex items-center gap-1.5 py-0.5 cursor-pointer hover:bg-surface0 rounded px-1" data-node="total-customers" data-fn="3"><span class="text-[0.7em] font-mono w-4 text-right" style="color:var(--green)">3</span><span class="w-1.5 h-1.5 rounded-full bg-green shrink-0"></span><span class="font-medium" style="color:var(--green)">total-customers</span><span class="text-subtext"> = 43</span></div>
+<div class="nb-fn-row flex items-center gap-1.5 py-0.5 cursor-pointer hover:bg-surface0 rounded px-1" data-node="round-size" data-fn="4"><span class="text-[0.7em] font-mono w-4 text-right" style="color:var(--green)">4</span><span class="w-1.5 h-1.5 rounded-full bg-green shrink-0"></span><span class="font-medium" style="color:var(--green)">round-size</span><span class="text-subtext"> = 18.0M</span></div>
+<div class="nb-fn-row flex items-center gap-1.5 py-0.5 cursor-pointer hover:bg-surface0 rounded px-1" data-node="pre-money" data-fn="5"><span class="text-[0.7em] font-mono w-4 text-right" style="color:var(--green)">5</span><span class="w-1.5 h-1.5 rounded-full bg-green shrink-0"></span><span class="font-medium" style="color:var(--green)">pre-money</span><span class="text-subtext"> = 55.0M</span></div>
+<div class="nb-fn-row flex items-center gap-1.5 py-0.5 cursor-pointer hover:bg-surface0 rounded px-1" data-node="gross-margin" data-fn="6"><span class="text-[0.7em] font-mono w-4 text-right" style="color:var(--blue)">6</span><span class="w-1.5 h-1.5 rounded-full bg-blue shrink-0"></span><span class="font-medium" style="color:var(--blue)">gross-margin</span><span class="text-subtext"> = 80.00%</span></div>
+<div class="nb-fn-row flex items-center gap-1.5 py-0.5 cursor-pointer hover:bg-surface0 rounded px-1" data-node="ltv-to-cac" data-fn="7"><span class="text-[0.7em] font-mono w-4 text-right" style="color:var(--blue)">7</span><span class="w-1.5 h-1.5 rounded-full bg-blue shrink-0"></span><span class="font-medium" style="color:var(--blue)">ltv-to-cac</span><span class="text-subtext"> = 4.91</span></div>
+<div class="nb-fn-row flex items-center gap-1.5 py-0.5 cursor-pointer hover:bg-surface0 rounded px-1" data-node="nrr" data-fn="8"><span class="text-[0.7em] font-mono w-4 text-right" style="color:var(--green)">8</span><span class="w-1.5 h-1.5 rounded-full bg-green shrink-0"></span><span class="font-medium" style="color:var(--green)">nrr</span><span class="text-subtext"> = 180</span></div>
+<div class="nb-fn-row flex items-center gap-1.5 py-0.5 cursor-pointer hover:bg-surface0 rounded px-1" data-node="runway-months" data-fn="9"><span class="text-[0.7em] font-mono w-4 text-right" style="color:var(--blue)">9</span><span class="w-1.5 h-1.5 rounded-full bg-blue shrink-0"></span><span class="font-medium" style="color:var(--blue)">runway-months</span><span class="text-subtext"> = 21.58</span></div>
+<div class="nb-fn-row flex items-center gap-1.5 py-0.5 cursor-pointer hover:bg-surface0 rounded px-1" data-node="post-raise-runway" data-fn="10"><span class="text-[0.7em] font-mono w-4 text-right" style="color:var(--blue)">10</span><span class="w-1.5 h-1.5 rounded-full bg-blue shrink-0"></span><span class="font-medium" style="color:var(--blue)">post-raise-runway</span><span class="text-subtext"> = 68.95</span></div>
+<div class="nb-fn-row flex items-center gap-1.5 py-0.5 cursor-pointer hover:bg-surface0 rounded px-1" data-node="arr-multiple" data-fn="11"><span class="text-[0.7em] font-mono w-4 text-right" style="color:var(--blue)">11</span><span class="w-1.5 h-1.5 rounded-full bg-blue shrink-0"></span><span class="font-medium" style="color:var(--blue)">arr-multiple</span><span class="text-subtext"> = 19.64</span></div>
+<div class="nb-fn-row flex items-center gap-1.5 py-0.5 cursor-pointer hover:bg-surface0 rounded px-1" data-node="dau-wau-ratio" data-fn="12"><span class="text-[0.7em] font-mono w-4 text-right" style="color:var(--blue)">12</span><span class="w-1.5 h-1.5 rounded-full bg-blue shrink-0"></span><span class="font-medium" style="color:var(--blue)">dau-wau-ratio</span><span class="text-subtext"> = 51.79%</span></div>
+<div class="nb-fn-row flex items-center gap-1.5 py-0.5 cursor-pointer hover:bg-surface0 rounded px-1" data-node="margin-check" data-fn="13"><span class="text-[0.7em] font-mono w-4 text-right" style="color:var(--mauve)">13</span><span class="w-1.5 h-1.5 rounded-full bg-mauve shrink-0"></span><span class="font-medium" style="color:var(--mauve)">margin-check</span><span class="text-subtext"> = true</span></div>
+<div class="nb-fn-row flex items-center gap-1.5 py-0.5 cursor-pointer hover:bg-surface0 rounded px-1" data-node="ltv-cac-check" data-fn="14"><span class="text-[0.7em] font-mono w-4 text-right" style="color:var(--mauve)">14</span><span class="w-1.5 h-1.5 rounded-full bg-mauve shrink-0"></span><span class="font-medium" style="color:var(--mauve)">ltv-cac-check</span><span class="text-subtext"> = true</span></div>
+<div class="nb-fn-row flex items-center gap-1.5 py-0.5 cursor-pointer hover:bg-surface0 rounded px-1" data-node="retention-check" data-fn="15"><span class="text-[0.7em] font-mono w-4 text-right" style="color:var(--mauve)">15</span><span class="w-1.5 h-1.5 rounded-full bg-mauve shrink-0"></span><span class="font-medium" style="color:var(--mauve)">retention-check</span><span class="text-subtext"> = true</span></div>
+<div class="nb-fn-row flex items-center gap-1.5 py-0.5 cursor-pointer hover:bg-surface0 rounded px-1" data-node="churn-check" data-fn="16"><span class="text-[0.7em] font-mono w-4 text-right" style="color:var(--mauve)">16</span><span class="w-1.5 h-1.5 rounded-full bg-mauve shrink-0"></span><span class="font-medium" style="color:var(--mauve)">churn-check</span><span class="text-subtext"> = true</span></div>
+<div class="nb-fn-row flex items-center gap-1.5 py-0.5 cursor-pointer hover:bg-surface0 rounded px-1" data-node="valuation-check" data-fn="17"><span class="text-[0.7em] font-mono w-4 text-right" style="color:var(--mauve)">17</span><span class="w-1.5 h-1.5 rounded-full bg-mauve shrink-0"></span><span class="font-medium" style="color:var(--mauve)">valuation-check</span><span class="text-subtext"> = true</span></div>
+<div class="nb-fn-row flex items-center gap-1.5 py-0.5 cursor-pointer hover:bg-surface0 rounded px-1" data-node="active-pilots" data-fn="18"><span class="text-[0.7em] font-mono w-4 text-right" style="color:var(--green)">18</span><span class="w-1.5 h-1.5 rounded-full bg-green shrink-0"></span><span class="font-medium" style="color:var(--green)">active-pilots</span><span class="text-subtext"> = 12</span></div></div>
 <div class="mt-8 border border-surface1 rounded-lg overflow-hidden bg-mantle"><div class="px-4 py-2 flex items-center gap-3"><span class="text-mauve font-bold">Diagnostics</span><span class="text-xs"><span class="text-red">2 errors</span> &middot; <span class="text-yellow">3 warnings</span> &middot; <span class="text-subtext">12 info</span></span></div>
 <div class="border-t border-surface1">
   <div class="nb-block-header px-4 py-1.5 flex items-center gap-2 cursor-pointer select-none hover:bg-surface0">
@@ -435,7 +485,7 @@ valuation-check
 const DATA = [{"id":"mrr","kind":"fact","value":"245000","depth":0,"inputs":[],"evidence":[{"doc":"memo","quotes":["Monthly Recurring Revenue (MRR): $245,000"],"quote_contexts":{"Monthly Recurring Revenue (MRR): $245,000":{"before":"ual Recurring Revenue (ARR): $2,800,000\n","after":"\nGross Revenue (TTM): $2,400,000\nCost o"}},"explanation":"Current MRR","verified":true,"status":"verified","signature":null}],"module":"","definition":"245000"},{"id":"enterprise-customers","kind":"fact","value":"6","depth":0,"inputs":[],"evidence":[{"doc":"memo","quotes":["Enterprise (>$50K ACV): 6"],"quote_contexts":{"Enterprise (>$50K ACV): 6":{"before":"\u2550\u2550\u2550\u2550\u2550\u2550\u2550\n\nTotal Paying Customers: 43\n  - ","after":"\n  - Mid-market ($10K-$50K): 14\n  - Sel"}},"explanation":"Enterprise count","verified":true,"status":"verified","signature":null}],"module":"","definition":"6"},{"id":"total-customers","kind":"fact","value":"43","depth":0,"inputs":[],"evidence":[{"doc":"memo","quotes":["Total Paying Customers: 43"],"quote_contexts":{"Total Paying Customers: 43":{"before":"\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\n\n","after":"\n  - Enterprise (>$50K ACV): 6\n  - Mid-"}},"explanation":"Total customers","verified":true,"status":"verified","signature":null}],"module":"","definition":"43"},{"id":"active-pilots","kind":"fact","value":"12","depth":0,"inputs":[],"evidence":[{"doc":"memo","quotes":["Active Enterprise Pilots: 12"],"quote_contexts":{"Active Enterprise Pilots: 12":{"before":"\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\n\n","after":"\nPilot \u2192 Paid Conversion Rate: 75%\nExpe"}},"explanation":"Active pilots","verified":true,"status":"verified","signature":null}],"module":"","definition":"12"},{"id":"runway-months","kind":"calc","value":"21.57894736842105","depth":1,"inputs":[{"name":"cash","inProbe":true},{"name":"monthly-burn","inProbe":true}],"evidence":[{"status":"derived"}],"module":"","definition":"(/ cash monthly-burn)"},{"id":"cash","kind":"fact","value":"8200000","depth":0,"inputs":[],"evidence":[{"doc":"memo","quotes":["Cash on Hand: $8,200,000"],"quote_contexts":{"Cash on Hand: $8,200,000":{"before":"\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\n\n","after":"\nSource: $10M seed round (Construct Ven"}},"explanation":"Current cash","verified":true,"status":"verified","signature":null}],"module":"","definition":"8200000"},{"id":"monthly-burn","kind":"fact","value":"380000","depth":0,"inputs":[],"evidence":[{"doc":"memo","quotes":["Monthly Burn Rate: $380,000"],"quote_contexts":{"Monthly Burn Rate: $380,000":{"before":"0\nTotal Operating Expenses: $5,120,000\n\n","after":"\n\nR&D as % of OpEx: 62.5%\n\n\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550"}},"explanation":"Monthly burn","verified":true,"status":"verified","signature":null}],"module":"","definition":"380000"},{"id":"post-raise-runway","kind":"calc","value":"68.94736842105263","depth":3,"inputs":[{"name":"post-raise-cash","inProbe":true},{"name":"monthly-burn","inProbe":true}],"evidence":[{"status":"derived"}],"module":"","definition":"(/ post-raise-cash monthly-burn)"},{"id":"post-raise-cash","kind":"calc","value":"26200000","depth":1,"inputs":[{"name":"cash","inProbe":true},{"name":"round-size","inProbe":true}],"evidence":[{"status":"derived"}],"module":"","definition":"(+ cash round-size)"},{"id":"round-size","kind":"fact","value":"18000000","depth":0,"inputs":[],"evidence":[{"doc":"memo","quotes":["Round Size: $18,000,000"],"quote_contexts":{"Round Size: $18,000,000":{"before":"\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\n\n","after":"\nLead Investor: Meridian Partners ($14,"}},"explanation":"Series A size","verified":true,"status":"verified","signature":null}],"module":"","definition":"18000000"},{"id":"dau-wau-ratio","kind":"calc","value":"0.5178571428571429","depth":1,"inputs":[{"name":"dau","inProbe":true},{"name":"wau","inProbe":true}],"evidence":[{"status":"derived"}],"module":"","definition":"(/ dau wau)"},{"id":"dau","kind":"fact","value":"1450","depth":0,"inputs":[],"evidence":[{"doc":"memo","quotes":["Daily Active Users (cloud): 1,450"],"quote_contexts":{"Daily Active Users (cloud): 1,450":{"before":"5\nTeams Using (CI/CD integrations): 812\n","after":"\nWeekly Active Users (cloud): 2,800\nMon"}},"explanation":"DAU","verified":true,"status":"verified","signature":null}],"module":"","definition":"1450"},{"id":"wau","kind":"fact","value":"2800","depth":0,"inputs":[],"evidence":[{"doc":"memo","quotes":["Weekly Active Users (cloud): 2,800"],"quote_contexts":{"Weekly Active Users (cloud): 2,800":{"before":": 812\nDaily Active Users (cloud): 1,450\n","after":"\nMonthly Code Reviews Processed: 62,000"}},"explanation":"WAU","verified":true,"status":"verified","signature":null}],"module":"","definition":"2800"},{"id":"margin-check","kind":"theorem","value":"true","depth":2,"inputs":[{"name":"gross-margin","inProbe":true},{"name":"margin-ok","inProbe":true}],"evidence":[{"status":"derived"}],"module":"","definition":"(> gross-margin 0.6)"},{"id":"gross-margin","kind":"calc","value":"0.8","depth":1,"inputs":[{"name":"revenue","inProbe":true},{"name":"cogs","inProbe":true}],"evidence":[{"status":"derived"}],"module":"","definition":"(/ (- revenue cogs) revenue)"},{"id":"revenue","kind":"fact","value":"2400000","depth":0,"inputs":[],"evidence":[{"doc":"memo","quotes":["Gross Revenue (TTM): $2,400,000"],"quote_contexts":{"Gross Revenue (TTM): $2,400,000":{"before":"nthly Recurring Revenue (MRR): $245,000\n","after":"\nCost of Goods Sold (TTM): $480,000\nRev"}},"explanation":"TTM revenue","verified":true,"status":"verified","signature":null}],"module":"","definition":"2400000"},{"id":"cogs","kind":"fact","value":"480000","depth":0,"inputs":[],"evidence":[{"doc":"memo","quotes":["Cost of Goods Sold (TTM): $480,000"],"quote_contexts":{"Cost of Goods Sold (TTM): $480,000":{"before":"245,000\nGross Revenue (TTM): $2,400,000\n","after":"\nRevenue Growth Rate (YoY): 340%\n\nReven"}},"explanation":"TTM COGS","verified":true,"status":"verified","signature":null}],"module":"","definition":"480000"},{"id":"margin-ok","kind":"axiom","value":"(> ?m 0.6)","depth":0,"inputs":[],"evidence":[{"doc":"manual","quotes":[],"quote_contexts":{},"explanation":"gross margin > 60% [Signed: Claude]","verified":false,"status":"manual","signature":"Claude"}],"module":"","definition":"(> ?m 0.6)"},{"id":"ltv-cac-check","kind":"theorem","value":"true","depth":2,"inputs":[{"name":"ltv-to-cac","inProbe":true},{"name":"ltv-cac-ok","inProbe":true}],"evidence":[{"status":"derived"}],"module":"","definition":"(> ltv-to-cac 3.0)"},{"id":"ltv-to-cac","kind":"calc","value":"4.912087912087912","depth":1,"inputs":[{"name":"ltv","inProbe":true},{"name":"cac","inProbe":true}],"evidence":[{"status":"derived"}],"module":"","definition":"(/ ltv cac)"},{"id":"ltv","kind":"fact","value":"89400","depth":0,"inputs":[],"evidence":[{"doc":"memo","quotes":["Estimated Customer Lifetime Value (LTV): $89,400"],"quote_contexts":{"Estimated Customer Lifetime Value (LTV): $89,400":{"before":"ustomer Acquisition Cost (CAC): $18,200\n","after":"\n\nEnterprise customers:\n  1. Meridian F"}},"explanation":"Customer LTV","verified":true,"status":"verified","signature":null}],"module":"","definition":"89400"},{"id":"cac","kind":"fact","value":"18200","depth":0,"inputs":[],"evidence":[{"doc":"memo","quotes":["Customer Acquisition Cost (CAC): $18,200"],"quote_contexts":{"Customer Acquisition Cost (CAC): $18,200":{"before":"GRR): 94%\nMonthly Logo Churn Rate: 1.4%\n","after":"\nEstimated Customer Lifetime Value (LTV"}},"explanation":"CAC","verified":true,"status":"verified","signature":null}],"module":"","definition":"18200"},{"id":"ltv-cac-ok","kind":"axiom","value":"(> ?r 3.0)","depth":0,"inputs":[],"evidence":[{"doc":"manual","quotes":[],"quote_contexts":{},"explanation":"LTV/CAC > 3x [Signed: Claude]","verified":false,"status":"manual","signature":"Claude"}],"module":"","definition":"(> ?r 3.0)"},{"id":"retention-check","kind":"theorem","value":"true","depth":1,"inputs":[{"name":"nrr","inProbe":true},{"name":"retention-ok","inProbe":true}],"evidence":[{"status":"derived"}],"module":"","definition":"(> nrr 130)"},{"id":"nrr","kind":"fact","value":"180","depth":0,"inputs":[],"evidence":[{"doc":"memo","quotes":["Net Revenue Retention (NRR): 180%"],"quote_contexts":{"Net Revenue Retention (NRR): 180%":{"before":"(ACV): $65,116\nEnterprise ACV: $127,500\n","after":"\nGross Revenue Retention (GRR): 94%\nMon"}},"explanation":"NRR","verified":true,"status":"verified","signature":null}],"module":"","definition":"180"},{"id":"retention-ok","kind":"axiom","value":"(> ?n 130)","depth":0,"inputs":[],"evidence":[{"doc":"NRR > 130%","status":"unverified"}],"module":"","definition":"(> ?n 130)"},{"id":"churn-check","kind":"theorem","value":"true","depth":1,"inputs":[{"name":"monthly-churn-pct","inProbe":true},{"name":"churn-ok","inProbe":true}],"evidence":[{"status":"derived"}],"module":"","definition":"(< monthly-churn-pct 2.0)"},{"id":"monthly-churn-pct","kind":"fact","value":"1.4","depth":0,"inputs":[],"evidence":[{"doc":"memo","quotes":["Monthly Logo Churn Rate: 1.4%"],"quote_contexts":{"Monthly Logo Churn Rate: 1.4%":{"before":"180%\nGross Revenue Retention (GRR): 94%\n","after":"\nCustomer Acquisition Cost (CAC): $18,2"}},"explanation":"Monthly churn","verified":true,"status":"verified","signature":null}],"module":"","definition":"1.4"},{"id":"churn-ok","kind":"axiom","value":"(< ?c 2.0)","depth":0,"inputs":[],"evidence":[{"doc":"manual","quotes":[],"quote_contexts":{},"explanation":"monthly churn < 2% [Signed: Claude]","verified":false,"status":"manual","signature":"Claude"}],"module":"","definition":"(< ?c 2.0)"},{"id":"valuation-check","kind":"theorem","value":"true","depth":2,"inputs":[{"name":"arr-multiple","inProbe":true},{"name":"valuation-ok","inProbe":true}],"evidence":[{"status":"derived"}],"module":"","definition":"(< arr-multiple 25)"},{"id":"arr-multiple","kind":"calc","value":"19.642857142857142","depth":1,"inputs":[{"name":"pre-money","inProbe":true},{"name":"arr","inProbe":true}],"evidence":[{"status":"derived"}],"module":"","definition":"(/ pre-money arr)"},{"id":"pre-money","kind":"fact","value":"55000000","depth":0,"inputs":[],"evidence":[{"doc":"memo","quotes":["Pre-Money Valuation: $55,000,000"],"quote_contexts":{"Pre-Money Valuation: $55,000,000":{"before":"ntures ($4,000,000, pro-rata from seed)\n","after":"\nPost-Money Valuation: $73,000,000\nDilu"}},"explanation":"Pre-money valuation","verified":true,"status":"verified","signature":null}],"module":"","definition":"55000000"},{"id":"arr","kind":"fact","value":"2800000","depth":0,"inputs":[],"evidence":[{"doc":"memo","quotes":["Annual Recurring Revenue (ARR): $2,800,000"],"quote_contexts":{"Annual Recurring Revenue (ARR): $2,800,000":{"before":"\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\n\n","after":"\nMonthly Recurring Revenue (MRR): $245,"}},"explanation":"Current ARR","verified":true,"status":"verified","signature":null}],"module":"","definition":"2800000"},{"id":"valuation-ok","kind":"axiom","value":"(< ?v 25)","depth":0,"inputs":[],"evidence":[{"doc":"ARR multiple < 25x","status":"unverified"}],"module":"","definition":"(< ?v 25)"}];
 const STRUCTURE_DATA = [{"id":"mrr","kind":"fact","value":"245000","depth":0,"inputs":[],"evidence":[{"doc":"memo","quotes":["Monthly Recurring Revenue (MRR): $245,000"],"quote_contexts":{"Monthly Recurring Revenue (MRR): $245,000":{"before":"ual Recurring Revenue (ARR): $2,800,000\n","after":"\nGross Revenue (TTM): $2,400,000\nCost o"}},"explanation":"Current MRR","verified":true,"status":"verified","signature":null}],"module":"","definition":"245000"},{"id":"enterprise-customers","kind":"fact","value":"6","depth":0,"inputs":[],"evidence":[{"doc":"memo","quotes":["Enterprise (>$50K ACV): 6"],"quote_contexts":{"Enterprise (>$50K ACV): 6":{"before":"\u2550\u2550\u2550\u2550\u2550\u2550\u2550\n\nTotal Paying Customers: 43\n  - ","after":"\n  - Mid-market ($10K-$50K): 14\n  - Sel"}},"explanation":"Enterprise count","verified":true,"status":"verified","signature":null}],"module":"","definition":"6"},{"id":"total-customers","kind":"fact","value":"43","depth":0,"inputs":[],"evidence":[{"doc":"memo","quotes":["Total Paying Customers: 43"],"quote_contexts":{"Total Paying Customers: 43":{"before":"\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\n\n","after":"\n  - Enterprise (>$50K ACV): 6\n  - Mid-"}},"explanation":"Total customers","verified":true,"status":"verified","signature":null}],"module":"","definition":"43"},{"id":"active-pilots","kind":"fact","value":"12","depth":0,"inputs":[],"evidence":[{"doc":"memo","quotes":["Active Enterprise Pilots: 12"],"quote_contexts":{"Active Enterprise Pilots: 12":{"before":"\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\n\n","after":"\nPilot \u2192 Paid Conversion Rate: 75%\nExpe"}},"explanation":"Active pilots","verified":true,"status":"verified","signature":null}],"module":"","definition":"12"},{"id":"runway-months","kind":"calc","value":"21.57894736842105","depth":1,"inputs":[{"name":"cash","inProbe":true},{"name":"monthly-burn","inProbe":true}],"evidence":[{"status":"derived"}],"module":"","definition":"(/ cash monthly-burn)"},{"id":"cash","kind":"fact","value":"8200000","depth":0,"inputs":[],"evidence":[{"doc":"memo","quotes":["Cash on Hand: $8,200,000"],"quote_contexts":{"Cash on Hand: $8,200,000":{"before":"\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\n\n","after":"\nSource: $10M seed round (Construct Ven"}},"explanation":"Current cash","verified":true,"status":"verified","signature":null}],"module":"","definition":"8200000"},{"id":"monthly-burn","kind":"fact","value":"380000","depth":0,"inputs":[],"evidence":[{"doc":"memo","quotes":["Monthly Burn Rate: $380,000"],"quote_contexts":{"Monthly Burn Rate: $380,000":{"before":"0\nTotal Operating Expenses: $5,120,000\n\n","after":"\n\nR&D as % of OpEx: 62.5%\n\n\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550"}},"explanation":"Monthly burn","verified":true,"status":"verified","signature":null}],"module":"","definition":"380000"},{"id":"post-raise-runway","kind":"calc","value":"68.94736842105263","depth":3,"inputs":[{"name":"post-raise-cash","inProbe":true},{"name":"monthly-burn","inProbe":true}],"evidence":[{"status":"derived"}],"module":"","definition":"(/ post-raise-cash monthly-burn)"},{"id":"post-raise-cash","kind":"calc","value":"26200000","depth":1,"inputs":[{"name":"cash","inProbe":true},{"name":"round-size","inProbe":true}],"evidence":[{"status":"derived"}],"module":"","definition":"(+ cash round-size)"},{"id":"round-size","kind":"fact","value":"18000000","depth":0,"inputs":[],"evidence":[{"doc":"memo","quotes":["Round Size: $18,000,000"],"quote_contexts":{"Round Size: $18,000,000":{"before":"\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\n\n","after":"\nLead Investor: Meridian Partners ($14,"}},"explanation":"Series A size","verified":true,"status":"verified","signature":null}],"module":"","definition":"18000000"},{"id":"dau-wau-ratio","kind":"calc","value":"0.5178571428571429","depth":1,"inputs":[{"name":"dau","inProbe":true},{"name":"wau","inProbe":true}],"evidence":[{"status":"derived"}],"module":"","definition":"(/ dau wau)"},{"id":"dau","kind":"fact","value":"1450","depth":0,"inputs":[],"evidence":[{"doc":"memo","quotes":["Daily Active Users (cloud): 1,450"],"quote_contexts":{"Daily Active Users (cloud): 1,450":{"before":"5\nTeams Using (CI/CD integrations): 812\n","after":"\nWeekly Active Users (cloud): 2,800\nMon"}},"explanation":"DAU","verified":true,"status":"verified","signature":null}],"module":"","definition":"1450"},{"id":"wau","kind":"fact","value":"2800","depth":0,"inputs":[],"evidence":[{"doc":"memo","quotes":["Weekly Active Users (cloud): 2,800"],"quote_contexts":{"Weekly Active Users (cloud): 2,800":{"before":": 812\nDaily Active Users (cloud): 1,450\n","after":"\nMonthly Code Reviews Processed: 62,000"}},"explanation":"WAU","verified":true,"status":"verified","signature":null}],"module":"","definition":"2800"},{"id":"margin-check","kind":"theorem","value":"true","depth":2,"inputs":[{"name":"gross-margin","inProbe":true},{"name":"margin-ok","inProbe":true}],"evidence":[{"status":"derived"}],"module":"","definition":"(> gross-margin 0.6)"},{"id":"gross-margin","kind":"calc","value":"0.8","depth":1,"inputs":[{"name":"revenue","inProbe":true},{"name":"cogs","inProbe":true}],"evidence":[{"status":"derived"}],"module":"","definition":"(/ (- revenue cogs) revenue)"},{"id":"revenue","kind":"fact","value":"2400000","depth":0,"inputs":[],"evidence":[{"doc":"memo","quotes":["Gross Revenue (TTM): $2,400,000"],"quote_contexts":{"Gross Revenue (TTM): $2,400,000":{"before":"nthly Recurring Revenue (MRR): $245,000\n","after":"\nCost of Goods Sold (TTM): $480,000\nRev"}},"explanation":"TTM revenue","verified":true,"status":"verified","signature":null}],"module":"","definition":"2400000"},{"id":"cogs","kind":"fact","value":"480000","depth":0,"inputs":[],"evidence":[{"doc":"memo","quotes":["Cost of Goods Sold (TTM): $480,000"],"quote_contexts":{"Cost of Goods Sold (TTM): $480,000":{"before":"245,000\nGross Revenue (TTM): $2,400,000\n","after":"\nRevenue Growth Rate (YoY): 340%\n\nReven"}},"explanation":"TTM COGS","verified":true,"status":"verified","signature":null}],"module":"","definition":"480000"},{"id":"margin-ok","kind":"axiom","value":"(> ?m 0.6)","depth":0,"inputs":[],"evidence":[{"doc":"manual","quotes":[],"quote_contexts":{},"explanation":"gross margin > 60% [Signed: Claude]","verified":false,"status":"manual","signature":"Claude"}],"module":"","definition":"(> ?m 0.6)"},{"id":"ltv-cac-check","kind":"theorem","value":"true","depth":2,"inputs":[{"name":"ltv-to-cac","inProbe":true},{"name":"ltv-cac-ok","inProbe":true}],"evidence":[{"status":"derived"}],"module":"","definition":"(> ltv-to-cac 3.0)"},{"id":"ltv-to-cac","kind":"calc","value":"4.912087912087912","depth":1,"inputs":[{"name":"ltv","inProbe":true},{"name":"cac","inProbe":true}],"evidence":[{"status":"derived"}],"module":"","definition":"(/ ltv cac)"},{"id":"ltv","kind":"fact","value":"89400","depth":0,"inputs":[],"evidence":[{"doc":"memo","quotes":["Estimated Customer Lifetime Value (LTV): $89,400"],"quote_contexts":{"Estimated Customer Lifetime Value (LTV): $89,400":{"before":"ustomer Acquisition Cost (CAC): $18,200\n","after":"\n\nEnterprise customers:\n  1. Meridian F"}},"explanation":"Customer LTV","verified":true,"status":"verified","signature":null}],"module":"","definition":"89400"},{"id":"cac","kind":"fact","value":"18200","depth":0,"inputs":[],"evidence":[{"doc":"memo","quotes":["Customer Acquisition Cost (CAC): $18,200"],"quote_contexts":{"Customer Acquisition Cost (CAC): $18,200":{"before":"GRR): 94%\nMonthly Logo Churn Rate: 1.4%\n","after":"\nEstimated Customer Lifetime Value (LTV"}},"explanation":"CAC","verified":true,"status":"verified","signature":null}],"module":"","definition":"18200"},{"id":"ltv-cac-ok","kind":"axiom","value":"(> ?r 3.0)","depth":0,"inputs":[],"evidence":[{"doc":"manual","quotes":[],"quote_contexts":{},"explanation":"LTV/CAC > 3x [Signed: Claude]","verified":false,"status":"manual","signature":"Claude"}],"module":"","definition":"(> ?r 3.0)"},{"id":"retention-check","kind":"theorem","value":"true","depth":1,"inputs":[{"name":"nrr","inProbe":true},{"name":"retention-ok","inProbe":true}],"evidence":[{"status":"derived"}],"module":"","definition":"(> nrr 130)"},{"id":"nrr","kind":"fact","value":"180","depth":0,"inputs":[],"evidence":[{"doc":"memo","quotes":["Net Revenue Retention (NRR): 180%"],"quote_contexts":{"Net Revenue Retention (NRR): 180%":{"before":"(ACV): $65,116\nEnterprise ACV: $127,500\n","after":"\nGross Revenue Retention (GRR): 94%\nMon"}},"explanation":"NRR","verified":true,"status":"verified","signature":null}],"module":"","definition":"180"},{"id":"retention-ok","kind":"axiom","value":"(> ?n 130)","depth":0,"inputs":[],"evidence":[{"doc":"NRR > 130%","status":"unverified"}],"module":"","definition":"(> ?n 130)"},{"id":"churn-check","kind":"theorem","value":"true","depth":1,"inputs":[{"name":"monthly-churn-pct","inProbe":true},{"name":"churn-ok","inProbe":true}],"evidence":[{"status":"derived"}],"module":"","definition":"(< monthly-churn-pct 2.0)"},{"id":"monthly-churn-pct","kind":"fact","value":"1.4","depth":0,"inputs":[],"evidence":[{"doc":"memo","quotes":["Monthly Logo Churn Rate: 1.4%"],"quote_contexts":{"Monthly Logo Churn Rate: 1.4%":{"before":"180%\nGross Revenue Retention (GRR): 94%\n","after":"\nCustomer Acquisition Cost (CAC): $18,2"}},"explanation":"Monthly churn","verified":true,"status":"verified","signature":null}],"module":"","definition":"1.4"},{"id":"churn-ok","kind":"axiom","value":"(< ?c 2.0)","depth":0,"inputs":[],"evidence":[{"doc":"manual","quotes":[],"quote_contexts":{},"explanation":"monthly churn < 2% [Signed: Claude]","verified":false,"status":"manual","signature":"Claude"}],"module":"","definition":"(< ?c 2.0)"},{"id":"valuation-check","kind":"theorem","value":"true","depth":2,"inputs":[{"name":"arr-multiple","inProbe":true},{"name":"valuation-ok","inProbe":true}],"evidence":[{"status":"derived"}],"module":"","definition":"(< arr-multiple 25)"},{"id":"arr-multiple","kind":"calc","value":"19.642857142857142","depth":1,"inputs":[{"name":"pre-money","inProbe":true},{"name":"arr","inProbe":true}],"evidence":[{"status":"derived"}],"module":"","definition":"(/ pre-money arr)"},{"id":"pre-money","kind":"fact","value":"55000000","depth":0,"inputs":[],"evidence":[{"doc":"memo","quotes":["Pre-Money Valuation: $55,000,000"],"quote_contexts":{"Pre-Money Valuation: $55,000,000":{"before":"ntures ($4,000,000, pro-rata from seed)\n","after":"\nPost-Money Valuation: $73,000,000\nDilu"}},"explanation":"Pre-money valuation","verified":true,"status":"verified","signature":null}],"module":"","definition":"55000000"},{"id":"arr","kind":"fact","value":"2800000","depth":0,"inputs":[],"evidence":[{"doc":"memo","quotes":["Annual Recurring Revenue (ARR): $2,800,000"],"quote_contexts":{"Annual Recurring Revenue (ARR): $2,800,000":{"before":"\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\n\n","after":"\nMonthly Recurring Revenue (MRR): $245,"}},"explanation":"Current ARR","verified":true,"status":"verified","signature":null}],"module":"","definition":"2800000"},{"id":"valuation-ok","kind":"axiom","value":"(< ?v 25)","depth":0,"inputs":[],"evidence":[{"doc":"ARR multiple < 25x","status":"unverified"}],"module":"","definition":"(< ?v 25)"}];
 const LAYERS = {"layers":[{"depth":0,"nodes":[{"name":"churn-ok","kind":"axiom","value":"(< ?c 2.0)","uses":[],"declares":[],"pulls":[],"module":""},{"name":"retention-ok","kind":"axiom","value":"(> ?n 130)","uses":[],"declares":[],"pulls":[],"module":""},{"name":"ltv-cac-ok","kind":"axiom","value":"(> ?r 3.0)","uses":[],"declares":[],"pulls":[],"module":""},{"name":"margin-ok","kind":"axiom","value":"(> ?m 0.6)","uses":[],"declares":[],"pulls":[],"module":""},{"name":"valuation-ok","kind":"axiom","value":"(< ?v 25)","uses":[],"declares":[],"pulls":[],"module":""}]},{"depth":1,"nodes":[{"name":"gross-margin","kind":"calc","value":"0.8","uses":[],"declares":["revenue","cogs"],"pulls":[],"module":""},{"name":"ltv-to-cac","kind":"calc","value":"4.912087912087912","uses":[],"declares":["ltv","cac"],"pulls":[],"module":""},{"name":"runway-months","kind":"calc","value":"21.57894736842105","uses":[],"declares":["cash","monthly-burn"],"pulls":[],"module":""},{"name":"post-raise-cash","kind":"calc","value":"26200000","uses":[],"declares":["cash","round-size"],"pulls":[],"module":""},{"name":"arr-multiple","kind":"calc","value":"19.642857142857142","uses":[],"declares":["pre-money","arr"],"pulls":[],"module":""},{"name":"dau-wau-ratio","kind":"calc","value":"0.5178571428571429","uses":[],"declares":["dau","wau"],"pulls":[],"module":""},{"name":"retention-check","kind":"theorem","value":"true","uses":[],"declares":["nrr","retention-ok"],"pulls":[],"module":""},{"name":"churn-check","kind":"theorem","value":"true","uses":["churn-ok"],"declares":["monthly-churn-pct"],"pulls":[],"module":""}]},{"depth":2,"nodes":[{"name":"margin-check","kind":"theorem","value":"true","uses":[],"declares":["margin-ok"],"pulls":["gross-margin"],"module":""},{"name":"ltv-cac-check","kind":"theorem","value":"true","uses":["ltv-cac-ok"],"declares":[],"pulls":["ltv-to-cac"],"module":""},{"name":"valuation-check","kind":"theorem","value":"true","uses":[],"declares":["valuation-ok"],"pulls":["arr-multiple"],"module":""}]},{"depth":3,"nodes":[{"name":"post-raise-runway","kind":"calc","value":"68.94736842105263","uses":[],"declares":["monthly-burn"],"pulls":["post-raise-cash"],"module":""}]}],"edges":[{"source":"revenue","target":"gross-margin","type":"declare"},{"source":"cogs","target":"gross-margin","type":"declare"},{"source":"ltv","target":"ltv-to-cac","type":"declare"},{"source":"cac","target":"ltv-to-cac","type":"declare"},{"source":"cash","target":"runway-months","type":"declare"},{"source":"monthly-burn","target":"runway-months","type":"declare"},{"source":"cash","target":"post-raise-cash","type":"declare"},{"source":"round-size","target":"post-raise-cash","type":"declare"},{"source":"pre-money","target":"arr-multiple","type":"declare"},{"source":"arr","target":"arr-multiple","type":"declare"},{"source":"dau","target":"dau-wau-ratio","type":"declare"},{"source":"wau","target":"dau-wau-ratio","type":"declare"},{"source":"nrr","target":"retention-check","type":"declare"},{"source":"retention-ok","target":"retention-check","type":"declare"},{"source":"churn-ok","target":"churn-check","type":"use"},{"source":"monthly-churn-pct","target":"churn-check","type":"declare"},{"source":"gross-margin","target":"margin-check","type":"pull"},{"source":"margin-ok","target":"margin-check","type":"declare"},{"source":"ltv-cac-ok","target":"ltv-cac-check","type":"use"},{"source":"ltv-to-cac","target":"ltv-cac-check","type":"pull"},{"source":"arr-multiple","target":"valuation-check","type":"pull"},{"source":"valuation-ok","target":"valuation-check","type":"declare"},{"source":"monthly-burn","target":"post-raise-runway","type":"declare"},{"source":"post-raise-cash","target":"post-raise-runway","type":"pull"}]};
-const TAINT_DATA = {"sources":["churn-ok","ltv-cac-ok","margin-ok","retention-ok","valuation-ok"],"tainted":["churn-check","churn-ok","ltv-cac-check","ltv-cac-ok","margin-check","margin-ok","retention-check","retention-ok","valuation-check","valuation-ok"],"reasons":{"margin-ok":"signed by 'Claude', role: assistant \u2014 waiting for user's signature","ltv-cac-ok":"signed by 'Claude', role: assistant \u2014 waiting for user's signature","retention-ok":"unverified (unverified)","churn-ok":"signed by 'Claude', role: assistant \u2014 waiting for user's signature","valuation-ok":"unverified (unverified)","retention-check":"depends on tainted: retention-ok","ltv-cac-check":"depends on tainted: ltv-cac-ok","churn-check":"depends on tainted: churn-ok","margin-check":"depends on tainted: margin-ok","valuation-check":"depends on tainted: valuation-ok"}};
+const TAINT_DATA = {"sources":["churn-ok","ltv-cac-ok","margin-ok","retention-ok","valuation-ok"],"tainted":["churn-check","churn-ok","ltv-cac-check","ltv-cac-ok","margin-check","margin-ok","retention-check","retention-ok","valuation-check","valuation-ok"],"reasons":{"margin-ok":"signed by 'Claude', role: assistant \u2014 waiting for user's signature","ltv-cac-ok":"signed by 'Claude', role: assistant \u2014 waiting for user's signature","retention-ok":"unverified (unverified)","churn-ok":"signed by 'Claude', role: assistant \u2014 waiting for user's signature","valuation-ok":"unverified (unverified)","valuation-check":"depends on tainted: valuation-ok","ltv-cac-check":"depends on tainted: ltv-cac-ok","margin-check":"depends on tainted: margin-ok","retention-check":"depends on tainted: retention-ok","churn-check":"depends on tainted: churn-ok"}};
 const FORM_TYPE = "ln";
 
 // ── Theme toggle ──
@@ -484,6 +534,23 @@ function refreshPalette() {
     'teal','peach','flamingo','sky','lavender','patronus'];
   names.forEach(n => { C[n] = getColor(n); });
   C.pill = getColor('base-light') || C.surface0;
+  // Patronus palette — diff nodes
+  C.patronusCore = getColor('patronus-core');
+  C.patronusGlow = getColor('patronus-glow');
+  C.patronusGlowOuter = getColor('patronus-glow-outer');
+  C.patronusHighlight = getColor('patronus-highlight');
+  C.patronusLine = getColor('patronus-line');
+  C.patronusTextPrimary = getColor('patronus-text-primary');
+  C.patronusTextSecondary = getColor('patronus-text-secondary');
+  C.patronusTextMuted = getColor('patronus-text-muted');
+  // Tainted (divergent) — patronus + red
+  C.patronusTaintCore = getColor('patronus-taint-core');
+  C.patronusTaintGlow = getColor('patronus-taint-glow');
+  C.patronusTaintOuter = getColor('patronus-taint-outer');
+  // Warn (contaminated) — patronus + yellow
+  C.patronusWarnCore = getColor('patronus-warn-core');
+  C.patronusWarnGlow = getColor('patronus-warn-glow');
+  C.patronusWarnOuter = getColor('patronus-warn-outer');
 }
 refreshPalette();
 
@@ -575,11 +642,14 @@ function _updateSuggestions(query) {
     const dotVar = KIND_DOT_VAR[kind] || 'surface2';
     const short = name.includes('.') ? name.split('.').slice(1).join('.') : name;
     const val = item && item.value ? (' = ' + esc(String(item.value).slice(0, 30))) : '';
+    const nameFill = diffTextPrimary(name) || '';
+    const kindFill = diffTextSecondary(name) || '';
+    const valFill = diffTextMuted(name) || '';
     return `<div class="search-suggestion px-3 py-1.5 cursor-pointer hover:bg-surface0 flex items-center gap-2 text-sm" data-name="${esc(name)}">
       <span class="w-2 h-2 rounded-full shrink-0" style="background:var(--${dotVar})"></span>
-      <span class="text-text truncate">${esc(short)}</span>
-      <span class="text-overlay0 text-xs truncate">${esc(kind)}</span>
-      <span class="text-subtext text-xs ml-auto shrink-0">${val}</span>
+      <span class="truncate" style="${nameFill ? 'color:'+nameFill : ''}">${esc(short)}</span>
+      <span class="text-xs truncate" style="${kindFill ? 'color:'+kindFill : 'color:var(--overlay0)'}">${esc(kind)}</span>
+      <span class="text-xs ml-auto shrink-0" style="${valFill ? 'color:'+valFill : 'color:var(--subtext)'}">${val}</span>
     </div>`;
   }).join('');
   suggestionsEl.classList.remove('hidden');
@@ -686,6 +756,50 @@ function filtered(source) {
 const ITEM_BY_ID = {};
 DATA.forEach(d => { if (d.id) ITEM_BY_ID[d.id] = d; });
 STRUCTURE_DATA.forEach(d => { if (d.id) ITEM_BY_ID[d.id] = d; });
+
+// ── Diff state map: id → 'coherent' | 'tainted' | 'warn' ──
+const DIFF_STATE = {};
+DATA.forEach(d => {
+  if (d.kind === 'diff' && d.diff) {
+    const df = d.diff;
+    if (df.coherent) {
+      DIFF_STATE[d.id] = (df.contaminated && Object.keys(df.contaminated).length) ? 'warn' : 'coherent';
+    } else {
+      DIFF_STATE[d.id] = 'tainted';
+    }
+  }
+});
+
+// ── State-aware text colors for diff nodes (color-mixed, not raw alert) ──
+// Returns CSS color value. null for non-diffs.
+function diffTextPrimary(id) {
+  const st = DIFF_STATE[id];
+  if (!st) return null;
+  if (st === 'coherent') return 'var(--patronus-text-primary)';
+  if (st === 'tainted') return 'var(--patronus-taint-core)';
+  return 'var(--patronus-warn-core)';  // warn
+}
+function diffTextSecondary(id) {
+  const st = DIFF_STATE[id];
+  if (!st) return null;
+  if (st === 'coherent') return 'var(--patronus-text-secondary)';
+  if (st === 'tainted') return 'var(--patronus-taint-glow)';
+  return 'var(--patronus-warn-glow)';  // warn
+}
+function diffTextMuted(id) {
+  const st = DIFF_STATE[id];
+  if (!st) return null;
+  if (st === 'coherent') return 'var(--patronus-text-muted)';
+  if (st === 'tainted') return 'var(--patronus-taint-outer)';
+  return 'var(--patronus-warn-outer)';  // warn
+}
+function diffBorderColor(id) {
+  const st = DIFF_STATE[id];
+  if (!st) return null;
+  if (st === 'coherent') return 'var(--patronus-line)';
+  if (st === 'tainted') return 'var(--patronus-taint-outer)';
+  return 'var(--patronus-warn-outer)';  // warn
+}
 
 function highlightInput(name) {
   searchEl.value = name;
@@ -996,6 +1110,35 @@ function render() {
         const verified = hasEv && d.evidence[0].verified;
         const taintTag = isTaintSource ? '<span class="text-red">&#x2716; taint source</span>'
           : isTainted ? '<span class="text-yellow">&#x26a0; tainted</span>' : '';
+
+        // Diff cards get patronus dot + state-aware styling (color-mixed)
+        if (kind === 'diff' && d.diff) {
+          const df = d.diff;
+          const contKeys = df.contaminated ? Object.keys(df.contaminated) : [];
+          const dotCls = df.coherent ? (contKeys.length ? 'warn' : '') : 'tainted';
+          const stIcon = df.coherent ? '&#x2713;' : '&#x2260;';
+          const stLabel = df.coherent ? 'coherent' : 'divergent';
+          const pri = diffTextPrimary(d.id);
+          const sec = diffTextSecondary(d.id);
+          const mut = diffTextMuted(d.id);
+          const brd = diffBorderColor(d.id);
+          card.style.borderColor = brd;
+          card.innerHTML = `
+            <div class="flex items-start justify-between gap-2 mb-1">
+              <div class="flex items-center gap-2">
+                <div class="patronus-dot w-3 h-3 ${dotCls}"></div>
+                <span class="text-xs font-bold truncate" style="color:${pri}" title="${esc(name)}">${esc(short)}</span>
+              </div>
+              <span class="shrink-0 px-1.5 py-0.5 rounded text-[10px] font-bold ${kindColor(kind)} text-crust">${esc(kind)}</span>
+            </div>
+            <div class="text-xs truncate mb-1" style="color:${mut}">${esc(df.replace)} → ${esc(df['with'])}</div>
+            <div class="flex items-center gap-2 text-[10px]">
+              <span style="color:${sec}">${stIcon} ${stLabel}</span>
+              ${d.depth > 0 ? `<span class="text-overlay0">depth ${d.depth}</span>` : ''}
+              ${taintTag}
+            </div>
+          `;
+        } else {
         card.innerHTML = `
           <div class="flex items-start justify-between gap-2 mb-1">
             <span class="text-xs font-bold text-text truncate" title="${esc(name)}">${esc(short)}</span>
@@ -1009,6 +1152,7 @@ function render() {
             ${taintTag}
           </div>
         `;
+        }
       } else if (FORM_TYPE === 'sr') {
         card.innerHTML = `
           <div class="flex items-center gap-2 mb-1">
@@ -1172,32 +1316,43 @@ function showDetail(d) {
     }
     html += `<div><span class="text-overlay0">name:</span> <span class="text-text font-bold">${esc(d.id)}</span></div>`;
     html += `<div><span class="text-overlay0">kind:</span> <span class="${kindText(d.kind)} font-bold">${esc(d.kind)}</span></div>`;
-    // ── Diff-specific rendering ──
+    // ── Diff-specific rendering (color-mixed patronus palette) ──
     if (d.kind === 'diff' && d.diff) {
       const df = d.diff;
-      const icon = df.coherent ? '&#x2713;' : '&#x2260;';
-      const stCls = df.coherent ? 'text-green' : 'text-red';
-      const stLabel = df.coherent ? 'Coherent' : 'Divergent';
-      html += `<div class="mt-1 flex items-center gap-2"><span class="${stCls} font-bold">${icon} ${stLabel}</span></div>`;
-      html += `<div class="mt-2 bg-crust rounded-lg p-3 space-y-2">`;
+      const contKeys = df.contaminated ? Object.keys(df.contaminated) : [];
+      const hasContOnly = df.coherent && contKeys.length > 0;
+      const pri = diffTextPrimary(d.id);
+      const sec = diffTextSecondary(d.id);
+      const mut = diffTextMuted(d.id);
+      const brd = diffBorderColor(d.id);
+      let icon, stLabel;
+      if (df.coherent && !hasContOnly) {
+        icon = '&#x2713;'; stLabel = 'Coherent';
+      } else if (hasContOnly) {
+        icon = '&#x26a0;'; stLabel = 'Coherent (contaminated)';
+      } else {
+        icon = '&#x2260;'; stLabel = 'Divergent';
+      }
+      html += `<div class="mt-1 flex items-center gap-2"><span class="font-bold" style="color:${pri}">${icon} ${stLabel}</span></div>`;
+      html += `<div class="mt-2 rounded-lg p-3 space-y-2" style="background:var(--crust);border:1px solid ${brd}">`;
       // Branch A (replace)
       html += `<div class="flex items-center gap-2">`;
-      html += `<span class="text-overlay0 text-[10px] w-14 shrink-0">replace</span>`;
-      html += `<span class="text-text font-bold cursor-pointer hover:text-mauve" onclick="showDetail(ITEM_BY_ID['${(df.replace||'').replace(/'/g, "\\'")}'])">${esc(df.replace)}</span>`;
-      if (df.value_a != null) html += `<span class="text-subtext text-xs">= ${esc(df.value_a)}</span>`;
+      html += `<span class="text-[10px] w-14 shrink-0" style="color:${mut}">replace</span>`;
+      html += `<span class="font-bold cursor-pointer hover:text-mauve" style="color:${pri}" onclick="showDetail(ITEM_BY_ID['${(df.replace||'').replace(/'/g, "\\'")}'])">${esc(df.replace)}</span>`;
+      if (df.value_a != null) html += `<span class="text-xs" style="color:${sec}">= ${esc(df.value_a)}</span>`;
       html += `</div>`;
       // Branch B (with)
       html += `<div class="flex items-center gap-2">`;
-      html += `<span class="text-overlay0 text-[10px] w-14 shrink-0">with</span>`;
-      html += `<span class="text-text font-bold cursor-pointer hover:text-mauve" onclick="showDetail(ITEM_BY_ID['${(df['with']||'').replace(/'/g, "\\'")}'])">${esc(df['with'])}</span>`;
-      if (df.value_b != null) html += `<span class="text-subtext text-xs">= ${esc(df.value_b)}</span>`;
+      html += `<span class="text-[10px] w-14 shrink-0" style="color:${mut}">with</span>`;
+      html += `<span class="font-bold cursor-pointer hover:text-mauve" style="color:${pri}" onclick="showDetail(ITEM_BY_ID['${(df['with']||'').replace(/'/g, "\\'")}'])">${esc(df['with'])}</span>`;
+      if (df.value_b != null) html += `<span class="text-xs" style="color:${sec}">= ${esc(df.value_b)}</span>`;
       html += `</div>`;
       // Divergences — downstream terms that change under substitution
       if (df.divergences) {
         const divKeys = Object.keys(df.divergences);
         if (divKeys.length) {
-          html += `<div class="border-t border-surface2 pt-2 mt-2">`;
-          html += `<div class="text-red text-[10px] font-bold mb-1">Downstream divergences (${divKeys.length})</div>`;
+          html += `<div class="border-t pt-2 mt-2" style="border-color:${brd}">`;
+          html += `<div class="text-[10px] font-bold mb-1" style="color:${pri}">Downstream divergences (${divKeys.length})</div>`;
           divKeys.forEach(k => {
             const dv = df.divergences[k];
             const nameSpan = ITEM_BY_ID[k]
@@ -1205,15 +1360,33 @@ function showDetail(d) {
               : `<span class="text-text">${esc(k)}</span>`;
             if (dv && dv.before !== undefined) {
               html += `<div class="text-xs mt-1">${nameSpan}</div>`;
-              html += `<div class="text-[10px] ml-3 text-subtext">${esc(dv.before)} <span class="text-red">&rarr;</span> ${esc(dv.after)}</div>`;
+              html += `<div class="text-[10px] ml-3 text-subtext">${esc(dv.before)} <span style="color:${pri}">&rarr;</span> ${esc(dv.after)}</div>`;
             } else {
-              html += `<div class="text-xs mt-1">${nameSpan}: <span class="text-red">${esc(String(dv))}</span></div>`;
+              html += `<div class="text-xs mt-1">${nameSpan}: <span style="color:${pri}">${esc(String(dv))}</span></div>`;
             }
           });
           html += `</div>`;
         } else if (df.coherent) {
-          html += `<div class="border-t border-surface2 pt-2 mt-2">`;
-          html += `<div class="text-green text-[10px]">No downstream divergences</div>`;
+          html += `<div class="border-t pt-2 mt-2" style="border-color:${brd}">`;
+          html += `<div class="text-[10px]" style="color:${sec}">&#x2713; No downstream divergences</div>`;
+          html += `</div>`;
+        }
+      }
+      // Contaminated — other diffs reference the same replace side (warning, not failure)
+      if (df.contaminated) {
+        const contKeys = Object.keys(df.contaminated);
+        if (contKeys.length) {
+          html += `<div class="border-t pt-2 mt-2" style="border-color:${brd}">`;
+          html += `<div class="text-[10px] font-bold mb-1" style="color:${pri}">Contaminated diffs (${contKeys.length})</div>`;
+          html += `<div class="text-[10px] mb-1" style="color:${mut}">Other diffs reference the same replace side — not a real value divergence.</div>`;
+          contKeys.forEach(k => {
+            const cv = df.contaminated[k];
+            const nameSpan = ITEM_BY_ID[k]
+              ? `<span class="text-text font-bold cursor-pointer hover:text-mauve" onclick="showDetail(ITEM_BY_ID['${k.replace(/'/g, "\\'")}'])">${esc(k)}</span>`
+              : `<span class="text-text">${esc(k)}</span>`;
+            html += `<div class="text-xs mt-1">${nameSpan}</div>`;
+            html += `<div class="text-[10px] ml-3" style="color:${mut}">${esc(cv.before)}</div>`;
+          });
           html += `</div>`;
         }
       }
@@ -1423,7 +1596,7 @@ function renderGraph() {
     });
   });
 
-  const TYPE_COLOR = {'use':C.green,'declare':C.overlay0,'pull':C.blue,'axiom-ref':C.peach};
+  const TYPE_COLOR = {'use':C.green,'declare':C.overlay0,'pull':C.blue,'axiom-ref':C.peach,'diff':C.patronusGlow};
 
   // ── Identify dangling nodes (no edges) ──
   const connectedSet = new Set();
@@ -1503,6 +1676,42 @@ function renderGraph() {
   const PAD_LEFT = 80;
   const DANGLE_X = PAD_LEFT + (maxDepth + 2) * BAND_W;
 
+  // ── SVG defs for diff (patronus) nodes ──
+  const defs = svg.append("defs");
+
+  // Radial gradients — matching the CSS .patronus-dot::after
+  function _addGrad(id, highlight, core, outer) {
+    const g = defs.append("radialGradient").attr("id", id).attr("cx", "35%").attr("cy", "35%");
+    g.append("stop").attr("offset", "0%").attr("stop-color", highlight);
+    g.append("stop").attr("offset", "50%").attr("stop-color", core);
+    g.append("stop").attr("offset", "100%").attr("stop-color", outer);
+  }
+  _addGrad("patronus-coherent", C.patronusHighlight, C.patronusCore, C.patronusGlowOuter);
+  _addGrad("patronus-tainted", C.red, C.patronusTaintCore, C.patronusTaintOuter);
+  _addGrad("patronus-warn", C.yellow, C.patronusWarnCore, C.patronusWarnOuter);
+
+  // Outer glow gradients — matching .patronus-dot::before
+  function _addGlowGrad(id, glow, outer) {
+    const g = defs.append("radialGradient").attr("id", id);
+    g.append("stop").attr("offset", "0%").attr("stop-color", glow).attr("stop-opacity", 1);
+    g.append("stop").attr("offset", "40%").attr("stop-color", outer).attr("stop-opacity", 0.6);
+    g.append("stop").attr("offset", "70%").attr("stop-color", outer).attr("stop-opacity", 0);
+    g.append("stop").attr("offset", "100%").attr("stop-color", outer).attr("stop-opacity", 0);
+  }
+  _addGlowGrad("patronus-glow-coherent", C.patronusGlow, C.patronusGlowOuter);
+  _addGlowGrad("patronus-glow-tainted", C.patronusTaintGlow, C.patronusTaintOuter);
+  _addGlowGrad("patronus-glow-warn", C.patronusWarnGlow, C.patronusWarnOuter);
+
+  // Use shared DIFF_STATE from core.js
+  function diffFillUrl(id) {
+    const st = DIFF_STATE[id] || 'coherent';
+    return `url(#patronus-${st})`;
+  }
+  function diffGlowUrl(id) {
+    const st = DIFF_STATE[id] || 'coherent';
+    return `url(#patronus-glow-${st})`;
+  }
+
   // ── Dangling kind bands (group by type on Y axis) ──
   const danglingKinds = [...new Set(nodes.filter(n => n.dangling).map(n => n.kind))].sort();
   const DANGLE_BAND_H = danglingKinds.length > 1 ? height / (danglingKinds.length + 1) : height;
@@ -1510,18 +1719,21 @@ function renderGraph() {
   danglingKinds.forEach((k, i) => { danglingKindY[k] = (i + 1) * DANGLE_BAND_H; });
 
   // ── Force simulation ──
+  const DIFF_Y = height + 120;  // push diff nodes below main structure
   const sim = d3.forceSimulation(nodes)
     .force("link", d3.forceLink(links).id(d => d.id).distance(80).strength(0.3))
     .force("charge", d3.forceManyBody().strength(-200))
     .force("collide", d3.forceCollide().radius(28))
     .force("depthX", d3.forceX(d => {
       if (d.dangling) return DANGLE_X;
+      if (d.kind === 'diff') return PAD_LEFT + maxDepth * BAND_W;  // right side
       return PAD_LEFT + d.depth * BAND_W;
-    }).strength(d => d.dangling ? 0.8 : 0.85))
+    }).strength(d => d.dangling ? 0.8 : d.kind === 'diff' ? 0.9 : 0.85))
     .force("centerY", d3.forceY(d => {
       if (d.dangling) return danglingKindY[d.kind] || height / 2;
+      if (d.kind === 'diff') return DIFF_Y;
       return height / 2;
-    }).strength(d => d.dangling ? 0.3 : 0.05));
+    }).strength(d => d.dangling ? 0.3 : d.kind === 'diff' ? 0.7 : 0.05));
 
   // ── Draw edges ──
   const linkG = gRoot.append("g");
@@ -1543,8 +1755,34 @@ function renderGraph() {
   const node = nodeG.selectAll("g")
     .data(nodes).join("g").attr("class", "cursor-pointer");
 
-  // Node circles — smaller for dangling
-  node.append("circle")
+  // Diff glow — ::before equivalent. Covers full area, core sits on top.
+  const DIFF_R = NODE_R * 1.4;   // core radius (::after inset 15% of full)
+  const GLOW_R = DIFF_R * 2.5;   // glow radius — large enough to be visible around core
+  const diffGlow = node.filter(d => d.kind === 'diff').append("circle")
+    .attr("r", GLOW_R)
+    .attr("fill", d => diffGlowUrl(d.id))
+    .attr("opacity", 0.55);
+  // Pulse animation via SVG <animate>
+  diffGlow.each(function() {
+    const el = d3.select(this);
+    el.append("animate").attr("attributeName", "r")
+      .attr("values", `${GLOW_R*0.85};${GLOW_R*1.15};${GLOW_R*0.85}`)
+      .attr("dur", "3s").attr("repeatCount", "indefinite");
+    el.append("animate").attr("attributeName", "opacity")
+      .attr("values", "0.55;0.35;0.55")
+      .attr("dur", "3s").attr("repeatCount", "indefinite");
+  });
+
+  // Diff core — ::after equivalent, sits on top of glow, no stroke
+  node.filter(d => d.kind === 'diff').append("circle")
+    .attr("class", "node-dot")
+    .attr("r", DIFF_R)
+    .attr("fill", d => diffFillUrl(d.id))
+    .attr("stroke", "none");
+
+  // Node circles — regular nodes (not diff)
+  node.filter(d => d.kind !== 'diff').append("circle")
+    .attr("class", "node-dot")
     .attr("r", d => d.dangling ? DANGLE_R : NODE_R)
     .attr("fill", d => d.color)
     .attr("stroke", d => d.dangling ? C.base : C.surface0)
@@ -1592,10 +1830,12 @@ function renderGraph() {
   const tooltip = d3.select("#tooltip");
 
   function applySelectionVisuals(path, focusId) {
-    node.select("circle")
+    node.select(".node-dot")
       .attr("opacity", n => path.has(n.id) ? 1 : 0.08)
-      .attr("stroke", n => n.id === focusId ? C.mauve : (n.dangling ? C.base : C.surface0))
-      .attr("stroke-width", n => n.id === focusId ? 3 : (n.dangling ? 0.5 : 1.5));
+      .attr("stroke", n => n.kind === 'diff' ? 'none' : (n.id === focusId ? C.mauve : (n.dangling ? C.base : C.surface0)))
+      .attr("stroke-width", n => n.kind === 'diff' ? 0 : (n.id === focusId ? 3 : (n.dangling ? 0.5 : 1.5)));
+    // Dim diff glow circles too
+    diffGlow.attr("opacity", d => path.has(d.id) ? 0.55 : 0.08);
     node.select("text").attr("opacity", n => path.has(n.id) ? 1 : 0.05);
     link.attr("stroke-opacity", l => path.has(l.source.id) && path.has(l.target.id) ? 0.8 : 0.03)
         .attr("stroke-width", l => path.has(l.source.id) && path.has(l.target.id) ? 2 : 0.5);
@@ -1603,24 +1843,27 @@ function renderGraph() {
 
   function clearSelectionVisuals() {
     link.attr("stroke-opacity", 0.35).attr("stroke-width", 1);
-    node.select("circle")
+    node.select(".node-dot")
       .attr("opacity", d => d.dangling ? 0.5 : 1)
-      .attr("stroke", d => d.dangling ? C.base : C.surface0)
-      .attr("stroke-width", d => d.dangling ? 0.5 : 1.5);
+      .attr("stroke", d => d.kind === 'diff' ? 'none' : (d.dangling ? C.base : C.surface0))
+      .attr("stroke-width", d => d.kind === 'diff' ? 0 : (d.dangling ? 0.5 : 1.5));
+    diffGlow.attr("opacity", 0.55);
     node.select("text").attr("opacity", 1);
   }
 
   function applyTaintVisuals() {
     const allTainted = new Set([...taintSources, ...taintPropagated]);
-    node.select("circle")
+    node.select(".node-dot")
       .attr("fill", n => {
+        if (n.kind === 'diff') return diffFillUrl(n.id);  // diffs keep their gradient
         if (taintSources.has(n.id)) return C.red;
         if (taintPropagated.has(n.id)) return C.yellow;
         return n.color;
       })
       .attr("opacity", n => allTainted.has(n.id) ? 1 : 0.15)
-      .attr("stroke", n => taintSources.has(n.id) ? C.red : (taintPropagated.has(n.id) ? C.yellow : (n.dangling ? C.base : C.surface0)))
-      .attr("stroke-width", n => (taintSources.has(n.id) || taintPropagated.has(n.id)) ? 2 : (n.dangling ? 0.5 : 1.5));
+      .attr("stroke", n => n.kind === 'diff' ? 'none' : (taintSources.has(n.id) ? C.red : (taintPropagated.has(n.id) ? C.yellow : (n.dangling ? C.base : C.surface0))))
+      .attr("stroke-width", n => n.kind === 'diff' ? 0 : ((taintSources.has(n.id) || taintPropagated.has(n.id)) ? 2 : (n.dangling ? 0.5 : 1.5)));
+    diffGlow.attr("opacity", d => allTainted.has(d.id) ? 0.55 : 0.08);
     node.select("text").attr("opacity", n => allTainted.has(n.id) ? 1 : 0.05);
     link.attr("stroke-opacity", l => {
       const s = allTainted.has(l.source.id), t = allTainted.has(l.target.id);
@@ -1635,11 +1878,12 @@ function renderGraph() {
   }
 
   function clearTaintVisuals() {
-    node.select("circle")
-      .attr("fill", d => d.color)
+    node.select(".node-dot")
+      .attr("fill", d => d.kind === 'diff' ? diffFillUrl(d.id) : d.color)
       .attr("opacity", d => d.dangling ? 0.5 : 1)
-      .attr("stroke", d => d.dangling ? C.base : C.surface0)
-      .attr("stroke-width", d => d.dangling ? 0.5 : 1.5);
+      .attr("stroke", d => d.kind === 'diff' ? 'none' : (d.dangling ? C.base : C.surface0))
+      .attr("stroke-width", d => d.kind === 'diff' ? 0 : (d.dangling ? 0.5 : 1.5));
+    diffGlow.attr("opacity", 0.55);
     node.select("text").attr("opacity", 1);
     link.attr("stroke", l => {
       const sid = l.source.id, tid = l.target.id;
@@ -1675,12 +1919,12 @@ function renderGraph() {
     tooltip.html(html).classed("hidden", false)
       .style("left", (e.pageX + 12) + "px").style("top", (e.pageY - 8) + "px");
     if (!selectedPath && !taintMode) {
+      const isNeighbor = n => n.id === d.id || links.some(l => (l.source.id === d.id && l.target.id === n.id) || (l.target.id === d.id && l.source.id === n.id));
       link.attr("stroke-opacity", l => (l.source.id === d.id || l.target.id === d.id) ? 0.9 : 0.1)
           .attr("stroke-width", l => (l.source.id === d.id || l.target.id === d.id) ? 2.5 : 0.5);
-      node.select("circle").attr("opacity", n =>
-        n.id === d.id || links.some(l => (l.source.id === d.id && l.target.id === n.id) || (l.target.id === d.id && l.source.id === n.id)) ? 1 : 0.15);
-      node.select("text").attr("opacity", n =>
-        n.id === d.id || links.some(l => (l.source.id === d.id && l.target.id === n.id) || (l.target.id === d.id && l.source.id === n.id)) ? 1 : 0.15);
+      node.select(".node-dot").attr("opacity", n => isNeighbor(n) ? 1 : 0.15);
+      diffGlow.attr("opacity", n => isNeighbor(n) ? 0.55 : 0.08);
+      node.select("text").attr("opacity", n => isNeighbor(n) ? 1 : 0.15);
     }
   }).on("mouseout", () => {
     tooltip.classed("hidden", true);
@@ -1905,6 +2149,19 @@ function renderGraph() {
 
 
 // ── Layers View: stacked pills with curved connections ──
+
+// State-aware text/stroke for diff pills (color-mixed patronus palette)
+function _pillTextFill(name, kind) {
+  return diffTextPrimary(name) || C.text;
+}
+function _pillStroke(name, kind) {
+  if (kind !== 'diff') return kindDot(kind);
+  const st = DIFF_STATE[name];
+  if (!st || st === 'coherent') return C.patronusLine;
+  if (st === 'tainted') return C.patronusTaintOuter;
+  return C.patronusWarnOuter;  // warn
+}
+
 let layersInitialized = false;
 let focusedId = null;
 const _expandedPrefixes = new Set();  // tracks which prefix groups are expanded (persists across re-renders)
@@ -2540,7 +2797,7 @@ function renderLayers() {
 
     pg.append("rect")
       .attr("width", p.w).attr("height", PH).attr("rx", 14)
-      .attr("fill", C.surface0).attr("stroke", kindDot(n.kind)).attr("stroke-width", 1.5);
+      .attr("fill", C.surface0).attr("stroke", _pillStroke(name, n.kind)).attr("stroke-width", 1.5);
     pg.append("circle")
       .attr("cx", 12).attr("cy", PH / 2).attr("r", 4).attr("fill", kindDot(n.kind));
 
@@ -2549,7 +2806,7 @@ function renderLayers() {
     const maxCh = Math.floor((p.w - 28) / 6);
     pg.append("text")
       .attr("x", 22).attr("y", PH / 2 + 1).attr("dominant-baseline", "middle")
-      .attr("fill", C.text).attr("font-size", "10px")
+      .attr("fill", _pillTextFill(name, n.kind)).attr("font-size", "10px")
       .text((short + valS).slice(0, maxCh));
 
     pg.on("mouseover", (ev) => {
@@ -2811,7 +3068,7 @@ function renderLayers() {
       const n = nodeData[name];
       const p = pos[name];
       if (n && p && !p.hanging) {
-        el.select("rect").attr("stroke", kindDot(n.kind)).attr("stroke-width", 1.5).attr("stroke-dasharray", "none");
+        el.select("rect").attr("stroke", _pillStroke(name, n.kind)).attr("stroke-width", 1.5).attr("stroke-dasharray", "none");
       } else if (p && p.hanging) {
         el.select("rect").attr("stroke", C.surface2).attr("stroke-width", 1).attr("stroke-dasharray", "4,2");
       }
@@ -2858,7 +3115,7 @@ function renderLayers() {
       const el = d3.select(this);
       const name = el.attr("data-name");
       const n = nodeData[name];
-      el.select("rect").attr("stroke", kindDot(n ? n.kind : '')).attr("stroke-width", 1.5).attr("stroke-dasharray", "none");
+      el.select("rect").attr("stroke", n ? _pillStroke(name, n.kind) : kindDot('')).attr("stroke-width", 1.5).attr("stroke-dasharray", "none");
     });
     focusG.selectAll(".fpill-input").each(function() {
       const el = d3.select(this);
@@ -3186,13 +3443,13 @@ function renderLayers() {
       const pg = focusG.append("g").attr("transform", `translate(${p.x},${p.y})`).attr("class", "cursor-pointer fpill-result").attr("data-name", n.name);
       pg.append("rect").attr("width", p.w).attr("height", PH).attr("rx", 14)
         .attr("fill", isFocused ? C.surface1 : C.surface0)
-        .attr("stroke", isFocused ? C.mauve : kindDot(n.kind))
+        .attr("stroke", isFocused ? C.mauve : _pillStroke(n.name, n.kind))
         .attr("stroke-width", isFocused ? 3 : 1.5);
       pg.append("circle").attr("cx", 12).attr("cy", PH / 2).attr("r", 4).attr("fill", kindDot(n.kind));
       const short = n.name.includes('.') ? n.name.split('.').slice(1).join('.') : n.name;
       const maxCh = Math.floor((p.w - 28) / 6);
       pg.append("text").attr("x", 22).attr("y", PH / 2 + 1).attr("dominant-baseline", "middle")
-        .attr("fill", C.text).attr("font-size", "10px")
+        .attr("fill", _pillTextFill(n.name, n.kind)).attr("font-size", "10px")
         .text((short + (n.value ? ' =' + String(n.value).slice(0,15) : '')).slice(0, maxCh));
       pg.on("click", (ev) => {
         ev.stopPropagation();
@@ -3241,7 +3498,7 @@ function renderLayers() {
       const el = d3.select(this);
       const name = el.attr("data-name");
       const n = nodeData[name];
-      el.select("rect").attr("stroke-width", 1.5).attr("stroke", kindDot(n ? n.kind : ''));
+      el.select("rect").attr("stroke-width", 1.5).attr("stroke", n ? _pillStroke(name, n.kind) : kindDot(''));
     });
     g.selectAll(".pill-input").attr("opacity", 1);
     edgeEls.forEach(el => {

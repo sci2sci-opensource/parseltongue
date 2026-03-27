@@ -62,7 +62,7 @@ function renderGraph() {
     });
   });
 
-  const TYPE_COLOR = {'use':C.green,'declare':C.overlay0,'pull':C.blue,'axiom-ref':C.peach,'diff':C.patronus};
+  const TYPE_COLOR = {'use':C.green,'declare':C.overlay0,'pull':C.blue,'axiom-ref':C.peach,'diff':C.patronusGlow};
 
   // ── Identify dangling nodes (no edges) ──
   const connectedSet = new Set();
@@ -142,6 +142,42 @@ function renderGraph() {
   const PAD_LEFT = 80;
   const DANGLE_X = PAD_LEFT + (maxDepth + 2) * BAND_W;
 
+  // ── SVG defs for diff (patronus) nodes ──
+  const defs = svg.append("defs");
+
+  // Radial gradients — matching the CSS .patronus-dot::after
+  function _addGrad(id, highlight, core, outer) {
+    const g = defs.append("radialGradient").attr("id", id).attr("cx", "35%").attr("cy", "35%");
+    g.append("stop").attr("offset", "0%").attr("stop-color", highlight);
+    g.append("stop").attr("offset", "50%").attr("stop-color", core);
+    g.append("stop").attr("offset", "100%").attr("stop-color", outer);
+  }
+  _addGrad("patronus-coherent", C.patronusHighlight, C.patronusCore, C.patronusGlowOuter);
+  _addGrad("patronus-tainted", C.red, C.patronusTaintCore, C.patronusTaintOuter);
+  _addGrad("patronus-warn", C.yellow, C.patronusWarnCore, C.patronusWarnOuter);
+
+  // Outer glow gradients — matching .patronus-dot::before
+  function _addGlowGrad(id, glow, outer) {
+    const g = defs.append("radialGradient").attr("id", id);
+    g.append("stop").attr("offset", "0%").attr("stop-color", glow).attr("stop-opacity", 1);
+    g.append("stop").attr("offset", "40%").attr("stop-color", outer).attr("stop-opacity", 0.6);
+    g.append("stop").attr("offset", "70%").attr("stop-color", outer).attr("stop-opacity", 0);
+    g.append("stop").attr("offset", "100%").attr("stop-color", outer).attr("stop-opacity", 0);
+  }
+  _addGlowGrad("patronus-glow-coherent", C.patronusGlow, C.patronusGlowOuter);
+  _addGlowGrad("patronus-glow-tainted", C.patronusTaintGlow, C.patronusTaintOuter);
+  _addGlowGrad("patronus-glow-warn", C.patronusWarnGlow, C.patronusWarnOuter);
+
+  // Use shared DIFF_STATE from core.js
+  function diffFillUrl(id) {
+    const st = DIFF_STATE[id] || 'coherent';
+    return `url(#patronus-${st})`;
+  }
+  function diffGlowUrl(id) {
+    const st = DIFF_STATE[id] || 'coherent';
+    return `url(#patronus-glow-${st})`;
+  }
+
   // ── Dangling kind bands (group by type on Y axis) ──
   const danglingKinds = [...new Set(nodes.filter(n => n.dangling).map(n => n.kind))].sort();
   const DANGLE_BAND_H = danglingKinds.length > 1 ? height / (danglingKinds.length + 1) : height;
@@ -185,8 +221,34 @@ function renderGraph() {
   const node = nodeG.selectAll("g")
     .data(nodes).join("g").attr("class", "cursor-pointer");
 
-  // Node circles — smaller for dangling
-  node.append("circle")
+  // Diff glow — ::before equivalent. Covers full area, core sits on top.
+  const DIFF_R = NODE_R * 1.4;   // core radius (::after inset 15% of full)
+  const GLOW_R = DIFF_R * 2.5;   // glow radius — large enough to be visible around core
+  const diffGlow = node.filter(d => d.kind === 'diff').append("circle")
+    .attr("r", GLOW_R)
+    .attr("fill", d => diffGlowUrl(d.id))
+    .attr("opacity", 0.55);
+  // Pulse animation via SVG <animate>
+  diffGlow.each(function() {
+    const el = d3.select(this);
+    el.append("animate").attr("attributeName", "r")
+      .attr("values", `${GLOW_R*0.85};${GLOW_R*1.15};${GLOW_R*0.85}`)
+      .attr("dur", "3s").attr("repeatCount", "indefinite");
+    el.append("animate").attr("attributeName", "opacity")
+      .attr("values", "0.55;0.35;0.55")
+      .attr("dur", "3s").attr("repeatCount", "indefinite");
+  });
+
+  // Diff core — ::after equivalent, sits on top of glow, no stroke
+  node.filter(d => d.kind === 'diff').append("circle")
+    .attr("class", "node-dot")
+    .attr("r", DIFF_R)
+    .attr("fill", d => diffFillUrl(d.id))
+    .attr("stroke", "none");
+
+  // Node circles — regular nodes (not diff)
+  node.filter(d => d.kind !== 'diff').append("circle")
+    .attr("class", "node-dot")
     .attr("r", d => d.dangling ? DANGLE_R : NODE_R)
     .attr("fill", d => d.color)
     .attr("stroke", d => d.dangling ? C.base : C.surface0)
@@ -234,10 +296,12 @@ function renderGraph() {
   const tooltip = d3.select("#tooltip");
 
   function applySelectionVisuals(path, focusId) {
-    node.select("circle")
+    node.select(".node-dot")
       .attr("opacity", n => path.has(n.id) ? 1 : 0.08)
-      .attr("stroke", n => n.id === focusId ? C.mauve : (n.dangling ? C.base : C.surface0))
-      .attr("stroke-width", n => n.id === focusId ? 3 : (n.dangling ? 0.5 : 1.5));
+      .attr("stroke", n => n.kind === 'diff' ? 'none' : (n.id === focusId ? C.mauve : (n.dangling ? C.base : C.surface0)))
+      .attr("stroke-width", n => n.kind === 'diff' ? 0 : (n.id === focusId ? 3 : (n.dangling ? 0.5 : 1.5)));
+    // Dim diff glow circles too
+    diffGlow.attr("opacity", d => path.has(d.id) ? 0.55 : 0.08);
     node.select("text").attr("opacity", n => path.has(n.id) ? 1 : 0.05);
     link.attr("stroke-opacity", l => path.has(l.source.id) && path.has(l.target.id) ? 0.8 : 0.03)
         .attr("stroke-width", l => path.has(l.source.id) && path.has(l.target.id) ? 2 : 0.5);
@@ -245,24 +309,27 @@ function renderGraph() {
 
   function clearSelectionVisuals() {
     link.attr("stroke-opacity", 0.35).attr("stroke-width", 1);
-    node.select("circle")
+    node.select(".node-dot")
       .attr("opacity", d => d.dangling ? 0.5 : 1)
-      .attr("stroke", d => d.dangling ? C.base : C.surface0)
-      .attr("stroke-width", d => d.dangling ? 0.5 : 1.5);
+      .attr("stroke", d => d.kind === 'diff' ? 'none' : (d.dangling ? C.base : C.surface0))
+      .attr("stroke-width", d => d.kind === 'diff' ? 0 : (d.dangling ? 0.5 : 1.5));
+    diffGlow.attr("opacity", 0.55);
     node.select("text").attr("opacity", 1);
   }
 
   function applyTaintVisuals() {
     const allTainted = new Set([...taintSources, ...taintPropagated]);
-    node.select("circle")
+    node.select(".node-dot")
       .attr("fill", n => {
+        if (n.kind === 'diff') return diffFillUrl(n.id);  // diffs keep their gradient
         if (taintSources.has(n.id)) return C.red;
         if (taintPropagated.has(n.id)) return C.yellow;
         return n.color;
       })
       .attr("opacity", n => allTainted.has(n.id) ? 1 : 0.15)
-      .attr("stroke", n => taintSources.has(n.id) ? C.red : (taintPropagated.has(n.id) ? C.yellow : (n.dangling ? C.base : C.surface0)))
-      .attr("stroke-width", n => (taintSources.has(n.id) || taintPropagated.has(n.id)) ? 2 : (n.dangling ? 0.5 : 1.5));
+      .attr("stroke", n => n.kind === 'diff' ? 'none' : (taintSources.has(n.id) ? C.red : (taintPropagated.has(n.id) ? C.yellow : (n.dangling ? C.base : C.surface0))))
+      .attr("stroke-width", n => n.kind === 'diff' ? 0 : ((taintSources.has(n.id) || taintPropagated.has(n.id)) ? 2 : (n.dangling ? 0.5 : 1.5)));
+    diffGlow.attr("opacity", d => allTainted.has(d.id) ? 0.55 : 0.08);
     node.select("text").attr("opacity", n => allTainted.has(n.id) ? 1 : 0.05);
     link.attr("stroke-opacity", l => {
       const s = allTainted.has(l.source.id), t = allTainted.has(l.target.id);
@@ -277,11 +344,12 @@ function renderGraph() {
   }
 
   function clearTaintVisuals() {
-    node.select("circle")
-      .attr("fill", d => d.color)
+    node.select(".node-dot")
+      .attr("fill", d => d.kind === 'diff' ? diffFillUrl(d.id) : d.color)
       .attr("opacity", d => d.dangling ? 0.5 : 1)
-      .attr("stroke", d => d.dangling ? C.base : C.surface0)
-      .attr("stroke-width", d => d.dangling ? 0.5 : 1.5);
+      .attr("stroke", d => d.kind === 'diff' ? 'none' : (d.dangling ? C.base : C.surface0))
+      .attr("stroke-width", d => d.kind === 'diff' ? 0 : (d.dangling ? 0.5 : 1.5));
+    diffGlow.attr("opacity", 0.55);
     node.select("text").attr("opacity", 1);
     link.attr("stroke", l => {
       const sid = l.source.id, tid = l.target.id;
@@ -317,12 +385,12 @@ function renderGraph() {
     tooltip.html(html).classed("hidden", false)
       .style("left", (e.pageX + 12) + "px").style("top", (e.pageY - 8) + "px");
     if (!selectedPath && !taintMode) {
+      const isNeighbor = n => n.id === d.id || links.some(l => (l.source.id === d.id && l.target.id === n.id) || (l.target.id === d.id && l.source.id === n.id));
       link.attr("stroke-opacity", l => (l.source.id === d.id || l.target.id === d.id) ? 0.9 : 0.1)
           .attr("stroke-width", l => (l.source.id === d.id || l.target.id === d.id) ? 2.5 : 0.5);
-      node.select("circle").attr("opacity", n =>
-        n.id === d.id || links.some(l => (l.source.id === d.id && l.target.id === n.id) || (l.target.id === d.id && l.source.id === n.id)) ? 1 : 0.15);
-      node.select("text").attr("opacity", n =>
-        n.id === d.id || links.some(l => (l.source.id === d.id && l.target.id === n.id) || (l.target.id === d.id && l.source.id === n.id)) ? 1 : 0.15);
+      node.select(".node-dot").attr("opacity", n => isNeighbor(n) ? 1 : 0.15);
+      diffGlow.attr("opacity", n => isNeighbor(n) ? 0.55 : 0.08);
+      node.select("text").attr("opacity", n => isNeighbor(n) ? 1 : 0.15);
     }
   }).on("mouseout", () => {
     tooltip.classed("hidden", true);

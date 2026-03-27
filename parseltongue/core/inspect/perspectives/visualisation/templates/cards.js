@@ -55,6 +55,35 @@ function render() {
         const verified = hasEv && d.evidence[0].verified;
         const taintTag = isTaintSource ? '<span class="text-red">&#x2716; taint source</span>'
           : isTainted ? '<span class="text-yellow">&#x26a0; tainted</span>' : '';
+
+        // Diff cards get patronus dot + state-aware styling (color-mixed)
+        if (kind === 'diff' && d.diff) {
+          const df = d.diff;
+          const contKeys = df.contaminated ? Object.keys(df.contaminated) : [];
+          const dotCls = df.coherent ? (contKeys.length ? 'warn' : '') : 'tainted';
+          const stIcon = df.coherent ? '&#x2713;' : '&#x2260;';
+          const stLabel = df.coherent ? 'coherent' : 'divergent';
+          const pri = diffTextPrimary(d.id);
+          const sec = diffTextSecondary(d.id);
+          const mut = diffTextMuted(d.id);
+          const brd = diffBorderColor(d.id);
+          card.style.borderColor = brd;
+          card.innerHTML = `
+            <div class="flex items-start justify-between gap-2 mb-1">
+              <div class="flex items-center gap-2">
+                <div class="patronus-dot w-3 h-3 ${dotCls}"></div>
+                <span class="text-xs font-bold truncate" style="color:${pri}" title="${esc(name)}">${esc(short)}</span>
+              </div>
+              <span class="shrink-0 px-1.5 py-0.5 rounded text-[10px] font-bold ${kindColor(kind)} text-crust">${esc(kind)}</span>
+            </div>
+            <div class="text-xs truncate mb-1" style="color:${mut}">${esc(df.replace)} → ${esc(df['with'])}</div>
+            <div class="flex items-center gap-2 text-[10px]">
+              <span style="color:${sec}">${stIcon} ${stLabel}</span>
+              ${d.depth > 0 ? `<span class="text-overlay0">depth ${d.depth}</span>` : ''}
+              ${taintTag}
+            </div>
+          `;
+        } else {
         card.innerHTML = `
           <div class="flex items-start justify-between gap-2 mb-1">
             <span class="text-xs font-bold text-text truncate" title="${esc(name)}">${esc(short)}</span>
@@ -68,6 +97,7 @@ function render() {
             ${taintTag}
           </div>
         `;
+        }
       } else if (FORM_TYPE === 'sr') {
         card.innerHTML = `
           <div class="flex items-center gap-2 mb-1">

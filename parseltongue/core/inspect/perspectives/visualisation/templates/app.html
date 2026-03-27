@@ -39,6 +39,11 @@
   --mauve:#cba6f7;--teal:#94e2d5;--peach:#fab387;--flamingo:#f2cdcd;
   --sky:#89dceb;--lavender:#b4befe;--base-light:#262637;
   --highlight:rgba(250,204,21,0.30);--patronus:#93b1e6;
+  --patronus-core:#abdaed;--patronus-glow:#82c8e3;--patronus-glow-outer:#58b5da;
+  --patronus-highlight:#d5edf6;--patronus-line:#1c627d;
+  --patronus-text-primary:#d5edf6;--patronus-text-secondary:#82c8e3;--patronus-text-muted:#2ea3d1;
+  --patronus-taint-core:#c47a9a;--patronus-taint-glow:#8a7ab5;--patronus-taint-outer:#a07aaa;
+  --patronus-warn-core:#8abfaa;--patronus-warn-glow:#a4d9c0;--patronus-warn-outer:#7ab5a0;
 }
 [data-theme="light"] {
   --base:#f9fafb;--mantle:#ffffff;--crust:#f3f4f6;
@@ -48,6 +53,51 @@
   --mauve:#7c3aed;--teal:#0d9488;--peach:#ea580c;--flamingo:#e11d48;
   --sky:#0284c7;--lavender:#4f46e5;--base-light:#f3f4f6;
   --highlight:rgba(234,179,8,0.28);--patronus:#4a72b0;
+  --patronus-core:#9ad4df;--patronus-glow:#58b5da;--patronus-glow-outer:#a4e1f9;
+  --patronus-highlight:#d4eaf2;--patronus-line:#abdaed;
+  --patronus-text-primary:#6c9aac;--patronus-text-secondary:#4e95b1;--patronus-text-muted:#2582a7;
+  --patronus-taint-core:#b0607a;--patronus-taint-glow:#7a5a95;--patronus-taint-outer:#906a90;
+  --patronus-warn-core:#6aaf8a;--patronus-warn-glow:#8ac9a0;--patronus-warn-outer:#6aa580;
+}
+</style>
+<style>
+.patronus-dot {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.patronus-dot::before {
+  content: '';
+  position: absolute;
+  inset: -40%;
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--patronus-glow) 0%, var(--patronus-glow-outer) 40%, transparent 70%);
+  opacity: 0.4;
+  animation: patronus-pulse 3s ease-in-out infinite;
+}
+.patronus-dot::after {
+  content: '';
+  position: absolute;
+  inset: 15%;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, var(--patronus-highlight) 0%, var(--patronus-core) 50%, var(--patronus-glow-outer) 100%);
+}
+.patronus-dot.tainted::before {
+  background: radial-gradient(circle, var(--patronus-taint-glow) 0%, var(--patronus-taint-outer) 40%, transparent 70%);
+}
+.patronus-dot.tainted::after {
+  background: radial-gradient(circle at 35% 35%, var(--red) 0%, var(--patronus-taint-core) 50%, var(--patronus-taint-outer) 100%);
+}
+.patronus-dot.warn::before {
+  background: radial-gradient(circle, var(--patronus-warn-glow) 0%, var(--patronus-warn-outer) 40%, transparent 70%);
+}
+.patronus-dot.warn::after {
+  background: radial-gradient(circle at 35% 35%, var(--yellow) 0%, var(--patronus-warn-core) 50%, var(--patronus-warn-outer) 100%);
+}
+@keyframes patronus-pulse {
+  0%, 100% { transform: scale(1); opacity: 0.4; }
+  50% { transform: scale(1.15); opacity: 0.25; }
 }
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>

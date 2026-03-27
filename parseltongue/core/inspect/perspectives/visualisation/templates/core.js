@@ -10,6 +10,23 @@ function refreshPalette() {
     'teal','peach','flamingo','sky','lavender','patronus'];
   names.forEach(n => { C[n] = getColor(n); });
   C.pill = getColor('base-light') || C.surface0;
+  // Patronus palette — diff nodes
+  C.patronusCore = getColor('patronus-core');
+  C.patronusGlow = getColor('patronus-glow');
+  C.patronusGlowOuter = getColor('patronus-glow-outer');
+  C.patronusHighlight = getColor('patronus-highlight');
+  C.patronusLine = getColor('patronus-line');
+  C.patronusTextPrimary = getColor('patronus-text-primary');
+  C.patronusTextSecondary = getColor('patronus-text-secondary');
+  C.patronusTextMuted = getColor('patronus-text-muted');
+  // Tainted (divergent) — patronus + red
+  C.patronusTaintCore = getColor('patronus-taint-core');
+  C.patronusTaintGlow = getColor('patronus-taint-glow');
+  C.patronusTaintOuter = getColor('patronus-taint-outer');
+  // Warn (contaminated) — patronus + yellow
+  C.patronusWarnCore = getColor('patronus-warn-core');
+  C.patronusWarnGlow = getColor('patronus-warn-glow');
+  C.patronusWarnOuter = getColor('patronus-warn-outer');
 }
 refreshPalette();
 
@@ -101,11 +118,14 @@ function _updateSuggestions(query) {
     const dotVar = KIND_DOT_VAR[kind] || 'surface2';
     const short = name.includes('.') ? name.split('.').slice(1).join('.') : name;
     const val = item && item.value ? (' = ' + esc(String(item.value).slice(0, 30))) : '';
+    const nameFill = diffTextPrimary(name) || '';
+    const kindFill = diffTextSecondary(name) || '';
+    const valFill = diffTextMuted(name) || '';
     return `<div class="search-suggestion px-3 py-1.5 cursor-pointer hover:bg-surface0 flex items-center gap-2 text-sm" data-name="${esc(name)}">
       <span class="w-2 h-2 rounded-full shrink-0" style="background:var(--${dotVar})"></span>
-      <span class="text-text truncate">${esc(short)}</span>
-      <span class="text-overlay0 text-xs truncate">${esc(kind)}</span>
-      <span class="text-subtext text-xs ml-auto shrink-0">${val}</span>
+      <span class="truncate" style="${nameFill ? 'color:'+nameFill : ''}">${esc(short)}</span>
+      <span class="text-xs truncate" style="${kindFill ? 'color:'+kindFill : 'color:var(--overlay0)'}">${esc(kind)}</span>
+      <span class="text-xs ml-auto shrink-0" style="${valFill ? 'color:'+valFill : 'color:var(--subtext)'}">${val}</span>
     </div>`;
   }).join('');
   suggestionsEl.classList.remove('hidden');
@@ -212,6 +232,50 @@ function filtered(source) {
 const ITEM_BY_ID = {};
 DATA.forEach(d => { if (d.id) ITEM_BY_ID[d.id] = d; });
 STRUCTURE_DATA.forEach(d => { if (d.id) ITEM_BY_ID[d.id] = d; });
+
+// ── Diff state map: id → 'coherent' | 'tainted' | 'warn' ──
+const DIFF_STATE = {};
+DATA.forEach(d => {
+  if (d.kind === 'diff' && d.diff) {
+    const df = d.diff;
+    if (df.coherent) {
+      DIFF_STATE[d.id] = (df.contaminated && Object.keys(df.contaminated).length) ? 'warn' : 'coherent';
+    } else {
+      DIFF_STATE[d.id] = 'tainted';
+    }
+  }
+});
+
+// ── State-aware text colors for diff nodes (color-mixed, not raw alert) ──
+// Returns CSS color value. null for non-diffs.
+function diffTextPrimary(id) {
+  const st = DIFF_STATE[id];
+  if (!st) return null;
+  if (st === 'coherent') return 'var(--patronus-text-primary)';
+  if (st === 'tainted') return 'var(--patronus-taint-core)';
+  return 'var(--patronus-warn-core)';  // warn
+}
+function diffTextSecondary(id) {
+  const st = DIFF_STATE[id];
+  if (!st) return null;
+  if (st === 'coherent') return 'var(--patronus-text-secondary)';
+  if (st === 'tainted') return 'var(--patronus-taint-glow)';
+  return 'var(--patronus-warn-glow)';  // warn
+}
+function diffTextMuted(id) {
+  const st = DIFF_STATE[id];
+  if (!st) return null;
+  if (st === 'coherent') return 'var(--patronus-text-muted)';
+  if (st === 'tainted') return 'var(--patronus-taint-outer)';
+  return 'var(--patronus-warn-outer)';  // warn
+}
+function diffBorderColor(id) {
+  const st = DIFF_STATE[id];
+  if (!st) return null;
+  if (st === 'coherent') return 'var(--patronus-line)';
+  if (st === 'tainted') return 'var(--patronus-taint-outer)';
+  return 'var(--patronus-warn-outer)';  // warn
+}
 
 function highlightInput(name) {
   searchEl.value = name;

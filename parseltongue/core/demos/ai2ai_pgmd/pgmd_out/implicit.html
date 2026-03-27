@@ -39,6 +39,11 @@
   --mauve:#cba6f7;--teal:#94e2d5;--peach:#fab387;--flamingo:#f2cdcd;
   --sky:#89dceb;--lavender:#b4befe;--base-light:#262637;
   --highlight:rgba(250,204,21,0.30);--patronus:#93b1e6;
+  --patronus-core:#abdaed;--patronus-glow:#82c8e3;--patronus-glow-outer:#58b5da;
+  --patronus-highlight:#d5edf6;--patronus-line:#1c627d;
+  --patronus-text-primary:#d5edf6;--patronus-text-secondary:#82c8e3;--patronus-text-muted:#2ea3d1;
+  --patronus-taint-core:#c47a9a;--patronus-taint-glow:#8a7ab5;--patronus-taint-outer:#a07aaa;
+  --patronus-warn-core:#8abfaa;--patronus-warn-glow:#a4d9c0;--patronus-warn-outer:#7ab5a0;
 }
 [data-theme="light"] {
   --base:#f9fafb;--mantle:#ffffff;--crust:#f3f4f6;
@@ -48,6 +53,51 @@
   --mauve:#7c3aed;--teal:#0d9488;--peach:#ea580c;--flamingo:#e11d48;
   --sky:#0284c7;--lavender:#4f46e5;--base-light:#f3f4f6;
   --highlight:rgba(234,179,8,0.28);--patronus:#4a72b0;
+  --patronus-core:#9ad4df;--patronus-glow:#58b5da;--patronus-glow-outer:#a4e1f9;
+  --patronus-highlight:#d4eaf2;--patronus-line:#abdaed;
+  --patronus-text-primary:#6c9aac;--patronus-text-secondary:#4e95b1;--patronus-text-muted:#2582a7;
+  --patronus-taint-core:#b0607a;--patronus-taint-glow:#7a5a95;--patronus-taint-outer:#906a90;
+  --patronus-warn-core:#6aaf8a;--patronus-warn-glow:#8ac9a0;--patronus-warn-outer:#6aa580;
+}
+</style>
+<style>
+.patronus-dot {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.patronus-dot::before {
+  content: '';
+  position: absolute;
+  inset: -40%;
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--patronus-glow) 0%, var(--patronus-glow-outer) 40%, transparent 70%);
+  opacity: 0.4;
+  animation: patronus-pulse 3s ease-in-out infinite;
+}
+.patronus-dot::after {
+  content: '';
+  position: absolute;
+  inset: 15%;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, var(--patronus-highlight) 0%, var(--patronus-core) 50%, var(--patronus-glow-outer) 100%);
+}
+.patronus-dot.tainted::before {
+  background: radial-gradient(circle, var(--patronus-taint-glow) 0%, var(--patronus-taint-outer) 40%, transparent 70%);
+}
+.patronus-dot.tainted::after {
+  background: radial-gradient(circle at 35% 35%, var(--red) 0%, var(--patronus-taint-core) 50%, var(--patronus-taint-outer) 100%);
+}
+.patronus-dot.warn::before {
+  background: radial-gradient(circle, var(--patronus-warn-glow) 0%, var(--patronus-warn-outer) 40%, transparent 70%);
+}
+.patronus-dot.warn::after {
+  background: radial-gradient(circle at 35% 35%, var(--yellow) 0%, var(--patronus-warn-core) 50%, var(--patronus-warn-outer) 100%);
+}
+@keyframes patronus-pulse {
+  0%, 100% { transform: scale(1); opacity: 0.4; }
+  50% { transform: scale(1.15); opacity: 0.25; }
 }
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
@@ -144,111 +194,111 @@ document.addEventListener('DOMContentLoaded', function() {
 </div>
 <h2 class="text-xl font-bold text-mauve mt-8 mb-3">Investment Thesis</h2>
 <p class="mb-3 leading-relaxed">AI2AI is building the verification layer for AI-assisted software development. As LLMs generate more code, the need for formal guarantees grows proportionally. AI2AI&#x27;s neurosymbolic approach — LLMs propose, symbolic engines prove — addresses this directly.</p>
-<div class="nb-prose-row relative"><p class="mb-3 leading-relaxed">The company operates an open-core model comparable to GitLab&#x27;s early trajectory: a widely-adopted open-source tool <span class="nb-fn text-green font-semibold cursor-pointer hover:underline decoration-dotted" data-node="facts.ai2ai_facts.github-stars" data-fn="1">(4,200<sup class="text-green text-[0.6em] ml-0.5">1</sup></span> GitHub stars, <span class="nb-fn text-green font-semibold cursor-pointer hover:underline decoration-dotted" data-node="facts.ai2ai_facts.contributors" data-fn="2">215<sup class="text-green text-[0.6em] ml-0.5">2</sup></span> contributors) that converts into enterprise revenue. With <span class="nb-fn text-green font-semibold cursor-pointer hover:underline decoration-dotted" data-node="facts.ai2ai_facts.teams-using" data-fn="3">812<sup class="text-green text-[0.6em] ml-0.5">3</sup></span> teams already integrated into CI/CD pipelines, the distribution moat is real.</p><div class="nb-margin-notes"><span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap " data-node="facts.ai2ai_facts.github-stars" data-fn="1"><span class="text-overlay0 font-mono">1</span><span class="w-1.5 h-1.5 rounded-full bg-green shrink-0"></span><span class="text-green font-medium">ai2ai_facts.github-stars</span></span>
-<span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap " data-node="facts.ai2ai_facts.contributors" data-fn="2"><span class="text-overlay0 font-mono">2</span><span class="w-1.5 h-1.5 rounded-full bg-green shrink-0"></span><span class="text-green font-medium">ai2ai_facts.contributors</span></span>
-<span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap " data-node="facts.ai2ai_facts.teams-using" data-fn="3"><span class="text-overlay0 font-mono">3</span><span class="w-1.5 h-1.5 rounded-full bg-green shrink-0"></span><span class="text-green font-medium">ai2ai_facts.teams-using</span></span></div></div>
+<div class="nb-prose-row relative"><p class="mb-3 leading-relaxed">The company operates an open-core model comparable to GitLab&#x27;s early trajectory: a widely-adopted open-source tool <span class="nb-fn font-semibold cursor-pointer hover:underline decoration-dotted" style="color:var(--green)" data-node="facts.ai2ai_facts.github-stars" data-fn="1">(4,200<sup class="text-[0.6em] ml-0.5" style="color:var(--green)">1</sup></span> GitHub stars, <span class="nb-fn font-semibold cursor-pointer hover:underline decoration-dotted" style="color:var(--green)" data-node="facts.ai2ai_facts.contributors" data-fn="2">215<sup class="text-[0.6em] ml-0.5" style="color:var(--green)">2</sup></span> contributors) that converts into enterprise revenue. With <span class="nb-fn font-semibold cursor-pointer hover:underline decoration-dotted" style="color:var(--green)" data-node="facts.ai2ai_facts.teams-using" data-fn="3">812<sup class="text-[0.6em] ml-0.5" style="color:var(--green)">3</sup></span> teams already integrated into CI/CD pipelines, the distribution moat is real.</p><div class="nb-margin-notes"><span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap " data-node="facts.ai2ai_facts.github-stars" data-fn="1"><span class="font-mono" style="color:var(--overlay0)">1</span><span class="w-1.5 h-1.5 rounded-full bg-green shrink-0"></span><span class="font-medium" style="color:var(--green)">ai2ai_facts.github-stars</span></span>
+<span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap " data-node="facts.ai2ai_facts.contributors" data-fn="2"><span class="font-mono" style="color:var(--overlay0)">2</span><span class="w-1.5 h-1.5 rounded-full bg-green shrink-0"></span><span class="font-medium" style="color:var(--green)">ai2ai_facts.contributors</span></span>
+<span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap " data-node="facts.ai2ai_facts.teams-using" data-fn="3"><span class="font-mono" style="color:var(--overlay0)">3</span><span class="w-1.5 h-1.5 rounded-full bg-green shrink-0"></span><span class="font-medium" style="color:var(--green)">ai2ai_facts.teams-using</span></span></div></div>
 <h2 class="text-xl font-bold text-mauve mt-8 mb-3">Financial Position</h2>
-<div class="nb-prose-row relative"><p class="mb-3 leading-relaxed">AI2AI has reached <span class="nb-fn text-green font-semibold cursor-pointer hover:underline decoration-dotted" data-node="facts.ai2ai_facts.arr" data-fn="4">$2.8M<sup class="text-green text-[0.6em] ml-0.5">4</sup></span> ARR growing at <span class="nb-fn text-green font-semibold cursor-pointer hover:underline decoration-dotted" data-node="facts.ai2ai_facts.yoy-growth-pct" data-fn="5">340%<sup class="text-green text-[0.6em] ml-0.5">5</sup></span> year-over-year. The revenue mix skews enterprise: <span class="nb-fn text-blue font-semibold cursor-pointer hover:underline decoration-dotted" data-node="analysis.ai2ai_rules.enterprise-arr-pct" data-fn="6">75.00%<sup class="text-blue text-[0.6em] ml-0.5">6</sup></span> of ARR comes from <span class="nb-fn text-green font-semibold cursor-pointer hover:underline decoration-dotted" data-node="facts.ai2ai_facts.enterprise-customers" data-fn="7">6<sup class="text-green text-[0.6em] ml-0.5">7</sup></span> enterprise accounts at <span class="nb-fn text-green font-semibold cursor-pointer hover:underline decoration-dotted" data-node="facts.ai2ai_facts.enterprise-acv" data-fn="8">$127,500<sup class="text-green text-[0.6em] ml-0.5">8</sup></span> average ACV.</p><div class="nb-margin-notes"><span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap " data-node="facts.ai2ai_facts.arr" data-fn="4"><span class="text-overlay0 font-mono">4</span><span class="w-1.5 h-1.5 rounded-full bg-green shrink-0"></span><span class="text-green font-medium">ai2ai_facts.arr</span></span>
-<span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap " data-node="facts.ai2ai_facts.yoy-growth-pct" data-fn="5"><span class="text-overlay0 font-mono">5</span><span class="w-1.5 h-1.5 rounded-full bg-green shrink-0"></span><span class="text-green font-medium">ai2ai_facts.yoy-growth-pct</span></span>
-<span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap " data-node="analysis.ai2ai_rules.enterprise-arr-pct" data-fn="6"><span class="text-overlay0 font-mono">6</span><span class="w-1.5 h-1.5 rounded-full bg-blue shrink-0"></span><span class="text-blue font-medium">ai2ai_rules.enterprise-arr-pct</span></span>
-<span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap " data-node="facts.ai2ai_facts.enterprise-customers" data-fn="7"><span class="text-overlay0 font-mono">7</span><span class="w-1.5 h-1.5 rounded-full bg-green shrink-0"></span><span class="text-green font-medium">ai2ai_facts.enterprise-customers</span></span>
-<span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap " data-node="facts.ai2ai_facts.enterprise-acv" data-fn="8"><span class="text-overlay0 font-mono">8</span><span class="w-1.5 h-1.5 rounded-full bg-green shrink-0"></span><span class="text-green font-medium">ai2ai_facts.enterprise-acv</span></span></div></div>
-<div class="nb-prose-row relative"><p class="mb-3 leading-relaxed">Gross margin stands at <span class="nb-fn text-blue font-semibold cursor-pointer hover:underline decoration-dotted" data-node="analysis.ai2ai_rules.gross-margin" data-fn="9">80.00%<sup class="text-blue text-[0.6em] ml-0.5">9</sup></span><sup class="text-overlay0 text-[0.6em]">,</sup><span class="nb-fn cursor-pointer" data-node="analysis.ai2ai_rules.margin-check" data-fn="10"><sup class="text-mauve text-[0.65em] font-bold">10</sup></span>, healthy for a cloud-delivered developer tool with some managed infrastructure costs. For reference, GitLab operated at similar margins pre-IPO, expanding as self-serve scaled.</p><div class="nb-margin-notes"><span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap " data-node="analysis.ai2ai_rules.gross-margin" data-fn="9"><span class="text-overlay0 font-mono">9</span><span class="w-1.5 h-1.5 rounded-full bg-blue shrink-0"></span><span class="text-blue font-medium">ai2ai_rules.gross-margin</span></span>
-<span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap " data-node="analysis.ai2ai_rules.margin-check" data-fn="10"><span class="text-overlay0 font-mono">10</span><span class="w-1.5 h-1.5 rounded-full bg-mauve shrink-0"></span><span class="text-mauve font-medium">ai2ai_rules.margin-check</span></span></div></div>
-<div class="nb-prose-row relative"><p class="mb-3 leading-relaxed">The company holds <span class="nb-fn text-green font-semibold cursor-pointer hover:underline decoration-dotted" data-node="facts.ai2ai_facts.cash" data-fn="11">$8.2M<sup class="text-green text-[0.6em] ml-0.5">11</sup></span> in cash with <span class="nb-fn text-blue font-semibold cursor-pointer hover:underline decoration-dotted" data-node="analysis.ai2ai_rules.runway-months" data-fn="12">21.58<sup class="text-blue text-[0.6em] ml-0.5">12</sup></span> months of runway at current burn<span class="nb-fn cursor-pointer" data-node="analysis.ai2ai_rules.runway-check" data-fn="13"><sup class="text-mauve text-[0.65em] font-bold">13</sup></span>. Post-raise, this extends to <span class="nb-fn text-blue font-semibold cursor-pointer hover:underline decoration-dotted" data-node="analysis.ai2ai_rules.post-raise-runway" data-fn="14">68.95<sup class="text-blue text-[0.6em] ml-0.5">14</sup></span> months — ample time to reach the next milestone.</p><div class="nb-margin-notes"><span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap " data-node="facts.ai2ai_facts.cash" data-fn="11"><span class="text-overlay0 font-mono">11</span><span class="w-1.5 h-1.5 rounded-full bg-green shrink-0"></span><span class="text-green font-medium">ai2ai_facts.cash</span></span>
-<span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap " data-node="analysis.ai2ai_rules.runway-months" data-fn="12"><span class="text-overlay0 font-mono">12</span><span class="w-1.5 h-1.5 rounded-full bg-blue shrink-0"></span><span class="text-blue font-medium">ai2ai_rules.runway-months</span></span>
-<span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap " data-node="analysis.ai2ai_rules.runway-check" data-fn="13"><span class="text-overlay0 font-mono">13</span><span class="w-1.5 h-1.5 rounded-full bg-mauve shrink-0"></span><span class="text-mauve font-medium">ai2ai_rules.runway-check</span></span>
-<span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap " data-node="analysis.ai2ai_rules.post-raise-runway" data-fn="14"><span class="text-overlay0 font-mono">14</span><span class="w-1.5 h-1.5 rounded-full bg-blue shrink-0"></span><span class="text-blue font-medium">ai2ai_rules.post-raise-runway</span></span></div></div>
+<div class="nb-prose-row relative"><p class="mb-3 leading-relaxed">AI2AI has reached <span class="nb-fn font-semibold cursor-pointer hover:underline decoration-dotted" style="color:var(--green)" data-node="facts.ai2ai_facts.arr" data-fn="4">$2.8M<sup class="text-[0.6em] ml-0.5" style="color:var(--green)">4</sup></span> ARR growing at <span class="nb-fn font-semibold cursor-pointer hover:underline decoration-dotted" style="color:var(--green)" data-node="facts.ai2ai_facts.yoy-growth-pct" data-fn="5">340%<sup class="text-[0.6em] ml-0.5" style="color:var(--green)">5</sup></span> year-over-year. The revenue mix skews enterprise: <span class="nb-fn font-semibold cursor-pointer hover:underline decoration-dotted" style="color:var(--blue)" data-node="analysis.ai2ai_rules.enterprise-arr-pct" data-fn="6">75.00%<sup class="text-[0.6em] ml-0.5" style="color:var(--blue)">6</sup></span> of ARR comes from <span class="nb-fn font-semibold cursor-pointer hover:underline decoration-dotted" style="color:var(--green)" data-node="facts.ai2ai_facts.enterprise-customers" data-fn="7">6<sup class="text-[0.6em] ml-0.5" style="color:var(--green)">7</sup></span> enterprise accounts at <span class="nb-fn font-semibold cursor-pointer hover:underline decoration-dotted" style="color:var(--green)" data-node="facts.ai2ai_facts.enterprise-acv" data-fn="8">$127,500<sup class="text-[0.6em] ml-0.5" style="color:var(--green)">8</sup></span> average ACV.</p><div class="nb-margin-notes"><span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap " data-node="facts.ai2ai_facts.arr" data-fn="4"><span class="font-mono" style="color:var(--overlay0)">4</span><span class="w-1.5 h-1.5 rounded-full bg-green shrink-0"></span><span class="font-medium" style="color:var(--green)">ai2ai_facts.arr</span></span>
+<span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap " data-node="facts.ai2ai_facts.yoy-growth-pct" data-fn="5"><span class="font-mono" style="color:var(--overlay0)">5</span><span class="w-1.5 h-1.5 rounded-full bg-green shrink-0"></span><span class="font-medium" style="color:var(--green)">ai2ai_facts.yoy-growth-pct</span></span>
+<span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap " data-node="analysis.ai2ai_rules.enterprise-arr-pct" data-fn="6"><span class="font-mono" style="color:var(--overlay0)">6</span><span class="w-1.5 h-1.5 rounded-full bg-blue shrink-0"></span><span class="font-medium" style="color:var(--blue)">ai2ai_rules.enterprise-arr-pct</span></span>
+<span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap " data-node="facts.ai2ai_facts.enterprise-customers" data-fn="7"><span class="font-mono" style="color:var(--overlay0)">7</span><span class="w-1.5 h-1.5 rounded-full bg-green shrink-0"></span><span class="font-medium" style="color:var(--green)">ai2ai_facts.enterprise-customers</span></span>
+<span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap " data-node="facts.ai2ai_facts.enterprise-acv" data-fn="8"><span class="font-mono" style="color:var(--overlay0)">8</span><span class="w-1.5 h-1.5 rounded-full bg-green shrink-0"></span><span class="font-medium" style="color:var(--green)">ai2ai_facts.enterprise-acv</span></span></div></div>
+<div class="nb-prose-row relative"><p class="mb-3 leading-relaxed">Gross margin stands at <span class="nb-fn font-semibold cursor-pointer hover:underline decoration-dotted" style="color:var(--blue)" data-node="analysis.ai2ai_rules.gross-margin" data-fn="9">80.00%<sup class="text-[0.6em] ml-0.5" style="color:var(--blue)">9</sup></span><sup class="text-overlay0 text-[0.6em]">,</sup><span class="nb-fn cursor-pointer" data-node="analysis.ai2ai_rules.margin-check" data-fn="10"><sup class="text-[0.65em] font-bold" style="color:var(--mauve)">10</sup></span>, healthy for a cloud-delivered developer tool with some managed infrastructure costs. For reference, GitLab operated at similar margins pre-IPO, expanding as self-serve scaled.</p><div class="nb-margin-notes"><span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap " data-node="analysis.ai2ai_rules.gross-margin" data-fn="9"><span class="font-mono" style="color:var(--overlay0)">9</span><span class="w-1.5 h-1.5 rounded-full bg-blue shrink-0"></span><span class="font-medium" style="color:var(--blue)">ai2ai_rules.gross-margin</span></span>
+<span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap " data-node="analysis.ai2ai_rules.margin-check" data-fn="10"><span class="font-mono" style="color:var(--overlay0)">10</span><span class="w-1.5 h-1.5 rounded-full bg-mauve shrink-0"></span><span class="font-medium" style="color:var(--mauve)">ai2ai_rules.margin-check</span></span></div></div>
+<div class="nb-prose-row relative"><p class="mb-3 leading-relaxed">The company holds <span class="nb-fn font-semibold cursor-pointer hover:underline decoration-dotted" style="color:var(--green)" data-node="facts.ai2ai_facts.cash" data-fn="11">$8.2M<sup class="text-[0.6em] ml-0.5" style="color:var(--green)">11</sup></span> in cash with <span class="nb-fn font-semibold cursor-pointer hover:underline decoration-dotted" style="color:var(--blue)" data-node="analysis.ai2ai_rules.runway-months" data-fn="12">21.58<sup class="text-[0.6em] ml-0.5" style="color:var(--blue)">12</sup></span> months of runway at current burn<span class="nb-fn cursor-pointer" data-node="analysis.ai2ai_rules.runway-check" data-fn="13"><sup class="text-[0.65em] font-bold" style="color:var(--mauve)">13</sup></span>. Post-raise, this extends to <span class="nb-fn font-semibold cursor-pointer hover:underline decoration-dotted" style="color:var(--blue)" data-node="analysis.ai2ai_rules.post-raise-runway" data-fn="14">68.95<sup class="text-[0.6em] ml-0.5" style="color:var(--blue)">14</sup></span> months — ample time to reach the next milestone.</p><div class="nb-margin-notes"><span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap " data-node="facts.ai2ai_facts.cash" data-fn="11"><span class="font-mono" style="color:var(--overlay0)">11</span><span class="w-1.5 h-1.5 rounded-full bg-green shrink-0"></span><span class="font-medium" style="color:var(--green)">ai2ai_facts.cash</span></span>
+<span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap " data-node="analysis.ai2ai_rules.runway-months" data-fn="12"><span class="font-mono" style="color:var(--overlay0)">12</span><span class="w-1.5 h-1.5 rounded-full bg-blue shrink-0"></span><span class="font-medium" style="color:var(--blue)">ai2ai_rules.runway-months</span></span>
+<span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap " data-node="analysis.ai2ai_rules.runway-check" data-fn="13"><span class="font-mono" style="color:var(--overlay0)">13</span><span class="w-1.5 h-1.5 rounded-full bg-mauve shrink-0"></span><span class="font-medium" style="color:var(--mauve)">ai2ai_rules.runway-check</span></span>
+<span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap " data-node="analysis.ai2ai_rules.post-raise-runway" data-fn="14"><span class="font-mono" style="color:var(--overlay0)">14</span><span class="w-1.5 h-1.5 rounded-full bg-blue shrink-0"></span><span class="font-medium" style="color:var(--blue)">ai2ai_rules.post-raise-runway</span></span></div></div>
 <h2 class="text-xl font-bold text-mauve mt-8 mb-3">Unit Economics</h2>
 <p class="mb-3 leading-relaxed">The unit economics are the strongest signal in this deal:</p>
 <ul class="list-disc ml-6 mb-4 space-y-1">
-<li><div class="nb-prose-row relative"><strong>LTV/CAC: <span class="nb-fn text-blue font-semibold cursor-pointer hover:underline decoration-dotted" data-node="analysis.ai2ai_rules.ltv-to-cac" data-fn="15">4.91x<sup class="text-blue text-[0.6em] ml-0.5">15</sup></span></strong><sup class="text-overlay0 text-[0.6em]">,</sup><span class="nb-fn cursor-pointer" data-node="analysis.ai2ai_rules.ltv-cac-check" data-fn="16"><sup class="text-mauve text-[0.65em] font-bold">16</sup></span> — enterprise customers pay back acquisition cost within the first year, then expand<div class="nb-margin-notes"><span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap " data-node="analysis.ai2ai_rules.ltv-to-cac" data-fn="15"><span class="text-overlay0 font-mono">15</span><span class="w-1.5 h-1.5 rounded-full bg-blue shrink-0"></span><span class="text-blue font-medium">ai2ai_rules.ltv-to-cac</span></span>
-<span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap " data-node="analysis.ai2ai_rules.ltv-cac-check" data-fn="16"><span class="text-overlay0 font-mono">16</span><span class="w-1.5 h-1.5 rounded-full bg-mauve shrink-0"></span><span class="text-mauve font-medium">ai2ai_rules.ltv-cac-check</span></span></div></div></li>
-<li><div class="nb-prose-row relative"><strong>NRR: <span class="nb-fn text-green font-semibold cursor-pointer hover:underline decoration-dotted" data-node="facts.ai2ai_facts.nrr" data-fn="17">180%<sup class="text-green text-[0.6em] ml-0.5">17</sup></span></strong><sup class="text-overlay0 text-[0.6em]">,</sup><span class="nb-fn cursor-pointer nb-taint-propagated" data-node="analysis.ai2ai_rules.retention-check" data-fn="18"><sup class="text-mauve text-[0.65em] font-bold">18<span class="text-yellow ml-0.5" title="tainted">&#x26a0;</span></sup></span> — exceptional. Best-in-class developer tools (Datadog, HashiCorp) operate at 130–140%. AI2AI&#x27;s 180% reflects deep within-account expansion as teams discover new use cases<div class="nb-margin-notes"><span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap " data-node="facts.ai2ai_facts.nrr" data-fn="17"><span class="text-overlay0 font-mono">17</span><span class="w-1.5 h-1.5 rounded-full bg-green shrink-0"></span><span class="text-green font-medium">ai2ai_facts.nrr</span></span>
-<span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap border border-dashed border-yellow" title="depends on tainted: analysis.ai2ai_rules.retention-strong" data-node="analysis.ai2ai_rules.retention-check" data-fn="18"><span class="text-overlay0 font-mono">18</span><span class="w-1.5 h-1.5 rounded-full bg-mauve shrink-0"></span><span class="text-mauve font-medium">ai2ai_rules.retention-check</span> <span class="text-yellow">&#x26a0;</span></span></div></div></li>
-<li><div class="nb-prose-row relative"><strong>Monthly churn: <span class="nb-fn text-green font-semibold cursor-pointer hover:underline decoration-dotted" data-node="facts.ai2ai_facts.monthly-churn-pct" data-fn="19">1.40%<sup class="text-green text-[0.6em] ml-0.5">19</sup></span></strong><sup class="text-overlay0 text-[0.6em]">,</sup><span class="nb-fn cursor-pointer nb-taint-propagated" data-node="analysis.ai2ai_rules.churn-check" data-fn="20"><sup class="text-mauve text-[0.65em] font-bold">20<span class="text-yellow ml-0.5" title="tainted">&#x26a0;</span></sup></span> — well below the 2% threshold<div class="nb-margin-notes"><span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap " data-node="facts.ai2ai_facts.monthly-churn-pct" data-fn="19"><span class="text-overlay0 font-mono">19</span><span class="w-1.5 h-1.5 rounded-full bg-green shrink-0"></span><span class="text-green font-medium">ai2ai_facts.monthly-churn-pct</span></span>
-<span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap border border-dashed border-yellow" title="depends on tainted: analysis.ai2ai_rules.churn-acceptable" data-node="analysis.ai2ai_rules.churn-check" data-fn="20"><span class="text-overlay0 font-mono">20</span><span class="w-1.5 h-1.5 rounded-full bg-mauve shrink-0"></span><span class="text-mauve font-medium">ai2ai_rules.churn-check</span> <span class="text-yellow">&#x26a0;</span></span></div></div></li>
-<li><div class="nb-prose-row relative"><strong>ARR per customer: <span class="nb-fn text-blue font-semibold cursor-pointer hover:underline decoration-dotted" data-node="analysis.ai2ai_rules.arr-per-customer" data-fn="21">$65116.28<sup class="text-blue text-[0.6em] ml-0.5">21</sup></span></strong> — room to grow as mid-market accounts expand<div class="nb-margin-notes"><span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap " data-node="analysis.ai2ai_rules.arr-per-customer" data-fn="21"><span class="text-overlay0 font-mono">21</span><span class="w-1.5 h-1.5 rounded-full bg-blue shrink-0"></span><span class="text-blue font-medium">ai2ai_rules.arr-per-customer</span></span></div></div></li>
+<li><div class="nb-prose-row relative"><strong>LTV/CAC: <span class="nb-fn font-semibold cursor-pointer hover:underline decoration-dotted" style="color:var(--blue)" data-node="analysis.ai2ai_rules.ltv-to-cac" data-fn="15">4.91x<sup class="text-[0.6em] ml-0.5" style="color:var(--blue)">15</sup></span></strong><sup class="text-overlay0 text-[0.6em]">,</sup><span class="nb-fn cursor-pointer" data-node="analysis.ai2ai_rules.ltv-cac-check" data-fn="16"><sup class="text-[0.65em] font-bold" style="color:var(--mauve)">16</sup></span> — enterprise customers pay back acquisition cost within the first year, then expand<div class="nb-margin-notes"><span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap " data-node="analysis.ai2ai_rules.ltv-to-cac" data-fn="15"><span class="font-mono" style="color:var(--overlay0)">15</span><span class="w-1.5 h-1.5 rounded-full bg-blue shrink-0"></span><span class="font-medium" style="color:var(--blue)">ai2ai_rules.ltv-to-cac</span></span>
+<span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap " data-node="analysis.ai2ai_rules.ltv-cac-check" data-fn="16"><span class="font-mono" style="color:var(--overlay0)">16</span><span class="w-1.5 h-1.5 rounded-full bg-mauve shrink-0"></span><span class="font-medium" style="color:var(--mauve)">ai2ai_rules.ltv-cac-check</span></span></div></div></li>
+<li><div class="nb-prose-row relative"><strong>NRR: <span class="nb-fn font-semibold cursor-pointer hover:underline decoration-dotted" style="color:var(--green)" data-node="facts.ai2ai_facts.nrr" data-fn="17">180%<sup class="text-[0.6em] ml-0.5" style="color:var(--green)">17</sup></span></strong><sup class="text-overlay0 text-[0.6em]">,</sup><span class="nb-fn cursor-pointer nb-taint-propagated" data-node="analysis.ai2ai_rules.retention-check" data-fn="18"><sup class="text-[0.65em] font-bold" style="color:var(--mauve)">18<span class="text-yellow ml-0.5" title="tainted">&#x26a0;</span></sup></span> — exceptional. Best-in-class developer tools (Datadog, HashiCorp) operate at 130–140%. AI2AI&#x27;s 180% reflects deep within-account expansion as teams discover new use cases<div class="nb-margin-notes"><span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap " data-node="facts.ai2ai_facts.nrr" data-fn="17"><span class="font-mono" style="color:var(--overlay0)">17</span><span class="w-1.5 h-1.5 rounded-full bg-green shrink-0"></span><span class="font-medium" style="color:var(--green)">ai2ai_facts.nrr</span></span>
+<span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap border border-dashed border-yellow" title="depends on tainted: analysis.ai2ai_rules.retention-strong" data-node="analysis.ai2ai_rules.retention-check" data-fn="18"><span class="font-mono" style="color:var(--overlay0)">18</span><span class="w-1.5 h-1.5 rounded-full bg-mauve shrink-0"></span><span class="font-medium" style="color:var(--mauve)">ai2ai_rules.retention-check</span> <span class="text-yellow">&#x26a0;</span></span></div></div></li>
+<li><div class="nb-prose-row relative"><strong>Monthly churn: <span class="nb-fn font-semibold cursor-pointer hover:underline decoration-dotted" style="color:var(--green)" data-node="facts.ai2ai_facts.monthly-churn-pct" data-fn="19">1.40%<sup class="text-[0.6em] ml-0.5" style="color:var(--green)">19</sup></span></strong><sup class="text-overlay0 text-[0.6em]">,</sup><span class="nb-fn cursor-pointer nb-taint-propagated" data-node="analysis.ai2ai_rules.churn-check" data-fn="20"><sup class="text-[0.65em] font-bold" style="color:var(--mauve)">20<span class="text-yellow ml-0.5" title="tainted">&#x26a0;</span></sup></span> — well below the 2% threshold<div class="nb-margin-notes"><span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap " data-node="facts.ai2ai_facts.monthly-churn-pct" data-fn="19"><span class="font-mono" style="color:var(--overlay0)">19</span><span class="w-1.5 h-1.5 rounded-full bg-green shrink-0"></span><span class="font-medium" style="color:var(--green)">ai2ai_facts.monthly-churn-pct</span></span>
+<span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap border border-dashed border-yellow" title="depends on tainted: analysis.ai2ai_rules.churn-acceptable" data-node="analysis.ai2ai_rules.churn-check" data-fn="20"><span class="font-mono" style="color:var(--overlay0)">20</span><span class="w-1.5 h-1.5 rounded-full bg-mauve shrink-0"></span><span class="font-medium" style="color:var(--mauve)">ai2ai_rules.churn-check</span> <span class="text-yellow">&#x26a0;</span></span></div></div></li>
+<li><div class="nb-prose-row relative"><strong>ARR per customer: <span class="nb-fn font-semibold cursor-pointer hover:underline decoration-dotted" style="color:var(--blue)" data-node="analysis.ai2ai_rules.arr-per-customer" data-fn="21">$65116.28<sup class="text-[0.6em] ml-0.5" style="color:var(--blue)">21</sup></span></strong> — room to grow as mid-market accounts expand<div class="nb-margin-notes"><span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap " data-node="analysis.ai2ai_rules.arr-per-customer" data-fn="21"><span class="font-mono" style="color:var(--overlay0)">21</span><span class="w-1.5 h-1.5 rounded-full bg-blue shrink-0"></span><span class="font-medium" style="color:var(--blue)">ai2ai_rules.arr-per-customer</span></span></div></div></li>
 </ul>
-<div class="nb-prose-row relative"><p class="mb-3 leading-relaxed">The JetBrains comparison is instructive: deep code intelligence creates high switching costs. Once a team&#x27;s rule library is built on AI2AI&#x27;s language, migration cost is substantial. This is visible in the <span class="nb-fn text-green font-semibold cursor-pointer hover:underline decoration-dotted" data-node="facts.ai2ai_facts.grr" data-fn="22">94%<sup class="text-green text-[0.6em] ml-0.5">22</sup></span> gross retention.</p><div class="nb-margin-notes"><span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap " data-node="facts.ai2ai_facts.grr" data-fn="22"><span class="text-overlay0 font-mono">22</span><span class="w-1.5 h-1.5 rounded-full bg-green shrink-0"></span><span class="text-green font-medium">ai2ai_facts.grr</span></span></div></div>
+<div class="nb-prose-row relative"><p class="mb-3 leading-relaxed">The JetBrains comparison is instructive: deep code intelligence creates high switching costs. Once a team&#x27;s rule library is built on AI2AI&#x27;s language, migration cost is substantial. This is visible in the <span class="nb-fn font-semibold cursor-pointer hover:underline decoration-dotted" style="color:var(--green)" data-node="facts.ai2ai_facts.grr" data-fn="22">94%<sup class="text-[0.6em] ml-0.5" style="color:var(--green)">22</sup></span> gross retention.</p><div class="nb-margin-notes"><span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap " data-node="facts.ai2ai_facts.grr" data-fn="22"><span class="font-mono" style="color:var(--overlay0)">22</span><span class="w-1.5 h-1.5 rounded-full bg-green shrink-0"></span><span class="font-medium" style="color:var(--green)">ai2ai_facts.grr</span></span></div></div>
 <h2 class="text-xl font-bold text-mauve mt-8 mb-3">Growth Trajectory</h2>
 <p class="mb-3 leading-relaxed">The path to $10M ARR is built on three pillars:</p>
-<div class="nb-prose-row relative"><p class="mb-3 leading-relaxed"><strong>Pipeline conversion.</strong> <span class="nb-fn text-green font-semibold cursor-pointer hover:underline decoration-dotted" data-node="facts.ai2ai_facts.active-pilots" data-fn="23">12<sup class="text-green text-[0.6em] ml-0.5">23</sup></span> enterprise pilots are active, with a historical <span class="nb-fn text-green font-semibold cursor-pointer hover:underline decoration-dotted" data-node="facts.ai2ai_facts.pilot-conversion-pct" data-fn="24">75%<sup class="text-green text-[0.6em] ml-0.5">24</sup></span> close rate. Expected conversion: <span class="nb-fn text-blue font-semibold cursor-pointer hover:underline decoration-dotted" data-node="analysis.ai2ai_rules.expected-pipeline-conversion" data-fn="25">$1.4M.<sup class="text-blue text-[0.6em] ml-0.5">25</sup></span></p><div class="nb-margin-notes"><span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap " data-node="facts.ai2ai_facts.active-pilots" data-fn="23"><span class="text-overlay0 font-mono">23</span><span class="w-1.5 h-1.5 rounded-full bg-green shrink-0"></span><span class="text-green font-medium">ai2ai_facts.active-pilots</span></span>
-<span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap " data-node="facts.ai2ai_facts.pilot-conversion-pct" data-fn="24"><span class="text-overlay0 font-mono">24</span><span class="w-1.5 h-1.5 rounded-full bg-green shrink-0"></span><span class="text-green font-medium">ai2ai_facts.pilot-conversion-pct</span></span>
-<span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap " data-node="analysis.ai2ai_rules.expected-pipeline-conversion" data-fn="25"><span class="text-overlay0 font-mono">25</span><span class="w-1.5 h-1.5 rounded-full bg-blue shrink-0"></span><span class="text-blue font-medium">ai2ai_rules.expected-pipeline-conversion</span></span></div></div>
-<div class="nb-prose-row relative"><p class="mb-3 leading-relaxed"><strong>Account expansion.</strong> Existing accounts are projected to generate <span class="nb-fn text-green font-semibold cursor-pointer hover:underline decoration-dotted" data-node="facts.ai2ai_facts.expansion-revenue" data-fn="26">$1.2M<sup class="text-green text-[0.6em] ml-0.5">26</sup></span> in expansion revenue over the next 12 months, driven by the 180% NRR dynamic.</p><div class="nb-margin-notes"><span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap " data-node="facts.ai2ai_facts.expansion-revenue" data-fn="26"><span class="text-overlay0 font-mono">26</span><span class="w-1.5 h-1.5 rounded-full bg-green shrink-0"></span><span class="text-green font-medium">ai2ai_facts.expansion-revenue</span></span></div></div>
-<div class="nb-prose-row relative"><p class="mb-3 leading-relaxed"><strong>Projected ARR.</strong> Combining current ARR, pipeline conversion, and expansion: <strong><span class="nb-fn text-blue font-semibold cursor-pointer hover:underline decoration-dotted" data-node="analysis.ai2ai_rules.projected-arr-12mo" data-fn="27">$5.3M<sup class="text-blue text-[0.6em] ml-0.5">27</sup></span> projected in 12 months</strong><span class="nb-fn cursor-pointer" data-node="analysis.ai2ai_rules.pipeline-check" data-fn="28"><sup class="text-mauve text-[0.65em] font-bold">28</sup></span>. The remaining gap to $10M is achievable through continued new logo acquisition at current rates.</p><div class="nb-margin-notes"><span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap " data-node="analysis.ai2ai_rules.projected-arr-12mo" data-fn="27"><span class="text-overlay0 font-mono">27</span><span class="w-1.5 h-1.5 rounded-full bg-blue shrink-0"></span><span class="text-blue font-medium">ai2ai_rules.projected-arr-12mo</span></span>
-<span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap " data-node="analysis.ai2ai_rules.pipeline-check" data-fn="28"><span class="text-overlay0 font-mono">28</span><span class="w-1.5 h-1.5 rounded-full bg-mauve shrink-0"></span><span class="text-mauve font-medium">ai2ai_rules.pipeline-check</span></span></div></div>
+<div class="nb-prose-row relative"><p class="mb-3 leading-relaxed"><strong>Pipeline conversion.</strong> <span class="nb-fn font-semibold cursor-pointer hover:underline decoration-dotted" style="color:var(--green)" data-node="facts.ai2ai_facts.active-pilots" data-fn="23">12<sup class="text-[0.6em] ml-0.5" style="color:var(--green)">23</sup></span> enterprise pilots are active, with a historical <span class="nb-fn font-semibold cursor-pointer hover:underline decoration-dotted" style="color:var(--green)" data-node="facts.ai2ai_facts.pilot-conversion-pct" data-fn="24">75%<sup class="text-[0.6em] ml-0.5" style="color:var(--green)">24</sup></span> close rate. Expected conversion: <span class="nb-fn font-semibold cursor-pointer hover:underline decoration-dotted" style="color:var(--blue)" data-node="analysis.ai2ai_rules.expected-pipeline-conversion" data-fn="25">$1.4M.<sup class="text-[0.6em] ml-0.5" style="color:var(--blue)">25</sup></span></p><div class="nb-margin-notes"><span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap " data-node="facts.ai2ai_facts.active-pilots" data-fn="23"><span class="font-mono" style="color:var(--overlay0)">23</span><span class="w-1.5 h-1.5 rounded-full bg-green shrink-0"></span><span class="font-medium" style="color:var(--green)">ai2ai_facts.active-pilots</span></span>
+<span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap " data-node="facts.ai2ai_facts.pilot-conversion-pct" data-fn="24"><span class="font-mono" style="color:var(--overlay0)">24</span><span class="w-1.5 h-1.5 rounded-full bg-green shrink-0"></span><span class="font-medium" style="color:var(--green)">ai2ai_facts.pilot-conversion-pct</span></span>
+<span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap " data-node="analysis.ai2ai_rules.expected-pipeline-conversion" data-fn="25"><span class="font-mono" style="color:var(--overlay0)">25</span><span class="w-1.5 h-1.5 rounded-full bg-blue shrink-0"></span><span class="font-medium" style="color:var(--blue)">ai2ai_rules.expected-pipeline-conversion</span></span></div></div>
+<div class="nb-prose-row relative"><p class="mb-3 leading-relaxed"><strong>Account expansion.</strong> Existing accounts are projected to generate <span class="nb-fn font-semibold cursor-pointer hover:underline decoration-dotted" style="color:var(--green)" data-node="facts.ai2ai_facts.expansion-revenue" data-fn="26">$1.2M<sup class="text-[0.6em] ml-0.5" style="color:var(--green)">26</sup></span> in expansion revenue over the next 12 months, driven by the 180% NRR dynamic.</p><div class="nb-margin-notes"><span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap " data-node="facts.ai2ai_facts.expansion-revenue" data-fn="26"><span class="font-mono" style="color:var(--overlay0)">26</span><span class="w-1.5 h-1.5 rounded-full bg-green shrink-0"></span><span class="font-medium" style="color:var(--green)">ai2ai_facts.expansion-revenue</span></span></div></div>
+<div class="nb-prose-row relative"><p class="mb-3 leading-relaxed"><strong>Projected ARR.</strong> Combining current ARR, pipeline conversion, and expansion: <strong><span class="nb-fn font-semibold cursor-pointer hover:underline decoration-dotted" style="color:var(--blue)" data-node="analysis.ai2ai_rules.projected-arr-12mo" data-fn="27">$5.3M<sup class="text-[0.6em] ml-0.5" style="color:var(--blue)">27</sup></span> projected in 12 months</strong><span class="nb-fn cursor-pointer" data-node="analysis.ai2ai_rules.pipeline-check" data-fn="28"><sup class="text-[0.65em] font-bold" style="color:var(--mauve)">28</sup></span>. The remaining gap to $10M is achievable through continued new logo acquisition at current rates.</p><div class="nb-margin-notes"><span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap " data-node="analysis.ai2ai_rules.projected-arr-12mo" data-fn="27"><span class="font-mono" style="color:var(--overlay0)">27</span><span class="w-1.5 h-1.5 rounded-full bg-blue shrink-0"></span><span class="font-medium" style="color:var(--blue)">ai2ai_rules.projected-arr-12mo</span></span>
+<span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap " data-node="analysis.ai2ai_rules.pipeline-check" data-fn="28"><span class="font-mono" style="color:var(--overlay0)">28</span><span class="w-1.5 h-1.5 rounded-full bg-mauve shrink-0"></span><span class="font-medium" style="color:var(--mauve)">ai2ai_rules.pipeline-check</span></span></div></div>
 <h2 class="text-xl font-bold text-mauve mt-8 mb-3">Product &amp; Engagement</h2>
-<div class="nb-prose-row relative"><p class="mb-3 leading-relaxed">Daily engagement is strong at <span class="nb-fn text-blue font-semibold cursor-pointer hover:underline decoration-dotted" data-node="analysis.ai2ai_rules.dau-wau-ratio" data-fn="29">51.79%<sup class="text-blue text-[0.6em] ml-0.5">29</sup></span> DAU/WAU<span class="nb-fn cursor-pointer nb-taint-propagated" data-node="analysis.ai2ai_rules.engagement-check" data-fn="30"><sup class="text-mauve text-[0.65em] font-bold">30<span class="text-yellow ml-0.5" title="tainted">&#x26a0;</span></sup></span>, indicating the product is part of daily developer workflow — not a periodic audit tool. Each active user processes <span class="nb-fn text-blue font-semibold cursor-pointer hover:underline decoration-dotted" data-node="analysis.ai2ai_rules.reviews-per-dau" data-fn="31">42.76<sup class="text-blue text-[0.6em] ml-0.5">31</sup></span> code reviews per month, and the platform handles <span class="nb-fn text-green font-semibold cursor-pointer hover:underline decoration-dotted" data-node="facts.ai2ai_facts.monthly-rule-evals" data-fn="32">340,000<sup class="text-green text-[0.6em] ml-0.5">32</sup></span> rule evaluations monthly.</p><div class="nb-margin-notes"><span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap " data-node="analysis.ai2ai_rules.dau-wau-ratio" data-fn="29"><span class="text-overlay0 font-mono">29</span><span class="w-1.5 h-1.5 rounded-full bg-blue shrink-0"></span><span class="text-blue font-medium">ai2ai_rules.dau-wau-ratio</span></span>
-<span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap border border-dashed border-yellow" title="depends on tainted: analysis.ai2ai_rules.engagement-strong" data-node="analysis.ai2ai_rules.engagement-check" data-fn="30"><span class="text-overlay0 font-mono">30</span><span class="w-1.5 h-1.5 rounded-full bg-mauve shrink-0"></span><span class="text-mauve font-medium">ai2ai_rules.engagement-check</span> <span class="text-yellow">&#x26a0;</span></span>
-<span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap " data-node="analysis.ai2ai_rules.reviews-per-dau" data-fn="31"><span class="text-overlay0 font-mono">31</span><span class="w-1.5 h-1.5 rounded-full bg-blue shrink-0"></span><span class="text-blue font-medium">ai2ai_rules.reviews-per-dau</span></span>
-<span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap " data-node="facts.ai2ai_facts.monthly-rule-evals" data-fn="32"><span class="text-overlay0 font-mono">32</span><span class="w-1.5 h-1.5 rounded-full bg-green shrink-0"></span><span class="text-green font-medium">ai2ai_facts.monthly-rule-evals</span></span></div></div>
-<div class="nb-prose-row relative"><p class="mb-3 leading-relaxed">The OSS community <span class="nb-fn text-green font-semibold cursor-pointer hover:underline decoration-dotted" data-node="facts.ai2ai_facts.contributors" data-fn="2">(215<sup class="text-green text-[0.6em] ml-0.5">2</sup></span> contributors) provides a durable acquisition channel: 34% of new users discover AI2AI organically through GitHub. This mirrors Snyk&#x27;s early flywheel — developer adoption drives enterprise demand.</p><div class="nb-margin-notes"><span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap " data-node="facts.ai2ai_facts.contributors" data-fn="2"><span class="text-overlay0 font-mono">2</span><span class="w-1.5 h-1.5 rounded-full bg-green shrink-0"></span><span class="text-green font-medium">ai2ai_facts.contributors</span></span></div></div>
+<div class="nb-prose-row relative"><p class="mb-3 leading-relaxed">Daily engagement is strong at <span class="nb-fn font-semibold cursor-pointer hover:underline decoration-dotted" style="color:var(--blue)" data-node="analysis.ai2ai_rules.dau-wau-ratio" data-fn="29">51.79%<sup class="text-[0.6em] ml-0.5" style="color:var(--blue)">29</sup></span> DAU/WAU<span class="nb-fn cursor-pointer nb-taint-propagated" data-node="analysis.ai2ai_rules.engagement-check" data-fn="30"><sup class="text-[0.65em] font-bold" style="color:var(--mauve)">30<span class="text-yellow ml-0.5" title="tainted">&#x26a0;</span></sup></span>, indicating the product is part of daily developer workflow — not a periodic audit tool. Each active user processes <span class="nb-fn font-semibold cursor-pointer hover:underline decoration-dotted" style="color:var(--blue)" data-node="analysis.ai2ai_rules.reviews-per-dau" data-fn="31">42.76<sup class="text-[0.6em] ml-0.5" style="color:var(--blue)">31</sup></span> code reviews per month, and the platform handles <span class="nb-fn font-semibold cursor-pointer hover:underline decoration-dotted" style="color:var(--green)" data-node="facts.ai2ai_facts.monthly-rule-evals" data-fn="32">340,000<sup class="text-[0.6em] ml-0.5" style="color:var(--green)">32</sup></span> rule evaluations monthly.</p><div class="nb-margin-notes"><span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap " data-node="analysis.ai2ai_rules.dau-wau-ratio" data-fn="29"><span class="font-mono" style="color:var(--overlay0)">29</span><span class="w-1.5 h-1.5 rounded-full bg-blue shrink-0"></span><span class="font-medium" style="color:var(--blue)">ai2ai_rules.dau-wau-ratio</span></span>
+<span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap border border-dashed border-yellow" title="depends on tainted: analysis.ai2ai_rules.engagement-strong" data-node="analysis.ai2ai_rules.engagement-check" data-fn="30"><span class="font-mono" style="color:var(--overlay0)">30</span><span class="w-1.5 h-1.5 rounded-full bg-mauve shrink-0"></span><span class="font-medium" style="color:var(--mauve)">ai2ai_rules.engagement-check</span> <span class="text-yellow">&#x26a0;</span></span>
+<span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap " data-node="analysis.ai2ai_rules.reviews-per-dau" data-fn="31"><span class="font-mono" style="color:var(--overlay0)">31</span><span class="w-1.5 h-1.5 rounded-full bg-blue shrink-0"></span><span class="font-medium" style="color:var(--blue)">ai2ai_rules.reviews-per-dau</span></span>
+<span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap " data-node="facts.ai2ai_facts.monthly-rule-evals" data-fn="32"><span class="font-mono" style="color:var(--overlay0)">32</span><span class="w-1.5 h-1.5 rounded-full bg-green shrink-0"></span><span class="font-medium" style="color:var(--green)">ai2ai_facts.monthly-rule-evals</span></span></div></div>
+<div class="nb-prose-row relative"><p class="mb-3 leading-relaxed">The OSS community <span class="nb-fn font-semibold cursor-pointer hover:underline decoration-dotted" style="color:var(--green)" data-node="facts.ai2ai_facts.contributors" data-fn="2">(215<sup class="text-[0.6em] ml-0.5" style="color:var(--green)">2</sup></span> contributors) provides a durable acquisition channel: 34% of new users discover AI2AI organically through GitHub. This mirrors Snyk&#x27;s early flywheel — developer adoption drives enterprise demand.</p><div class="nb-margin-notes"><span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap " data-node="facts.ai2ai_facts.contributors" data-fn="2"><span class="font-mono" style="color:var(--overlay0)">2</span><span class="w-1.5 h-1.5 rounded-full bg-green shrink-0"></span><span class="font-medium" style="color:var(--green)">ai2ai_facts.contributors</span></span></div></div>
 <h2 class="text-xl font-bold text-mauve mt-8 mb-3">Valuation</h2>
-<div class="nb-prose-row relative"><p class="mb-3 leading-relaxed">At <span class="nb-fn text-green font-semibold cursor-pointer hover:underline decoration-dotted" data-node="facts.ai2ai_facts.pre-money" data-fn="33">$55.0M<sup class="text-green text-[0.6em] ml-0.5">33</sup></span> pre-money on <span class="nb-fn text-green font-semibold cursor-pointer hover:underline decoration-dotted" data-node="facts.ai2ai_facts.arr" data-fn="4">$2.8M<sup class="text-green text-[0.6em] ml-0.5">4</sup></span> ARR, the deal prices at <strong><span class="nb-fn text-blue font-semibold cursor-pointer hover:underline decoration-dotted" data-node="analysis.ai2ai_rules.arr-multiple" data-fn="34">19.64x<sup class="text-blue text-[0.6em] ml-0.5">34</sup></span> ARR</strong><span class="nb-fn cursor-pointer nb-taint-propagated" data-node="analysis.ai2ai_rules.valuation-check" data-fn="35"><sup class="text-mauve text-[0.65em] font-bold">35<span class="text-yellow ml-0.5" title="tainted">&#x26a0;</span></sup></span>. Given 340% growth, 180% NRR, and strong enterprise traction, this is within range for comparable Series A rounds:</p><div class="nb-margin-notes"><span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap " data-node="facts.ai2ai_facts.pre-money" data-fn="33"><span class="text-overlay0 font-mono">33</span><span class="w-1.5 h-1.5 rounded-full bg-green shrink-0"></span><span class="text-green font-medium">ai2ai_facts.pre-money</span></span>
-<span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap " data-node="facts.ai2ai_facts.arr" data-fn="4"><span class="text-overlay0 font-mono">4</span><span class="w-1.5 h-1.5 rounded-full bg-green shrink-0"></span><span class="text-green font-medium">ai2ai_facts.arr</span></span>
-<span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap " data-node="analysis.ai2ai_rules.arr-multiple" data-fn="34"><span class="text-overlay0 font-mono">34</span><span class="w-1.5 h-1.5 rounded-full bg-blue shrink-0"></span><span class="text-blue font-medium">ai2ai_rules.arr-multiple</span></span>
-<span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap border border-dashed border-yellow" title="depends on tainted: analysis.ai2ai_rules.valuation-reasonable" data-node="analysis.ai2ai_rules.valuation-check" data-fn="35"><span class="text-overlay0 font-mono">35</span><span class="w-1.5 h-1.5 rounded-full bg-mauve shrink-0"></span><span class="text-mauve font-medium">ai2ai_rules.valuation-check</span> <span class="text-yellow">&#x26a0;</span></span></div></div>
+<div class="nb-prose-row relative"><p class="mb-3 leading-relaxed">At <span class="nb-fn font-semibold cursor-pointer hover:underline decoration-dotted" style="color:var(--green)" data-node="facts.ai2ai_facts.pre-money" data-fn="33">$55.0M<sup class="text-[0.6em] ml-0.5" style="color:var(--green)">33</sup></span> pre-money on <span class="nb-fn font-semibold cursor-pointer hover:underline decoration-dotted" style="color:var(--green)" data-node="facts.ai2ai_facts.arr" data-fn="4">$2.8M<sup class="text-[0.6em] ml-0.5" style="color:var(--green)">4</sup></span> ARR, the deal prices at <strong><span class="nb-fn font-semibold cursor-pointer hover:underline decoration-dotted" style="color:var(--blue)" data-node="analysis.ai2ai_rules.arr-multiple" data-fn="34">19.64x<sup class="text-[0.6em] ml-0.5" style="color:var(--blue)">34</sup></span> ARR</strong><span class="nb-fn cursor-pointer nb-taint-propagated" data-node="analysis.ai2ai_rules.valuation-check" data-fn="35"><sup class="text-[0.65em] font-bold" style="color:var(--mauve)">35<span class="text-yellow ml-0.5" title="tainted">&#x26a0;</span></sup></span>. Given 340% growth, 180% NRR, and strong enterprise traction, this is within range for comparable Series A rounds:</p><div class="nb-margin-notes"><span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap " data-node="facts.ai2ai_facts.pre-money" data-fn="33"><span class="font-mono" style="color:var(--overlay0)">33</span><span class="w-1.5 h-1.5 rounded-full bg-green shrink-0"></span><span class="font-medium" style="color:var(--green)">ai2ai_facts.pre-money</span></span>
+<span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap " data-node="facts.ai2ai_facts.arr" data-fn="4"><span class="font-mono" style="color:var(--overlay0)">4</span><span class="w-1.5 h-1.5 rounded-full bg-green shrink-0"></span><span class="font-medium" style="color:var(--green)">ai2ai_facts.arr</span></span>
+<span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap " data-node="analysis.ai2ai_rules.arr-multiple" data-fn="34"><span class="font-mono" style="color:var(--overlay0)">34</span><span class="w-1.5 h-1.5 rounded-full bg-blue shrink-0"></span><span class="font-medium" style="color:var(--blue)">ai2ai_rules.arr-multiple</span></span>
+<span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap border border-dashed border-yellow" title="depends on tainted: analysis.ai2ai_rules.valuation-reasonable" data-node="analysis.ai2ai_rules.valuation-check" data-fn="35"><span class="font-mono" style="color:var(--overlay0)">35</span><span class="w-1.5 h-1.5 rounded-full bg-mauve shrink-0"></span><span class="font-medium" style="color:var(--mauve)">ai2ai_rules.valuation-check</span> <span class="text-yellow">&#x26a0;</span></span></div></div>
 <ul class="list-disc ml-6 mb-4 space-y-1">
 <li>Snyk (2019 Series A): ~25x ARR, similar OSS-first model</li>
 <li>Semgrep (Series B): ~20x ARR, comparable static analysis positioning</li>
 <li>GitLab (Series A): ~18x ARR, open-core developer tools</li>
 </ul>
-<div class="nb-prose-row relative"><p class="mb-3 leading-relaxed">The <span class="nb-fn text-green font-semibold cursor-pointer hover:underline decoration-dotted" data-node="facts.ai2ai_facts.dilution-pct" data-fn="36">24.70%<sup class="text-green text-[0.6em] ml-0.5">36</sup></span> dilution is standard for an $18M Series A.</p><div class="nb-margin-notes"><span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap " data-node="facts.ai2ai_facts.dilution-pct" data-fn="36"><span class="text-overlay0 font-mono">36</span><span class="w-1.5 h-1.5 rounded-full bg-green shrink-0"></span><span class="text-green font-medium">ai2ai_facts.dilution-pct</span></span></div></div>
+<div class="nb-prose-row relative"><p class="mb-3 leading-relaxed">The <span class="nb-fn font-semibold cursor-pointer hover:underline decoration-dotted" style="color:var(--green)" data-node="facts.ai2ai_facts.dilution-pct" data-fn="36">24.70%<sup class="text-[0.6em] ml-0.5" style="color:var(--green)">36</sup></span> dilution is standard for an $18M Series A.</p><div class="nb-margin-notes"><span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap " data-node="facts.ai2ai_facts.dilution-pct" data-fn="36"><span class="font-mono" style="color:var(--overlay0)">36</span><span class="w-1.5 h-1.5 rounded-full bg-green shrink-0"></span><span class="font-medium" style="color:var(--green)">ai2ai_facts.dilution-pct</span></span></div></div>
 <h2 class="text-xl font-bold text-mauve mt-8 mb-3">Risk Factors</h2>
-<div class="nb-prose-row relative"><p class="mb-3 leading-relaxed">Enterprise sales cycles average 4-6 months, creating lumpy revenue. The CTO is the primary symbolic engine architect — key person risk that should be mitigated through the planned engineering expansion (current <span class="nb-fn text-green font-semibold cursor-pointer hover:underline decoration-dotted" data-node="facts.ai2ai_facts.eng-headcount" data-fn="37">28,<sup class="text-green text-[0.6em] ml-0.5">37</sup></span> targeting <span class="nb-fn text-green font-semibold cursor-pointer hover:underline decoration-dotted" data-node="facts.ai2ai_facts.eng-target-12mo" data-fn="38">42<sup class="text-green text-[0.6em] ml-0.5">38</sup></span> in 12 months). Competition from Semgrep and GitHub Copilot is real but AI2AI&#x27;s formal verification depth is differentiated.</p><div class="nb-margin-notes"><span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap " data-node="facts.ai2ai_facts.eng-headcount" data-fn="37"><span class="text-overlay0 font-mono">37</span><span class="w-1.5 h-1.5 rounded-full bg-green shrink-0"></span><span class="text-green font-medium">ai2ai_facts.eng-headcount</span></span>
-<span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap " data-node="facts.ai2ai_facts.eng-target-12mo" data-fn="38"><span class="text-overlay0 font-mono">38</span><span class="w-1.5 h-1.5 rounded-full bg-green shrink-0"></span><span class="text-green font-medium">ai2ai_facts.eng-target-12mo</span></span></div></div>
+<div class="nb-prose-row relative"><p class="mb-3 leading-relaxed">Enterprise sales cycles average 4-6 months, creating lumpy revenue. The CTO is the primary symbolic engine architect — key person risk that should be mitigated through the planned engineering expansion (current <span class="nb-fn font-semibold cursor-pointer hover:underline decoration-dotted" style="color:var(--green)" data-node="facts.ai2ai_facts.eng-headcount" data-fn="37">28,<sup class="text-[0.6em] ml-0.5" style="color:var(--green)">37</sup></span> targeting <span class="nb-fn font-semibold cursor-pointer hover:underline decoration-dotted" style="color:var(--green)" data-node="facts.ai2ai_facts.eng-target-12mo" data-fn="38">42<sup class="text-[0.6em] ml-0.5" style="color:var(--green)">38</sup></span> in 12 months). Competition from Semgrep and GitHub Copilot is real but AI2AI&#x27;s formal verification depth is differentiated.</p><div class="nb-margin-notes"><span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap " data-node="facts.ai2ai_facts.eng-headcount" data-fn="37"><span class="font-mono" style="color:var(--overlay0)">37</span><span class="w-1.5 h-1.5 rounded-full bg-green shrink-0"></span><span class="font-medium" style="color:var(--green)">ai2ai_facts.eng-headcount</span></span>
+<span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap " data-node="facts.ai2ai_facts.eng-target-12mo" data-fn="38"><span class="font-mono" style="color:var(--overlay0)">38</span><span class="w-1.5 h-1.5 rounded-full bg-green shrink-0"></span><span class="font-medium" style="color:var(--green)">ai2ai_facts.eng-target-12mo</span></span></div></div>
 <h2 class="text-xl font-bold text-mauve mt-8 mb-3">Recommendation</h2>
-<div class="nb-prose-row relative"><p class="mb-3 leading-relaxed"><strong>Proceed at proposed terms.</strong> All quantitative checks pass<span class="nb-fn cursor-pointer" data-node="analysis.ai2ai_rules.margin-check" data-fn="10"><sup class="text-mauve text-[0.65em] font-bold">10</sup></span><sup class="text-overlay0 text-[0.6em]">,</sup><span class="nb-fn cursor-pointer" data-node="analysis.ai2ai_rules.ltv-cac-check" data-fn="16"><sup class="text-mauve text-[0.65em] font-bold">16</sup></span><sup class="text-overlay0 text-[0.6em]">,</sup><span class="nb-fn cursor-pointer nb-taint-propagated" data-node="analysis.ai2ai_rules.retention-check" data-fn="18"><sup class="text-mauve text-[0.65em] font-bold">18<span class="text-yellow ml-0.5" title="tainted">&#x26a0;</span></sup></span><sup class="text-overlay0 text-[0.6em]">,</sup><span class="nb-fn cursor-pointer nb-taint-propagated" data-node="analysis.ai2ai_rules.churn-check" data-fn="20"><sup class="text-mauve text-[0.65em] font-bold">20<span class="text-yellow ml-0.5" title="tainted">&#x26a0;</span></sup></span><sup class="text-overlay0 text-[0.6em]">,</sup><span class="nb-fn cursor-pointer nb-taint-propagated" data-node="analysis.ai2ai_rules.engagement-check" data-fn="30"><sup class="text-mauve text-[0.65em] font-bold">30<span class="text-yellow ml-0.5" title="tainted">&#x26a0;</span></sup></span><sup class="text-overlay0 text-[0.6em]">,</sup><span class="nb-fn cursor-pointer nb-taint-propagated" data-node="analysis.ai2ai_rules.valuation-check" data-fn="35"><sup class="text-mauve text-[0.65em] font-bold">35<span class="text-yellow ml-0.5" title="tainted">&#x26a0;</span></sup></span><sup class="text-overlay0 text-[0.6em]">,</sup><span class="nb-fn cursor-pointer" data-node="analysis.ai2ai_rules.pipeline-check" data-fn="28"><sup class="text-mauve text-[0.65em] font-bold">28</sup></span>. The combination of exceptional NRR, proven open-source traction, and a clear path to $10M ARR makes this a compelling Series A. Revenue efficiency <span class="nb-fn text-blue font-semibold cursor-pointer hover:underline decoration-dotted" data-node="analysis.ai2ai_rules.sales-efficiency" data-fn="39">(2x<sup class="text-blue text-[0.6em] ml-0.5">39</sup></span> ARR per S&amp;M dollar) and <span class="nb-fn text-blue font-semibold cursor-pointer hover:underline decoration-dotted" data-node="analysis.ai2ai_rules.burn-multiple" data-fn="40">1.55x<sup class="text-blue text-[0.6em] ml-0.5">40</sup></span> burn multiple indicate capital-efficient growth.</p><div class="nb-margin-notes"><span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap " data-node="analysis.ai2ai_rules.margin-check" data-fn="10"><span class="text-overlay0 font-mono">10</span><span class="w-1.5 h-1.5 rounded-full bg-mauve shrink-0"></span><span class="text-mauve font-medium">ai2ai_rules.margin-check</span></span>
-<span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap " data-node="analysis.ai2ai_rules.ltv-cac-check" data-fn="16"><span class="text-overlay0 font-mono">16</span><span class="w-1.5 h-1.5 rounded-full bg-mauve shrink-0"></span><span class="text-mauve font-medium">ai2ai_rules.ltv-cac-check</span></span>
-<span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap border border-dashed border-yellow" title="depends on tainted: analysis.ai2ai_rules.retention-strong" data-node="analysis.ai2ai_rules.retention-check" data-fn="18"><span class="text-overlay0 font-mono">18</span><span class="w-1.5 h-1.5 rounded-full bg-mauve shrink-0"></span><span class="text-mauve font-medium">ai2ai_rules.retention-check</span> <span class="text-yellow">&#x26a0;</span></span>
-<span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap border border-dashed border-yellow" title="depends on tainted: analysis.ai2ai_rules.churn-acceptable" data-node="analysis.ai2ai_rules.churn-check" data-fn="20"><span class="text-overlay0 font-mono">20</span><span class="w-1.5 h-1.5 rounded-full bg-mauve shrink-0"></span><span class="text-mauve font-medium">ai2ai_rules.churn-check</span> <span class="text-yellow">&#x26a0;</span></span>
-<span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap border border-dashed border-yellow" title="depends on tainted: analysis.ai2ai_rules.engagement-strong" data-node="analysis.ai2ai_rules.engagement-check" data-fn="30"><span class="text-overlay0 font-mono">30</span><span class="w-1.5 h-1.5 rounded-full bg-mauve shrink-0"></span><span class="text-mauve font-medium">ai2ai_rules.engagement-check</span> <span class="text-yellow">&#x26a0;</span></span>
-<span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap border border-dashed border-yellow" title="depends on tainted: analysis.ai2ai_rules.valuation-reasonable" data-node="analysis.ai2ai_rules.valuation-check" data-fn="35"><span class="text-overlay0 font-mono">35</span><span class="w-1.5 h-1.5 rounded-full bg-mauve shrink-0"></span><span class="text-mauve font-medium">ai2ai_rules.valuation-check</span> <span class="text-yellow">&#x26a0;</span></span>
-<span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap " data-node="analysis.ai2ai_rules.pipeline-check" data-fn="28"><span class="text-overlay0 font-mono">28</span><span class="w-1.5 h-1.5 rounded-full bg-mauve shrink-0"></span><span class="text-mauve font-medium">ai2ai_rules.pipeline-check</span></span>
-<span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap " data-node="analysis.ai2ai_rules.sales-efficiency" data-fn="39"><span class="text-overlay0 font-mono">39</span><span class="w-1.5 h-1.5 rounded-full bg-blue shrink-0"></span><span class="text-blue font-medium">ai2ai_rules.sales-efficiency</span></span>
-<span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap " data-node="analysis.ai2ai_rules.burn-multiple" data-fn="40"><span class="text-overlay0 font-mono">40</span><span class="w-1.5 h-1.5 rounded-full bg-blue shrink-0"></span><span class="text-blue font-medium">ai2ai_rules.burn-multiple</span></span></div></div>
-<div class="nb-footnote-list border-t border-surface1 mt-3 pt-2 text-xs"><div class="nb-fn-row flex items-center gap-1.5 py-0.5 cursor-pointer hover:bg-surface0 rounded px-1" data-node="facts.ai2ai_facts.github-stars" data-fn="1"><span class="text-green text-[0.7em] font-mono w-4 text-right">1</span><span class="w-1.5 h-1.5 rounded-full bg-green shrink-0"></span><span class="text-green font-medium">ai2ai_facts.github-stars</span><span class="text-subtext"> = 4,200</span></div>
-<div class="nb-fn-row flex items-center gap-1.5 py-0.5 cursor-pointer hover:bg-surface0 rounded px-1" data-node="facts.ai2ai_facts.contributors" data-fn="2"><span class="text-green text-[0.7em] font-mono w-4 text-right">2</span><span class="w-1.5 h-1.5 rounded-full bg-green shrink-0"></span><span class="text-green font-medium">ai2ai_facts.contributors</span><span class="text-subtext"> = 215</span></div>
-<div class="nb-fn-row flex items-center gap-1.5 py-0.5 cursor-pointer hover:bg-surface0 rounded px-1" data-node="facts.ai2ai_facts.teams-using" data-fn="3"><span class="text-green text-[0.7em] font-mono w-4 text-right">3</span><span class="w-1.5 h-1.5 rounded-full bg-green shrink-0"></span><span class="text-green font-medium">ai2ai_facts.teams-using</span><span class="text-subtext"> = 812</span></div>
-<div class="nb-fn-row flex items-center gap-1.5 py-0.5 cursor-pointer hover:bg-surface0 rounded px-1" data-node="facts.ai2ai_facts.arr" data-fn="4"><span class="text-green text-[0.7em] font-mono w-4 text-right">4</span><span class="w-1.5 h-1.5 rounded-full bg-green shrink-0"></span><span class="text-green font-medium">ai2ai_facts.arr</span><span class="text-subtext"> = 2.8M</span></div>
-<div class="nb-fn-row flex items-center gap-1.5 py-0.5 cursor-pointer hover:bg-surface0 rounded px-1" data-node="facts.ai2ai_facts.yoy-growth-pct" data-fn="5"><span class="text-green text-[0.7em] font-mono w-4 text-right">5</span><span class="w-1.5 h-1.5 rounded-full bg-green shrink-0"></span><span class="text-green font-medium">ai2ai_facts.yoy-growth-pct</span><span class="text-subtext"> = 340</span></div>
-<div class="nb-fn-row flex items-center gap-1.5 py-0.5 cursor-pointer hover:bg-surface0 rounded px-1" data-node="analysis.ai2ai_rules.enterprise-arr-pct" data-fn="6"><span class="text-blue text-[0.7em] font-mono w-4 text-right">6</span><span class="w-1.5 h-1.5 rounded-full bg-blue shrink-0"></span><span class="text-blue font-medium">ai2ai_rules.enterprise-arr-pct</span><span class="text-subtext"> = 75.00%</span></div>
-<div class="nb-fn-row flex items-center gap-1.5 py-0.5 cursor-pointer hover:bg-surface0 rounded px-1" data-node="facts.ai2ai_facts.enterprise-customers" data-fn="7"><span class="text-green text-[0.7em] font-mono w-4 text-right">7</span><span class="w-1.5 h-1.5 rounded-full bg-green shrink-0"></span><span class="text-green font-medium">ai2ai_facts.enterprise-customers</span><span class="text-subtext"> = 6</span></div>
-<div class="nb-fn-row flex items-center gap-1.5 py-0.5 cursor-pointer hover:bg-surface0 rounded px-1" data-node="facts.ai2ai_facts.enterprise-acv" data-fn="8"><span class="text-green text-[0.7em] font-mono w-4 text-right">8</span><span class="w-1.5 h-1.5 rounded-full bg-green shrink-0"></span><span class="text-green font-medium">ai2ai_facts.enterprise-acv</span><span class="text-subtext"> = 127,500</span></div>
-<div class="nb-fn-row flex items-center gap-1.5 py-0.5 cursor-pointer hover:bg-surface0 rounded px-1" data-node="analysis.ai2ai_rules.gross-margin" data-fn="9"><span class="text-blue text-[0.7em] font-mono w-4 text-right">9</span><span class="w-1.5 h-1.5 rounded-full bg-blue shrink-0"></span><span class="text-blue font-medium">ai2ai_rules.gross-margin</span><span class="text-subtext"> = 80.00%</span></div>
-<div class="nb-fn-row flex items-center gap-1.5 py-0.5 cursor-pointer hover:bg-surface0 rounded px-1" data-node="analysis.ai2ai_rules.margin-check" data-fn="10"><span class="text-mauve text-[0.7em] font-mono w-4 text-right">10</span><span class="w-1.5 h-1.5 rounded-full bg-mauve shrink-0"></span><span class="text-mauve font-medium">ai2ai_rules.margin-check</span><span class="text-subtext"> = true</span></div>
-<div class="nb-fn-row flex items-center gap-1.5 py-0.5 cursor-pointer hover:bg-surface0 rounded px-1" data-node="facts.ai2ai_facts.cash" data-fn="11"><span class="text-green text-[0.7em] font-mono w-4 text-right">11</span><span class="w-1.5 h-1.5 rounded-full bg-green shrink-0"></span><span class="text-green font-medium">ai2ai_facts.cash</span><span class="text-subtext"> = 8.2M</span></div>
-<div class="nb-fn-row flex items-center gap-1.5 py-0.5 cursor-pointer hover:bg-surface0 rounded px-1" data-node="analysis.ai2ai_rules.runway-months" data-fn="12"><span class="text-blue text-[0.7em] font-mono w-4 text-right">12</span><span class="w-1.5 h-1.5 rounded-full bg-blue shrink-0"></span><span class="text-blue font-medium">ai2ai_rules.runway-months</span><span class="text-subtext"> = 21.58</span></div>
-<div class="nb-fn-row flex items-center gap-1.5 py-0.5 cursor-pointer hover:bg-surface0 rounded px-1" data-node="analysis.ai2ai_rules.runway-check" data-fn="13"><span class="text-mauve text-[0.7em] font-mono w-4 text-right">13</span><span class="w-1.5 h-1.5 rounded-full bg-mauve shrink-0"></span><span class="text-mauve font-medium">ai2ai_rules.runway-check</span><span class="text-subtext"> = true</span></div>
-<div class="nb-fn-row flex items-center gap-1.5 py-0.5 cursor-pointer hover:bg-surface0 rounded px-1" data-node="analysis.ai2ai_rules.post-raise-runway" data-fn="14"><span class="text-blue text-[0.7em] font-mono w-4 text-right">14</span><span class="w-1.5 h-1.5 rounded-full bg-blue shrink-0"></span><span class="text-blue font-medium">ai2ai_rules.post-raise-runway</span><span class="text-subtext"> = 68.95</span></div>
-<div class="nb-fn-row flex items-center gap-1.5 py-0.5 cursor-pointer hover:bg-surface0 rounded px-1" data-node="analysis.ai2ai_rules.ltv-to-cac" data-fn="15"><span class="text-blue text-[0.7em] font-mono w-4 text-right">15</span><span class="w-1.5 h-1.5 rounded-full bg-blue shrink-0"></span><span class="text-blue font-medium">ai2ai_rules.ltv-to-cac</span><span class="text-subtext"> = 4.91</span></div>
-<div class="nb-fn-row flex items-center gap-1.5 py-0.5 cursor-pointer hover:bg-surface0 rounded px-1" data-node="analysis.ai2ai_rules.ltv-cac-check" data-fn="16"><span class="text-mauve text-[0.7em] font-mono w-4 text-right">16</span><span class="w-1.5 h-1.5 rounded-full bg-mauve shrink-0"></span><span class="text-mauve font-medium">ai2ai_rules.ltv-cac-check</span><span class="text-subtext"> = true</span></div>
-<div class="nb-fn-row flex items-center gap-1.5 py-0.5 cursor-pointer hover:bg-surface0 rounded px-1" data-node="facts.ai2ai_facts.nrr" data-fn="17"><span class="text-green text-[0.7em] font-mono w-4 text-right">17</span><span class="w-1.5 h-1.5 rounded-full bg-green shrink-0"></span><span class="text-green font-medium">ai2ai_facts.nrr</span><span class="text-subtext"> = 180</span></div>
-<div class="nb-fn-row flex items-center gap-1.5 py-0.5 cursor-pointer hover:bg-surface0 rounded px-1" data-node="analysis.ai2ai_rules.retention-check" data-fn="18"><span class="text-mauve text-[0.7em] font-mono w-4 text-right">18</span><span class="w-1.5 h-1.5 rounded-full bg-mauve shrink-0"></span><span class="text-mauve font-medium">ai2ai_rules.retention-check</span><span class="text-subtext"> = true</span></div>
-<div class="nb-fn-row flex items-center gap-1.5 py-0.5 cursor-pointer hover:bg-surface0 rounded px-1" data-node="facts.ai2ai_facts.monthly-churn-pct" data-fn="19"><span class="text-green text-[0.7em] font-mono w-4 text-right">19</span><span class="w-1.5 h-1.5 rounded-full bg-green shrink-0"></span><span class="text-green font-medium">ai2ai_facts.monthly-churn-pct</span><span class="text-subtext"> = 1.40</span></div>
-<div class="nb-fn-row flex items-center gap-1.5 py-0.5 cursor-pointer hover:bg-surface0 rounded px-1" data-node="analysis.ai2ai_rules.churn-check" data-fn="20"><span class="text-mauve text-[0.7em] font-mono w-4 text-right">20</span><span class="w-1.5 h-1.5 rounded-full bg-mauve shrink-0"></span><span class="text-mauve font-medium">ai2ai_rules.churn-check</span><span class="text-subtext"> = true</span></div>
-<div class="nb-fn-row flex items-center gap-1.5 py-0.5 cursor-pointer hover:bg-surface0 rounded px-1" data-node="analysis.ai2ai_rules.arr-per-customer" data-fn="21"><span class="text-blue text-[0.7em] font-mono w-4 text-right">21</span><span class="w-1.5 h-1.5 rounded-full bg-blue shrink-0"></span><span class="text-blue font-medium">ai2ai_rules.arr-per-customer</span><span class="text-subtext"> = 65116.28</span></div>
-<div class="nb-fn-row flex items-center gap-1.5 py-0.5 cursor-pointer hover:bg-surface0 rounded px-1" data-node="facts.ai2ai_facts.grr" data-fn="22"><span class="text-green text-[0.7em] font-mono w-4 text-right">22</span><span class="w-1.5 h-1.5 rounded-full bg-green shrink-0"></span><span class="text-green font-medium">ai2ai_facts.grr</span><span class="text-subtext"> = 94</span></div>
-<div class="nb-fn-row flex items-center gap-1.5 py-0.5 cursor-pointer hover:bg-surface0 rounded px-1" data-node="facts.ai2ai_facts.active-pilots" data-fn="23"><span class="text-green text-[0.7em] font-mono w-4 text-right">23</span><span class="w-1.5 h-1.5 rounded-full bg-green shrink-0"></span><span class="text-green font-medium">ai2ai_facts.active-pilots</span><span class="text-subtext"> = 12</span></div>
-<div class="nb-fn-row flex items-center gap-1.5 py-0.5 cursor-pointer hover:bg-surface0 rounded px-1" data-node="facts.ai2ai_facts.pilot-conversion-pct" data-fn="24"><span class="text-green text-[0.7em] font-mono w-4 text-right">24</span><span class="w-1.5 h-1.5 rounded-full bg-green shrink-0"></span><span class="text-green font-medium">ai2ai_facts.pilot-conversion-pct</span><span class="text-subtext"> = 75</span></div>
-<div class="nb-fn-row flex items-center gap-1.5 py-0.5 cursor-pointer hover:bg-surface0 rounded px-1" data-node="analysis.ai2ai_rules.expected-pipeline-conversion" data-fn="25"><span class="text-blue text-[0.7em] font-mono w-4 text-right">25</span><span class="w-1.5 h-1.5 rounded-full bg-blue shrink-0"></span><span class="text-blue font-medium">ai2ai_rules.expected-pipeline-conversion</span><span class="text-subtext"> = 1.4M</span></div>
-<div class="nb-fn-row flex items-center gap-1.5 py-0.5 cursor-pointer hover:bg-surface0 rounded px-1" data-node="facts.ai2ai_facts.expansion-revenue" data-fn="26"><span class="text-green text-[0.7em] font-mono w-4 text-right">26</span><span class="w-1.5 h-1.5 rounded-full bg-green shrink-0"></span><span class="text-green font-medium">ai2ai_facts.expansion-revenue</span><span class="text-subtext"> = 1.2M</span></div>
-<div class="nb-fn-row flex items-center gap-1.5 py-0.5 cursor-pointer hover:bg-surface0 rounded px-1" data-node="analysis.ai2ai_rules.projected-arr-12mo" data-fn="27"><span class="text-blue text-[0.7em] font-mono w-4 text-right">27</span><span class="w-1.5 h-1.5 rounded-full bg-blue shrink-0"></span><span class="text-blue font-medium">ai2ai_rules.projected-arr-12mo</span><span class="text-subtext"> = 5.3M</span></div>
-<div class="nb-fn-row flex items-center gap-1.5 py-0.5 cursor-pointer hover:bg-surface0 rounded px-1" data-node="analysis.ai2ai_rules.pipeline-check" data-fn="28"><span class="text-mauve text-[0.7em] font-mono w-4 text-right">28</span><span class="w-1.5 h-1.5 rounded-full bg-mauve shrink-0"></span><span class="text-mauve font-medium">ai2ai_rules.pipeline-check</span><span class="text-subtext"> = true</span></div>
-<div class="nb-fn-row flex items-center gap-1.5 py-0.5 cursor-pointer hover:bg-surface0 rounded px-1" data-node="analysis.ai2ai_rules.dau-wau-ratio" data-fn="29"><span class="text-blue text-[0.7em] font-mono w-4 text-right">29</span><span class="w-1.5 h-1.5 rounded-full bg-blue shrink-0"></span><span class="text-blue font-medium">ai2ai_rules.dau-wau-ratio</span><span class="text-subtext"> = 51.79%</span></div>
-<div class="nb-fn-row flex items-center gap-1.5 py-0.5 cursor-pointer hover:bg-surface0 rounded px-1" data-node="analysis.ai2ai_rules.engagement-check" data-fn="30"><span class="text-mauve text-[0.7em] font-mono w-4 text-right">30</span><span class="w-1.5 h-1.5 rounded-full bg-mauve shrink-0"></span><span class="text-mauve font-medium">ai2ai_rules.engagement-check</span><span class="text-subtext"> = true</span></div>
-<div class="nb-fn-row flex items-center gap-1.5 py-0.5 cursor-pointer hover:bg-surface0 rounded px-1" data-node="analysis.ai2ai_rules.reviews-per-dau" data-fn="31"><span class="text-blue text-[0.7em] font-mono w-4 text-right">31</span><span class="w-1.5 h-1.5 rounded-full bg-blue shrink-0"></span><span class="text-blue font-medium">ai2ai_rules.reviews-per-dau</span><span class="text-subtext"> = 42.76</span></div>
-<div class="nb-fn-row flex items-center gap-1.5 py-0.5 cursor-pointer hover:bg-surface0 rounded px-1" data-node="facts.ai2ai_facts.monthly-rule-evals" data-fn="32"><span class="text-green text-[0.7em] font-mono w-4 text-right">32</span><span class="w-1.5 h-1.5 rounded-full bg-green shrink-0"></span><span class="text-green font-medium">ai2ai_facts.monthly-rule-evals</span><span class="text-subtext"> = 340,000</span></div>
-<div class="nb-fn-row flex items-center gap-1.5 py-0.5 cursor-pointer hover:bg-surface0 rounded px-1" data-node="facts.ai2ai_facts.pre-money" data-fn="33"><span class="text-green text-[0.7em] font-mono w-4 text-right">33</span><span class="w-1.5 h-1.5 rounded-full bg-green shrink-0"></span><span class="text-green font-medium">ai2ai_facts.pre-money</span><span class="text-subtext"> = 55.0M</span></div>
-<div class="nb-fn-row flex items-center gap-1.5 py-0.5 cursor-pointer hover:bg-surface0 rounded px-1" data-node="analysis.ai2ai_rules.arr-multiple" data-fn="34"><span class="text-blue text-[0.7em] font-mono w-4 text-right">34</span><span class="w-1.5 h-1.5 rounded-full bg-blue shrink-0"></span><span class="text-blue font-medium">ai2ai_rules.arr-multiple</span><span class="text-subtext"> = 19.64</span></div>
-<div class="nb-fn-row flex items-center gap-1.5 py-0.5 cursor-pointer hover:bg-surface0 rounded px-1" data-node="analysis.ai2ai_rules.valuation-check" data-fn="35"><span class="text-mauve text-[0.7em] font-mono w-4 text-right">35</span><span class="w-1.5 h-1.5 rounded-full bg-mauve shrink-0"></span><span class="text-mauve font-medium">ai2ai_rules.valuation-check</span><span class="text-subtext"> = true</span></div>
-<div class="nb-fn-row flex items-center gap-1.5 py-0.5 cursor-pointer hover:bg-surface0 rounded px-1" data-node="facts.ai2ai_facts.dilution-pct" data-fn="36"><span class="text-green text-[0.7em] font-mono w-4 text-right">36</span><span class="w-1.5 h-1.5 rounded-full bg-green shrink-0"></span><span class="text-green font-medium">ai2ai_facts.dilution-pct</span><span class="text-subtext"> = 24.70</span></div>
-<div class="nb-fn-row flex items-center gap-1.5 py-0.5 cursor-pointer hover:bg-surface0 rounded px-1" data-node="facts.ai2ai_facts.eng-headcount" data-fn="37"><span class="text-green text-[0.7em] font-mono w-4 text-right">37</span><span class="w-1.5 h-1.5 rounded-full bg-green shrink-0"></span><span class="text-green font-medium">ai2ai_facts.eng-headcount</span><span class="text-subtext"> = 28</span></div>
-<div class="nb-fn-row flex items-center gap-1.5 py-0.5 cursor-pointer hover:bg-surface0 rounded px-1" data-node="facts.ai2ai_facts.eng-target-12mo" data-fn="38"><span class="text-green text-[0.7em] font-mono w-4 text-right">38</span><span class="w-1.5 h-1.5 rounded-full bg-green shrink-0"></span><span class="text-green font-medium">ai2ai_facts.eng-target-12mo</span><span class="text-subtext"> = 42</span></div>
-<div class="nb-fn-row flex items-center gap-1.5 py-0.5 cursor-pointer hover:bg-surface0 rounded px-1" data-node="analysis.ai2ai_rules.sales-efficiency" data-fn="39"><span class="text-blue text-[0.7em] font-mono w-4 text-right">39</span><span class="w-1.5 h-1.5 rounded-full bg-blue shrink-0"></span><span class="text-blue font-medium">ai2ai_rules.sales-efficiency</span><span class="text-subtext"> = 2</span></div>
-<div class="nb-fn-row flex items-center gap-1.5 py-0.5 cursor-pointer hover:bg-surface0 rounded px-1" data-node="analysis.ai2ai_rules.burn-multiple" data-fn="40"><span class="text-blue text-[0.7em] font-mono w-4 text-right">40</span><span class="w-1.5 h-1.5 rounded-full bg-blue shrink-0"></span><span class="text-blue font-medium">ai2ai_rules.burn-multiple</span><span class="text-subtext"> = 1.55</span></div></div>
+<div class="nb-prose-row relative"><p class="mb-3 leading-relaxed"><strong>Proceed at proposed terms.</strong> All quantitative checks pass<span class="nb-fn cursor-pointer" data-node="analysis.ai2ai_rules.margin-check" data-fn="10"><sup class="text-[0.65em] font-bold" style="color:var(--mauve)">10</sup></span><sup class="text-overlay0 text-[0.6em]">,</sup><span class="nb-fn cursor-pointer" data-node="analysis.ai2ai_rules.ltv-cac-check" data-fn="16"><sup class="text-[0.65em] font-bold" style="color:var(--mauve)">16</sup></span><sup class="text-overlay0 text-[0.6em]">,</sup><span class="nb-fn cursor-pointer nb-taint-propagated" data-node="analysis.ai2ai_rules.retention-check" data-fn="18"><sup class="text-[0.65em] font-bold" style="color:var(--mauve)">18<span class="text-yellow ml-0.5" title="tainted">&#x26a0;</span></sup></span><sup class="text-overlay0 text-[0.6em]">,</sup><span class="nb-fn cursor-pointer nb-taint-propagated" data-node="analysis.ai2ai_rules.churn-check" data-fn="20"><sup class="text-[0.65em] font-bold" style="color:var(--mauve)">20<span class="text-yellow ml-0.5" title="tainted">&#x26a0;</span></sup></span><sup class="text-overlay0 text-[0.6em]">,</sup><span class="nb-fn cursor-pointer nb-taint-propagated" data-node="analysis.ai2ai_rules.engagement-check" data-fn="30"><sup class="text-[0.65em] font-bold" style="color:var(--mauve)">30<span class="text-yellow ml-0.5" title="tainted">&#x26a0;</span></sup></span><sup class="text-overlay0 text-[0.6em]">,</sup><span class="nb-fn cursor-pointer nb-taint-propagated" data-node="analysis.ai2ai_rules.valuation-check" data-fn="35"><sup class="text-[0.65em] font-bold" style="color:var(--mauve)">35<span class="text-yellow ml-0.5" title="tainted">&#x26a0;</span></sup></span><sup class="text-overlay0 text-[0.6em]">,</sup><span class="nb-fn cursor-pointer" data-node="analysis.ai2ai_rules.pipeline-check" data-fn="28"><sup class="text-[0.65em] font-bold" style="color:var(--mauve)">28</sup></span>. The combination of exceptional NRR, proven open-source traction, and a clear path to $10M ARR makes this a compelling Series A. Revenue efficiency <span class="nb-fn font-semibold cursor-pointer hover:underline decoration-dotted" style="color:var(--blue)" data-node="analysis.ai2ai_rules.sales-efficiency" data-fn="39">(2x<sup class="text-[0.6em] ml-0.5" style="color:var(--blue)">39</sup></span> ARR per S&amp;M dollar) and <span class="nb-fn font-semibold cursor-pointer hover:underline decoration-dotted" style="color:var(--blue)" data-node="analysis.ai2ai_rules.burn-multiple" data-fn="40">1.55x<sup class="text-[0.6em] ml-0.5" style="color:var(--blue)">40</sup></span> burn multiple indicate capital-efficient growth.</p><div class="nb-margin-notes"><span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap " data-node="analysis.ai2ai_rules.margin-check" data-fn="10"><span class="font-mono" style="color:var(--overlay0)">10</span><span class="w-1.5 h-1.5 rounded-full bg-mauve shrink-0"></span><span class="font-medium" style="color:var(--mauve)">ai2ai_rules.margin-check</span></span>
+<span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap " data-node="analysis.ai2ai_rules.ltv-cac-check" data-fn="16"><span class="font-mono" style="color:var(--overlay0)">16</span><span class="w-1.5 h-1.5 rounded-full bg-mauve shrink-0"></span><span class="font-medium" style="color:var(--mauve)">ai2ai_rules.ltv-cac-check</span></span>
+<span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap border border-dashed border-yellow" title="depends on tainted: analysis.ai2ai_rules.retention-strong" data-node="analysis.ai2ai_rules.retention-check" data-fn="18"><span class="font-mono" style="color:var(--overlay0)">18</span><span class="w-1.5 h-1.5 rounded-full bg-mauve shrink-0"></span><span class="font-medium" style="color:var(--mauve)">ai2ai_rules.retention-check</span> <span class="text-yellow">&#x26a0;</span></span>
+<span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap border border-dashed border-yellow" title="depends on tainted: analysis.ai2ai_rules.churn-acceptable" data-node="analysis.ai2ai_rules.churn-check" data-fn="20"><span class="font-mono" style="color:var(--overlay0)">20</span><span class="w-1.5 h-1.5 rounded-full bg-mauve shrink-0"></span><span class="font-medium" style="color:var(--mauve)">ai2ai_rules.churn-check</span> <span class="text-yellow">&#x26a0;</span></span>
+<span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap border border-dashed border-yellow" title="depends on tainted: analysis.ai2ai_rules.engagement-strong" data-node="analysis.ai2ai_rules.engagement-check" data-fn="30"><span class="font-mono" style="color:var(--overlay0)">30</span><span class="w-1.5 h-1.5 rounded-full bg-mauve shrink-0"></span><span class="font-medium" style="color:var(--mauve)">ai2ai_rules.engagement-check</span> <span class="text-yellow">&#x26a0;</span></span>
+<span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap border border-dashed border-yellow" title="depends on tainted: analysis.ai2ai_rules.valuation-reasonable" data-node="analysis.ai2ai_rules.valuation-check" data-fn="35"><span class="font-mono" style="color:var(--overlay0)">35</span><span class="w-1.5 h-1.5 rounded-full bg-mauve shrink-0"></span><span class="font-medium" style="color:var(--mauve)">ai2ai_rules.valuation-check</span> <span class="text-yellow">&#x26a0;</span></span>
+<span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap " data-node="analysis.ai2ai_rules.pipeline-check" data-fn="28"><span class="font-mono" style="color:var(--overlay0)">28</span><span class="w-1.5 h-1.5 rounded-full bg-mauve shrink-0"></span><span class="font-medium" style="color:var(--mauve)">ai2ai_rules.pipeline-check</span></span>
+<span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap " data-node="analysis.ai2ai_rules.sales-efficiency" data-fn="39"><span class="font-mono" style="color:var(--overlay0)">39</span><span class="w-1.5 h-1.5 rounded-full bg-blue shrink-0"></span><span class="font-medium" style="color:var(--blue)">ai2ai_rules.sales-efficiency</span></span>
+<span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 transition-colors whitespace-nowrap " data-node="analysis.ai2ai_rules.burn-multiple" data-fn="40"><span class="font-mono" style="color:var(--overlay0)">40</span><span class="w-1.5 h-1.5 rounded-full bg-blue shrink-0"></span><span class="font-medium" style="color:var(--blue)">ai2ai_rules.burn-multiple</span></span></div></div>
+<div class="nb-footnote-list border-t border-surface1 mt-3 pt-2 text-xs"><div class="nb-fn-row flex items-center gap-1.5 py-0.5 cursor-pointer hover:bg-surface0 rounded px-1" data-node="facts.ai2ai_facts.github-stars" data-fn="1"><span class="text-[0.7em] font-mono w-4 text-right" style="color:var(--green)">1</span><span class="w-1.5 h-1.5 rounded-full bg-green shrink-0"></span><span class="font-medium" style="color:var(--green)">ai2ai_facts.github-stars</span><span class="text-subtext"> = 4,200</span></div>
+<div class="nb-fn-row flex items-center gap-1.5 py-0.5 cursor-pointer hover:bg-surface0 rounded px-1" data-node="facts.ai2ai_facts.contributors" data-fn="2"><span class="text-[0.7em] font-mono w-4 text-right" style="color:var(--green)">2</span><span class="w-1.5 h-1.5 rounded-full bg-green shrink-0"></span><span class="font-medium" style="color:var(--green)">ai2ai_facts.contributors</span><span class="text-subtext"> = 215</span></div>
+<div class="nb-fn-row flex items-center gap-1.5 py-0.5 cursor-pointer hover:bg-surface0 rounded px-1" data-node="facts.ai2ai_facts.teams-using" data-fn="3"><span class="text-[0.7em] font-mono w-4 text-right" style="color:var(--green)">3</span><span class="w-1.5 h-1.5 rounded-full bg-green shrink-0"></span><span class="font-medium" style="color:var(--green)">ai2ai_facts.teams-using</span><span class="text-subtext"> = 812</span></div>
+<div class="nb-fn-row flex items-center gap-1.5 py-0.5 cursor-pointer hover:bg-surface0 rounded px-1" data-node="facts.ai2ai_facts.arr" data-fn="4"><span class="text-[0.7em] font-mono w-4 text-right" style="color:var(--green)">4</span><span class="w-1.5 h-1.5 rounded-full bg-green shrink-0"></span><span class="font-medium" style="color:var(--green)">ai2ai_facts.arr</span><span class="text-subtext"> = 2.8M</span></div>
+<div class="nb-fn-row flex items-center gap-1.5 py-0.5 cursor-pointer hover:bg-surface0 rounded px-1" data-node="facts.ai2ai_facts.yoy-growth-pct" data-fn="5"><span class="text-[0.7em] font-mono w-4 text-right" style="color:var(--green)">5</span><span class="w-1.5 h-1.5 rounded-full bg-green shrink-0"></span><span class="font-medium" style="color:var(--green)">ai2ai_facts.yoy-growth-pct</span><span class="text-subtext"> = 340</span></div>
+<div class="nb-fn-row flex items-center gap-1.5 py-0.5 cursor-pointer hover:bg-surface0 rounded px-1" data-node="analysis.ai2ai_rules.enterprise-arr-pct" data-fn="6"><span class="text-[0.7em] font-mono w-4 text-right" style="color:var(--blue)">6</span><span class="w-1.5 h-1.5 rounded-full bg-blue shrink-0"></span><span class="font-medium" style="color:var(--blue)">ai2ai_rules.enterprise-arr-pct</span><span class="text-subtext"> = 75.00%</span></div>
+<div class="nb-fn-row flex items-center gap-1.5 py-0.5 cursor-pointer hover:bg-surface0 rounded px-1" data-node="facts.ai2ai_facts.enterprise-customers" data-fn="7"><span class="text-[0.7em] font-mono w-4 text-right" style="color:var(--green)">7</span><span class="w-1.5 h-1.5 rounded-full bg-green shrink-0"></span><span class="font-medium" style="color:var(--green)">ai2ai_facts.enterprise-customers</span><span class="text-subtext"> = 6</span></div>
+<div class="nb-fn-row flex items-center gap-1.5 py-0.5 cursor-pointer hover:bg-surface0 rounded px-1" data-node="facts.ai2ai_facts.enterprise-acv" data-fn="8"><span class="text-[0.7em] font-mono w-4 text-right" style="color:var(--green)">8</span><span class="w-1.5 h-1.5 rounded-full bg-green shrink-0"></span><span class="font-medium" style="color:var(--green)">ai2ai_facts.enterprise-acv</span><span class="text-subtext"> = 127,500</span></div>
+<div class="nb-fn-row flex items-center gap-1.5 py-0.5 cursor-pointer hover:bg-surface0 rounded px-1" data-node="analysis.ai2ai_rules.gross-margin" data-fn="9"><span class="text-[0.7em] font-mono w-4 text-right" style="color:var(--blue)">9</span><span class="w-1.5 h-1.5 rounded-full bg-blue shrink-0"></span><span class="font-medium" style="color:var(--blue)">ai2ai_rules.gross-margin</span><span class="text-subtext"> = 80.00%</span></div>
+<div class="nb-fn-row flex items-center gap-1.5 py-0.5 cursor-pointer hover:bg-surface0 rounded px-1" data-node="analysis.ai2ai_rules.margin-check" data-fn="10"><span class="text-[0.7em] font-mono w-4 text-right" style="color:var(--mauve)">10</span><span class="w-1.5 h-1.5 rounded-full bg-mauve shrink-0"></span><span class="font-medium" style="color:var(--mauve)">ai2ai_rules.margin-check</span><span class="text-subtext"> = true</span></div>
+<div class="nb-fn-row flex items-center gap-1.5 py-0.5 cursor-pointer hover:bg-surface0 rounded px-1" data-node="facts.ai2ai_facts.cash" data-fn="11"><span class="text-[0.7em] font-mono w-4 text-right" style="color:var(--green)">11</span><span class="w-1.5 h-1.5 rounded-full bg-green shrink-0"></span><span class="font-medium" style="color:var(--green)">ai2ai_facts.cash</span><span class="text-subtext"> = 8.2M</span></div>
+<div class="nb-fn-row flex items-center gap-1.5 py-0.5 cursor-pointer hover:bg-surface0 rounded px-1" data-node="analysis.ai2ai_rules.runway-months" data-fn="12"><span class="text-[0.7em] font-mono w-4 text-right" style="color:var(--blue)">12</span><span class="w-1.5 h-1.5 rounded-full bg-blue shrink-0"></span><span class="font-medium" style="color:var(--blue)">ai2ai_rules.runway-months</span><span class="text-subtext"> = 21.58</span></div>
+<div class="nb-fn-row flex items-center gap-1.5 py-0.5 cursor-pointer hover:bg-surface0 rounded px-1" data-node="analysis.ai2ai_rules.runway-check" data-fn="13"><span class="text-[0.7em] font-mono w-4 text-right" style="color:var(--mauve)">13</span><span class="w-1.5 h-1.5 rounded-full bg-mauve shrink-0"></span><span class="font-medium" style="color:var(--mauve)">ai2ai_rules.runway-check</span><span class="text-subtext"> = true</span></div>
+<div class="nb-fn-row flex items-center gap-1.5 py-0.5 cursor-pointer hover:bg-surface0 rounded px-1" data-node="analysis.ai2ai_rules.post-raise-runway" data-fn="14"><span class="text-[0.7em] font-mono w-4 text-right" style="color:var(--blue)">14</span><span class="w-1.5 h-1.5 rounded-full bg-blue shrink-0"></span><span class="font-medium" style="color:var(--blue)">ai2ai_rules.post-raise-runway</span><span class="text-subtext"> = 68.95</span></div>
+<div class="nb-fn-row flex items-center gap-1.5 py-0.5 cursor-pointer hover:bg-surface0 rounded px-1" data-node="analysis.ai2ai_rules.ltv-to-cac" data-fn="15"><span class="text-[0.7em] font-mono w-4 text-right" style="color:var(--blue)">15</span><span class="w-1.5 h-1.5 rounded-full bg-blue shrink-0"></span><span class="font-medium" style="color:var(--blue)">ai2ai_rules.ltv-to-cac</span><span class="text-subtext"> = 4.91</span></div>
+<div class="nb-fn-row flex items-center gap-1.5 py-0.5 cursor-pointer hover:bg-surface0 rounded px-1" data-node="analysis.ai2ai_rules.ltv-cac-check" data-fn="16"><span class="text-[0.7em] font-mono w-4 text-right" style="color:var(--mauve)">16</span><span class="w-1.5 h-1.5 rounded-full bg-mauve shrink-0"></span><span class="font-medium" style="color:var(--mauve)">ai2ai_rules.ltv-cac-check</span><span class="text-subtext"> = true</span></div>
+<div class="nb-fn-row flex items-center gap-1.5 py-0.5 cursor-pointer hover:bg-surface0 rounded px-1" data-node="facts.ai2ai_facts.nrr" data-fn="17"><span class="text-[0.7em] font-mono w-4 text-right" style="color:var(--green)">17</span><span class="w-1.5 h-1.5 rounded-full bg-green shrink-0"></span><span class="font-medium" style="color:var(--green)">ai2ai_facts.nrr</span><span class="text-subtext"> = 180</span></div>
+<div class="nb-fn-row flex items-center gap-1.5 py-0.5 cursor-pointer hover:bg-surface0 rounded px-1" data-node="analysis.ai2ai_rules.retention-check" data-fn="18"><span class="text-[0.7em] font-mono w-4 text-right" style="color:var(--mauve)">18</span><span class="w-1.5 h-1.5 rounded-full bg-mauve shrink-0"></span><span class="font-medium" style="color:var(--mauve)">ai2ai_rules.retention-check</span><span class="text-subtext"> = true</span></div>
+<div class="nb-fn-row flex items-center gap-1.5 py-0.5 cursor-pointer hover:bg-surface0 rounded px-1" data-node="facts.ai2ai_facts.monthly-churn-pct" data-fn="19"><span class="text-[0.7em] font-mono w-4 text-right" style="color:var(--green)">19</span><span class="w-1.5 h-1.5 rounded-full bg-green shrink-0"></span><span class="font-medium" style="color:var(--green)">ai2ai_facts.monthly-churn-pct</span><span class="text-subtext"> = 1.40</span></div>
+<div class="nb-fn-row flex items-center gap-1.5 py-0.5 cursor-pointer hover:bg-surface0 rounded px-1" data-node="analysis.ai2ai_rules.churn-check" data-fn="20"><span class="text-[0.7em] font-mono w-4 text-right" style="color:var(--mauve)">20</span><span class="w-1.5 h-1.5 rounded-full bg-mauve shrink-0"></span><span class="font-medium" style="color:var(--mauve)">ai2ai_rules.churn-check</span><span class="text-subtext"> = true</span></div>
+<div class="nb-fn-row flex items-center gap-1.5 py-0.5 cursor-pointer hover:bg-surface0 rounded px-1" data-node="analysis.ai2ai_rules.arr-per-customer" data-fn="21"><span class="text-[0.7em] font-mono w-4 text-right" style="color:var(--blue)">21</span><span class="w-1.5 h-1.5 rounded-full bg-blue shrink-0"></span><span class="font-medium" style="color:var(--blue)">ai2ai_rules.arr-per-customer</span><span class="text-subtext"> = 65116.28</span></div>
+<div class="nb-fn-row flex items-center gap-1.5 py-0.5 cursor-pointer hover:bg-surface0 rounded px-1" data-node="facts.ai2ai_facts.grr" data-fn="22"><span class="text-[0.7em] font-mono w-4 text-right" style="color:var(--green)">22</span><span class="w-1.5 h-1.5 rounded-full bg-green shrink-0"></span><span class="font-medium" style="color:var(--green)">ai2ai_facts.grr</span><span class="text-subtext"> = 94</span></div>
+<div class="nb-fn-row flex items-center gap-1.5 py-0.5 cursor-pointer hover:bg-surface0 rounded px-1" data-node="facts.ai2ai_facts.active-pilots" data-fn="23"><span class="text-[0.7em] font-mono w-4 text-right" style="color:var(--green)">23</span><span class="w-1.5 h-1.5 rounded-full bg-green shrink-0"></span><span class="font-medium" style="color:var(--green)">ai2ai_facts.active-pilots</span><span class="text-subtext"> = 12</span></div>
+<div class="nb-fn-row flex items-center gap-1.5 py-0.5 cursor-pointer hover:bg-surface0 rounded px-1" data-node="facts.ai2ai_facts.pilot-conversion-pct" data-fn="24"><span class="text-[0.7em] font-mono w-4 text-right" style="color:var(--green)">24</span><span class="w-1.5 h-1.5 rounded-full bg-green shrink-0"></span><span class="font-medium" style="color:var(--green)">ai2ai_facts.pilot-conversion-pct</span><span class="text-subtext"> = 75</span></div>
+<div class="nb-fn-row flex items-center gap-1.5 py-0.5 cursor-pointer hover:bg-surface0 rounded px-1" data-node="analysis.ai2ai_rules.expected-pipeline-conversion" data-fn="25"><span class="text-[0.7em] font-mono w-4 text-right" style="color:var(--blue)">25</span><span class="w-1.5 h-1.5 rounded-full bg-blue shrink-0"></span><span class="font-medium" style="color:var(--blue)">ai2ai_rules.expected-pipeline-conversion</span><span class="text-subtext"> = 1.4M</span></div>
+<div class="nb-fn-row flex items-center gap-1.5 py-0.5 cursor-pointer hover:bg-surface0 rounded px-1" data-node="facts.ai2ai_facts.expansion-revenue" data-fn="26"><span class="text-[0.7em] font-mono w-4 text-right" style="color:var(--green)">26</span><span class="w-1.5 h-1.5 rounded-full bg-green shrink-0"></span><span class="font-medium" style="color:var(--green)">ai2ai_facts.expansion-revenue</span><span class="text-subtext"> = 1.2M</span></div>
+<div class="nb-fn-row flex items-center gap-1.5 py-0.5 cursor-pointer hover:bg-surface0 rounded px-1" data-node="analysis.ai2ai_rules.projected-arr-12mo" data-fn="27"><span class="text-[0.7em] font-mono w-4 text-right" style="color:var(--blue)">27</span><span class="w-1.5 h-1.5 rounded-full bg-blue shrink-0"></span><span class="font-medium" style="color:var(--blue)">ai2ai_rules.projected-arr-12mo</span><span class="text-subtext"> = 5.3M</span></div>
+<div class="nb-fn-row flex items-center gap-1.5 py-0.5 cursor-pointer hover:bg-surface0 rounded px-1" data-node="analysis.ai2ai_rules.pipeline-check" data-fn="28"><span class="text-[0.7em] font-mono w-4 text-right" style="color:var(--mauve)">28</span><span class="w-1.5 h-1.5 rounded-full bg-mauve shrink-0"></span><span class="font-medium" style="color:var(--mauve)">ai2ai_rules.pipeline-check</span><span class="text-subtext"> = true</span></div>
+<div class="nb-fn-row flex items-center gap-1.5 py-0.5 cursor-pointer hover:bg-surface0 rounded px-1" data-node="analysis.ai2ai_rules.dau-wau-ratio" data-fn="29"><span class="text-[0.7em] font-mono w-4 text-right" style="color:var(--blue)">29</span><span class="w-1.5 h-1.5 rounded-full bg-blue shrink-0"></span><span class="font-medium" style="color:var(--blue)">ai2ai_rules.dau-wau-ratio</span><span class="text-subtext"> = 51.79%</span></div>
+<div class="nb-fn-row flex items-center gap-1.5 py-0.5 cursor-pointer hover:bg-surface0 rounded px-1" data-node="analysis.ai2ai_rules.engagement-check" data-fn="30"><span class="text-[0.7em] font-mono w-4 text-right" style="color:var(--mauve)">30</span><span class="w-1.5 h-1.5 rounded-full bg-mauve shrink-0"></span><span class="font-medium" style="color:var(--mauve)">ai2ai_rules.engagement-check</span><span class="text-subtext"> = true</span></div>
+<div class="nb-fn-row flex items-center gap-1.5 py-0.5 cursor-pointer hover:bg-surface0 rounded px-1" data-node="analysis.ai2ai_rules.reviews-per-dau" data-fn="31"><span class="text-[0.7em] font-mono w-4 text-right" style="color:var(--blue)">31</span><span class="w-1.5 h-1.5 rounded-full bg-blue shrink-0"></span><span class="font-medium" style="color:var(--blue)">ai2ai_rules.reviews-per-dau</span><span class="text-subtext"> = 42.76</span></div>
+<div class="nb-fn-row flex items-center gap-1.5 py-0.5 cursor-pointer hover:bg-surface0 rounded px-1" data-node="facts.ai2ai_facts.monthly-rule-evals" data-fn="32"><span class="text-[0.7em] font-mono w-4 text-right" style="color:var(--green)">32</span><span class="w-1.5 h-1.5 rounded-full bg-green shrink-0"></span><span class="font-medium" style="color:var(--green)">ai2ai_facts.monthly-rule-evals</span><span class="text-subtext"> = 340,000</span></div>
+<div class="nb-fn-row flex items-center gap-1.5 py-0.5 cursor-pointer hover:bg-surface0 rounded px-1" data-node="facts.ai2ai_facts.pre-money" data-fn="33"><span class="text-[0.7em] font-mono w-4 text-right" style="color:var(--green)">33</span><span class="w-1.5 h-1.5 rounded-full bg-green shrink-0"></span><span class="font-medium" style="color:var(--green)">ai2ai_facts.pre-money</span><span class="text-subtext"> = 55.0M</span></div>
+<div class="nb-fn-row flex items-center gap-1.5 py-0.5 cursor-pointer hover:bg-surface0 rounded px-1" data-node="analysis.ai2ai_rules.arr-multiple" data-fn="34"><span class="text-[0.7em] font-mono w-4 text-right" style="color:var(--blue)">34</span><span class="w-1.5 h-1.5 rounded-full bg-blue shrink-0"></span><span class="font-medium" style="color:var(--blue)">ai2ai_rules.arr-multiple</span><span class="text-subtext"> = 19.64</span></div>
+<div class="nb-fn-row flex items-center gap-1.5 py-0.5 cursor-pointer hover:bg-surface0 rounded px-1" data-node="analysis.ai2ai_rules.valuation-check" data-fn="35"><span class="text-[0.7em] font-mono w-4 text-right" style="color:var(--mauve)">35</span><span class="w-1.5 h-1.5 rounded-full bg-mauve shrink-0"></span><span class="font-medium" style="color:var(--mauve)">ai2ai_rules.valuation-check</span><span class="text-subtext"> = true</span></div>
+<div class="nb-fn-row flex items-center gap-1.5 py-0.5 cursor-pointer hover:bg-surface0 rounded px-1" data-node="facts.ai2ai_facts.dilution-pct" data-fn="36"><span class="text-[0.7em] font-mono w-4 text-right" style="color:var(--green)">36</span><span class="w-1.5 h-1.5 rounded-full bg-green shrink-0"></span><span class="font-medium" style="color:var(--green)">ai2ai_facts.dilution-pct</span><span class="text-subtext"> = 24.70</span></div>
+<div class="nb-fn-row flex items-center gap-1.5 py-0.5 cursor-pointer hover:bg-surface0 rounded px-1" data-node="facts.ai2ai_facts.eng-headcount" data-fn="37"><span class="text-[0.7em] font-mono w-4 text-right" style="color:var(--green)">37</span><span class="w-1.5 h-1.5 rounded-full bg-green shrink-0"></span><span class="font-medium" style="color:var(--green)">ai2ai_facts.eng-headcount</span><span class="text-subtext"> = 28</span></div>
+<div class="nb-fn-row flex items-center gap-1.5 py-0.5 cursor-pointer hover:bg-surface0 rounded px-1" data-node="facts.ai2ai_facts.eng-target-12mo" data-fn="38"><span class="text-[0.7em] font-mono w-4 text-right" style="color:var(--green)">38</span><span class="w-1.5 h-1.5 rounded-full bg-green shrink-0"></span><span class="font-medium" style="color:var(--green)">ai2ai_facts.eng-target-12mo</span><span class="text-subtext"> = 42</span></div>
+<div class="nb-fn-row flex items-center gap-1.5 py-0.5 cursor-pointer hover:bg-surface0 rounded px-1" data-node="analysis.ai2ai_rules.sales-efficiency" data-fn="39"><span class="text-[0.7em] font-mono w-4 text-right" style="color:var(--blue)">39</span><span class="w-1.5 h-1.5 rounded-full bg-blue shrink-0"></span><span class="font-medium" style="color:var(--blue)">ai2ai_rules.sales-efficiency</span><span class="text-subtext"> = 2</span></div>
+<div class="nb-fn-row flex items-center gap-1.5 py-0.5 cursor-pointer hover:bg-surface0 rounded px-1" data-node="analysis.ai2ai_rules.burn-multiple" data-fn="40"><span class="text-[0.7em] font-mono w-4 text-right" style="color:var(--blue)">40</span><span class="w-1.5 h-1.5 rounded-full bg-blue shrink-0"></span><span class="font-medium" style="color:var(--blue)">ai2ai_rules.burn-multiple</span><span class="text-subtext"> = 1.55</span></div></div>
 <div class="mt-8 border border-surface1 rounded-lg overflow-hidden bg-mantle"><div class="px-4 py-2 flex items-center gap-3"><span class="text-mauve font-bold">Diagnostics</span><span class="text-xs"><span class="text-yellow">8 warnings</span> &middot; <span class="text-subtext">34 info</span></span></div>
 <div class="border-t border-surface1">
   <div class="nb-block-header px-4 py-1.5 flex items-center gap-2 cursor-pointer select-none hover:bg-surface0">
@@ -426,6 +476,23 @@ function refreshPalette() {
     'teal','peach','flamingo','sky','lavender','patronus'];
   names.forEach(n => { C[n] = getColor(n); });
   C.pill = getColor('base-light') || C.surface0;
+  // Patronus palette — diff nodes
+  C.patronusCore = getColor('patronus-core');
+  C.patronusGlow = getColor('patronus-glow');
+  C.patronusGlowOuter = getColor('patronus-glow-outer');
+  C.patronusHighlight = getColor('patronus-highlight');
+  C.patronusLine = getColor('patronus-line');
+  C.patronusTextPrimary = getColor('patronus-text-primary');
+  C.patronusTextSecondary = getColor('patronus-text-secondary');
+  C.patronusTextMuted = getColor('patronus-text-muted');
+  // Tainted (divergent) — patronus + red
+  C.patronusTaintCore = getColor('patronus-taint-core');
+  C.patronusTaintGlow = getColor('patronus-taint-glow');
+  C.patronusTaintOuter = getColor('patronus-taint-outer');
+  // Warn (contaminated) — patronus + yellow
+  C.patronusWarnCore = getColor('patronus-warn-core');
+  C.patronusWarnGlow = getColor('patronus-warn-glow');
+  C.patronusWarnOuter = getColor('patronus-warn-outer');
 }
 refreshPalette();
 
@@ -517,11 +584,14 @@ function _updateSuggestions(query) {
     const dotVar = KIND_DOT_VAR[kind] || 'surface2';
     const short = name.includes('.') ? name.split('.').slice(1).join('.') : name;
     const val = item && item.value ? (' = ' + esc(String(item.value).slice(0, 30))) : '';
+    const nameFill = diffTextPrimary(name) || '';
+    const kindFill = diffTextSecondary(name) || '';
+    const valFill = diffTextMuted(name) || '';
     return `<div class="search-suggestion px-3 py-1.5 cursor-pointer hover:bg-surface0 flex items-center gap-2 text-sm" data-name="${esc(name)}">
       <span class="w-2 h-2 rounded-full shrink-0" style="background:var(--${dotVar})"></span>
-      <span class="text-text truncate">${esc(short)}</span>
-      <span class="text-overlay0 text-xs truncate">${esc(kind)}</span>
-      <span class="text-subtext text-xs ml-auto shrink-0">${val}</span>
+      <span class="truncate" style="${nameFill ? 'color:'+nameFill : ''}">${esc(short)}</span>
+      <span class="text-xs truncate" style="${kindFill ? 'color:'+kindFill : 'color:var(--overlay0)'}">${esc(kind)}</span>
+      <span class="text-xs ml-auto shrink-0" style="${valFill ? 'color:'+valFill : 'color:var(--subtext)'}">${val}</span>
     </div>`;
   }).join('');
   suggestionsEl.classList.remove('hidden');
@@ -628,6 +698,50 @@ function filtered(source) {
 const ITEM_BY_ID = {};
 DATA.forEach(d => { if (d.id) ITEM_BY_ID[d.id] = d; });
 STRUCTURE_DATA.forEach(d => { if (d.id) ITEM_BY_ID[d.id] = d; });
+
+// ── Diff state map: id → 'coherent' | 'tainted' | 'warn' ──
+const DIFF_STATE = {};
+DATA.forEach(d => {
+  if (d.kind === 'diff' && d.diff) {
+    const df = d.diff;
+    if (df.coherent) {
+      DIFF_STATE[d.id] = (df.contaminated && Object.keys(df.contaminated).length) ? 'warn' : 'coherent';
+    } else {
+      DIFF_STATE[d.id] = 'tainted';
+    }
+  }
+});
+
+// ── State-aware text colors for diff nodes (color-mixed, not raw alert) ──
+// Returns CSS color value. null for non-diffs.
+function diffTextPrimary(id) {
+  const st = DIFF_STATE[id];
+  if (!st) return null;
+  if (st === 'coherent') return 'var(--patronus-text-primary)';
+  if (st === 'tainted') return 'var(--patronus-taint-core)';
+  return 'var(--patronus-warn-core)';  // warn
+}
+function diffTextSecondary(id) {
+  const st = DIFF_STATE[id];
+  if (!st) return null;
+  if (st === 'coherent') return 'var(--patronus-text-secondary)';
+  if (st === 'tainted') return 'var(--patronus-taint-glow)';
+  return 'var(--patronus-warn-glow)';  // warn
+}
+function diffTextMuted(id) {
+  const st = DIFF_STATE[id];
+  if (!st) return null;
+  if (st === 'coherent') return 'var(--patronus-text-muted)';
+  if (st === 'tainted') return 'var(--patronus-taint-outer)';
+  return 'var(--patronus-warn-outer)';  // warn
+}
+function diffBorderColor(id) {
+  const st = DIFF_STATE[id];
+  if (!st) return null;
+  if (st === 'coherent') return 'var(--patronus-line)';
+  if (st === 'tainted') return 'var(--patronus-taint-outer)';
+  return 'var(--patronus-warn-outer)';  // warn
+}
 
 function highlightInput(name) {
   searchEl.value = name;
@@ -938,6 +1052,35 @@ function render() {
         const verified = hasEv && d.evidence[0].verified;
         const taintTag = isTaintSource ? '<span class="text-red">&#x2716; taint source</span>'
           : isTainted ? '<span class="text-yellow">&#x26a0; tainted</span>' : '';
+
+        // Diff cards get patronus dot + state-aware styling (color-mixed)
+        if (kind === 'diff' && d.diff) {
+          const df = d.diff;
+          const contKeys = df.contaminated ? Object.keys(df.contaminated) : [];
+          const dotCls = df.coherent ? (contKeys.length ? 'warn' : '') : 'tainted';
+          const stIcon = df.coherent ? '&#x2713;' : '&#x2260;';
+          const stLabel = df.coherent ? 'coherent' : 'divergent';
+          const pri = diffTextPrimary(d.id);
+          const sec = diffTextSecondary(d.id);
+          const mut = diffTextMuted(d.id);
+          const brd = diffBorderColor(d.id);
+          card.style.borderColor = brd;
+          card.innerHTML = `
+            <div class="flex items-start justify-between gap-2 mb-1">
+              <div class="flex items-center gap-2">
+                <div class="patronus-dot w-3 h-3 ${dotCls}"></div>
+                <span class="text-xs font-bold truncate" style="color:${pri}" title="${esc(name)}">${esc(short)}</span>
+              </div>
+              <span class="shrink-0 px-1.5 py-0.5 rounded text-[10px] font-bold ${kindColor(kind)} text-crust">${esc(kind)}</span>
+            </div>
+            <div class="text-xs truncate mb-1" style="color:${mut}">${esc(df.replace)} → ${esc(df['with'])}</div>
+            <div class="flex items-center gap-2 text-[10px]">
+              <span style="color:${sec}">${stIcon} ${stLabel}</span>
+              ${d.depth > 0 ? `<span class="text-overlay0">depth ${d.depth}</span>` : ''}
+              ${taintTag}
+            </div>
+          `;
+        } else {
         card.innerHTML = `
           <div class="flex items-start justify-between gap-2 mb-1">
             <span class="text-xs font-bold text-text truncate" title="${esc(name)}">${esc(short)}</span>
@@ -951,6 +1094,7 @@ function render() {
             ${taintTag}
           </div>
         `;
+        }
       } else if (FORM_TYPE === 'sr') {
         card.innerHTML = `
           <div class="flex items-center gap-2 mb-1">
@@ -1114,32 +1258,43 @@ function showDetail(d) {
     }
     html += `<div><span class="text-overlay0">name:</span> <span class="text-text font-bold">${esc(d.id)}</span></div>`;
     html += `<div><span class="text-overlay0">kind:</span> <span class="${kindText(d.kind)} font-bold">${esc(d.kind)}</span></div>`;
-    // ── Diff-specific rendering ──
+    // ── Diff-specific rendering (color-mixed patronus palette) ──
     if (d.kind === 'diff' && d.diff) {
       const df = d.diff;
-      const icon = df.coherent ? '&#x2713;' : '&#x2260;';
-      const stCls = df.coherent ? 'text-green' : 'text-red';
-      const stLabel = df.coherent ? 'Coherent' : 'Divergent';
-      html += `<div class="mt-1 flex items-center gap-2"><span class="${stCls} font-bold">${icon} ${stLabel}</span></div>`;
-      html += `<div class="mt-2 bg-crust rounded-lg p-3 space-y-2">`;
+      const contKeys = df.contaminated ? Object.keys(df.contaminated) : [];
+      const hasContOnly = df.coherent && contKeys.length > 0;
+      const pri = diffTextPrimary(d.id);
+      const sec = diffTextSecondary(d.id);
+      const mut = diffTextMuted(d.id);
+      const brd = diffBorderColor(d.id);
+      let icon, stLabel;
+      if (df.coherent && !hasContOnly) {
+        icon = '&#x2713;'; stLabel = 'Coherent';
+      } else if (hasContOnly) {
+        icon = '&#x26a0;'; stLabel = 'Coherent (contaminated)';
+      } else {
+        icon = '&#x2260;'; stLabel = 'Divergent';
+      }
+      html += `<div class="mt-1 flex items-center gap-2"><span class="font-bold" style="color:${pri}">${icon} ${stLabel}</span></div>`;
+      html += `<div class="mt-2 rounded-lg p-3 space-y-2" style="background:var(--crust);border:1px solid ${brd}">`;
       // Branch A (replace)
       html += `<div class="flex items-center gap-2">`;
-      html += `<span class="text-overlay0 text-[10px] w-14 shrink-0">replace</span>`;
-      html += `<span class="text-text font-bold cursor-pointer hover:text-mauve" onclick="showDetail(ITEM_BY_ID['${(df.replace||'').replace(/'/g, "\\'")}'])">${esc(df.replace)}</span>`;
-      if (df.value_a != null) html += `<span class="text-subtext text-xs">= ${esc(df.value_a)}</span>`;
+      html += `<span class="text-[10px] w-14 shrink-0" style="color:${mut}">replace</span>`;
+      html += `<span class="font-bold cursor-pointer hover:text-mauve" style="color:${pri}" onclick="showDetail(ITEM_BY_ID['${(df.replace||'').replace(/'/g, "\\'")}'])">${esc(df.replace)}</span>`;
+      if (df.value_a != null) html += `<span class="text-xs" style="color:${sec}">= ${esc(df.value_a)}</span>`;
       html += `</div>`;
       // Branch B (with)
       html += `<div class="flex items-center gap-2">`;
-      html += `<span class="text-overlay0 text-[10px] w-14 shrink-0">with</span>`;
-      html += `<span class="text-text font-bold cursor-pointer hover:text-mauve" onclick="showDetail(ITEM_BY_ID['${(df['with']||'').replace(/'/g, "\\'")}'])">${esc(df['with'])}</span>`;
-      if (df.value_b != null) html += `<span class="text-subtext text-xs">= ${esc(df.value_b)}</span>`;
+      html += `<span class="text-[10px] w-14 shrink-0" style="color:${mut}">with</span>`;
+      html += `<span class="font-bold cursor-pointer hover:text-mauve" style="color:${pri}" onclick="showDetail(ITEM_BY_ID['${(df['with']||'').replace(/'/g, "\\'")}'])">${esc(df['with'])}</span>`;
+      if (df.value_b != null) html += `<span class="text-xs" style="color:${sec}">= ${esc(df.value_b)}</span>`;
       html += `</div>`;
       // Divergences — downstream terms that change under substitution
       if (df.divergences) {
         const divKeys = Object.keys(df.divergences);
         if (divKeys.length) {
-          html += `<div class="border-t border-surface2 pt-2 mt-2">`;
-          html += `<div class="text-red text-[10px] font-bold mb-1">Downstream divergences (${divKeys.length})</div>`;
+          html += `<div class="border-t pt-2 mt-2" style="border-color:${brd}">`;
+          html += `<div class="text-[10px] font-bold mb-1" style="color:${pri}">Downstream divergences (${divKeys.length})</div>`;
           divKeys.forEach(k => {
             const dv = df.divergences[k];
             const nameSpan = ITEM_BY_ID[k]
@@ -1147,15 +1302,33 @@ function showDetail(d) {
               : `<span class="text-text">${esc(k)}</span>`;
             if (dv && dv.before !== undefined) {
               html += `<div class="text-xs mt-1">${nameSpan}</div>`;
-              html += `<div class="text-[10px] ml-3 text-subtext">${esc(dv.before)} <span class="text-red">&rarr;</span> ${esc(dv.after)}</div>`;
+              html += `<div class="text-[10px] ml-3 text-subtext">${esc(dv.before)} <span style="color:${pri}">&rarr;</span> ${esc(dv.after)}</div>`;
             } else {
-              html += `<div class="text-xs mt-1">${nameSpan}: <span class="text-red">${esc(String(dv))}</span></div>`;
+              html += `<div class="text-xs mt-1">${nameSpan}: <span style="color:${pri}">${esc(String(dv))}</span></div>`;
             }
           });
           html += `</div>`;
         } else if (df.coherent) {
-          html += `<div class="border-t border-surface2 pt-2 mt-2">`;
-          html += `<div class="text-green text-[10px]">No downstream divergences</div>`;
+          html += `<div class="border-t pt-2 mt-2" style="border-color:${brd}">`;
+          html += `<div class="text-[10px]" style="color:${sec}">&#x2713; No downstream divergences</div>`;
+          html += `</div>`;
+        }
+      }
+      // Contaminated — other diffs reference the same replace side (warning, not failure)
+      if (df.contaminated) {
+        const contKeys = Object.keys(df.contaminated);
+        if (contKeys.length) {
+          html += `<div class="border-t pt-2 mt-2" style="border-color:${brd}">`;
+          html += `<div class="text-[10px] font-bold mb-1" style="color:${pri}">Contaminated diffs (${contKeys.length})</div>`;
+          html += `<div class="text-[10px] mb-1" style="color:${mut}">Other diffs reference the same replace side — not a real value divergence.</div>`;
+          contKeys.forEach(k => {
+            const cv = df.contaminated[k];
+            const nameSpan = ITEM_BY_ID[k]
+              ? `<span class="text-text font-bold cursor-pointer hover:text-mauve" onclick="showDetail(ITEM_BY_ID['${k.replace(/'/g, "\\'")}'])">${esc(k)}</span>`
+              : `<span class="text-text">${esc(k)}</span>`;
+            html += `<div class="text-xs mt-1">${nameSpan}</div>`;
+            html += `<div class="text-[10px] ml-3" style="color:${mut}">${esc(cv.before)}</div>`;
+          });
           html += `</div>`;
         }
       }
@@ -1365,7 +1538,7 @@ function renderGraph() {
     });
   });
 
-  const TYPE_COLOR = {'use':C.green,'declare':C.overlay0,'pull':C.blue,'axiom-ref':C.peach};
+  const TYPE_COLOR = {'use':C.green,'declare':C.overlay0,'pull':C.blue,'axiom-ref':C.peach,'diff':C.patronusGlow};
 
   // ── Identify dangling nodes (no edges) ──
   const connectedSet = new Set();
@@ -1445,6 +1618,42 @@ function renderGraph() {
   const PAD_LEFT = 80;
   const DANGLE_X = PAD_LEFT + (maxDepth + 2) * BAND_W;
 
+  // ── SVG defs for diff (patronus) nodes ──
+  const defs = svg.append("defs");
+
+  // Radial gradients — matching the CSS .patronus-dot::after
+  function _addGrad(id, highlight, core, outer) {
+    const g = defs.append("radialGradient").attr("id", id).attr("cx", "35%").attr("cy", "35%");
+    g.append("stop").attr("offset", "0%").attr("stop-color", highlight);
+    g.append("stop").attr("offset", "50%").attr("stop-color", core);
+    g.append("stop").attr("offset", "100%").attr("stop-color", outer);
+  }
+  _addGrad("patronus-coherent", C.patronusHighlight, C.patronusCore, C.patronusGlowOuter);
+  _addGrad("patronus-tainted", C.red, C.patronusTaintCore, C.patronusTaintOuter);
+  _addGrad("patronus-warn", C.yellow, C.patronusWarnCore, C.patronusWarnOuter);
+
+  // Outer glow gradients — matching .patronus-dot::before
+  function _addGlowGrad(id, glow, outer) {
+    const g = defs.append("radialGradient").attr("id", id);
+    g.append("stop").attr("offset", "0%").attr("stop-color", glow).attr("stop-opacity", 1);
+    g.append("stop").attr("offset", "40%").attr("stop-color", outer).attr("stop-opacity", 0.6);
+    g.append("stop").attr("offset", "70%").attr("stop-color", outer).attr("stop-opacity", 0);
+    g.append("stop").attr("offset", "100%").attr("stop-color", outer).attr("stop-opacity", 0);
+  }
+  _addGlowGrad("patronus-glow-coherent", C.patronusGlow, C.patronusGlowOuter);
+  _addGlowGrad("patronus-glow-tainted", C.patronusTaintGlow, C.patronusTaintOuter);
+  _addGlowGrad("patronus-glow-warn", C.patronusWarnGlow, C.patronusWarnOuter);
+
+  // Use shared DIFF_STATE from core.js
+  function diffFillUrl(id) {
+    const st = DIFF_STATE[id] || 'coherent';
+    return `url(#patronus-${st})`;
+  }
+  function diffGlowUrl(id) {
+    const st = DIFF_STATE[id] || 'coherent';
+    return `url(#patronus-glow-${st})`;
+  }
+
   // ── Dangling kind bands (group by type on Y axis) ──
   const danglingKinds = [...new Set(nodes.filter(n => n.dangling).map(n => n.kind))].sort();
   const DANGLE_BAND_H = danglingKinds.length > 1 ? height / (danglingKinds.length + 1) : height;
@@ -1452,18 +1661,21 @@ function renderGraph() {
   danglingKinds.forEach((k, i) => { danglingKindY[k] = (i + 1) * DANGLE_BAND_H; });
 
   // ── Force simulation ──
+  const DIFF_Y = height + 120;  // push diff nodes below main structure
   const sim = d3.forceSimulation(nodes)
     .force("link", d3.forceLink(links).id(d => d.id).distance(80).strength(0.3))
     .force("charge", d3.forceManyBody().strength(-200))
     .force("collide", d3.forceCollide().radius(28))
     .force("depthX", d3.forceX(d => {
       if (d.dangling) return DANGLE_X;
+      if (d.kind === 'diff') return PAD_LEFT + maxDepth * BAND_W;  // right side
       return PAD_LEFT + d.depth * BAND_W;
-    }).strength(d => d.dangling ? 0.8 : 0.85))
+    }).strength(d => d.dangling ? 0.8 : d.kind === 'diff' ? 0.9 : 0.85))
     .force("centerY", d3.forceY(d => {
       if (d.dangling) return danglingKindY[d.kind] || height / 2;
+      if (d.kind === 'diff') return DIFF_Y;
       return height / 2;
-    }).strength(d => d.dangling ? 0.3 : 0.05));
+    }).strength(d => d.dangling ? 0.3 : d.kind === 'diff' ? 0.7 : 0.05));
 
   // ── Draw edges ──
   const linkG = gRoot.append("g");
@@ -1485,8 +1697,34 @@ function renderGraph() {
   const node = nodeG.selectAll("g")
     .data(nodes).join("g").attr("class", "cursor-pointer");
 
-  // Node circles — smaller for dangling
-  node.append("circle")
+  // Diff glow — ::before equivalent. Covers full area, core sits on top.
+  const DIFF_R = NODE_R * 1.4;   // core radius (::after inset 15% of full)
+  const GLOW_R = DIFF_R * 2.5;   // glow radius — large enough to be visible around core
+  const diffGlow = node.filter(d => d.kind === 'diff').append("circle")
+    .attr("r", GLOW_R)
+    .attr("fill", d => diffGlowUrl(d.id))
+    .attr("opacity", 0.55);
+  // Pulse animation via SVG <animate>
+  diffGlow.each(function() {
+    const el = d3.select(this);
+    el.append("animate").attr("attributeName", "r")
+      .attr("values", `${GLOW_R*0.85};${GLOW_R*1.15};${GLOW_R*0.85}`)
+      .attr("dur", "3s").attr("repeatCount", "indefinite");
+    el.append("animate").attr("attributeName", "opacity")
+      .attr("values", "0.55;0.35;0.55")
+      .attr("dur", "3s").attr("repeatCount", "indefinite");
+  });
+
+  // Diff core — ::after equivalent, sits on top of glow, no stroke
+  node.filter(d => d.kind === 'diff').append("circle")
+    .attr("class", "node-dot")
+    .attr("r", DIFF_R)
+    .attr("fill", d => diffFillUrl(d.id))
+    .attr("stroke", "none");
+
+  // Node circles — regular nodes (not diff)
+  node.filter(d => d.kind !== 'diff').append("circle")
+    .attr("class", "node-dot")
     .attr("r", d => d.dangling ? DANGLE_R : NODE_R)
     .attr("fill", d => d.color)
     .attr("stroke", d => d.dangling ? C.base : C.surface0)
@@ -1534,10 +1772,12 @@ function renderGraph() {
   const tooltip = d3.select("#tooltip");
 
   function applySelectionVisuals(path, focusId) {
-    node.select("circle")
+    node.select(".node-dot")
       .attr("opacity", n => path.has(n.id) ? 1 : 0.08)
-      .attr("stroke", n => n.id === focusId ? C.mauve : (n.dangling ? C.base : C.surface0))
-      .attr("stroke-width", n => n.id === focusId ? 3 : (n.dangling ? 0.5 : 1.5));
+      .attr("stroke", n => n.kind === 'diff' ? 'none' : (n.id === focusId ? C.mauve : (n.dangling ? C.base : C.surface0)))
+      .attr("stroke-width", n => n.kind === 'diff' ? 0 : (n.id === focusId ? 3 : (n.dangling ? 0.5 : 1.5)));
+    // Dim diff glow circles too
+    diffGlow.attr("opacity", d => path.has(d.id) ? 0.55 : 0.08);
     node.select("text").attr("opacity", n => path.has(n.id) ? 1 : 0.05);
     link.attr("stroke-opacity", l => path.has(l.source.id) && path.has(l.target.id) ? 0.8 : 0.03)
         .attr("stroke-width", l => path.has(l.source.id) && path.has(l.target.id) ? 2 : 0.5);
@@ -1545,24 +1785,27 @@ function renderGraph() {
 
   function clearSelectionVisuals() {
     link.attr("stroke-opacity", 0.35).attr("stroke-width", 1);
-    node.select("circle")
+    node.select(".node-dot")
       .attr("opacity", d => d.dangling ? 0.5 : 1)
-      .attr("stroke", d => d.dangling ? C.base : C.surface0)
-      .attr("stroke-width", d => d.dangling ? 0.5 : 1.5);
+      .attr("stroke", d => d.kind === 'diff' ? 'none' : (d.dangling ? C.base : C.surface0))
+      .attr("stroke-width", d => d.kind === 'diff' ? 0 : (d.dangling ? 0.5 : 1.5));
+    diffGlow.attr("opacity", 0.55);
     node.select("text").attr("opacity", 1);
   }
 
   function applyTaintVisuals() {
     const allTainted = new Set([...taintSources, ...taintPropagated]);
-    node.select("circle")
+    node.select(".node-dot")
       .attr("fill", n => {
+        if (n.kind === 'diff') return diffFillUrl(n.id);  // diffs keep their gradient
         if (taintSources.has(n.id)) return C.red;
         if (taintPropagated.has(n.id)) return C.yellow;
         return n.color;
       })
       .attr("opacity", n => allTainted.has(n.id) ? 1 : 0.15)
-      .attr("stroke", n => taintSources.has(n.id) ? C.red : (taintPropagated.has(n.id) ? C.yellow : (n.dangling ? C.base : C.surface0)))
-      .attr("stroke-width", n => (taintSources.has(n.id) || taintPropagated.has(n.id)) ? 2 : (n.dangling ? 0.5 : 1.5));
+      .attr("stroke", n => n.kind === 'diff' ? 'none' : (taintSources.has(n.id) ? C.red : (taintPropagated.has(n.id) ? C.yellow : (n.dangling ? C.base : C.surface0))))
+      .attr("stroke-width", n => n.kind === 'diff' ? 0 : ((taintSources.has(n.id) || taintPropagated.has(n.id)) ? 2 : (n.dangling ? 0.5 : 1.5)));
+    diffGlow.attr("opacity", d => allTainted.has(d.id) ? 0.55 : 0.08);
     node.select("text").attr("opacity", n => allTainted.has(n.id) ? 1 : 0.05);
     link.attr("stroke-opacity", l => {
       const s = allTainted.has(l.source.id), t = allTainted.has(l.target.id);
@@ -1577,11 +1820,12 @@ function renderGraph() {
   }
 
   function clearTaintVisuals() {
-    node.select("circle")
-      .attr("fill", d => d.color)
+    node.select(".node-dot")
+      .attr("fill", d => d.kind === 'diff' ? diffFillUrl(d.id) : d.color)
       .attr("opacity", d => d.dangling ? 0.5 : 1)
-      .attr("stroke", d => d.dangling ? C.base : C.surface0)
-      .attr("stroke-width", d => d.dangling ? 0.5 : 1.5);
+      .attr("stroke", d => d.kind === 'diff' ? 'none' : (d.dangling ? C.base : C.surface0))
+      .attr("stroke-width", d => d.kind === 'diff' ? 0 : (d.dangling ? 0.5 : 1.5));
+    diffGlow.attr("opacity", 0.55);
     node.select("text").attr("opacity", 1);
     link.attr("stroke", l => {
       const sid = l.source.id, tid = l.target.id;
@@ -1617,12 +1861,12 @@ function renderGraph() {
     tooltip.html(html).classed("hidden", false)
       .style("left", (e.pageX + 12) + "px").style("top", (e.pageY - 8) + "px");
     if (!selectedPath && !taintMode) {
+      const isNeighbor = n => n.id === d.id || links.some(l => (l.source.id === d.id && l.target.id === n.id) || (l.target.id === d.id && l.source.id === n.id));
       link.attr("stroke-opacity", l => (l.source.id === d.id || l.target.id === d.id) ? 0.9 : 0.1)
           .attr("stroke-width", l => (l.source.id === d.id || l.target.id === d.id) ? 2.5 : 0.5);
-      node.select("circle").attr("opacity", n =>
-        n.id === d.id || links.some(l => (l.source.id === d.id && l.target.id === n.id) || (l.target.id === d.id && l.source.id === n.id)) ? 1 : 0.15);
-      node.select("text").attr("opacity", n =>
-        n.id === d.id || links.some(l => (l.source.id === d.id && l.target.id === n.id) || (l.target.id === d.id && l.source.id === n.id)) ? 1 : 0.15);
+      node.select(".node-dot").attr("opacity", n => isNeighbor(n) ? 1 : 0.15);
+      diffGlow.attr("opacity", n => isNeighbor(n) ? 0.55 : 0.08);
+      node.select("text").attr("opacity", n => isNeighbor(n) ? 1 : 0.15);
     }
   }).on("mouseout", () => {
     tooltip.classed("hidden", true);
@@ -1847,6 +2091,19 @@ function renderGraph() {
 
 
 // ── Layers View: stacked pills with curved connections ──
+
+// State-aware text/stroke for diff pills (color-mixed patronus palette)
+function _pillTextFill(name, kind) {
+  return diffTextPrimary(name) || C.text;
+}
+function _pillStroke(name, kind) {
+  if (kind !== 'diff') return kindDot(kind);
+  const st = DIFF_STATE[name];
+  if (!st || st === 'coherent') return C.patronusLine;
+  if (st === 'tainted') return C.patronusTaintOuter;
+  return C.patronusWarnOuter;  // warn
+}
+
 let layersInitialized = false;
 let focusedId = null;
 const _expandedPrefixes = new Set();  // tracks which prefix groups are expanded (persists across re-renders)
@@ -2482,7 +2739,7 @@ function renderLayers() {
 
     pg.append("rect")
       .attr("width", p.w).attr("height", PH).attr("rx", 14)
-      .attr("fill", C.surface0).attr("stroke", kindDot(n.kind)).attr("stroke-width", 1.5);
+      .attr("fill", C.surface0).attr("stroke", _pillStroke(name, n.kind)).attr("stroke-width", 1.5);
     pg.append("circle")
       .attr("cx", 12).attr("cy", PH / 2).attr("r", 4).attr("fill", kindDot(n.kind));
 
@@ -2491,7 +2748,7 @@ function renderLayers() {
     const maxCh = Math.floor((p.w - 28) / 6);
     pg.append("text")
       .attr("x", 22).attr("y", PH / 2 + 1).attr("dominant-baseline", "middle")
-      .attr("fill", C.text).attr("font-size", "10px")
+      .attr("fill", _pillTextFill(name, n.kind)).attr("font-size", "10px")
       .text((short + valS).slice(0, maxCh));
 
     pg.on("mouseover", (ev) => {
@@ -2753,7 +3010,7 @@ function renderLayers() {
       const n = nodeData[name];
       const p = pos[name];
       if (n && p && !p.hanging) {
-        el.select("rect").attr("stroke", kindDot(n.kind)).attr("stroke-width", 1.5).attr("stroke-dasharray", "none");
+        el.select("rect").attr("stroke", _pillStroke(name, n.kind)).attr("stroke-width", 1.5).attr("stroke-dasharray", "none");
       } else if (p && p.hanging) {
         el.select("rect").attr("stroke", C.surface2).attr("stroke-width", 1).attr("stroke-dasharray", "4,2");
       }
@@ -2800,7 +3057,7 @@ function renderLayers() {
       const el = d3.select(this);
       const name = el.attr("data-name");
       const n = nodeData[name];
-      el.select("rect").attr("stroke", kindDot(n ? n.kind : '')).attr("stroke-width", 1.5).attr("stroke-dasharray", "none");
+      el.select("rect").attr("stroke", n ? _pillStroke(name, n.kind) : kindDot('')).attr("stroke-width", 1.5).attr("stroke-dasharray", "none");
     });
     focusG.selectAll(".fpill-input").each(function() {
       const el = d3.select(this);
@@ -3128,13 +3385,13 @@ function renderLayers() {
       const pg = focusG.append("g").attr("transform", `translate(${p.x},${p.y})`).attr("class", "cursor-pointer fpill-result").attr("data-name", n.name);
       pg.append("rect").attr("width", p.w).attr("height", PH).attr("rx", 14)
         .attr("fill", isFocused ? C.surface1 : C.surface0)
-        .attr("stroke", isFocused ? C.mauve : kindDot(n.kind))
+        .attr("stroke", isFocused ? C.mauve : _pillStroke(n.name, n.kind))
         .attr("stroke-width", isFocused ? 3 : 1.5);
       pg.append("circle").attr("cx", 12).attr("cy", PH / 2).attr("r", 4).attr("fill", kindDot(n.kind));
       const short = n.name.includes('.') ? n.name.split('.').slice(1).join('.') : n.name;
       const maxCh = Math.floor((p.w - 28) / 6);
       pg.append("text").attr("x", 22).attr("y", PH / 2 + 1).attr("dominant-baseline", "middle")
-        .attr("fill", C.text).attr("font-size", "10px")
+        .attr("fill", _pillTextFill(n.name, n.kind)).attr("font-size", "10px")
         .text((short + (n.value ? ' =' + String(n.value).slice(0,15) : '')).slice(0, maxCh));
       pg.on("click", (ev) => {
         ev.stopPropagation();
@@ -3183,7 +3440,7 @@ function renderLayers() {
       const el = d3.select(this);
       const name = el.attr("data-name");
       const n = nodeData[name];
-      el.select("rect").attr("stroke-width", 1.5).attr("stroke", kindDot(n ? n.kind : ''));
+      el.select("rect").attr("stroke-width", 1.5).attr("stroke", n ? _pillStroke(name, n.kind) : kindDot(''));
     });
     g.selectAll(".pill-input").attr("opacity", 1);
     edgeEls.forEach(el => {
