@@ -68,6 +68,12 @@ Prefix/suffix characters stick to the resolved value. `$[[fact:revenue]]` render
 
 Silent refs (`~`) are for validation checks — they show a small superscript footnote number without displaying the value inline. Use them after the claim they validate: `Gross margin is healthy[[~term:margin-check]]`.
 
+**Important**: refs render *values*, not names. A fact `(fact nrr 180)` renders as `180`, not `nrr`. This means:
+
+- **Numeric values** work naturally with prefix/suffix: `$[[fact:revenue]]` → `$2.4M`, `[[fact:nrr]]%` → `180%`
+- **Boolean values** (`true`/`false`) look wrong inline — `true` is not meaningful prose. Write the claim in normal text and attach the check silently: `Retention is strong[[~term:retention-check]]`, not `Retention is [[term:retention-check]]`
+- **S-expression values** (axioms, complex terms) render as their raw form `(> ?n 130)` — always use silent refs for these
+
 ## Three patterns
 
 ### Standalone — everything in one file
