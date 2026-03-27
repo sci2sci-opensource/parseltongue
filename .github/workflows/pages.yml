@@ -19,21 +19,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Python 3.12
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
-      - name: Install dependencies
-        run: pip install -e "."
-
-      - name: Render demos
-        working-directory: parseltongue/core/demos/ai2ai_pgmd
-        run: python render_all.py
-
       - name: Assemble site
         run: |
           mkdir -p _site/demos
+          touch _site/.nojekyll
           cp parseltongue/core/demos/ai2ai_pgmd/pgmd_out/*.html _site/demos/
           cat > _site/index.html << 'INDEXEOF'
           <!DOCTYPE html>
@@ -56,12 +45,12 @@ jobs:
           </head>
           <body>
             <h1>parseltongue demos</h1>
-            <p class="dim">AI2AI pgmd notebook patterns — rendered from <code>.pgmd</code> files.</p>
+            <p class="dim">Analysis of a fictional AI2AI Series A investor memo. Each notebook pattern extracts facts from the memo, derives financial metrics, validates business rules, and renders a grounded narrative where every claim links back to source evidence.</p>
             <ul>
-              <li><a href="demos/explicit.html">Explicit pattern</a></li>
-              <li><a href="demos/implicit.html">Implicit pattern</a></li>
-              <li><a href="demos/standalone.html">Standalone pattern</a></li>
-              <li><a href="demos/md_edgecases.html">Markdown edge cases</a></li>
+              <li><a href="demos/standalone.html">Standalone</a><br><span class="dim">Everything in one file — facts, computation, and prose. Self-contained analysis of ARR, margins, and unit economics.</span></li>
+              <li><a href="demos/explicit.html">Explicit</a><br><span class="dim">Imports a shared facts module, derives metrics inline. Shows how notebooks connect to larger pltg systems.</span></li>
+              <li><a href="demos/implicit.html">Implicit</a><br><span class="dim">Pure narrative — imports pre-computed facts and rules. Clean prose with grounded references, no visible computation.</span></li>
+              <li><a href="demos/md_edgecases.html">Markdown edge cases</a><br><span class="dim">Stress test of the renderer — headings, tables, nested lists, blockquotes, inline formatting, and adjacent refs.</span></li>
             </ul>
           </body>
           </html>
