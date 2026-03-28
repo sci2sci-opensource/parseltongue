@@ -495,13 +495,15 @@ And enjoy the show of an LLM bumping into Parseltongue guardrails. You would be 
 
 ## What's Next
 
+> we're all mad here
+
 Unfortunately, there are many more kinds of deception than outright lies, incoherent statements, or ungrounded hallucinations. Agents can still stretch perfectly grounded facts, provide incomplete answers, or hide the truth in other ways - not intentionally, but simply because they don't know how not to.
 
 As with any language, using [[term:parseltongue]] accurately requires mastery. And mastery comes from deeper understanding.
 
-Understanding follows curiosity, and if - unlike Alice - you haven't yet followed the trails leading into the web of [[term:parseltongue]] Wonderland, I highly recommend you pursue that option.
+Understanding follows curiosity, and if - unlike Alice - you haven't yet followed the trails leading into the web of [[term:parseltongue]]'s Wonderland, I highly recommend you pursue that option.
 
-Here are two statements from our previous check: the [[diff:readme-expectations]] readme expectations check, and the alternate reality [[diff:ungrounded-expectations]] of the ungrounded ones. Take any pill - this is your fairly classical choice, and understanding why the red one is red leads much deeper.
+Here are two statements: the [[diff:readme-expectations]] readme expectations check, and the alternate reality [[diff:ungrounded-expectations]] of the ungrounded diff. Take any pill - this is your fairly classical choice, and understanding why the red one is red leads much deeper.
 
 But if you want to join the Mad Tea Party without being constrained by binary choices, we have another pill:
 

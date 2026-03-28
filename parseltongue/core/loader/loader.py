@@ -239,6 +239,7 @@ class Loader:
                             module_name,
                             original,
                         )
+                        _register_alias(system.engine, module_name, original)
                     else:
                         log.debug("Module '%s' already imported, skipping", module_name)
                 if alias_sym is not None:
@@ -265,6 +266,9 @@ class Loader:
                             module_name,
                             original,
                         )
+                        # Create engine store aliases so module_name.X entries
+                        # exist and share objects with original.X entries.
+                        _register_alias(system.engine, module_name, original)
                     else:
                         log.debug("Module '%s' already imported, skipping (post-resolve)", module_name)
                 if alias_sym is not None:
