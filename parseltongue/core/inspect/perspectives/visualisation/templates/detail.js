@@ -225,18 +225,44 @@ function showDetail(d) {
         if (ev.doc) html += `<div class="text-xs"><span class="text-overlay0">doc:</span> <span class="text-sky">${esc(ev.doc)}</span></div>`;
         if (ev.quotes && ev.quotes.length) {
           const ctxs = ev.quote_contexts || {};
+          const details = ev.quote_details || {};
           ev.quotes.forEach(q => {
             const bc = st === 'verified' ? 'border-green' : 'border-yellow';
-            const ctx = ctxs[q];
-            if (ctx && (ctx.before || ctx.after)) {
-              html += `<div class="text-xs bg-surface0 rounded p-2 mt-1 whitespace-pre-wrap border-l-2 ${bc}">`;
-              if (ctx.before) html += `<span class="text-overlay0">${esc(ctx.before)}</span>`;
-              html += `<span class="font-bold text-text bg-highlight rounded-sm px-0.5">${esc(q)}</span>`;
-              if (ctx.after) html += `<span class="text-overlay0">${esc(ctx.after)}</span>`;
-              html += `</div>`;
+            const det = details[q];
+            const matches = det && det.all_matches && det.all_matches.length > 1 ? det.all_matches : null;
+            html += `<div class="text-xs bg-surface0 rounded p-2 mt-1 whitespace-pre-wrap border-l-2 ${bc}">`;
+            if (matches) {
+              // Multiple matches — same block, separated by ...
+              matches.forEach((m, i) => {
+                if (i > 0) html += `<div class="text-overlay0 text-center my-1">&#x2026;</div>`;
+                const mctx = m.context;
+                const isCurrent = m.original_line === (det.line || -1);
+                const tag = isCurrent ? '&#x25c6;' : '&#x25cb;';
+                const tagCls = isCurrent ? 'text-sky' : 'text-overlay0';
+                html += `<div class="flex gap-2"><span class="text-[9px] text-sky">L${m.original_line}</span><span class="text-[9px] text-overlay0">${esc(m.strategy)}</span><span class="text-[9px] ${tagCls}">${tag}</span></div>`;
+                if (mctx && (mctx.before || mctx.after)) {
+                  if (mctx.before) html += `<span class="text-overlay0">${esc(mctx.before)}</span>`;
+                  html += `<span class="font-bold text-text bg-highlight rounded-sm px-0.5">${esc(q)}</span>`;
+                  if (mctx.after) html += `<span class="text-overlay0">${esc(mctx.after)}</span>`;
+                } else {
+                  html += `<span class="font-bold text-text">${esc(q)}</span>`;
+                }
+              });
             } else {
-              html += `<div class="text-xs bg-surface0 rounded p-2 mt-1 whitespace-pre-wrap border-l-2 ${bc}">${esc(q)}</div>`;
+              // Single match
+              const ctx = ctxs[q];
+              const lineBadge = det && det.line ? `<span class="text-[9px] text-sky">L${det.line}</span>` : '';
+              const confBadge = det && det.confidence != null ? `<span class="text-[9px] text-overlay0">${Math.round(det.confidence * 100)}%</span>` : '';
+              if (lineBadge || confBadge) html += `<div class="flex gap-2">${lineBadge}${confBadge}</div>`;
+              if (ctx && (ctx.before || ctx.after)) {
+                if (ctx.before) html += `<span class="text-overlay0">${esc(ctx.before)}</span>`;
+                html += `<span class="font-bold text-text bg-highlight rounded-sm px-0.5">${esc(q)}</span>`;
+                if (ctx.after) html += `<span class="text-overlay0">${esc(ctx.after)}</span>`;
+              } else {
+                html += `<span class="font-bold text-text">${esc(q)}</span>`;
+              }
             }
+            html += `</div>`;
           });
         } else if (ev.quote) {
           const bc = st === 'verified' ? 'border-green' : 'border-yellow';

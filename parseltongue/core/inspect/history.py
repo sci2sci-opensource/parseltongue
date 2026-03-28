@@ -94,6 +94,8 @@ def _meta_to_entries(
         "_layer_count": str(len(layers_info)),
     }
     for li in layers_info:
+        if li is None:
+            continue
         p = str(li.index)
         entries[f"{p}.timestamp"] = str(li.timestamp)
         entries[f"{p}.file_count"] = str(li.file_count)

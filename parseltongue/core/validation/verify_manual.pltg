@@ -6,6 +6,12 @@
 ;
 ; All *-doc-count entries are now self-verifying derives via count-exists.
 
+; --- std.counting.util (loaded transitively via std.counting → util) ---
+(verify-manual (quote std.counting.util.export))
+(verify-manual (quote std.counting.util.export-base))
+(verify-manual (quote std.counting.util.stub))
+(verify-manual (quote std.counting.util.stub-base))
+
 ; --- count-exists aliases (defterm :origin "import") ---
 (verify-manual (quote atoms.count-exists))
 (verify-manual (quote engine.count-exists))

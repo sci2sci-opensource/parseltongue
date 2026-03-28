@@ -148,6 +148,9 @@ def compute_taints(
 
     for it in items:
         name = it["id"]
+        # std nodes are trusted — never taint sources
+        if name.startswith("std."):
+            continue
         if name not in struct_ids and structure_items:
             continue
         # Build a lookup item with merged evidence for the predicate
@@ -170,13 +173,13 @@ def compute_taints(
         if src and tgt:
             children.setdefault(src, []).append(tgt)
 
-    # BFS propagation
+    # BFS propagation — std nodes are immune (trusted library)
     tainted = set(sources)
     queue = list(sources)
     while queue:
         node = queue.pop()
         for child in children.get(node, []):
-            if child not in tainted:
+            if child not in tainted and not child.startswith("std."):
                 tainted.add(child)
                 queue.append(child)
                 # Record propagation reason

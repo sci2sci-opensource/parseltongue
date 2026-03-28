@@ -102,64 +102,81 @@ class IndexedDocument:
         return "".join(collapsed), mapping
 
     def find(self, normalized_quote: str) -> Tuple[int, int, MatchStrategy]:
-        """Find quote position using the inverted index.
-
-        Falls back to space-collapsed matching for cases like
-        "diphe nyltetrazolium" in source vs "diphenyltetrazolium" in quote.
+        """Find first quote position. Back-compat wrapper around find_all.
 
         Returns (start, end, strategy). (-1, -1, NONE) if not found.
         """
-        if not normalized_quote:
-            return -1, -1, MatchStrategy.NONE
-
-        result = self._find_exact(normalized_quote)
-        if result[0] != -1:
-            return result[0], result[1], MatchStrategy.EXACT
-
-        result = self._find_collapsed(normalized_quote)
-        if result[0] != -1:
-            return result[0], result[1], MatchStrategy.COLLAPSED
-
+        matches = self.find_all(normalized_quote)
+        if matches:
+            return matches[0]
         return -1, -1, MatchStrategy.NONE
 
-    def _find_exact(self, normalized_quote: str) -> Tuple[int, int]:
-        """Primary lookup via inverted word-position index."""
+    def find_all(self, normalized_quote: str) -> List[Tuple[int, int, MatchStrategy]]:
+        """Find all positions of a quote in the document.
+
+        Returns exact matches first, then collapsed matches.
+        Each entry is (start, end, strategy).
+        """
+        if not normalized_quote:
+            return []
+
+        results: List[Tuple[int, int, MatchStrategy]] = []
+
+        for start, end in self._find_all_exact(normalized_quote):
+            results.append((start, end, MatchStrategy.EXACT))
+
+        if not results:
+            for start, end in self._find_all_collapsed(normalized_quote):
+                results.append((start, end, MatchStrategy.COLLAPSED))
+
+        return results
+
+    def _find_all_exact(self, normalized_quote: str) -> List[Tuple[int, int]]:
+        """Find all exact matches via inverted word-position index."""
         space_idx = normalized_quote.find(" ")
         first_word = normalized_quote[:space_idx] if space_idx != -1 else normalized_quote
 
         candidates = self.word_positions.get(first_word)
         if not candidates:
-            return -1, -1
+            return []
 
         quote_len = len(normalized_quote)
         text = self.normalized_text
         text_len = len(text)
+        results = []
 
         for pos in candidates:
             if pos + quote_len <= text_len:
                 if text[pos : pos + quote_len] == normalized_quote:
-                    return pos, pos + quote_len - 1
+                    results.append((pos, pos + quote_len - 1))
 
-        return -1, -1
+        return results
 
-    def _find_collapsed(self, normalized_quote: str) -> Tuple[int, int]:
-        """Fallback: match with all spaces removed from both sides.
+    def _find_all_collapsed(self, normalized_quote: str) -> List[Tuple[int, int]]:
+        """Find all collapsed matches (spaces removed from both sides).
 
         Handles PDF line-break artifacts where source has spurious spaces
         inside words that the quote doesn't.
         """
         collapsed_quote = normalized_quote.replace(" ", "")
         if not collapsed_quote:
-            return -1, -1
+            return []
 
-        idx = self._collapsed_text.find(collapsed_quote)
-        if idx == -1:
-            return -1, -1
+        results = []
+        offset = 0
+        ctext = self._collapsed_text
+        clen = len(collapsed_quote)
 
-        # Map start and end back to normalized_text positions
-        start = self._collapsed_to_norm[idx]
-        end = self._collapsed_to_norm[idx + len(collapsed_quote) - 1]
-        return start, end
+        while offset <= len(ctext) - clen:
+            idx = ctext.find(collapsed_quote, offset)
+            if idx == -1:
+                break
+            start = self._collapsed_to_norm[idx]
+            end = self._collapsed_to_norm[idx + clen - 1]
+            results.append((start, end))
+            offset = idx + 1
+
+        return results
 
 
 class DocumentIndex:

@@ -253,6 +253,24 @@ class Loader:
             ]
             abs_path = resolve_module_path(module_name, abs_path, lib_dirs)
 
+            # Re-check after lib-path resolution — the initial abs_path may
+            # have pointed to a non-existent local path while the resolved
+            # one matches an already-loaded lib module.
+            if abs_path in self._path_to_module:
+                original = self._path_to_module[abs_path]
+                if self._engine.register_or_alias(module_name, original):
+                    if module_name != original:
+                        log.debug(
+                            "Module '%s' already imported as '%s', registered alias (post-resolve)",
+                            module_name,
+                            original,
+                        )
+                    else:
+                        log.debug("Module '%s' already imported, skipping (post-resolve)", module_name)
+                if alias_sym is not None:
+                    _register_alias(system.engine, str(alias_sym), original)
+                return True
+
             # Mark as lib if resolved from a lib path
             lib_dirs = [
                 os.path.dirname(os.path.abspath(lp)) if os.path.isfile(lp) else os.path.abspath(lp)
