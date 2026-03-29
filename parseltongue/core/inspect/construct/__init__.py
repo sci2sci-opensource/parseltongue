@@ -7,12 +7,7 @@ Scripts are for agents. Scenarios are for humans.
 
 from pathlib import Path
 
-from parseltongue.core.loader.files import (
-    EXT_TYPE,
-    PGMD_COMPATIBLE,
-    file_type,
-    is_renderable,
-)
+from parseltongue.core.loader.files import file_type, is_renderable
 
 _CONSTRUCT = Path(__file__).parent
 _SCRIPTS = _CONSTRUCT / "scripts"
