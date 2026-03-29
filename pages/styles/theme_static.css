@@ -33,6 +33,10 @@ pre:hover .copy-btn, .prompt:hover .copy-btn { opacity: 1; }
 /* ── Layout ── */
 .page { max-width: 860px; margin: 0 auto; padding: 2rem 1.5rem 4rem; }
 .page-wide { max-width: 1100px; margin: 0 auto; padding: 2rem 1.5rem 4rem; }
+.page h1 { margin-bottom: 0.25rem; }
+.page p, .page-wide p { margin: 0.5rem 0; color: var(--subtext); }
+.page .subtitle { font-size: 1.15rem; color: var(--lavender); font-weight: 600; margin-bottom: 1rem; }
+.page .card-grid, .page-wide .card-grid { margin-top: 1.5rem; }
 
 /* ── Nav bar ── */
 .topnav {
@@ -76,13 +80,17 @@ pre:hover .copy-btn, .prompt:hover .copy-btn { opacity: 1; }
 /* ── Tabs ── */
 .tab-bar { display: flex; gap: 0.25rem; margin-bottom: 1.5rem; }
 .tab-btn {
-  padding: 0.5rem 1rem; border-radius: 8px; border: none;
+  padding: 0.4rem 0.85rem; border-radius: 6px; border: 1px solid var(--surface1);
   background: var(--surface0); color: var(--subtext);
-  font-size: 0.85rem; cursor: pointer; font-family: inherit;
-  transition: background 0.15s, color 0.15s;
+  font-size: 0.8rem; cursor: pointer; font-family: inherit; font-weight: 600;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
 }
-.tab-btn:hover { background: var(--surface1); color: var(--text); }
-.tab-btn.active { background: var(--mauve); color: var(--crust); font-weight: 600; }
+.tab-btn .badge { background: none; color: inherit; padding: 0; font-size: inherit; }
+.tab-btn:hover { background: var(--surface1); color: var(--text); border-color: var(--surface2); }
+.tab-btn.active { background: var(--surface1); color: var(--lavender); border-color: var(--lavender); }
+.tab-btn[data-tab="pgmd"].active { color: var(--mauve); border-color: var(--mauve); }
+.tab-btn[data-tab="pltg"].active { color: var(--green); border-color: var(--green); }
+.tab-btn[data-tab="py"].active { color: var(--blue); border-color: var(--blue); }
 .tab-panel { display: none; }
 .tab-panel.active { display: block; }
 

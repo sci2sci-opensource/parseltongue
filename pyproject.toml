@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "parseltongue-dsl"
-version = "0.6.0"
+version = "0.7.0"
 description = "Parseltongue: a DSL for systems which refuse to speak falsehood"
 requires-python = ">=3.11"
 dependencies = ["typing_extensions>=4.0"]
@@ -13,7 +13,7 @@ readme = "README.md"
 authors = [{name = "Valerii Kremnev"}]
 keywords = ["dsl", "formal-verification", "evidence", "consistency", "llm", "fact-checking"]
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
     "Intended Audience :: Science/Research",
 "Operating System :: OS Independent",
@@ -52,6 +52,9 @@ cli = [
 parseltongue = "parseltongue.cli.app:main"
 pg-bench = "parseltongue.core.inspect.bench_cli:cli"
 pg = "parseltongue.core.inspect.bench_cli:cli"
+
+[tool.parseltongue]
+release_tagline = "We're out of beta, we releasing on time"
 
 [tool.setuptools.packages.find]
 include = ["parseltongue", "parseltongue.*"]

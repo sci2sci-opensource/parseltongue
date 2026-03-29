@@ -1,30 +1,4 @@
----
-name: white-rabbit
-description: Introduction — what Parseltongue is and why it exists
----
-
-# Follow the White Rabbit
-
-> No one could ever be told the answer to that question. They have to see it to believe it.
-
-## The Problem
-
-> _You'd be surprised how illusory intelligence becomes once it needs to be proven explicitly._
-
-
-Large language models don't know what truth is.
-
-Despite the strong flavour of philosophical complaint, I mean this as an engineering fact. Even after processing the internet several times over, and passing training on pleasing humans, solving math puzzles, and coding purple landing pages - LLM agents still have no sense of truth.
-
-What do I mean by "sense"? An absurd example: tomorrow everyone around you agrees that plastic vegetables make a good breakfast. It doesn't matter how many times they tell you, or even eat a piece to prove their point - you won't believe it. That's not the case for LLMs. You can call this human quality being grounded, or reasonable - the terminology doesn't matter much, as long as you get the sense of the problem.
-
-Even when an LLM solves a math puzzle or a coding task, it reasons within the space of what it was trained on. And the bulk of that training was parroting the internet - which, I think we can all agree, is about as poor a source of truth as there can be, with a few notable exceptions.
-
-The problem isn't that agents are stupid - it's that they are becoming very capable at exactly the tasks we train them for. Those include giving us pleasant answers that sometimes happen to be technically correct. This is great if you need a good conversation or a new website. It fundamentally doesn't work in high-stakes scenarios. We don't hire managers who excel at political bootlicking for a surgeon position - sometimes we simply need a different set of skills.
-
-[[term:parseltongue]] is focusing on addressing the issue of making confident but entirely ungrounded statements. Here is what I mean:
-
-```scheme
+;; @@block 0 28babd204524dde942e4cd3dc12e16ad2701a195cc8b877741299d95055fcdf3
 ;; pltg The Origin
 
 (defterm parseltongue "Parseltongue"
@@ -41,10 +15,9 @@ The problem isn't that agents are stupid - it's that they are becoming very capa
 
 ;; PS
 ;; Sorry if causality have cracked a bit. We were murdering the time, and now it's always six-o-clock here.
-```
-This sentence is grounded in Parseltongue[[~fact:the-next-sentence-is-grounded-in-parseltongue]]. And a few things happened: it became represented in the engine powering this documentation[[~fact:sentence-became-part-of-engine]]; and a fact representing this sentence was created. If you click the reference or the pill, you can locate it in the knowledge graph of this notebook, and in the layer of computations it will participate in next.
 
-```scheme
+;; @@end 0
+;; @@block 1 694cf90dc4c2187d2dbcdae54751b25d8b242b873a3ce8b525f706c5ab7fb101
 ;; pltg First steps
 (fact sentence-became-part-of-engine true
   :evidence (evidence "self"
@@ -62,13 +35,9 @@ This sentence is grounded in Parseltongue[[~fact:the-next-sentence-is-grounded-i
             the-next-sentence-is-grounded-in-parseltongue 
             sentence-became-part-of-engine))
 
-```
 
-If we count the facts about this sentence that we've introduced so far, we would probably all agree that there are [[derive:count-facts-about-sentence]] of them. This number was calculated by the derivation in the previous block, and if we changed the block - it would update.
-
-What does all this have to do with LLMs lying? So far we were trying to express only the truth. Something interesting happens if we try to represent a lie - for example that [[fact:there-will-be-cake]]. As we can see, there is no cake - [[fact:the-cake-is-a-lie]]. But something interesting happens if we try to use those facts in our derivations: we normally calculate [[derive:count-facts-till-now]] truthful facts, but if we account for [[derive:accounting-for-a-lie]] - a lie becomes visible! The original lie taints the derivation - even though we can still see its result, we know that there was a lie in its basis.
-
-```scheme
+;; @@end 1
+;; @@block 2 2fb25878de644dc9b8943edfbd1e684946006fc0e063a93d6d9f0f88859c5abf
 ;; pltg The Fall
 (fact the-cake-is-a-lie "The cake is a lie"
   :evidence (evidence "self"
@@ -111,21 +80,9 @@ What does all this have to do with LLMs lying? So far we were trying to express 
             the-cake-is-a-lie
             parseltongue))
 
-```
-This feature of Parseltongue - catching the propagation of taints - is core to its ability to highlight hallucinations in LLM outputs.
 
-## What Parseltongue Does
-
-So what is it exactly? [[term:parseltongue]] is [[fact:what-is-parseltongue]]. There are [[fact:node-kinds]] primary kinds of knowledge nodes:
-
-- A **term** is a named value - like [[term:parseltongue]] itself, defined in the very first block. Terms give names to things so the system can reference them.
-- A **fact** is a claim with cited evidence - a quote from a real document that grounds it.
-- A **derivation** is a computation over other nodes - like the count we calculated above.
-- An **axiom** is a rule about how other things relate to each other.
-
-This document you're reading is written in **[[term:pgmd]]** - [[fact:what-is-pgmd]]. It was designed to be a human interface with **[[term:pltg]]** - [[fact:what-is-pltg]][[~term:parseltongue]]
-
-```scheme
+;; @@end 2
+;; @@block 3 5c18157094be3423ff3406b6fac50727922030b86ad6cd2041a68ffd1edbe32a
 ;; pltg Observing the Garden
 (defterm pgmd ".pgmd"  
     :evidence (evidence "self"
@@ -187,25 +144,9 @@ This document you're reading is written in **[[term:pgmd]]** - [[fact:what-is-pg
         verbosity-is-a-feature
         llm-use-design
         node-kinds))
-```
 
-Notice how the values in the previous paragraph weren't typed - they were resolved from the block above. The system knows where each one came from, what quote grounds it, and whether that quote still exists in the source. If I change the quote - the reference breaks, and you see it.
-
-[[term:pltg]] is quite verbose compared to typical programming languages, and that [[fact:verbosity-is-a-feature]]. It lets us trace facts and relationships with very high precision. [[term:parseltongue]] was [[fact:llm-use-design]] - for them, writing [[term:pltg]] modules and documenting things in a somewhat redundant manner is not a problem, and readability is handled by [[term:pgmd]].
-
-
-## Seeing It
-
-> The answer is out there. It's looking for you and it will find you, if you want it to.
-
-When this document is rendered, it produces [[fact:views-share-data]]:
-
-- **Notebook** - the prose you're reading, with footnote markers linking to nodes
-- **Cards** - one card per node, showing kind, value, and verification status
-- **Layers** - computation-based layout: it shows the path from the core axioms used everywhere to final consequences through each derivation step
-- **Graph** - the full dependency network, interactive, with taint propagation visible
-
-```scheme
+;; @@end 3
+;; @@block 4 3267f676191b7848b892fff8af15939f50b66bf8c474b7d3f9cc538be29ac277
 ;; pltg Knowing Good and Evil
 
 (load-document "atoms" "../../../atoms.py")
@@ -273,15 +214,9 @@ class Theorem:
         taints
         derivations))
 
-```
 
-Those [[fact:view-count]] views ensure the transparency of the structure. They are different perspectives designed to show how conclusions were reached. The Graph makes it visible what depends on what. The Layers show how results were derived. The Cards and Sources show what was available. The Notebook shows what was reported.
-
-This doesn't mean the notebook contains truth or lies in the body of text - the text is still just human text. The difference is that prose sentences can refer to Parseltongue sentences - which are designed to explicitly show whether they are [[term:grounding]], [[term:consistency]], and honestly [[term:derivations]]. Otherwise, the sentence will show its [[term:taints]] or return [[term:silence]].
-
-Since all knowledge in [[term:parseltongue]] is explicit, we can check whether it follows the rules we might like it to follow:
-
-```scheme
+;; @@end 4
+;; @@block 5 37ad438a22035fa4556dd459da6000d16158226a2aff3aa52d58ad7ec0d8502a
 ;; pltg Promises and Deception
 
 (defterm concepts-not-more 25
@@ -324,49 +259,9 @@ Since all knowledge in [[term:parseltongue]] is explicit, we can check whether i
 (diff readme-expectations :replace focus-check :with readme-expected-focused)
 (diff ungrounded-expectations :replace concepts-not-more :with facts-and-terms-so-far)
 
-```
 
-The block above computes that we have introduced [[term:facts-and-terms-so-far]] concepts so far. We could set a goal for a focused intro - say, no more than [[term:concepts-not-more]] concepts. For now this intro stays focused[[~term:focus-check]]. This is the result of evaluating our rule: [[axiom:intro-is-substantial-but-focused]]. The code after this check uses the [[term:diff-ops]] operation. If this document grew too sprawling, the coherence[[~diff:readme-expectations]] check would fail, much like our main [[diff:readme-counts]] expectation. If the promise is inaccurate - say we try to replace the concept limit with the actual count - the diff will show it: [[diff:ungrounded-expectations]]
-
-## The Construct
-
-> This will feel a little weird.
-
-
-This document is part of **Construct** - the place where both agents and humans learn [[term:parseltongue]]. It has two modes, mirrored:
-
-- **Scripts** - agent instructions. An LLM loads a script and gains operational knowledge - these are available in the repository and via the provided CLI with `pg learn ..topic..`, e.g. `pg learn kung-fu`
-- **Scenarios** - human side. They focus on building understanding of what [[term:parseltongue]] is, and how to work with it and keep LLM agents accountable during collaborative sessions
-
-Construct contains progressive explanations of the system context - we don't want you thrown down the rabbit hole straight into our Mad Tea Party. Instead we recommend a progressive dive with your favourite LLM assistant.
-
-| Name | Description | Script | Scenario |
-|------|-------------|--------|----------|
-| white-rabbit | Introduction - what Parseltongue is and why it exists | [[fact:script-white-rabbit]] | [[fact:scenario-white-rabbit]] |
-| kung-fu | Bench mastery - inspection, search, lens, diagnosis | [[fact:script-kung-fu]] | [[fact:scenario-kung-fu]] |
-| to-connect | pgmd notebooks - prose wired through with truth | [[fact:script-to-connect]] | [[fact:scenario-to-connect]] |
-| dodge-bullets | Screening, diagnostics, consistency | [[fact:script-dodge-bullets]] | [[fact:scenario-dodge-bullets]] |
-| jump-program | Resolving dynamic refs, building consistent graphs | [[fact:script-jump-program]] | [[fact:scenario-jump-program]] |
-| no-spoon-bending | Effects, verify_manual, bending accepted terms | [[fact:script-no-spoon-bending]] | [[fact:scenario-no-spoon-bending]] |
-| read-the-code | Grounding layer - documents and data to facts and axioms | [[fact:script-read-the-code]] | [[fact:scenario-read-the-code]] |
-| about-matrix | Systems, composition, fundamental lang | [[fact:script-about-matrix]] | [[fact:scenario-about-matrix]] |
-| the-truth | Epistemics, std lib, grounding module, diffs | [[fact:script-the-truth]] | [[fact:scenario-the-truth]] |
-| to-exit | Scoping, projection, delegates | [[fact:script-to-exit]] | [[fact:scenario-to-exit]] |
-| to-fly | Graph navigation, search, cross-navigation | [[fact:script-to-fly]] | [[fact:scenario-to-fly]] |
-
-[[derive:scripts-ready]] scripts and [[derive:scenarios-ready]] scenario are live. Right now the agents can already learn kung-fu and how to-connect it to [[term:pgmd]] notebooks. The explanation for you about how to steer them is WIP.
-
-So, if you haven't yet, tell your agent to:
-
-```bash
-pip install parseltongue-dsl
-pg learn kung-fu
-pg learn to-connect
-```
-
-And enjoy the show of an LLM bumping into Parseltongue guardrails. **You'd be surprised how illusory intelligence becomes once it needs to be proven explicitly.**
-
-```scheme
+;; @@end 5
+;; @@block 6 5a0984a20cf50bc13c8a62b24b4ba1b48b06a8962e79b0eabbc4a30de03c4fea
 ;; pltg Grounding
 
 (load-document "construct" "../__init__.py")
@@ -496,25 +391,5 @@ And enjoy the show of an LLM bumping into Parseltongue guardrails. **You'd be su
 
 (derive scenarios-ready (c.count-exists scenario-white-rabbit)
   :using (c.count-exists scenario-white-rabbit))
-```
 
-
----
-
-## What's Next
-
-> we're all mad here
-
-Unfortunately, there are many more kinds of deception than outright lies, incoherent statements, or ungrounded hallucinations. Agents can still stretch perfectly grounded facts, provide incomplete answers, or hide the truth in other ways - not intentionally, but simply because they don't know how not to.
-
-As with any language, using [[term:parseltongue]] accurately requires mastery. And mastery comes from deeper understanding.
-
-Understanding follows curiosity, and if - unlike Alice - you haven't yet followed the trails leading into the web of [[term:parseltongue]]'s Wonderland, I highly recommend you pursue that option.
-
-Here are two statements: the [[diff:readme-expectations]] readme expectations check, and the alternate reality [[diff:ungrounded-expectations]] of the ungrounded diff. Take any pill - this is your fairly classical choice, and understanding why the red one is red leads much deeper.
-
-But if you want to join the Mad Tea Party without being constrained by binary choices, we have another pill:
-
-[[diff:readme-counts]]
-
-And the most interesting question in this notebook is: "Why is it yellow?"
+;; @@end 6

@@ -533,131 +533,13 @@ def _build_layers_data(structure: CoreToConsequenceStructure, item_names: set[st
 
 
 def _enrich_items_from_structure(items: list[dict], structure) -> None:
-    """Add definition and rich evidence (with quotes) to DATA items from structure atoms."""
-    from parseltongue.core.atoms import Axiom, Evidence, Term, Theorem
-    from parseltongue.core.lang import ParseltongueGrammar
+    """Add definition, evidence, values, and external stubs from structure.
 
-    if structure is None:
-        return
-    graph = getattr(structure, "graph", {})
-    for item in items:
-        name = item.get("id", "")
-        node = graph.get(name)
-        if node is None or node.atom is None:
-            continue
-        atom = node.atom
-        # Definition (WFF string)
-        if isinstance(atom, Term) and atom.definition is not None:
-            item["definition"] = ParseltongueGrammar.enc(atom.definition)
-        elif isinstance(atom, (Axiom, Theorem)) and atom.wff is not None:
-            item["definition"] = ParseltongueGrammar.enc(atom.wff)
-        # Origin status and evidence
-        origin = getattr(atom, "origin", None)
-        if isinstance(origin, Evidence):
-            if origin.verified:
-                ev_status = "verified"
-            elif origin.verify_manual:
-                ev_status = "manual"
-            else:
-                ev_status = "unverified"
-            # Build per-quote context and match details from verification results
-            quote_contexts = {}
-            quote_details = {}
-            for vr in origin.verification or []:
-                q = vr.get("quote", "")
-                ctx = vr.get("context")
-                if q and ctx:
-                    quote_contexts[q] = {"before": ctx.get("before", ""), "after": ctx.get("after", "")}
-                if q:
-                    detail = {}
-                    if vr.get("original_line", -1) != -1:
-                        detail["line"] = vr["original_line"]
-                    if vr.get("all_matches"):
-                        detail["all_matches"] = vr["all_matches"]
-                    if vr.get("confidence"):
-                        detail["confidence"] = vr["confidence"].get("score")
-                    if detail:
-                        quote_details[q] = detail
+    Delegates to items.enrich_items — single source of truth.
+    """
+    from .items import enrich_items
 
-            ev_entry = {
-                "doc": origin.document,
-                "quotes": origin.quotes,
-                "quote_contexts": quote_contexts,
-                "explanation": origin.explanation,
-                "verified": origin.verified,
-                "status": ev_status,
-                "signature": origin.signature,
-            }
-            if quote_details:
-                ev_entry["quote_details"] = quote_details
-            item["evidence"] = [ev_entry]
-        elif isinstance(atom, Theorem) or origin == "derived":
-            item["evidence"] = [{"status": "derived"}]
-        elif isinstance(origin, str) and origin:
-            item["evidence"] = [{"doc": origin, "status": "unverified"}]
-
-    # Enrich inputs with in-probe status + create stubs for external graph nodes
-    all_ids = {item.get("id", "") for item in items}
-    external_needed = set()
-    for item in items:
-        for inp in item.get("inputs", []):
-            if inp not in all_ids:
-                external_needed.add(inp)
-
-    # Build stub items for external nodes found in structure graph
-    external_items = []
-    for ext_name in external_needed:
-        ext_node = graph.get(ext_name)
-        if ext_node is None:
-            continue
-        ext_item = {
-            "id": ext_name,
-            "kind": str(ext_node.kind),
-            "value": "",
-            "depth": 0,
-            "inputs": [{"name": i, "inProbe": i in all_ids or i in external_needed} for i in ext_node.inputs],
-            "evidence": [],
-            "module": ext_name.split(".")[0] if "." in ext_name else "",
-            "external": True,
-        }
-        # Definition
-        atom = ext_node.atom
-        if atom is not None:
-            if isinstance(atom, Term) and atom.definition is not None:
-                ext_item["definition"] = ParseltongueGrammar.enc(atom.definition)
-            elif isinstance(atom, (Axiom, Theorem)) and atom.wff is not None:
-                ext_item["definition"] = ParseltongueGrammar.enc(atom.wff)
-            origin = getattr(atom, "origin", None)
-            if isinstance(origin, Evidence):
-                if origin.verified:
-                    ev_status = "verified"
-                elif origin.verify_manual:
-                    ev_status = "manual"
-                else:
-                    ev_status = "unverified"
-                ext_item["evidence"] = [
-                    {
-                        "doc": origin.document,
-                        "quotes": origin.quotes,
-                        "explanation": origin.explanation,
-                        "verified": origin.verified,
-                        "status": ev_status,
-                        "signature": origin.signature,
-                    }
-                ]
-            elif isinstance(atom, Theorem) or origin == "derived":
-                ext_item["evidence"] = [{"status": "derived"}]
-            elif isinstance(origin, str) and origin:
-                ext_item["evidence"] = [{"doc": origin, "status": "unverified"}]
-        external_items.append(ext_item)
-        all_ids.add(ext_name)
-    items.extend(external_items)
-
-    # Tag inputs with in-probe status
-    for item in items:
-        raw_inputs = item.get("inputs", [])
-        if raw_inputs and raw_inputs and isinstance(raw_inputs[0], str):
-            item["inputs"] = [{"name": inp, "inProbe": inp in all_ids} for inp in raw_inputs]
+    enrich_items(items, structure)
 
 
 def _strip_internal(structure):
@@ -797,45 +679,15 @@ def _localize_multi(structure, seeds: set[str]):
 
 
 def _build_named_structure_data(names: set[str], structure) -> list[dict]:
-    """Build ln-like structure items for a set of node names found in structure."""
-    from parseltongue.core.atoms import SILENCE
-    from parseltongue.core.grammar import ParseltongueGrammar
+    """Build ln-like structure items for a set of node names found in structure.
+
+    Delegates to items.items_from_structure — single source of truth.
+    """
+    from .items import items_from_structure
 
     if structure is None:
         return []
-
-    graph = getattr(structure, "graph", {})
-    depths = getattr(structure, "depths", {})
-    if not graph:
-        return []
-
-    _enc = ParseltongueGrammar.enc
-
-    items = []
-    for name in sorted(names):
-        if name.startswith("__"):
-            continue
-        node = graph.get(name)
-        if node is None:
-            continue
-        kind = str(node.kind) if hasattr(node, "kind") else ""
-        depth = depths.get(name, 0)
-        inputs = list(node.inputs) if hasattr(node, "inputs") else []
-        module = name.split(".")[0] if "." in name else ""
-        value = _enc(getattr(node, "value", SILENCE))
-        items.append(
-            {
-                "id": name,
-                "kind": kind,
-                "value": value,
-                "depth": depth,
-                "inputs": inputs,
-                "evidence": [],
-                "module": module,
-            }
-        )
-
-    return items
+    return items_from_structure(structure, names=names)
 
 
 def _build_sr_structure_data(sr_items: list[dict], structure) -> list[dict]:

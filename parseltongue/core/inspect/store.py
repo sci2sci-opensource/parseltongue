@@ -32,6 +32,8 @@ from ..integrity.merkle import MerkleNode, _sha256, merkle_combine
 from ..loader.lazy_loader import LazyLoader, LazyLoadResult
 from ..quote_verifier import DocumentIndex
 from ..system import System
+from .config import load_extensions as _load_extensions
+from .config import load_ignore_patterns as _load_pgignore
 from .history import History
 from .pgz import json_pgz_read, json_pgz_write, pgz_read, pgz_write
 from .probe_core_to_consequence import CoreToConsequenceStructure
@@ -41,6 +43,7 @@ from .serialization import deserialize_structure, serialize_structure
 log = logging.getLogger("parseltongue.store")
 
 BENCH_DIR = ".parseltongue-bench"
+_HOME_BENCH_DIR = Path.home() / ".parseltongue" / "pg-bench"
 
 # Back-compat aliases for any external callers
 _pgz_write = pgz_write
@@ -55,25 +58,6 @@ def _collect_tree_leaves(node: MerkleNode) -> dict[str, str]:
     for child in node.children or []:
         result.update(_collect_tree_leaves(child))
     return result
-
-
-_DEFAULT_IGNORE = [".git", ".hg", ".svn", "node_modules", ".*"]
-
-
-def _load_pgignore(directory: str) -> list[str]:
-    """Load .pgignore patterns from directory (gitignore-style). Returns pattern list.
-
-    Always includes default ignores (.git, .hg, .svn, node_modules, dotdirs).
-    """
-    patterns = list(_DEFAULT_IGNORE)
-    pgignore = Path(directory) / ".pgignore"
-    if not pgignore.exists():
-        return patterns
-    for line in pgignore.read_text().splitlines():
-        line = line.strip()
-        if line and not line.startswith("#"):
-            patterns.append(line)
-    return patterns
 
 
 def _is_ignored(rel_path: str, patterns: list[str]) -> bool:
@@ -122,20 +106,57 @@ class Store:
     # ── Logbook ──
 
     def log_session(self, entry: dict):
-        """Append a session entry to the logbook (JSONL)."""
+        """Append a session entry to the logbook (JSONL).
+
+        Dual-write: project-local logbook + home-directory backup.
+        The home copy includes `project` (cwd) so it doubles as a
+        machine-level log across all projects.  Home write failures
+        are logged but never propagated — local is authoritative.
+        """
+        line = json.dumps(entry) + "\n"
+
+        # Local (authoritative)
         self._dir.mkdir(parents=True, exist_ok=True)
         logbook = self._dir / "logbook.jsonl"
         with open(logbook, "a") as f:
-            f.write(json.dumps(entry) + "\n")
+            f.write(line)
         log.info("Logbook entry written to %s", logbook)
 
+        # Home backup (machine-level, survives project cache wipes)
+        try:
+            home_entry = {**entry, "project": str(Path.cwd())}
+            _HOME_BENCH_DIR.mkdir(parents=True, exist_ok=True)
+            home_logbook = _HOME_BENCH_DIR / "logbook.jsonl"
+            with open(home_logbook, "a") as f:
+                f.write(json.dumps(home_entry) + "\n")
+        except OSError as exc:
+            log.warning("Home logbook write failed: %s", exc)
+
     def read_logbook(self) -> list[dict]:
-        """Read all session entries from the logbook."""
+        """Read all session entries from the logbook.
+
+        Reads local first.  If local is missing (e.g. after cache wipe),
+        falls back to home backup filtered by current project.
+        """
         logbook = self._dir / "logbook.jsonl"
-        if not logbook.exists():
-            return []
+        if logbook.exists():
+            return self._parse_logbook(logbook)
+        # Fallback: home backup, filtered to this project
+        home_logbook = _HOME_BENCH_DIR / "logbook.jsonl"
+        if home_logbook.exists():
+            cwd = str(Path.cwd())
+            entries = self._parse_logbook(home_logbook)
+            recovered = [e for e in entries if e.get("project", "") == cwd]
+            if recovered:
+                log.info("Local logbook missing — recovered %d entries from home backup", len(recovered))
+            return recovered
+        return []
+
+    @staticmethod
+    def _parse_logbook(path: Path) -> list[dict]:
+        """Parse a JSONL logbook file."""
         entries = []
-        for line in logbook.read_text().splitlines():
+        for line in path.read_text().splitlines():
             line = line.strip()
             if line:
                 try:
@@ -534,7 +555,7 @@ class SearchStore:
         self._indexed_dirs = cached.get("indexed_dirs", {})
         if directory and not self._indexed_dirs:
             # Migrate: old format had single directory
-            self._indexed_dirs[directory] = cached.get("extensions", [".py", ".pltg", ".md", ".txt"])
+            self._indexed_dirs[directory] = cached.get("extensions", _load_extensions())
         # Restore stat caches
         self._file_stats = {k: tuple(v) for k, v in cached.get("file_stats", {}).items()}
         self._dir_mtimes = cached.get("dir_mtimes", {})
@@ -761,7 +782,7 @@ class SearchStore:
         reused from old_hashes. Only directories with newer mtime are descended.
         """
         ext_set = set(extensions)
-        ignore_patterns = _load_pgignore(directory)
+        ignore_patterns = _load_pgignore()
         if exclude:
             ignore_patterns.extend(exclude)
 
@@ -829,7 +850,7 @@ class SearchStore:
 
         force=True ignores all stat/hash caches and re-reads every file.
         """
-        extensions = extensions or [".py", ".pltg", ".md", ".txt"]
+        extensions = extensions or _load_extensions()
         directory = str(Path(directory).resolve())
 
         # Track this directory for reindex
@@ -896,7 +917,7 @@ class SearchStore:
         if not self._indexed_dirs:
             self._indexed_dirs = cached.get("indexed_dirs", {})
             if directory and not self._indexed_dirs:
-                self._indexed_dirs[directory] = cached.get("extensions", [".py", ".pltg", ".md", ".txt"])
+                self._indexed_dirs[directory] = cached.get("extensions", _load_extensions())
 
         if not self._indexed_dirs:
             return _index, 0, set()

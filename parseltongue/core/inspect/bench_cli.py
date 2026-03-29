@@ -2136,14 +2136,67 @@ def _stream_index_progress(cmd: dict, every: int) -> None:
             _print_result(msg)
 
 
+@cli.command("init")
+@click.argument("directory", default=".")
+@click.option(
+    "--toml",
+    "toml_mode",
+    type=click.Choice(["skip", "force", "append"]),
+    default="skip",
+    help="Mode for pg.toml: skip (default), force (overwrite), append (add missing).",
+)
+@click.option(
+    "--pgignore",
+    "pgignore_mode",
+    type=click.Choice(["skip", "force", "append"]),
+    default="skip",
+    help="Mode for .pgignore: skip (default), force (overwrite), append (add missing).",
+)
+@click.option("--force", is_flag=True, help="Shorthand: force both pg.toml and .pgignore.")
+@click.option("--append", "append_flag", is_flag=True, help="Shorthand: append both pg.toml and .pgignore.")
+def init_config(directory: str, toml_mode: str, pgignore_mode: str, force: bool, append_flag: bool):
+    """Detect project and generate pg.toml + .pgignore.
+
+    \b
+    Scans DIRECTORY for file extensions, detects languages, reads .gitignore,
+    and writes:
+      pg.toml    — extensions and language settings
+      .pgignore  — ignore patterns (absorbs .gitignore)
+
+    \b
+    Modes per file (--toml, --pgignore):
+      skip    — don't touch if exists (default)
+      force   — overwrite entirely
+      append  — add missing entries to existing file
+
+    \b
+    Shorthand flags: --force (force both), --append (append both).
+    Runs automatically on first `pg-bench index` if not yet initialized.
+    """
+    from parseltongue.core.inspect.config import init as config_init
+
+    if force:
+        toml_mode = pgignore_mode = "force"
+    elif append_flag:
+        toml_mode = pgignore_mode = "append"
+
+    result = config_init(directory, toml_mode=toml_mode, pgignore_mode=pgignore_mode)
+    langs = ", ".join(result["languages"])
+    exts = " ".join(result["extensions"])
+    click.echo(f"Detected: {langs}")
+    click.echo(f"Extensions: {exts}")
+    click.echo(f"pg.toml: {result['toml_action']} ({result['pg_toml']})")
+    click.echo(f".pgignore: {result['pgignore_action']} ({result['pgignore']})")
+
+
 @cli.command("index")
 @click.argument("directory", default=".")
 @click.option(
     "--ext",
     "extensions",
     multiple=True,
-    default=[".py", ".pltg", ".md", ".txt"],
-    help="File extensions to index (repeatable).",
+    default=(),
+    help="File extensions to index (repeatable). Omit to use pg.toml config.",
 )
 @click.option(
     "--exclude",
@@ -2163,10 +2216,13 @@ def index_dir(directory: str, extensions: tuple[str, ...], excludes: tuple[str, 
     into one search index. Reindex re-walks all previously indexed directories.
 
     \b
-    Reads .pgignore from each directory root (gitignore-style patterns).
+    Extensions and ignore patterns come from pg.toml / .pgignore (auto-generated
+    on first run via project detection). Override with --ext.
     Uses stat fingerprinting + Merkle hashing: unchanged files are skipped.
     """
-    cmd: dict = {"action": "index", "directory": directory, "extensions": list(extensions)}
+    cmd: dict = {"action": "index", "directory": directory}
+    if extensions:
+        cmd["extensions"] = list(extensions)
     if excludes:
         cmd["exclude"] = list(excludes)
     if force:

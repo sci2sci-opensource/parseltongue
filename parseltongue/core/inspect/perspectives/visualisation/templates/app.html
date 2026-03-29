@@ -205,6 +205,17 @@ $layers_js
 renderSource();
 </script>
 
+<!-- help icon -->
+<div id="help-btn" onclick="document.getElementById('help-panel').classList.toggle('hidden')" class="fixed bottom-4 left-4 z-50 w-7 h-7 flex items-center justify-center bg-mantle/95 backdrop-blur border border-surface1 rounded-full text-overlay0 hover:text-lavender hover:border-lavender cursor-pointer shadow-lg text-[13px] font-bold select-none" title="Documentation">?</div>
+<div id="help-panel" class="hidden fixed bottom-14 left-4 z-50 bg-mantle/95 backdrop-blur border border-surface1 rounded-lg px-3 py-2.5 text-[11px] leading-relaxed shadow-lg">
+  <div class="text-subtext font-semibold mb-1">Parseltongue Docs</div>
+  <a href="https://sci2sci-opensource.github.io/parseltongue/" target="_blank" rel="noopener" class="block text-text hover:text-lavender hover:underline py-0.5">Home</a>
+  <a href="https://sci2sci-opensource.github.io/parseltongue/quickstart.html" target="_blank" rel="noopener" class="block text-text hover:text-lavender hover:underline py-0.5">Quickstart</a>
+  <a href="https://sci2sci-opensource.github.io/parseltongue/demos.html" target="_blank" rel="noopener" class="block text-text hover:text-lavender hover:underline py-0.5">Demos</a>
+  <a href="https://sci2sci-opensource.github.io/parseltongue/construct.html" target="_blank" rel="noopener" class="block text-text hover:text-lavender hover:underline py-0.5">Construct</a>
+</div>
+<script>document.addEventListener('click',function(e){var p=document.getElementById('help-panel'),b=document.getElementById('help-btn');if(!p.classList.contains('hidden')&&!p.contains(e.target)&&!b.contains(e.target))p.classList.add('hidden')});</script>
+
 <!-- sci2sci badge -->
 <div class="fixed bottom-4 right-4 z-50 bg-mantle/95 backdrop-blur border border-surface1 rounded-lg px-3 py-2.5 text-[11px] leading-relaxed max-w-[290px] shadow-lg">
   <div class="text-subtext">Developed by <a href="https://www.sci2sci.com" target="_blank" rel="noopener" class="text-lavender hover:underline font-semibold">sci2sci</a></div>

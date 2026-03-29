@@ -1,0 +1,17 @@
+;; @@block 0 1035e32877e12bb66494310dc9a3b8987f8fe5f1956e19023cabbbcf0b5f183a
+;; pltg Quick Check
+(derive ratio (/ revenue cost) :using (revenue cost))
+ratio
+
+;; @@end 0
+;; @@block 1 ed8dff2a03683ee0d90f39ed1b3a7913231c91434808fd7e572dfd63cf0f74d0
+;; pltg Checks
+(axiom healthy-margin (> ?m 0.6) :origin "gross margin must exceed 60%")
+(derive margin-check healthy-margin :bind ((?m gross-margin)) :using (gross-margin healthy-margin))
+
+;; @@end 1
+;; @@block 2 e0da77f8c1f49773172ec3b68caf0ddbfb3b2880a361bf5df0db2867c854ce32
+;; pltg Review
+(verify-manual (quote margin-ok) "Claude")
+
+;; @@end 2

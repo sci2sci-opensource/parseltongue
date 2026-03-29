@@ -33,33 +33,13 @@
   <h2>Get started</h2>
 
   <div class="tab-bar">
-    <button class="tab-btn active" data-tab-group="env" data-tab="manual" onclick="switchTab('env','manual')">Manual</button>
-    <button class="tab-btn" data-tab-group="env" data-tab="cli" onclick="switchTab('env','cli')">Coding CLI Agent</button>
+    <button class="tab-btn active" data-tab-group="env" data-tab="cli" onclick="switchTab('env','cli')">Coding CLI Agent</button>
     <button class="tab-btn" data-tab-group="env" data-tab="web" onclick="switchTab('env','web')">Web UI Agent</button>
-  </div>
-
-  <!-- ── Manual ── -->
-  <div class="tab-panel active" data-panel-group="env" data-panel="manual">
-    <h3>Explore it yourself</h3>
-    <p>The package installs a CLI called <code>pg</code> (alias <code>pg-bench</code>). It includes learning scripts &mdash; operational guides originally written for LLM agents, but readable by humans too:</p>
-    <pre><code>pg learn --help</code></pre>
-    <pre><code>Available skills:
-  pg-bench learn kung-fu        # Bench mastery &mdash; inspection, search, lens, diagnosis
-  pg-bench learn to-connect     # pgmd notebooks &mdash; prose wired through with truth</code></pre>
-    <p><strong>kung-fu</strong> covers the bench system: starting a persistent daemon, indexing documents, full-text search with an S-expression query language, consistency screening, and generating interactive HTML visualizations.</p>
-    <p><strong>to-connect</strong> covers pgmd notebooks: literate documents where markdown prose references grounded Parseltongue computations, rendered to self-contained HTML with cards, layers, and graph views.</p>
-    <p>Read a script with <code>pg learn kung-fu</code> &mdash; it prints to stdout. To run a demo:</p>
-    <pre><code>python parseltongue/core/demos/revenue_reports/demo.py</code></pre>
-    <p>To start a bench daemon and inspect the core system:</p>
-    <pre><code>pg-bench serve parseltongue/core/validation/core.pltg &amp;
-pg-bench wait
-pg screen
-pg find "engine"
-pg eval '(fmt "viz" (scope lens (find ".*")))' &gt; viz.html</code></pre>
+    <button class="tab-btn" data-tab-group="env" data-tab="manual" onclick="switchTab('env','manual')">Manual</button>
   </div>
 
   <!-- ── Coding CLI Agent ── -->
-  <div class="tab-panel" data-panel-group="env" data-panel="cli">
+  <div class="tab-panel active" data-panel-group="env" data-panel="cli">
     <h3>Claude Code / Cursor / Aider</h3>
     <p>Your agent has terminal access. Paste this prompt to bootstrap it with Parseltongue:</p>
 
@@ -81,6 +61,26 @@ pg eval '(fmt "viz" (scope lens (find ".*")))' &gt; viz.html</code></pre>
     <div class="prompt"><p>Run <code>pip install parseltongue-dsl</code> to install the Parseltongue formal reasoning library. It gives you a CLI called <code>pg</code>.</p><p>Run <code>pg learn --help</code> to see available learning paths, then run <code>pg learn &lt;name&gt;</code> for each one listed and read the full output carefully &mdash; these are your operational guides for working with Parseltongue.</p><p>Once you've read them, tell me what you can now do and ask me what I'd like to work on. I may upload documents for you to analyze.</p></div>
 
     <p>Same flow &mdash; the agent installs, learns, and asks what you need. Upload documents (PDF, DOCX, TXT) directly and the agent extracts text, loads them as ground truth, and builds formal analyses.</p>
+  </div>
+
+  <!-- ── Manual ── -->
+  <div class="tab-panel" data-panel-group="env" data-panel="manual">
+    <h3>Explore it yourself</h3>
+    <p>The package installs a CLI called <code>pg</code> (alias <code>pg-bench</code>). It includes learning scripts &mdash; operational guides originally written for LLM agents, but readable by humans too:</p>
+    <pre><code>pg learn --help</code></pre>
+    <pre><code>Available skills:
+  pg-bench learn kung-fu        # Bench mastery &mdash; inspection, search, lens, diagnosis
+  pg-bench learn to-connect     # pgmd notebooks &mdash; prose wired through with truth</code></pre>
+    <p><strong>kung-fu</strong> covers the bench system: starting a persistent daemon, indexing documents, full-text search with an S-expression query language, consistency screening, and generating interactive HTML visualizations.</p>
+    <p><strong>to-connect</strong> covers pgmd notebooks: literate documents where markdown prose references grounded Parseltongue computations, rendered to self-contained HTML with cards, layers, and graph views.</p>
+    <p>Read a script with <code>pg learn kung-fu</code> &mdash; it prints to stdout. To run a demo:</p>
+    <pre><code>python parseltongue/core/demos/revenue_reports/demo.py</code></pre>
+    <p>To start a bench daemon and inspect the core system:</p>
+    <pre><code>pg-bench serve parseltongue/core/validation/core.pltg &amp;
+pg-bench wait
+pg screen
+pg find "engine"
+pg eval '(fmt "viz" (scope lens (find ".*")))' &gt; viz.html</code></pre>
   </div>
 
   <h2>After setup</h2>

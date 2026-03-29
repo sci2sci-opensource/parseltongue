@@ -139,12 +139,14 @@ def _demo_docstring(demo_dir: Path) -> tuple[str, str] | None:
     return title, " ".join(desc_lines)
 
 
-def _demo_kind(name: str) -> str:
-    """Detect demo kind from directory name: pgmd, pltg, or py."""
+def _demo_kind(name: str, demo_dir: Path | None = None) -> str:
+    """Detect demo kind from directory name or content."""
     if name.endswith("_pgmd"):
         return "pgmd"
     if name.endswith("_pltg"):
         return "pltg"
+    if demo_dir is not None and (demo_dir / "notebooks").exists():
+        return "pgmd"
     return "py"
 
 
@@ -185,7 +187,7 @@ def discover_demos() -> list[dict]:
                 "name": d.name,
                 "title": title,
                 "description": description,
-                "kind": _demo_kind(d.name),
+                "kind": _demo_kind(d.name, d),
                 "dir": d,
             }
         )
@@ -195,12 +197,32 @@ def discover_demos() -> list[dict]:
 # ── Static pages ──
 
 
+def _read_pyproject() -> dict[str, str]:
+    """Read version and release_tagline from pyproject.toml."""
+    import tomllib
+
+    with open(ROOT / "pyproject.toml", "rb") as f:
+        data = tomllib.load(f)
+    proj = data.get("project", {})
+    tool_pt = data.get("tool", {}).get("parseltongue", {})
+    return {
+        "version": proj.get("version", "0.0.0"),
+        "release_tagline": tool_pt.get("release_tagline", ""),
+    }
+
+
 def build_static():
     print("\n== Static pages ==")
+    meta = _read_pyproject()
+
     for name in ["index.html", "quickstart.html"]:
         src = PAGES / name
         dst = SITE / name
-        shutil.copy2(src, dst)
+        content = src.read_text()
+        if name == "index.html":
+            content = content.replace("$version", meta["version"])
+            content = content.replace("$release_tagline", meta["release_tagline"])
+        dst.write_text(content)
         print(f"  {src.name} -> {dst}")
 
     # Generate theme.css from shared theme module + pages-only static styles
@@ -241,6 +263,13 @@ def build_demos_page(demos: list[dict]):
         href = f"demos/{d['name']}.html"
         if d["name"] == "ai2ai_pgmd":
             href = "demos/ai2ai_pgmd.html"
+        elif kind == "pgmd" and d["name"] != "ai2ai_pgmd":
+            # pgmd demos render as {name}_{notebook}.html — link to first
+            notebooks_dir = d["dir"] / "notebooks"
+            if notebooks_dir.exists():
+                first = sorted(notebooks_dir.glob("*.pgmd"))
+                if first:
+                    href = f"demos/{d['name']}_{first[0].stem}.html"
         cards.append(
             f'      <a class="card" href="{href}" data-kind="{kind}">\n'
             f'        <h3><span class="badge badge-{kind}">{kind}</span> {_esc(d["title"])}</h3>\n'
@@ -402,7 +431,7 @@ def build_construct_page():
   <h1>Construct</h1>
   <p class="subtitle">The place where both agents and humans learn Parseltongue.</p>
 
-  <blockquote style="border-left: 3px solid var(--mauve); padding-left: 1rem; margin: 1.5rem 0; color: var(--subtext); font-style: italic;">"I know kung fu." &mdash; Neo</blockquote>
+  <blockquote style="border-left: 3px solid var(--mauve); padding-left: 1rem; margin: 1.5rem 0; color: var(--subtext); font-style: italic;">"I know kung fu."</blockquote>
 
   <div class="modes">
     <h3>Two modes, mirrored</h3>
@@ -472,19 +501,16 @@ def build_wheel() -> Path | None:
 # ── pgmd demos ──
 
 
-def build_pgmd_demos():
-    print("\n== pgmd demos ==")
-    out = SITE / "demos"
-    out.mkdir(parents=True, exist_ok=True)
-
-    ai2ai = DEMOS / "ai2ai_pgmd" / "notebooks"
-    if not ai2ai.exists():
-        print("  WARNING: ai2ai_pgmd/notebooks not found, skipping")
+def _render_pgmd_dir(demo_name: str, out: Path):
+    """Render all .pgmd notebooks in a demo's notebooks/ directory."""
+    demo_dir = DEMOS / demo_name
+    notebooks = demo_dir / "notebooks"
+    if not notebooks.exists():
+        print(f"  WARNING: {demo_name}/notebooks not found, skipping")
         return
-
-    for pgmd in sorted(ai2ai.glob("*.pgmd")):
+    for pgmd in sorted(notebooks.glob("*.pgmd")):
         stem = pgmd.stem
-        dst = out / f"ai2ai_{stem}.html"
+        dst = out / f"{demo_name}_{stem}.html"
         print(f"  rendering {pgmd.name} ...")
         try:
             run(
@@ -499,10 +525,19 @@ def build_pgmd_demos():
                     "-o",
                     str(dst),
                 ],
-                cwd=DEMOS / "ai2ai_pgmd",
+                cwd=demo_dir,
             )
         except subprocess.CalledProcessError as e:
             print(f"  WARNING: render failed for {pgmd.name}: {e}")
+
+
+def build_pgmd_demos():
+    print("\n== pgmd demos ==")
+    out = SITE / "demos"
+    out.mkdir(parents=True, exist_ok=True)
+
+    _render_pgmd_dir("ai2ai_pgmd", out)
+    _render_pgmd_dir("engine_overview", out)
 
 
 # ── Pyodide demos (py + pltg — auto-discovered) ──
@@ -769,13 +804,13 @@ def build_pyodide_demos(demos: list[dict], wheel_path: Path | None):
 def build_ai2ai_index():
     """Create an index page for the ai2ai demo linking to rendered notebooks."""
     out = SITE / "demos"
-    notebooks = sorted(out.glob("ai2ai_*.html"))
+    notebooks = sorted(n for n in out.glob("ai2ai_pgmd_*.html") if n.name != "ai2ai_pgmd.html")
     if not notebooks:
         return
 
     links = "\n".join(
         f'      <a class="card" href="{n.name}"><h3>'
-        f'{_esc(n.stem.replace("ai2ai_", "").replace("_", " ").title())}</h3></a>'
+        f'{_esc(n.stem.replace("ai2ai_pgmd_", "").replace("_", " ").title())}</h3></a>'
         for n in notebooks
     )
 
