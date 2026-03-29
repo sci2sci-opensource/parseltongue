@@ -2,7 +2,7 @@
 
 LLMs hallucinate. They produce fluent, confident text that may have no basis in the source material. Traditional approaches treat this as a retrieval problem — feed the model better context and hope for the best. Parseltongue takes a different approach: instead of trusting an LLM's summary, we ask it to encode each document as a **logic system**. Every extracted claim must cite a verbatim quote. Every conclusion must derive from stated premises. And every derivation is checked.
 
-This notebook loads the engine's own formal specification — 50 nodes extracted by LLMs from `engine.py`, each citing a verbatim quote from the source code. These are the tip of a 2000+ node iceberg — switch to the Layers or Graph tab to see the full structure. Some of those extractions are wrong. The engine catches them. The `⚠` and `✖` markers you'll see throughout aren't bugs in the demo — they're the system working.
+This notebook loads the engine's own formal specification — 50 nodes extracted by LLMs from `engine.py`, each citing a verbatim quote from the source code. These are the tip of a 2000+ node iceberg — switch to the Layers or Graph tab to see the full structure. And some of the nodes we extracted may be wrong! E.G. we forgot to update documentation after refactoring. The engine catches such errors. The `⚠` and `✖` markers you'll see throughout aren't bugs in the demo — they're the system working.
 
 ```scheme
 ;; pltg Load
@@ -12,21 +12,21 @@ This notebook loads the engine's own formal specification — 50 nodes extracted
 
 ## Can We Actually Check Axioms?
 
-The README promises that parseltongue grounds axioms in evidence. That's easy to promise. Can we prove it?
+The README promises that Parseltongue grounds axioms in evidence. That's easy to promise. Can we prove it?
 
 Here's how it works. You have a claim — say, "Q3 revenue grew 15%." You find it quoted in one report. Then you find the raw quarterly figures in another document and compute growth independently. Now you have two paths to the same number. If they agree, the claim held up under scrutiny. If they don't — 15% vs 9.5% — you caught a contradiction. The more independent paths that converge on the same answer, the stronger the grounding.
 
-In parseltongue, this comparison between two independent paths to the same value is called a **diff**.
+In Parseltongue, this comparison between two independent paths to the same value is called a **diff**.
 
 The engine takes this further. It formally defines the epistemic status of every axiom — exemplifiable (evidence found), hallucinated (evidence contradicts), or unknown (can't tell). It maps these statuses to the errors and warnings it produces. And then it proves — not asserts, proves — that the mapping is exact. Every hallucinated claim becomes an error[[~theorem:core.engine.hallucinated-is-error]]. Every unknown becomes a warning[[~theorem:core.engine.unknown-is-warning]]. What survives is exemplifiable — the system witnessed it through evidence[[~theorem:core.readme.parseltongue-makes-axioms-exemplifiable]].
 
-That's not a design document. It's a theorem[[~theorem:core.engine.isomorphism-hallucinations-errors-unknowns-warnings]]. The comparison [[diff:core.thm-epistemics-cross-check]] shows it holds. And the `⚠` and `✖` markers on this page are that classification running live.
+This is not an aspirational claim but a theorem[[~theorem:core.engine.isomorphism-hallucinations-errors-unknowns-warnings]]. The comparison [[diff:core.thm-epistemics-cross-check]] shows it holds computationally. And the `⚠` and `✖` markers on this page are that classification running live.
 
 Everything below explains the machinery that makes this work.
 
 ## Facts and Evidence — Where It Starts
 
-A **fact** is a named value extracted from a document. But a value alone means nothing — anyone can write `revenue = 15`. What makes it a parseltongue fact is the **evidence**: the name of the source document and a verbatim quote. The engine literally searches the document for that exact text.
+A **fact** is a named value extracted from a document. But a value alone means nothing — anyone can write `revenue = 15`. What makes it a Parseltongue fact is the **evidence**: the name of the source document and a verbatim quote. The engine literally searches the document for that exact text.
 
 If the quote is found, the fact is grounded. If not, it's flagged `unverified_evidence` — the first kind of error. This is how hallucination detection works at its most basic level: the LLM says "the code does X" and quotes a line from `engine.py`. The engine checks. If that line isn't there, the fact is ungrounded.
 
@@ -55,7 +55,7 @@ The engine's specification proves three things about this chain. First, that fac
 derivation-theorem-count
 ```
 
-[[derive:derivation-theorem-count]] theorems prove the derivation chain. The documented mechanism count matches the implementation: [[diff:core.engine.derivation-mechanism-coverage]].
+[[derive:derivation-theorem-count]] theorems prove the derivation chain. The number of derivation mechanisms documented matches the number implemented: [[diff:core.engine.derivation-mechanism-coverage]].
 
 ## Comparing Independent Paths
 
@@ -78,9 +78,9 @@ When the paths disagree, the engine flags a divergence — the third and final c
 dependents-scan-count
 ```
 
-The scanner covers [[derive:dependents-scan-count]] definition types. The documented count matches the implementation both ways: [[diff:core.engine.dependents-paired-vs-doc]] and [[diff:core.engine.dependents-paired-vs-impl]].
+The scanner covers [[derive:dependents-scan-count]] definition types. The paired count matches what the documentation claims ([[diff:core.engine.dependents-paired-vs-doc]]) and what the implementation provides ([[diff:core.engine.dependents-paired-vs-impl]]).
 
-Diffs evaluate structurally, not by string comparison[[~fact:core.engine.diff-evaluated-structurally]]. A diff excludes itself from its own dependency scan — without this, every diff would flag itself as divergent. The engine documents [[theorem:core.engine.diff-mechanism-doc-count]] aspects of the diff mechanism, and the implementation matches: [[diff:core.engine.diff-mechanism-coverage]].
+Diffs evaluate structurally, not by string comparison[[~fact:core.engine.diff-evaluated-structurally]]. A diff excludes itself from its own dependency scan — without this, every diff would flag itself as divergent. All [[theorem:core.engine.diff-mechanism-doc-count]] documented aspects of the diff mechanism are implemented: [[diff:core.engine.diff-mechanism-coverage]].
 
 ## The Three Layers
 
@@ -90,7 +90,7 @@ We've now walked through each consistency layer individually:
 2. **[[fact:core.engine.consistency-layer-2]]** — does the taint from ungrounded facts propagate to derivations?
 3. **[[fact:core.engine.consistency-layer-3]]** — do independent paths to the same value agree?
 
-The consistency checker runs them in sequence. The specification confirms it checks all [[theorem:core.engine.consistency-layer-count]] layers, and the documented count matches the implementation: [[diff:core.engine.consistency-layers-coverage]].
+The consistency checker runs them in sequence. The specification confirms it checks all [[theorem:core.engine.consistency-layer-count]] layers, and the documented layer count matches the implementation: [[diff:core.engine.consistency-layers-coverage]].
 
 ```scheme
 ;; pltg Consistency Layers
@@ -101,7 +101,7 @@ core.engine.consistency-layer-count
 
 The three layers produce [[calc:core.engine.consistency-states-total]] distinct states — [[calc:core.engine.causes-error-count]] errors and [[calc:core.engine.causes-warning-count]] warnings.
 
-The distinction matters. Hard errors mean something is definitely wrong — unverified evidence, a derivation built on fabricated sources. Warnings mean "worth investigating but not necessarily broken" — a fact verified manually without a quote[[~theorem:core.engine.manual-causes-warning]], or a divergence caused by a sibling diff rather than a genuine disagreement. This last case is called **contamination**: when two diffs share a `:replace` side, the engine recognizes that one divergence is just the echo of the other[[~fact:core.engine.contamination-is-empty]][[~fact:core.engine.contamination-all-are-diff-refs]] and downgrades it to a warning[[~theorem:core.engine.contamination-causes-warning]].
+The distinction matters. Hard errors mean something is definitely wrong — unverified evidence, a derivation built on fabricated sources. Warnings are different — they mark the boundary of what the engine can prove. A fact verified manually has no quote for the engine to check[[~theorem:core.engine.manual-causes-warning]]. A diff whose `:replace` side references another diff[[~fact:core.engine.contamination-all-are-diff-refs]] would require the engine to evaluate itself to resolve — a circularity akin to the halting problem[[~fact:core.engine.contamination-is-empty]]. In both cases the engine reaches an incompleteness boundary: it cannot confirm the hypothesis, but it also cannot refute it. The result is epistemically unknown, so the engine hands off responsibility and produces a warning[[~theorem:core.engine.contamination-causes-warning]]. This is called **contamination**.
 
 Each failure mode has a **witness pattern** — a theorem that proves exactly how that kind of failure is detected:
 
@@ -127,7 +127,7 @@ witness-count
 core.engine.causes-error-count
 ```
 
-Now the payoff. This classification — hallucinated→error, unknown→warning, what survives→exemplifiable — is exactly what Section 2 promised. The engine doesn't just produce these labels. It proves the mapping is exhaustive. The epistemics isomorphism[[~theorem:core.engine.isomorphism-hallucinations-errors-unknowns-warnings]] is the theorem that ties it together: the README's philosophical claim about grounding axioms in evidence[[~fact:core.readme.evidence-is-departure]] and the engine's mechanical error classification are the same operation. Axiom status collapses to [[term:core.readme.parseltongue-axiom-status]] — exemplifiable — because the engine witnessed them.
+Now the payoff. This classification — hallucinated→error, unknown→warning, what survives→exemplifiable — is exactly what Section 2 promised. The engine doesn't just produce these labels. It proves the mapping is exhaustive. The epistemics isomorphism[[~theorem:core.engine.isomorphism-hallucinations-errors-unknowns-warnings]] is the theorem that ties it together: the README's philosophical claim about grounding axioms in evidence[[~fact:core.readme.evidence-is-departure]] and the engine's mechanical error classification are the same operation. Axiom status collapses to [[term:core.readme.parseltongue-axiom-status]] — because the engine witnessed them.
 
 ## Cross-Module Validation
 
@@ -166,7 +166,7 @@ The engine manages documents through registration, loading, and ground-truth ind
 core.engine.doc-mgmt-paired-count
 ```
 
-[[calc:core.engine.doc-mgmt-paired-count]] features fully paired — documented AND implemented. Paired vs documented: [[diff:core.engine.doc-mgmt-paired-vs-doc]]. Paired vs implemented: [[diff:core.engine.doc-mgmt-paired-vs-impl]].
+[[calc:core.engine.doc-mgmt-paired-count]] features are fully paired — documented AND implemented. The paired count matches what the documentation claims ([[diff:core.engine.doc-mgmt-paired-vs-doc]]) and what the implementation provides ([[diff:core.engine.doc-mgmt-paired-vs-impl]]).
 
 ## The Engine's Shape
 
@@ -193,9 +193,11 @@ engine-fact-count
 
 ## Screening Report
 
-The screening report for the engine's own specification — parseltongue validating itself:
+The engine is designed to know its own status — after all, that's what it's for. It has an explicit directive to produce its own consistency report and act on it. Here is the report for the engine's own specification — Parseltongue validating itself:
 
 ```scheme
 ;; pltg Screen
 (consistency)
 ```
+
+We hope this was an interesting deep dive into how Parseltongue works. Please don't hesitate to write us if you have any questions — or would like to improve it.

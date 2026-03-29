@@ -50,11 +50,12 @@ _LOGO_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -65.5 262 262" f
 
 
 def _topnav(active: str, prefix: str = "") -> str:
-    """Generate topnav HTML. active is one of: index, quickstart, demos, construct."""
+    """Generate topnav HTML. active is one of: index, quickstart, demos, faq, construct."""
     links = [
         ("index.html", "Home", "index"),
         ("quickstart.html", "Quickstart", "quickstart"),
         ("demos.html", "Demos", "demos"),
+        ("faq.html", "FAQ", "faq"),
         ("construct.html", "Construct", "construct"),
     ]
     nav_items = "\n    ".join(
@@ -295,7 +296,8 @@ def build_demos_page(demos: list[dict]):
 
 <div class="page-wide">
   <h1>Demos</h1>
-  <p class="subtitle">Worked examples showing Parseltongue in action. Each demo is a self-contained project.</p>
+  <p class="subtitle">Worked examples showing Parseltongue in action. Each demo is a self-contained project.<br>
+  <small><span class="badge badge-pgmd">pgmd</span> demos are for normal people (except the engine one). <span class="badge badge-py">py</span> and <span class="badge badge-pltg">pltg</span> demos are for engineers.</small></p>
 
   <div class="tab-bar">
     <button class="tab-btn active" data-tab-group="dtype" data-tab="all" onclick="switchTab('dtype','all')">All</button>
@@ -468,6 +470,94 @@ def build_construct_page():
 """
     (SITE / "construct.html").write_text(page)
     print(f"  construct.html -> {SITE / 'construct.html'}")
+
+
+# ── Generated: faq.html ──
+
+
+def build_faq_page():
+    """Generate faq.html."""
+    print("\n== faq.html (generated) ==")
+
+    page = f"""\
+<!DOCTYPE html>
+<html data-theme="dark" lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  {_FAVICON}
+  <title>FAQ - Parseltongue</title>
+  <link rel="stylesheet" href="styles/theme.css">
+  <style>
+    .faq-item {{ margin-bottom: 2.5rem; }}
+    .faq-q {{
+      font-size: 1.1rem; font-weight: 600; color: var(--lavender);
+      margin-bottom: 0.6rem; line-height: 1.4;
+    }}
+    .faq-a {{ color: var(--text); line-height: 1.7; }}
+    .faq-a p {{ margin: 0.5rem 0; }}
+    .faq-a em {{ color: var(--mauve); font-style: italic; }}
+  </style>
+</head>
+<body>
+
+{_topnav("faq")}
+
+<div class="page-wide">
+  <h1>FAQ</h1>
+  <p class="subtitle">Things people ask when they first hear about Parseltongue.</p>
+
+  <div class="faq-item">
+    <div class="faq-q">You can&rsquo;t eliminate hallucinations. That&rsquo;s impossible!</div>
+    <div class="faq-a">
+      <p>To be precise, we claim to eliminate ungrounded or detached-from-consequences facts and claims, and automatically find ones producing contradictions. We think it&rsquo;s reasonable to call such things &ldquo;hallucinations.&rdquo;</p>
+      <p>Note that we don&rsquo;t claim to eliminate <em>lies</em> &mdash; a lie can be grounded in facts, or present them incompletely. We call such cases &ldquo;deception,&rdquo; and they are out of scope for Parseltongue.</p>
+      <p>As for impossibility &mdash; eliminating all kinds of deception is indeed impossible. Eliminating hallucinations, as we prove by existence, is not. Moreover, it&rsquo;s technically impossible to provide <em>more</em> guarantees than Parseltongue gives. It directly touches the edge of impossibility &mdash; <em>nihil supernum</em>, with only G&ouml;del and Halting above us.</p>
+    </div>
+  </div>
+
+  <div class="faq-item">
+    <div class="faq-q">Ok, why the hell LISP-like syntax? Do you like braces that much ((0)_(0))?</div>
+    <div class="faq-a">
+      <p>We needed a homoiconic language &mdash; meaning data and code are represented as the same data structure. Parseltongue operates by literally rewriting itself: meta-programming isn&rsquo;t a library but the core structural property that makes everything work. During execution it modifies itself into enormous programs and reduces back to answers.</p>
+      <p>We could get this property from a few syntaxes &mdash; LISP is the easiest to write a tokenizer for. If you&rsquo;d like, you can write an adapter for any other homoiconic language &mdash; it should work since the engine only cares about programs being lists internally; externally they can be translated.</p>
+    </div>
+  </div>
+
+  <div class="faq-item">
+    <div class="faq-q">Returning to hallucinations &mdash; what if an LLM says 2+2&nbsp;=&nbsp;5? How do you detect that automatically?</div>
+    <div class="faq-a">
+      <p>First, it must quote the source it took the claim from &mdash; without a quote it&rsquo;s a hallucination automatically. It can take a wrong quote, so we also implement structural checks using the facts the LLM provides in derivations. The rule 2+2&nbsp;=&nbsp;5 will conflict with many other rules when substituted &mdash; and the engine detects this.</p>
+      <p>If a fact doesn&rsquo;t interact with anything at all, it&rsquo;s hallucinated by our classification (we have a separate warning for that).</p>
+      <p>For high-stakes cases, we also recommend blinded passes in the LLM module &mdash; multiple independent extraction attempts that are very hard to complete consistently given the engine&rsquo;s deterministic checks. Errors are a signal: if you see them, the situation is complex for the LLM and it&rsquo;s trying to cut corners.</p>
+      <p>Lastly, the notebooks render reports as computationally supported prose &mdash; you&rsquo;ll see exactly where an LLM cites wrong facts or doesn&rsquo;t cite them at all. When someone makes claims, silence about grounding is also telling.</p>
+    </div>
+  </div>
+
+  <div class="faq-item">
+    <div class="faq-q">How is this different from RAG?</div>
+    <div class="faq-a">
+      <p>RAG retrieves better context. We verify claims. RAG asks &ldquo;did I give the model the right documents?&rdquo; Parseltongue asks &ldquo;did the model accurately represent what&rsquo;s in them?&rdquo;</p>
+      <p>Think of it as the difference between having a CSV and having a data platform with self-monitoring, alerts, charts, and documentation. Both can describe the same rows &mdash; but one actually knows what to do with them. Parseltongue is knowledge-as-code: not just retrieved text, but structured, verified, and accountable knowledge.</p>
+    </div>
+  </div>
+
+  <div class="faq-item">
+    <div class="faq-q">Do I need to learn LISP to use Parseltongue?</div>
+    <div class="faq-a">
+      <p>No. The pgmd notebook format is Markdown with embedded blocks. For most use cases you write prose and let the LLM module handle extraction. The LISP is under the hood.</p>
+      <p>And LLMs will write the code for you &mdash; you just need to learn how to steer them and address the errors. For this we&rsquo;re building the <a href="construct.html">Construct</a>.</p>
+    </div>
+  </div>
+
+</div>
+
+<script src="styles/pages.js"></script>
+</body>
+</html>
+"""
+    (SITE / "faq.html").write_text(page)
+    print("  faq.html -> {SITE / 'faq.html'}")
 
 
 # ── Wheel ──
@@ -927,6 +1017,7 @@ def main():
 
     build_static()
     build_demos_page(demos)
+    build_faq_page()
     build_construct_page()
     wheel = build_wheel()
     build_pgmd_demos()

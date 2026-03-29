@@ -116,10 +116,15 @@ def execute_pgmd(
             error=traceback.format_exc(),
         )
 
-    # Step 3: Re-interpret each block with loader alias patching
+    # Step 3: Re-interpret each block with bench loader alias patching
     try:
         result_obj = bench.result(str(comp_path))
-        loader = tracker.loader
+        # Use bench's loader (has full module aliases) instead of tracker's
+        resolved_comp = str(Path(comp_path).resolve())
+        if resolved_comp in bench._mem:
+            _, _, _, loader = bench._mem[resolved_comp]
+        else:
+            loader = tracker.loader
         if result_obj and result_obj.system and loader:
             system = result_obj.system.copy(name="nb-eval", overridable=True)
             for pltg_num, (block_idx, block) in enumerate(pltg_blocks):
@@ -136,7 +141,7 @@ def execute_pgmd(
                         exprs = list(parsed)
                     else:
                         exprs = [parsed] if parsed else []
-                    patched = " ".join(PG.enc(loader.prepare_script(e, system)) for e in exprs)
+                    patched = " ".join(PG.enc(loader.prepare_script(e, system)) for e in exprs)  # type: ignore[arg-type]
                     _, val = system.interpret(patched)
                     if val is not SILENCE and val is not None:
                         bo.result = val

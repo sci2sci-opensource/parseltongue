@@ -314,9 +314,9 @@ Since all knowledge in [[term:parseltongue]] is explicit, we can check whether i
 
 
 (derive facts-and-terms-so-far (c.sum-values count-facts-knowing-block count-facts-garden-block count-non-lie-so-far this-block-sum)
-  :using (c.sum-values  count-facts-knowing-block count-facts-garden-block count-non-lie-so-far this-block-sum))
+  :using (c.sum-values count-facts-knowing-block count-facts-garden-block count-non-lie-so-far this-block-sum))
 
-(derive focus-check intro-is-substantial-but-focused 
+(derive focus-check intro-is-substantial-but-focused
   :bind ((?n facts-and-terms-so-far))
   :using (facts-and-terms-so-far intro-is-substantial-but-focused))
 

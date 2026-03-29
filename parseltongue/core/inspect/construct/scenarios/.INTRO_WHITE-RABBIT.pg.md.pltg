@@ -216,7 +216,7 @@ class Theorem:
 
 
 ;; @@end 4
-;; @@block 5 37ad438a22035fa4556dd459da6000d16158226a2aff3aa52d58ad7ec0d8502a
+;; @@block 5 83badb32a27726c6cc2e098532889d0cf3ffb8b64d699c1c17969e4fdbc0e7d6
 ;; pltg Promises and Deception
 
 (defterm concepts-not-more 25
@@ -249,9 +249,9 @@ class Theorem:
 
 
 (derive facts-and-terms-so-far (c.sum-values count-facts-knowing-block count-facts-garden-block count-non-lie-so-far this-block-sum)
-  :using (c.sum-values  count-facts-knowing-block count-facts-garden-block count-non-lie-so-far this-block-sum))
+  :using (c.sum-values count-facts-knowing-block count-facts-garden-block count-non-lie-so-far this-block-sum))
 
-(derive focus-check intro-is-substantial-but-focused 
+(derive focus-check intro-is-substantial-but-focused
   :bind ((?n facts-and-terms-so-far))
   :using (facts-and-terms-so-far intro-is-substantial-but-focused))
 
@@ -261,7 +261,7 @@ class Theorem:
 
 
 ;; @@end 5
-;; @@block 6 5a0984a20cf50bc13c8a62b24b4ba1b48b06a8962e79b0eabbc4a30de03c4fea
+;; @@block 6 327004db0a29c76a1a81e1195b98834e1bacca4037fe26404641d7881f905f71
 ;; pltg Grounding
 
 (load-document "construct" "../__init__.py")

@@ -711,7 +711,7 @@ def build_notebook_html(
 
             sections.append(f'''
 <div class="my-5 border border-surface1 rounded-lg overflow-hidden bg-mantle" id="nb-block-{pltg_counter}">
-  <div class="nb-block-header px-4 py-2 flex items-center gap-2 cursor-pointer select-none">
+  <div class="nb-block-header px-4 py-2 flex items-center gap-2 cursor-pointer">
     <span class="w-2 h-2 rounded-full bg-{dot}"></span>
     <span class="text-mauve font-bold text-sm">pltg</span>
     <span class="text-subtext text-sm">{html_mod.escape(title_text)}</span>
