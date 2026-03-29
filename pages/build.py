@@ -804,13 +804,13 @@ def build_pyodide_demos(demos: list[dict], wheel_path: Path | None):
 def build_ai2ai_index():
     """Create an index page for the ai2ai demo linking to rendered notebooks."""
     out = SITE / "demos"
-    notebooks = sorted(out.glob("ai2ai_*.html"))
+    notebooks = sorted(n for n in out.glob("ai2ai_pgmd_*.html") if n.name != "ai2ai_pgmd.html")
     if not notebooks:
         return
 
     links = "\n".join(
         f'      <a class="card" href="{n.name}"><h3>'
-        f'{_esc(n.stem.replace("ai2ai_", "").replace("_", " ").title())}</h3></a>'
+        f'{_esc(n.stem.replace("ai2ai_pgmd_", "").replace("_", " ").title())}</h3></a>'
         for n in notebooks
     )
 
