@@ -4,12 +4,15 @@ Inverted word-position index for fast quote lookup.
 Build once per document, query many times.
 """
 
+import logging
 import zlib
 from collections import defaultdict
 from typing import Dict, List, Tuple
 
 from .config import MatchStrategy, QuoteVerifierConfig
 from .normalizer import normalize_with_mapping
+
+log = logging.getLogger("parseltongue.quote_verifier")
 
 
 def _content_hash(text: str) -> str:
@@ -199,13 +202,22 @@ class DocumentIndex:
                 self.add(name, text)
 
     def add(self, name: str, text: str) -> IndexedDocument:
-        """Index a document. Skips re-indexing if content hash matches."""
+        """Index a document. Skips re-indexing if content hash matches.
+
+        COW: builds a new documents dict so concurrent readers iterating
+        the old dict are never disturbed.
+        """
         h = _content_hash(text)
         if name in self._hashes and self._hashes[name] == h and name in self.documents:
             return self.documents[name]
         doc = IndexedDocument(name, text, self.config)
-        self.documents[name] = doc
-        self._hashes[name] = h
+        # COW swap — readers holding the old dict ref see a consistent view.
+        new_docs = dict(self.documents)
+        new_docs[name] = doc
+        new_hashes = dict(self._hashes)
+        new_hashes[name] = h
+        self.documents = new_docs
+        self._hashes = new_hashes
         self._invalidate_merged()
         return doc
 
@@ -308,8 +320,13 @@ class DocumentIndex:
     # ── Quote provenance ──
 
     def register_quote(self, doc_name: str, start: int, end: int, caller: str):
-        """Record that caller owns the range [start, end] in doc_name."""
-        self._quote_ranges.append((doc_name, start, end, caller))
+        """Record that caller owns the range [start, end] in doc_name.
+
+        COW: builds a new list so concurrent readers are undisturbed.
+        """
+        self._quote_ranges = [*self._quote_ranges, (doc_name, start, end, caller)]
+        if len(self._quote_ranges) % 500 == 0:
+            log.debug("register_quote: %d ranges total (latest: %s in %s)", len(self._quote_ranges), caller, doc_name)
 
     def trace(self, query: str, max_results: int = 10000) -> List[Dict]:
         """Search text across all documents and find pltg nodes whose quotes overlap.
@@ -324,7 +341,9 @@ class DocumentIndex:
             return []
 
         results = []
-        for doc_name, doc in self.documents.items():
+        documents = self.documents  # grab once — COW safe
+        quote_ranges = self._quote_ranges
+        for doc_name, doc in documents.items():
             # Find all occurrences of query in this document
             text = doc.normalized_text
             qlen = len(norm_query)
@@ -338,7 +357,7 @@ class DocumentIndex:
                 orig_end = doc.position_map[min(pos + qlen - 1, len(doc.position_map) - 1)]
 
                 # Find quote ranges that contain this match
-                for r_doc, r_start, r_end, caller in self._quote_ranges:
+                for r_doc, r_start, r_end, caller in quote_ranges:
                     if r_doc != doc_name:
                         continue
                     # Match must fall within (or overlap) the quote range
@@ -381,7 +400,8 @@ class DocumentIndex:
         if hasattr(self, "_merged") and self._merged is not None:
             return self._merged
         merged: Dict[str, List[Tuple[str, int]]] = defaultdict(list)
-        for name, doc in self.documents.items():
+        documents = self.documents  # grab once — COW safe
+        for name, doc in documents.items():
             for word, positions in doc.word_positions.items():
                 for pos in positions:
                     merged[word].append((name, pos))
@@ -404,7 +424,8 @@ class DocumentIndex:
             return []
 
         results = []
-        for name, doc in self.documents.items():
+        documents = self.documents  # grab once — COW safe
+        for name, doc in documents.items():
             start, end, strategy = doc.find(norm_query)
             if start == -1:
                 continue

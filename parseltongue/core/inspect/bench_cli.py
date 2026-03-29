@@ -443,12 +443,40 @@ class BenchServer:
                     ref = self._last_search or {"offset": 0, "limit": limit}
                     offset = max(0, ref["offset"] - limit)
 
-                search_result = self.bench.search(
-                    query,
-                    max_lines=limit,
-                    max_callers=5,
-                    offset=offset,
-                )
+                if cmd.get("profile"):
+                    import cProfile
+                    import pstats
+                    import time as _time
+
+                    prof = cProfile.Profile()
+                    prof.enable()
+                    search_result = self.bench.search(
+                        query,
+                        max_lines=limit,
+                        max_callers=5,
+                        offset=offset,
+                    )
+                    prof.disable()
+                    prof_dir = BENCH_DIR / "profiles"
+                    prof_dir.mkdir(parents=True, exist_ok=True)
+                    ts = _time.strftime("%Y%m%d_%H%M%S")
+                    prof_path = prof_dir / f"search_{ts}.prof"
+                    prof.dump_stats(str(prof_path))
+                    import io
+
+                    s = io.StringIO()
+                    ps = pstats.Stats(prof, stream=s).sort_stats("cumulative")
+                    ps.print_stats(40)
+                    txt_path = prof_dir / f"search_{ts}.txt"
+                    txt_path.write_text(s.getvalue())
+                    sexp_warn = (sexp_warn + "\n" if sexp_warn else "") + f"[profile saved: {prof_path} + {txt_path}]"
+                else:
+                    search_result = self.bench.search(
+                        query,
+                        max_lines=limit,
+                        max_callers=5,
+                        offset=offset,
+                    )
                 self._last_search = {"query": query, "limit": limit, "offset": offset}
 
                 # Group results by document, preserving first-seen order
@@ -2010,7 +2038,8 @@ def stain(names: tuple[str, ...], bias: str):
 @click.option("--page", default=0, type=int, help="Jump to page (1-based). Overrides offset.")
 @click.option("--next", "go_next", is_flag=True, help="Next page of last search.")
 @click.option("--prev", "go_prev", is_flag=True, help="Previous page of last search.")
-def search(query: str, limit: int, offset: int, page: int, go_next: bool, go_prev: bool):
+@click.option("--profile", is_flag=True, help="Profile search and save to .parseltongue-bench/profiles/.")
+def search(query: str, limit: int, offset: int, page: int, go_next: bool, go_prev: bool, profile: bool):
     """Full-text search across indexed documents with pltg provenance.
 
     \b
@@ -2067,6 +2096,8 @@ def search(query: str, limit: int, offset: int, page: int, go_next: bool, go_pre
     Results include pltg provenance: [node.name] matching line
     """
     cmd: dict = {"action": "search", "limit": limit}
+    if profile:
+        cmd["profile"] = True
     if query:
         cmd["query"] = query
     if page > 0:
