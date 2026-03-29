@@ -1,0 +1,79 @@
+# Parseltongue Core: Engine Under the Microscope
+
+The parseltongue engine is the heart of the system — it evaluates S-expressions, derives theorems, checks consistency, and catches drift. This notebook loads the engine's own formal specification and inspects it using the workbench.
+
+```scheme
+;; pltg Load
+(import (quote ....validation.core core))
+```
+
+## The Engine's Shape
+
+```scheme
+;; pltg Counts
+(derive engine-fact-count (std.counting.count-exists
+  engine.consistency-checks-three-layers
+  engine.consistency-doc
+  engine.derive-resolves-definition
+  engine.diff-evaluated-structurally
+  engine.fact-stores-evidence)
+  :using (std.counting.count-exists-base std.counting.count-exists-step
+    engine.consistency-checks-three-layers engine.consistency-doc
+    engine.derive-resolves-definition engine.diff-evaluated-structurally
+    engine.fact-stores-evidence))
+engine-fact-count
+```
+
+The engine module has [[term:engine-fact-count]] key facts shown here — each one quoting verbatim source code from `engine.py`. [[fact:engine.consistency-checks-three-layers]] describes the three-layer screening: evidence grounding, fabrication propagation, and diff divergences. [[fact:engine.consistency-doc]] records the docstring.
+
+## Consistency — The Engine Checks Itself
+
+The consistency checker runs [[term:engine.consistency-layer-count]] layers of validation:
+
+- **Layer 1**: [[fact:engine.consistency-layer-1]] — evidence grounding. Every fact must cite a real quote.
+- **Layer 2**: [[fact:engine.consistency-layer-2]] — fabrication propagation. Theorems derived from ungrounded facts are flagged.
+- **Layer 3**: [[fact:engine.consistency-layer-3]] — diff divergences. Stated counts must match reality.
+
+```scheme
+;; pltg Consistency Layers
+engine.consistency-layer-count
+```
+
+## Error Classification
+
+The engine classifies issues into errors and warnings. [[fact:engine.unverified-causes-error]] — unverified evidence is an error, not a warning. [[fact:engine.manual-causes-warning]] — manually verified items get a warning (trust but verify). [[fact:engine.contamination-causes-warning]] — diff contamination (two diffs sharing a replace side) is a warning, not a failure.
+
+```scheme
+;; pltg Error Witnesses
+(derive error-witness-count (std.counting.count-exists
+  engine.witness-evidence-hallucinated
+  engine.witness-no-evidence-hallucinated
+  engine.witness-fabrication-does-not-hold
+  engine.witness-fabrication-ungrounded-source
+  engine.witness-evidence-unknown)
+  :using (std.counting.count-exists-base std.counting.count-exists-step
+    engine.witness-evidence-hallucinated engine.witness-no-evidence-hallucinated
+    engine.witness-fabrication-does-not-hold engine.witness-fabrication-ungrounded-source
+    engine.witness-evidence-unknown))
+error-witness-count
+```
+
+[[term:error-witness-count]] witness patterns classify how things fail: hallucinated evidence[[~term:engine.witness-evidence-hallucinated]], missing evidence[[~term:engine.witness-no-evidence-hallucinated]], axiom that doesn't hold[[~term:engine.witness-fabrication-does-not-hold]], ungrounded derivation source[[~term:engine.witness-fabrication-ungrounded-source]], and unknown evidence status[[~term:engine.witness-evidence-unknown]].
+
+## Diff Mechanism — Catching Drift
+
+Diffs compare two values and detect divergence. [[fact:engine.diff-evaluated-structurally]] shows how diffs are evaluated — structurally, not by string comparison.
+
+```scheme
+;; pltg Diff Coverage
+engine.diff-mechanism-doc-count
+```
+
+The engine documents [[term:engine.diff-mechanism-doc-count]] aspects of the diff mechanism. When a diff finds divergence, [[fact:engine.divergence-causes-error]] — it's a hard error. When contamination is detected (shared replace side), [[fact:engine.contamination-causes-warning]] — it's downgraded to a warning.
+
+## Screening Report
+
+```scheme
+;; pltg Screen
+(scope screen (focus "engine."))
+```

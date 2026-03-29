@@ -1,0 +1,50 @@
+;; @@block 0 6f752200841d55d3ec6eca34694003965b808b2aaa62540df3ffd03ac3728403
+;; pltg Load
+(import (quote ....validation.core core))
+
+;; @@end 0
+;; @@block 1 d8009009997cc8095b6561e4074d7779eaff34ea6e6cb6698029ecd1135348a9
+;; pltg Counts
+(derive engine-fact-count (std.counting.count-exists
+  engine.consistency-checks-three-layers
+  engine.consistency-doc
+  engine.derive-resolves-definition
+  engine.diff-evaluated-structurally
+  engine.fact-stores-evidence)
+  :using (std.counting.count-exists-base std.counting.count-exists-step
+    engine.consistency-checks-three-layers engine.consistency-doc
+    engine.derive-resolves-definition engine.diff-evaluated-structurally
+    engine.fact-stores-evidence))
+engine-fact-count
+
+;; @@end 1
+;; @@block 2 7d30c0b2a6a6a817d311646ecbeec09010219e3fdc6a253ae0b09506d945c975
+;; pltg Consistency Layers
+engine.consistency-layer-count
+
+;; @@end 2
+;; @@block 3 7e848129908369e36bb7f42109e386b3b38b0e6d8b17182115ac9117466218b7
+;; pltg Error Witnesses
+(derive error-witness-count (std.counting.count-exists
+  engine.witness-evidence-hallucinated
+  engine.witness-no-evidence-hallucinated
+  engine.witness-fabrication-does-not-hold
+  engine.witness-fabrication-ungrounded-source
+  engine.witness-evidence-unknown)
+  :using (std.counting.count-exists-base std.counting.count-exists-step
+    engine.witness-evidence-hallucinated engine.witness-no-evidence-hallucinated
+    engine.witness-fabrication-does-not-hold engine.witness-fabrication-ungrounded-source
+    engine.witness-evidence-unknown))
+error-witness-count
+
+;; @@end 3
+;; @@block 4 7f6a21ec0f9f00612e2e66421a8913df3bfad2aeac835fb7cc65f7c6e04c1db0
+;; pltg Diff Coverage
+engine.diff-mechanism-doc-count
+
+;; @@end 4
+;; @@block 5 fc67af9f6a80af76fb25ff4b3429dc4b224b2b6ffed029321cd80ab4bb64d583
+;; pltg Screen
+(scope screen (focus "engine."))
+
+;; @@end 5
