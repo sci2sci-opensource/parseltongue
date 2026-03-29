@@ -46,6 +46,7 @@ def execute_pgmd(
     pgmd_path: str | Path,
     user: str | None = None,
     assistant: str | None = None,
+    verbose: bool = False,
 ) -> NotebookResult:
     """Execute a .pgmd file and return bench + execution artifacts.
 
@@ -96,6 +97,9 @@ def execute_pgmd(
             error=error,
         )
 
+    # Ensure tracker has a loaded system/loader for Step 3
+    tracker._reload_quietly()
+
     # Step 2: Load through bench for full probe
     bench = Bench()
     bench.purge()
@@ -125,7 +129,9 @@ def execute_pgmd(
                 sys.stdout = cap_out
                 sys.stderr = cap_err
                 try:
-                    parsed = PG.dec(block.content)
+                    from parseltongue.core.lang import PGStringParser
+
+                    parsed = PGStringParser.translate(block.content)
                     if isinstance(parsed, (list, tuple)) and parsed and isinstance(parsed[0], (list, tuple)):
                         exprs = list(parsed)
                     else:
@@ -143,9 +149,9 @@ def execute_pgmd(
                     captured_out = cap_out.getvalue()
                     captured_err = cap_err.getvalue()
                     if captured_out:
-                        bo.stdout = (bo.stdout + "\n" + captured_out).strip() if bo.stdout else captured_out
-                    if captured_err:
-                        bo.stderr = (bo.stderr + "\n" + captured_err).strip() if bo.stderr else captured_err
+                        bo.stdout = captured_out
+                    if verbose and captured_err:
+                        bo.stderr = captured_err
     except Exception:
         pass  # non-fatal — we still have the bench
 

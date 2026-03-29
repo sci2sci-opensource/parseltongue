@@ -8,6 +8,8 @@
 (import (quote ..std.util))
 (defterm count-exists counting.count-exists :origin "import")
 
+(verify-manual (quote count-exists) "V")
+
 ; =====================================================================
 ; Module docstring vs class docstring
 ; =====================================================================
@@ -844,7 +846,7 @@
 
 (fact no-evidence-not-manually-validated false
     :evidence (evidence "engine.py"
-        :quotes ("new_origin = Evidence(\n                document=\"manual\",\n                quotes=[],\n                explanation=origin if isinstance(origin, str) else str(origin),\n                verify_manual=True,\n            )")
+        :quotes ("new_origin = Evidence(\n                document=\"manual\",\n                quotes=[],\n                explanation=f\"{base} [Signed: {signature}]\",\n                verify_manual=True,\n                signature=signature,\n            )")
         :explanation "verify_manual converts string origins to Evidence — they leave the isinstance(origin, str) path"))
 
 (derive witness-no-evidence-hallucinated no-evidence-is-hallucinated
@@ -910,7 +912,7 @@
         :quotes ("substitute_val = self._resolve_value(with_)")
         :explanation "with side — superposed until diff observes"))
 
-(defterm witness-diff-divergence-hallucinated
+(derive witness-diff-divergence-hallucinated
     (epistemics.joint-status
         (strict (epistemics.collapse (strict divergence-replace) epistemics.refuted))
         (strict (epistemics.collapse (strict divergence-with) epistemics.refuted)))
@@ -935,7 +937,7 @@
         :quotes ("substitute_val = self._resolve_value(with_)")
         :explanation "with side — superposed until diff observes"))
 
-(defterm witness-diff-value-hallucinated
+(derive witness-diff-value-hallucinated
     (epistemics.collapse
         (epistemics.joint-superposed
             value-divergence-replace
@@ -958,7 +960,7 @@
         :quotes ("diff_contamination = [d for d in all_diffs if d.diff_contamination_only]")
         :explanation "contaminated diff — superposed until observed"))
 
-(defterm witness-diff-contamination-unknown
+(derive witness-diff-contamination-unknown
     (epistemics.collapse (strict contamination-status) epistemics.hypothesised)
     :using (epistemics.collapse epistemics.hypothesised contamination-status))
 

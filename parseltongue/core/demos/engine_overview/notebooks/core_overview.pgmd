@@ -1,79 +1,201 @@
-# Parseltongue Core: Engine Under the Microscope
+# Parseltongue Core
 
-The parseltongue engine is the heart of the system — it evaluates S-expressions, derives theorems, checks consistency, and catches drift. This notebook loads the engine's own formal specification and inspects it using the workbench.
+LLMs hallucinate. They produce fluent, confident text that may have no basis in the source material. Traditional approaches treat this as a retrieval problem — feed the model better context and hope for the best. Parseltongue takes a different approach: instead of trusting an LLM's summary, we ask it to encode each document as a **logic system**. Every extracted claim must cite a verbatim quote. Every conclusion must derive from stated premises. And every derivation is checked.
+
+This notebook loads the engine's own formal specification — 50 nodes extracted by LLMs from `engine.py`, each citing a verbatim quote from the source code. These are the tip of a 2000+ node iceberg — switch to the Layers or Graph tab to see the full structure. Some of those extractions are wrong. The engine catches them. The `⚠` and `✖` markers you'll see throughout aren't bugs in the demo — they're the system working.
 
 ```scheme
 ;; pltg Load
 (import (quote ....validation.core core))
+(import (quote ....std.counting c))
 ```
+
+## Can We Actually Check Axioms?
+
+The README promises that parseltongue grounds axioms in evidence. That's easy to promise. Can we prove it?
+
+Here's how it works. You have a claim — say, "Q3 revenue grew 15%." You find it quoted in one report. Then you find the raw quarterly figures in another document and compute growth independently. Now you have two paths to the same number. If they agree, the claim held up under scrutiny. If they don't — 15% vs 9.5% — you caught a contradiction. The more independent paths that converge on the same answer, the stronger the grounding.
+
+In parseltongue, this comparison between two independent paths to the same value is called a **diff**.
+
+The engine takes this further. It formally defines the epistemic status of every axiom — exemplifiable (evidence found), hallucinated (evidence contradicts), or unknown (can't tell). It maps these statuses to the errors and warnings it produces. And then it proves — not asserts, proves — that the mapping is exact. Every hallucinated claim becomes an error[[~theorem:core.engine.hallucinated-is-error]]. Every unknown becomes a warning[[~theorem:core.engine.unknown-is-warning]]. What survives is exemplifiable — the system witnessed it through evidence[[~theorem:core.readme.parseltongue-makes-axioms-exemplifiable]].
+
+That's not a design document. It's a theorem[[~theorem:core.engine.isomorphism-hallucinations-errors-unknowns-warnings]]. The comparison [[diff:core.thm-epistemics-cross-check]] shows it holds. And the `⚠` and `✖` markers on this page are that classification running live.
+
+Everything below explains the machinery that makes this work.
+
+## Facts and Evidence — Where It Starts
+
+A **fact** is a named value extracted from a document. But a value alone means nothing — anyone can write `revenue = 15`. What makes it a parseltongue fact is the **evidence**: the name of the source document and a verbatim quote. The engine literally searches the document for that exact text.
+
+If the quote is found, the fact is grounded. If not, it's flagged `unverified_evidence` — the first kind of error. This is how hallucination detection works at its most basic level: the LLM says "the code does X" and quotes a line from `engine.py`. The engine checks. If that line isn't there, the fact is ungrounded.
+
+This is the first of three consistency layers — [[fact:core.engine.consistency-layer-1]]. Every fact in the engine's specification goes through this check. The ones with `⚠` markers on this page? That's a fact whose evidence the engine couldn't fully verify.
+
+## Derivation — The Proof Chain
+
+You have facts. You want to prove something from them. A **derivation** is a theorem: an expression evaluated against specific facts listed in its `:using` clause. The engine checks that every fact you claim to use actually exists and is accessible.
+
+The critical property: if ANY fact in the `:using` list has unverified evidence, the entire derivation inherits the taint. One fabricated revenue figure can contaminate dozens of downstream calculations. The engine doesn't hide this — it shows you the full contamination tree, not just the root cause.
+
+This propagation is called **fabrication taint**, and it's the second consistency layer — [[fact:core.engine.consistency-layer-2]]. You don't just catch the lie; you see everything it contaminates.
+
+The engine's specification proves three things about this chain. First, that facts, axioms, and terms all verify their origin through the same mechanism[[~theorem:core.engine.bound-evidence-attachable]]. Second, that derivation inherits grounding from its sources — if the language says `derive` is a documentation directive, the engine checks its sources[[~theorem:core.engine.bound-derive-inherits]]. Third, that diffs need no evidence at all — inconsistency between their sides is itself a system-level issue, not a claim requiring grounding[[~theorem:core.engine.bound-diff-no-evidence]].
+
+```scheme
+;; pltg Derivation
+(derive derivation-theorem-count (c.count-exists
+  core.engine.bound-evidence-attachable
+  core.engine.bound-derive-inherits
+  core.engine.bound-diff-no-evidence)
+  :using (c.count-exists
+    core.engine.bound-evidence-attachable
+    core.engine.bound-derive-inherits
+    core.engine.bound-diff-no-evidence))
+derivation-theorem-count
+```
+
+[[derive:derivation-theorem-count]] theorems prove the derivation chain. The documented mechanism count matches the implementation: [[diff:core.engine.derivation-mechanism-coverage]].
+
+## Comparing Independent Paths
+
+Back to the revenue example from Section 2. Two paths, one number, do they agree? That's what diffs do formally. You register a `:replace` side and a `:with` side — two independently computed values for the same quantity. When the consistency checker runs, it evaluates both and compares.
+
+When the paths disagree, the engine flags a divergence — the third and final consistency layer: [[fact:core.engine.consistency-layer-3]]. But it doesn't stop at the point of disagreement. If theorem B depends on a value that just diverged, B is now suspect too. To find the full blast radius, the engine scans all five definition types — facts[[~fact:core.engine.dependents-scans-facts]], terms[[~fact:core.engine.dependents-scans-terms]], axioms[[~fact:core.engine.dependents-scans-axioms]], theorems[[~fact:core.engine.dependents-scans-theorems]], and other diffs[[~fact:core.engine.dependents-scans-diffs]]. It follows derivation chains for indirect dependencies[[~fact:core.engine.dependents-checks-derivation-list]], and the expansion is transitive — quoting the actual `while frontier:` loop from the source[[~fact:core.engine.dependents-is-transitive]].
+
+```scheme
+;; pltg Dependents
+(derive dependents-scan-count (c.count-exists
+  core.engine.dependents-scans-facts
+  core.engine.dependents-scans-terms
+  core.engine.dependents-scans-axioms
+  core.engine.dependents-scans-theorems
+  core.engine.dependents-scans-diffs)
+  :using (c.count-exists
+    core.engine.dependents-scans-facts core.engine.dependents-scans-terms
+    core.engine.dependents-scans-axioms core.engine.dependents-scans-theorems
+    core.engine.dependents-scans-diffs))
+dependents-scan-count
+```
+
+The scanner covers [[derive:dependents-scan-count]] definition types. The documented count matches the implementation both ways: [[diff:core.engine.dependents-paired-vs-doc]] and [[diff:core.engine.dependents-paired-vs-impl]].
+
+Diffs evaluate structurally, not by string comparison[[~fact:core.engine.diff-evaluated-structurally]]. A diff excludes itself from its own dependency scan — without this, every diff would flag itself as divergent. The engine documents [[theorem:core.engine.diff-mechanism-doc-count]] aspects of the diff mechanism, and the implementation matches: [[diff:core.engine.diff-mechanism-coverage]].
+
+## The Three Layers
+
+We've now walked through each consistency layer individually:
+
+1. **[[fact:core.engine.consistency-layer-1]]** — is the quote actually in the document?
+2. **[[fact:core.engine.consistency-layer-2]]** — does the taint from ungrounded facts propagate to derivations?
+3. **[[fact:core.engine.consistency-layer-3]]** — do independent paths to the same value agree?
+
+The consistency checker runs them in sequence. The specification confirms it checks all [[theorem:core.engine.consistency-layer-count]] layers, and the documented count matches the implementation: [[diff:core.engine.consistency-layers-coverage]].
+
+```scheme
+;; pltg Consistency Layers
+core.engine.consistency-layer-count
+```
+
+## Errors, Warnings, and the Classification
+
+The three layers produce [[calc:core.engine.consistency-states-total]] distinct states — [[calc:core.engine.causes-error-count]] errors and [[calc:core.engine.causes-warning-count]] warnings.
+
+The distinction matters. Hard errors mean something is definitely wrong — unverified evidence, a derivation built on fabricated sources. Warnings mean "worth investigating but not necessarily broken" — a fact verified manually without a quote[[~theorem:core.engine.manual-causes-warning]], or a divergence caused by a sibling diff rather than a genuine disagreement. This last case is called **contamination**: when two diffs share a `:replace` side, the engine recognizes that one divergence is just the echo of the other[[~fact:core.engine.contamination-is-empty]][[~fact:core.engine.contamination-all-are-diff-refs]] and downgrades it to a warning[[~theorem:core.engine.contamination-causes-warning]].
+
+Each failure mode has a **witness pattern** — a theorem that proves exactly how that kind of failure is detected:
+
+```scheme
+;; pltg Error Witnesses
+(derive witness-count (c.count-exists
+  core.engine.witness-evidence-hallucinated
+  core.engine.witness-no-evidence-hallucinated
+  core.engine.witness-fabrication-does-not-hold
+  core.engine.witness-fabrication-ungrounded-source
+  core.engine.witness-evidence-unknown)
+  :using (c.count-exists
+    core.engine.witness-evidence-hallucinated core.engine.witness-no-evidence-hallucinated
+    core.engine.witness-fabrication-does-not-hold core.engine.witness-fabrication-ungrounded-source
+    core.engine.witness-evidence-unknown))
+witness-count
+```
+
+[[derive:witness-count]] patterns: hallucinated evidence[[~theorem:core.engine.witness-evidence-hallucinated]], missing evidence entirely[[~theorem:core.engine.witness-no-evidence-hallucinated]], an axiom that doesn't hold under binding[[~theorem:core.engine.witness-fabrication-does-not-hold]], an ungrounded derivation source[[~theorem:core.engine.witness-fabrication-ungrounded-source]], and unknown evidence status[[~theorem:core.engine.witness-evidence-unknown]].
+
+```scheme
+;; pltg Error vs Warning Counts
+core.engine.causes-error-count
+```
+
+Now the payoff. This classification — hallucinated→error, unknown→warning, what survives→exemplifiable — is exactly what Section 2 promised. The engine doesn't just produce these labels. It proves the mapping is exhaustive. The epistemics isomorphism[[~theorem:core.engine.isomorphism-hallucinations-errors-unknowns-warnings]] is the theorem that ties it together: the README's philosophical claim about grounding axioms in evidence[[~fact:core.readme.evidence-is-departure]] and the engine's mechanical error classification are the same operation. Axiom status collapses to [[term:core.readme.parseltongue-axiom-status]] — exemplifiable — because the engine witnessed them.
+
+## Cross-Module Validation
+
+The engine's specification doesn't exist in isolation. It's one of roughly 15 modules that cross-validate each other. The README makes claims. Each module's specification makes claims. The implementation exists. Cross-module diffs connect them — and the rendered values show whether they agree:
+
+- Consistency state count: [[diff:core.thm-consistency-states-total]]
+- Error types vs README's issue table: [[diff:core.thm-engine-error-cross-check]]
+- Warning types vs README's warning table: [[diff:core.thm-engine-warning-cross-check]]
+- Fabrication propagation described vs implemented: [[diff:core.thm-fabrication]]
+- Automatic grounding claimed vs built: [[diff:core.thm-fact-cites-quote]]
+- Cross-validation mechanism: [[diff:core.thm-diffs-detect]]
+- The epistemics isomorphism: [[diff:core.thm-epistemics-cross-check]]
+
+```scheme
+;; pltg Cross-Module
+(derive cross-module-count (c.count-exists
+  (quote core.thm-consistency-states-total)
+  (quote core.thm-engine-error-cross-check)
+  (quote core.thm-engine-warning-cross-check)
+  (quote core.thm-fabrication)
+  (quote core.thm-fact-cites-quote)
+  (quote core.thm-diffs-detect)
+  (quote core.thm-epistemics-cross-check))
+  :using (c.count-exists))
+cross-module-count
+```
+
+[[derive:cross-module-count]] cross-module diffs. When any of them drift — someone updates the README but forgets the implementation, or vice versa — the comparison catches it automatically.
+
+## Document Management — Items × Layers
+
+The engine manages documents through registration, loading, and ground-truth indexing. When a subsystem appears in multiple representations — documentation says it exists, implementation actually provides it — the **Items × Layers** pattern creates a fact per item per layer, derives per-layer aggregates, and compares across layers.
+
+```scheme
+;; pltg Document Management
+core.engine.doc-mgmt-paired-count
+```
+
+[[calc:core.engine.doc-mgmt-paired-count]] features fully paired — documented AND implemented. Paired vs documented: [[diff:core.engine.doc-mgmt-paired-vs-doc]]. Paired vs implemented: [[diff:core.engine.doc-mgmt-paired-vs-impl]].
 
 ## The Engine's Shape
 
 ```scheme
-;; pltg Counts
-(derive engine-fact-count (std.counting.count-exists
-  engine.consistency-checks-three-layers
-  engine.consistency-doc
-  engine.derive-resolves-definition
-  engine.diff-evaluated-structurally
-  engine.fact-stores-evidence)
-  :using (std.counting.count-exists-base std.counting.count-exists-step
-    engine.consistency-checks-three-layers engine.consistency-doc
-    engine.derive-resolves-definition engine.diff-evaluated-structurally
-    engine.fact-stores-evidence))
+;; pltg Core Facts
+(derive engine-fact-count (c.count-exists
+  core.engine.consistency-checks-three-layers
+  core.engine.consistency-doc
+  core.engine.derive-fabrication-propagation
+  core.engine.derive-doc
+  core.engine.derive-checks-sources
+  core.engine.axiom-requires-free-vars
+  core.engine.axiom-rejection-message
+  core.engine.dependents-is-transitive)
+  :using (c.count-exists
+    core.engine.consistency-checks-three-layers core.engine.consistency-doc
+    core.engine.derive-fabrication-propagation core.engine.derive-doc
+    core.engine.derive-checks-sources core.engine.axiom-requires-free-vars
+    core.engine.axiom-rejection-message core.engine.dependents-is-transitive))
 engine-fact-count
 ```
 
-The engine module has [[term:engine-fact-count]] key facts shown here — each one quoting verbatim source code from `engine.py`. [[fact:engine.consistency-checks-three-layers]] describes the three-layer screening: evidence grounding, fabrication propagation, and diff divergences. [[fact:engine.consistency-doc]] records the docstring.
-
-## Consistency — The Engine Checks Itself
-
-The consistency checker runs [[term:engine.consistency-layer-count]] layers of validation:
-
-- **Layer 1**: [[fact:engine.consistency-layer-1]] — evidence grounding. Every fact must cite a real quote.
-- **Layer 2**: [[fact:engine.consistency-layer-2]] — fabrication propagation. Theorems derived from ungrounded facts are flagged.
-- **Layer 3**: [[fact:engine.consistency-layer-3]] — diff divergences. Stated counts must match reality.
-
-```scheme
-;; pltg Consistency Layers
-engine.consistency-layer-count
-```
-
-## Error Classification
-
-The engine classifies issues into errors and warnings. [[fact:engine.unverified-causes-error]] — unverified evidence is an error, not a warning. [[fact:engine.manual-causes-warning]] — manually verified items get a warning (trust but verify). [[fact:engine.contamination-causes-warning]] — diff contamination (two diffs sharing a replace side) is a warning, not a failure.
-
-```scheme
-;; pltg Error Witnesses
-(derive error-witness-count (std.counting.count-exists
-  engine.witness-evidence-hallucinated
-  engine.witness-no-evidence-hallucinated
-  engine.witness-fabrication-does-not-hold
-  engine.witness-fabrication-ungrounded-source
-  engine.witness-evidence-unknown)
-  :using (std.counting.count-exists-base std.counting.count-exists-step
-    engine.witness-evidence-hallucinated engine.witness-no-evidence-hallucinated
-    engine.witness-fabrication-does-not-hold engine.witness-fabrication-ungrounded-source
-    engine.witness-evidence-unknown))
-error-witness-count
-```
-
-[[term:error-witness-count]] witness patterns classify how things fail: hallucinated evidence[[~term:engine.witness-evidence-hallucinated]], missing evidence[[~term:engine.witness-no-evidence-hallucinated]], axiom that doesn't hold[[~term:engine.witness-fabrication-does-not-hold]], ungrounded derivation source[[~term:engine.witness-fabrication-ungrounded-source]], and unknown evidence status[[~term:engine.witness-evidence-unknown]].
-
-## Diff Mechanism — Catching Drift
-
-Diffs compare two values and detect divergence. [[fact:engine.diff-evaluated-structurally]] shows how diffs are evaluated — structurally, not by string comparison.
-
-```scheme
-;; pltg Diff Coverage
-engine.diff-mechanism-doc-count
-```
-
-The engine documents [[term:engine.diff-mechanism-doc-count]] aspects of the diff mechanism. When a diff finds divergence, [[fact:engine.divergence-causes-error]] — it's a hard error. When contamination is detected (shared replace side), [[fact:engine.contamination-causes-warning]] — it's downgraded to a warning.
+[[derive:engine-fact-count]] key facts form the foundation — from the derive directive's docstring ([[fact:core.engine.derive-doc]]) to the consistency checker's ([[fact:core.engine.consistency-doc]]), from the requirement that axioms have free `?`-variables[[~fact:core.engine.axiom-requires-free-vars]] to the transitive dependents expansion[[~fact:core.engine.dependents-is-transitive]]. Each one quotes verbatim from `engine.py`. The engine's formal specification is built from its own source code, extracted by LLMs, and verified by the engine itself.
 
 ## Screening Report
 
+The screening report for the engine's own specification — parseltongue validating itself:
+
 ```scheme
 ;; pltg Screen
-(scope screen (focus "engine."))
+(consistency)
 ```

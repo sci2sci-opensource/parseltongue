@@ -660,15 +660,15 @@ def build_notebook_html(
                 )
             if stdout:
                 out_parts.append(
-                    f'<div class="border-t border-surface1 px-4 py-2 text-sm text-green whitespace-pre-wrap">{html_mod.escape(stdout)}</div>'
+                    f'<div class="border-t border-surface1 px-4 py-2 text-sm text-green whitespace-pre-wrap" style="max-height:20rem;overflow-y:auto">{html_mod.escape(stdout)}</div>'
                 )
             if stderr:
                 out_parts.append(
-                    f'<div class="border-t border-surface1 px-4 py-2 text-sm text-yellow whitespace-pre-wrap">{html_mod.escape(stderr)}</div>'
+                    f'<div class="border-t border-surface1 px-4 py-2 text-sm text-yellow whitespace-pre-wrap" style="max-height:20rem;overflow-y:auto">{html_mod.escape(stderr)}</div>'
                 )
             if error:
                 out_parts.append(
-                    f'<div class="border-t border-surface1 px-4 py-2 text-sm text-red whitespace-pre-wrap">{html_mod.escape(error)}</div>'
+                    f'<div class="border-t border-surface1 px-4 py-2 text-sm text-red whitespace-pre-wrap" style="max-height:20rem;overflow-y:auto">{html_mod.escape(error)}</div>'
                 )
             output_html = "\n".join(out_parts)
 

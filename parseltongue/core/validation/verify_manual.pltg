@@ -7,46 +7,46 @@
 ; All *-doc-count entries are now self-verifying derives via count-exists.
 
 ; --- count-exists aliases (defterm :origin "import") ---
-(verify-manual (quote atoms.count-exists))
-(verify-manual (quote engine.count-exists))
-(verify-manual (quote lang.count-exists))
-(verify-manual (quote system.count-exists))
-(verify-manual (quote quote_verifier.count-exists))
-(verify-manual (quote quote_verifier.sum-values))
-(verify-manual (quote loader.count-exists))
-(verify-manual (quote default_system_settings.count-exists))
-(verify-manual (quote demos.count-exists))
-(verify-manual (quote readme.count-exists))
-(verify-manual (quote pyproject.count-exists))
-(verify-manual (quote ast_verifier.count-exists))
-(verify-manual (quote lazy_loader.count-exists))
+(verify-manual (quote atoms.count-exists) "V")
+(verify-manual (quote engine.count-exists) "V")
+(verify-manual (quote lang.count-exists) "V")
+(verify-manual (quote system.count-exists) "V")
+(verify-manual (quote quote_verifier.count-exists) "V")
+(verify-manual (quote quote_verifier.sum-values) "V")
+(verify-manual (quote loader.count-exists) "V")
+(verify-manual (quote default_system_settings.count-exists) "V")
+(verify-manual (quote demos.count-exists) "V")
+(verify-manual (quote readme.count-exists) "V")
+(verify-manual (quote pyproject.count-exists) "V")
+(verify-manual (quote ast_verifier.count-exists) "V")
+(verify-manual (quote lazy_loader.count-exists) "V")
 
 ; --- (deleted: readme.readme-documents-splat-patterns — now has :evidence) ---
 
 ; --- quote_verifier hypothetical bind scenarios ---
 ; Calculation artifacts: concrete values to instantiate axiom ?-vars.
 ; axiom 5 (regular-stopwords-diluted): hypothetical single-stopword-in-5-word-quote scenario
-(verify-manual (quote quote_verifier.regular-is-not-dangerous))
-(verify-manual (quote quote_verifier.regular-single-count))
-(verify-manual (quote quote_verifier.regular-word-count))
+(verify-manual (quote quote_verifier.regular-is-not-dangerous) "V")
+(verify-manual (quote quote_verifier.regular-single-count) "V")
+(verify-manual (quote quote_verifier.regular-word-count) "V")
 
 ; axiom 6 (empty-quote-rejected): hypothetical empty-quote input/return
-(verify-manual (quote quote_verifier.empty-has-no-content))
-(verify-manual (quote quote_verifier.empty-verified-result))
+(verify-manual (quote quote_verifier.empty-has-no-content) "V")
+(verify-manual (quote quote_verifier.empty-verified-result) "V")
 
 ; axiom 10 (single-stopword-rejected): hypothetical single-stopword-quote input/return
-(verify-manual (quote quote_verifier.single-word-is-single))
-(verify-manual (quote quote_verifier.single-word-is-stopword))
-(verify-manual (quote quote_verifier.remove-stopwords-enabled))
-(verify-manual (quote quote_verifier.single-stopword-verified))
+(verify-manual (quote quote_verifier.single-word-is-single) "V")
+(verify-manual (quote quote_verifier.single-word-is-stopword) "V")
+(verify-manual (quote quote_verifier.remove-stopwords-enabled) "V")
+(verify-manual (quote quote_verifier.single-stopword-verified) "V")
 
 ; axiom 11 (normalized-to-empty-rejected): hypothetical normalizes-to-empty input/return
-(verify-manual (quote quote_verifier.quote-has-content))
-(verify-manual (quote quote_verifier.normalized-has-content))
-(verify-manual (quote quote_verifier.normalized-empty-verified))
+(verify-manual (quote quote_verifier.quote-has-content) "V")
+(verify-manual (quote quote_verifier.normalized-has-content) "V")
+(verify-manual (quote quote_verifier.normalized-empty-verified) "V")
 
 ; axiom 13 (score-clamped): hypothetical score after dangerous stopword penalty
-(verify-manual (quote quote_verifier.score-after-single-dangerous))
+(verify-manual (quote quote_verifier.score-after-single-dangerous) "V")
 
 ; axiom 14 (config-flag-gates-step): hypothetical disabled-step return
-(verify-manual (quote quote_verifier.no-transformations))
+(verify-manual (quote quote_verifier.no-transformations) "V")

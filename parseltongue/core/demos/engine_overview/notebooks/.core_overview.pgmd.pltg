@@ -1,50 +1,102 @@
-;; @@block 0 6f752200841d55d3ec6eca34694003965b808b2aaa62540df3ffd03ac3728403
+;; @@block 0 a6480a6eada307f3adfe6a76aee3252a17e1bbd282e2959e97bf2140c15c4cd3
 ;; pltg Load
 (import (quote ....validation.core core))
+(import (quote ....std.counting c))
 
 ;; @@end 0
-;; @@block 1 d8009009997cc8095b6561e4074d7779eaff34ea6e6cb6698029ecd1135348a9
-;; pltg Counts
-(derive engine-fact-count (std.counting.count-exists
-  engine.consistency-checks-three-layers
-  engine.consistency-doc
-  engine.derive-resolves-definition
-  engine.diff-evaluated-structurally
-  engine.fact-stores-evidence)
-  :using (std.counting.count-exists-base std.counting.count-exists-step
-    engine.consistency-checks-three-layers engine.consistency-doc
-    engine.derive-resolves-definition engine.diff-evaluated-structurally
-    engine.fact-stores-evidence))
-engine-fact-count
+;; @@block 1 f1bd8266ebdc10519c2c70912b921fb0a708f6d46cb592af72ea618c9ac212e6
+;; pltg Derivation
+(derive derivation-theorem-count (c.count-exists
+  core.engine.bound-evidence-attachable
+  core.engine.bound-derive-inherits
+  core.engine.bound-diff-no-evidence)
+  :using (c.count-exists
+    core.engine.bound-evidence-attachable
+    core.engine.bound-derive-inherits
+    core.engine.bound-diff-no-evidence))
+derivation-theorem-count
 
 ;; @@end 1
-;; @@block 2 7d30c0b2a6a6a817d311646ecbeec09010219e3fdc6a253ae0b09506d945c975
-;; pltg Consistency Layers
-engine.consistency-layer-count
+;; @@block 2 0b7bea44c0c44b5fdef5a5dbab75468055d5fb90148f9a553abb3b1fda0eaa4a
+;; pltg Dependents
+(derive dependents-scan-count (c.count-exists
+  core.engine.dependents-scans-facts
+  core.engine.dependents-scans-terms
+  core.engine.dependents-scans-axioms
+  core.engine.dependents-scans-theorems
+  core.engine.dependents-scans-diffs)
+  :using (c.count-exists
+    core.engine.dependents-scans-facts core.engine.dependents-scans-terms
+    core.engine.dependents-scans-axioms core.engine.dependents-scans-theorems
+    core.engine.dependents-scans-diffs))
+dependents-scan-count
 
 ;; @@end 2
-;; @@block 3 7e848129908369e36bb7f42109e386b3b38b0e6d8b17182115ac9117466218b7
-;; pltg Error Witnesses
-(derive error-witness-count (std.counting.count-exists
-  engine.witness-evidence-hallucinated
-  engine.witness-no-evidence-hallucinated
-  engine.witness-fabrication-does-not-hold
-  engine.witness-fabrication-ungrounded-source
-  engine.witness-evidence-unknown)
-  :using (std.counting.count-exists-base std.counting.count-exists-step
-    engine.witness-evidence-hallucinated engine.witness-no-evidence-hallucinated
-    engine.witness-fabrication-does-not-hold engine.witness-fabrication-ungrounded-source
-    engine.witness-evidence-unknown))
-error-witness-count
+;; @@block 3 3be486bb481608a040cf43fe5dce7f2977cfaf42280c5eb1dcf0ed6433cf116d
+;; pltg Consistency Layers
+core.engine.consistency-layer-count
 
 ;; @@end 3
-;; @@block 4 7f6a21ec0f9f00612e2e66421a8913df3bfad2aeac835fb7cc65f7c6e04c1db0
-;; pltg Diff Coverage
-engine.diff-mechanism-doc-count
+;; @@block 4 7a7edf03a3a9eb30d5b5337baf2fbca88156534ee43845d7e1b8201d048e4cbe
+;; pltg Error Witnesses
+(derive witness-count (c.count-exists
+  core.engine.witness-evidence-hallucinated
+  core.engine.witness-no-evidence-hallucinated
+  core.engine.witness-fabrication-does-not-hold
+  core.engine.witness-fabrication-ungrounded-source
+  core.engine.witness-evidence-unknown)
+  :using (c.count-exists
+    core.engine.witness-evidence-hallucinated core.engine.witness-no-evidence-hallucinated
+    core.engine.witness-fabrication-does-not-hold core.engine.witness-fabrication-ungrounded-source
+    core.engine.witness-evidence-unknown))
+witness-count
 
 ;; @@end 4
-;; @@block 5 fc67af9f6a80af76fb25ff4b3429dc4b224b2b6ffed029321cd80ab4bb64d583
-;; pltg Screen
-(scope screen (focus "engine."))
+;; @@block 5 66b7255e7ed4dad7983aabe56f32c245ea7d57203453c0c6359c223fac11ad3c
+;; pltg Error vs Warning Counts
+core.engine.causes-error-count
 
 ;; @@end 5
+;; @@block 6 2b4e4be55a6b9a412a624c782fa6ab7fd5e3662b61dce4cf2a767fffb44ed20e
+;; pltg Cross-Module
+(derive cross-module-count (c.count-exists
+  (quote core.thm-consistency-states-total)
+  (quote core.thm-engine-error-cross-check)
+  (quote core.thm-engine-warning-cross-check)
+  (quote core.thm-fabrication)
+  (quote core.thm-fact-cites-quote)
+  (quote core.thm-diffs-detect)
+  (quote core.thm-epistemics-cross-check))
+  :using (c.count-exists))
+cross-module-count
+
+;; @@end 6
+;; @@block 7 dd929c2b6766e8024e8e32612bc89edb018020403b0bf593e1fae22d30651db5
+;; pltg Document Management
+core.engine.doc-mgmt-paired-count
+
+;; @@end 7
+;; @@block 8 f094abc9ae57deca259d48df0b2c2d9ab0ce6ab94c7bd504728fc0e78d103ba1
+;; pltg Core Facts
+(derive engine-fact-count (c.count-exists
+  core.engine.consistency-checks-three-layers
+  core.engine.consistency-doc
+  core.engine.derive-fabrication-propagation
+  core.engine.derive-doc
+  core.engine.derive-checks-sources
+  core.engine.axiom-requires-free-vars
+  core.engine.axiom-rejection-message
+  core.engine.dependents-is-transitive)
+  :using (c.count-exists
+    core.engine.consistency-checks-three-layers core.engine.consistency-doc
+    core.engine.derive-fabrication-propagation core.engine.derive-doc
+    core.engine.derive-checks-sources core.engine.axiom-requires-free-vars
+    core.engine.axiom-rejection-message core.engine.dependents-is-transitive))
+engine-fact-count
+
+;; @@end 8
+;; @@block 9 d168d1fdf1cd3f61da889a210a8a601f90b1765f3265259c686bdad249878ebe
+;; pltg Screen
+(consistency)
+
+;; @@end 9

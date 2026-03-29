@@ -140,6 +140,8 @@
 (defterm axiom-status (epistemics.superpose epistemics.exemplifiable epistemics.hallucinated epistemics.unknown)
     :origin "any axiom starts in epistemic superposition — its status depends on observation")
 
+(verify-manual (quote axiom-status) "V")
+
 (defterm classical-axiom-status (epistemics.collapse (strict axiom-status) epistemics.hypothesised)
     :evidence (evidence "README"
         :quotes ("In a standard formal system (Peano arithmetic, ZFC, etc.), axioms are taken as given. You declare them and reason from there. The system's strength is measured by its proof-theoretic ordinal — how far its induction principles can reach. But the axioms themselves are unjustified within the system; you simply trust them.")
