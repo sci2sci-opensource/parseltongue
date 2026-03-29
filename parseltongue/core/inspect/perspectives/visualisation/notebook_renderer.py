@@ -29,6 +29,7 @@ from typing import TYPE_CHECKING, Any
 from .items import enrich_items, items_from_structure
 from .renderer import (
     _build_layers_data,
+    _fmt_wff,
     _html_escape,
     _localize_multi,
     _strip_internal,
@@ -861,14 +862,14 @@ def merge_diff_structure(
             divergences = diff_val.get("divergences", {})
             real_divs, contaminated, has_real = split_divergences(divergences)
             coherent = value_a == value_b and not has_real
-            va_s = _fmt_value(str(value_a)) if value_a is not None else "?"
-            vb_s = _fmt_value(str(value_b)) if value_b is not None else "?"
+            va_s = _fmt_value(_fmt_wff(value_a)) if value_a is not None else "?"
+            vb_s = _fmt_value(_fmt_wff(value_b)) if value_b is not None else "?"
             item_value = f"{va_s} = {vb_s}" if coherent else f"{va_s} \u2260 {vb_s}"
             diff_data = {
                 "replace": diff_val.get("replace", ""),
                 "with": diff_val.get("with", ""),
-                "value_a": str(value_a) if value_a is not None else None,
-                "value_b": str(value_b) if value_b is not None else None,
+                "value_a": _fmt_wff(value_a) if value_a is not None else None,
+                "value_b": _fmt_wff(value_b) if value_b is not None else None,
                 "coherent": coherent,
                 "divergences": real_divs,
                 "contaminated": contaminated,

@@ -315,8 +315,8 @@ def _extract_df_item(form: list) -> dict | None:
     name = str(f[0])
     replace = str(f[1])
     with_ = str(f[2])
-    value_a = f[3]
-    value_b = f[4]
+    value_a = _fmt_wff(f[3])
+    value_b = _fmt_wff(f[4])
     divergences = f[5] if isinstance(f[5], dict) else {}
     real_divs, contaminated, has_real = split_divergences(divergences)
     coherent = value_a == value_b and not has_real
