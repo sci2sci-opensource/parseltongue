@@ -76,6 +76,18 @@ class Technician:
         self._ops: "OperationsSystem | None" = None  # shared, stateless
         self._session: dict | None = None  # logbook session entry
 
+        # First logbook entry — marks the origin of this bench instance
+        from parseltongue.core.v import ASSISTANT, USER
+
+        self._store.log_session(
+            {
+                "user": USER,
+                "assistant": ASSISTANT,
+                "action": {"type": "originate", "target": "Parseltongue"},
+                "started": datetime.now(timezone.utc).isoformat(),
+            }
+        )
+
     @property
     def file_lists(self) -> dict[str, list[str]]:
         return self._file_lists

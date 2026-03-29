@@ -27,6 +27,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from parseltongue.core.theme import BASE_TYPOGRAPHY, css_variables
+from parseltongue.core.v import ASSISTANT, USER
 
 ROOT = Path(__file__).resolve().parents[1]
 PAGES = ROOT / "pages"
@@ -492,9 +493,9 @@ def build_pgmd_demos():
                     "render",
                     str(pgmd),
                     "--user",
-                    "V",
+                    USER,
                     "--assistant",
-                    "Opus",
+                    ASSISTANT,
                     "-o",
                     str(dst),
                 ],
@@ -833,9 +834,9 @@ def build_construct_content():
                     "render",
                     str(src),
                     "--user",
-                    "V",
+                    USER,
                     "--assistant",
-                    "Opus",
+                    ASSISTANT,
                     "-o",
                     str(dst),
                 ],
@@ -860,9 +861,9 @@ def build_construct_content():
                     "render",
                     str(src),
                     "--user",
-                    "V",
+                    USER,
                     "--assistant",
-                    "Opus",
+                    ASSISTANT,
                     "-o",
                     str(dst),
                 ],
