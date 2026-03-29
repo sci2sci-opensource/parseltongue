@@ -1,4 +1,4 @@
-name: Deploy demos to GitHub Pages
+name: Deploy to GitHub Pages
 
 on:
   push:
@@ -25,18 +25,10 @@ jobs:
           python-version: "3.12"
 
       - name: Install dependencies
-        run: pip install -e "."
+        run: pip install -e "." build
 
-      - name: Render demos
-        working-directory: parseltongue/core/demos/ai2ai_pgmd
-        run: python render_all.py
-
-      - name: Assemble site
-        run: |
-          mkdir -p _site/demos
-          touch _site/.nojekyll
-          cp pages/index.html _site/index.html
-          cp parseltongue/core/demos/ai2ai_pgmd/pgmd_out/*.html _site/demos/
+      - name: Build site
+        run: python pages/build.py
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
