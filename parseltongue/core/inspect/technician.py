@@ -220,8 +220,15 @@ class Technician:
                 ),
             )
 
-        # Populate search docs + create LiveBench — only on live path
+        # Quote provenance — available from any cached result (frozen or live)
         result = sample[3].last_result
+        if result is not None and hasattr(result.system, "engine"):
+            vi = result.system.engine._verifier.index
+            if vi._quote_ranges:
+                log.info("Setting quote_ranges from cached result: %d ranges", len(vi._quote_ranges))
+                search.refresh(vi)
+
+        # Populate search docs + create LiveBench — only on live path
         if live and result is not None and hasattr(result.system, "engine") and result.system.engine.facts:
             from .systems.live_bench import LiveBench
 
