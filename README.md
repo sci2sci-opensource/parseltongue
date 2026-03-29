@@ -14,16 +14,17 @@ A DSL for systems that refuse to speak falsehood.
 [![Python](https://img.shields.io/pypi/pyversions/parseltongue-dsl)](https://pypi.org/project/parseltongue-dsl/)
 [![License](https://img.shields.io/github/license/sci2sci-opensource/parseltongue)](https://github.com/sci2sci-opensource/parseltongue/blob/main/LICENSE)
 
-> **v0.7.0 — Seeing the Speech.** Interactive visualization, search engine with provenance, stack-based evaluator, pgmd notebooks. Install with `pipx install 'parseltongue-dsl'` or try the [live demos](https://sci2sci-opensource.github.io/parseltongue/demos.html).
+> **v0.7.0 — Seeing the Sentences.** Interactive visualization, search engine with provenance, stack-based evaluator, pgmd notebooks. Install with `pip install 'parseltongue-dsl'` or start with [documentation](https://sci2sci-opensource.github.io/parseltongue/index.html).
 
-_The engine inspects itself — a pgmd notebook with inline computed values, taint propagation, and derivation paths:_
+**Notebook example for this repo:**
+
 ![Engine self-inspection notebook](https://raw.githubusercontent.com/sci2sci-opensource/parseltongue/HEAD/documentation/resources/engine_self_notebook.png)
+_The engine inspects itself — a pgmd notebook with inline computed values, taint propagation, and derivation paths_
 
-_2000+ nodes rendered as an interactive graph — zoom, click any node for full evidence and derivation tree:_
+**Materialized knowledge graph of this notebook:**
+
 ![Engine graph overview](https://raw.githubusercontent.com/sci2sci-opensource/parseltongue/HEAD/documentation/resources/engine_overview.png)
-
-_Focused subgraph with layers view — depth-based layout showing the full dependency structure:_
-![Engine layers and derivation](https://raw.githubusercontent.com/sci2sci-opensource/parseltongue/HEAD/documentation/resources/engine_focused_subgraph.png)
+_2000+ nodes rendered as an interactive graph — zoom, click any node for full evidence and derivation tree_
 
 [Explore the engine demo live →](https://sci2sci-opensource.github.io/parseltongue/demos/engine_overview_core_overview.html)
 
@@ -41,10 +42,17 @@ This gives you three things that prose reviews cannot:
 
 3. **Documentation validation.** Run the engine against a library's README or API docs. Internal contradictions between prose and config tables, unverifiable security audit claims, inconsistencies between documented and actual behavior — all surface automatically with traceable evidence.
 
-_Derivation layers — every theorem traces back to source-quoted facts:_
-![Derivation layers](https://raw.githubusercontent.com/sci2sci-opensource/parseltongue/HEAD/documentation/resources/engine_derivation_layers.png)
+A few examples of what it looks like for this repository:
 
-See [Discovered Use Cases](https://github.com/sci2sci-opensource/parseltongue/blob/HEAD/documentation/DISCOVERED-USECASES.md) for more real-world applications.
+![Engine layers and derivation](https://raw.githubusercontent.com/sci2sci-opensource/parseltongue/HEAD/documentation/resources/engine_focused_subgraph.png)
+_Focused subgraph with layers view — depth-based layout showing the full dependency structure_
+
+![Derivation layers](https://raw.githubusercontent.com/sci2sci-opensource/parseltongue/HEAD/documentation/resources/engine_derivation_layers.png)
+_Derivation layers — every theorem traces back to source-quoted facts_
+
+
+See [Discovered Use Cases](https://github.com/sci2sci-opensource/parseltongue/blob/HEAD/documentation/DISCOVERED-USECASES.md) for more real-world applications and experiment with them [in live demos.](https://sci2sci-opensource.github.io/parseltongue/demos.html)
+
 
 ## Quick Start
 
@@ -60,7 +68,7 @@ Parseltongue is designed to work with LLM coding agents. Paste this prompt into 
 
 The agent installs, reads the learning scripts (`kung-fu` for bench mastery, `to-connect` for pgmd notebooks), and starts a conversation about what to do next. It now knows how to start the bench daemon, index files, search with provenance, screen for consistency, and generate interactive visualizations.
 
-See the full [Quick Start page](https://sci2sci-opensource.github.io/parseltongue/quickstart.html) for Web UI agents, manual setup, and follow-up prompts.
+[Quick Start page](https://sci2sci-opensource.github.io/parseltongue/quickstart.html) page contains instructions for Web UI agents, manual setup, and follow-up prompts.
 
 ### Install Full Package
 

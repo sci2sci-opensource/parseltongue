@@ -7,7 +7,7 @@ name = "parseltongue-dsl"
 version = "0.7.0"
 description = "Parseltongue: a DSL for systems which refuse to speak falsehood"
 requires-python = ">=3.11"
-dependencies = ["typing_extensions>=4.0"]
+dependencies = ["typing_extensions>=4.0", "click>=8.0"]
 license = "Apache-2.0"
 readme = "README.md"
 authors = [{name = "Valerii Kremnev"}]
