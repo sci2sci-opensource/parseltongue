@@ -4,7 +4,7 @@
 |------|--------|--------|----|
 | [Rename Evaluate to Screen](completed/rename-evaluate-to-screen.md) | done | — | — |
 | [Establish Git-Based Development Tracker](completed/establish-git-based-development-tracker.md) | done | feature/dev-tracker | — |
-| [Lens Diff Traversal](in_progress/lens-diff-traversal.md) | in progress | | |
+| [Lens Diff Traversal](completed/lens-diff-traversal.md) | done | plan/pgf | |
 | [Consistency Coverage](pending/consistency-coverage.md) | pending | | |
 | [Core Consistency Stabilisation](pending/core-consistency-stabilisation.md) | pending | | |
 | [Multi-Index Search](pending/multi-index-search.md) | pending | | |
