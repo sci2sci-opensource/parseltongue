@@ -195,12 +195,31 @@ def discover_demos() -> list[dict]:
 # ── Static pages ──
 
 
+def _read_pyproject() -> dict[str, str]:
+    """Read version and release_tagline from pyproject.toml."""
+    import tomllib
+
+    with open(ROOT / "pyproject.toml", "rb") as f:
+        data = tomllib.load(f)
+    proj = data.get("project", {})
+    return {
+        "version": proj.get("version", "0.0.0"),
+        "release_tagline": proj.get("release_tagline", ""),
+    }
+
+
 def build_static():
     print("\n== Static pages ==")
+    meta = _read_pyproject()
+
     for name in ["index.html", "quickstart.html"]:
         src = PAGES / name
         dst = SITE / name
-        shutil.copy2(src, dst)
+        content = src.read_text()
+        if name == "index.html":
+            content = content.replace("$version", meta["version"])
+            content = content.replace("$release_tagline", meta["release_tagline"])
+        dst.write_text(content)
         print(f"  {src.name} -> {dst}")
 
     # Generate theme.css from shared theme module + pages-only static styles
@@ -402,7 +421,7 @@ def build_construct_page():
   <h1>Construct</h1>
   <p class="subtitle">The place where both agents and humans learn Parseltongue.</p>
 
-  <blockquote style="border-left: 3px solid var(--mauve); padding-left: 1rem; margin: 1.5rem 0; color: var(--subtext); font-style: italic;">"I know kung fu." &mdash; Neo</blockquote>
+  <blockquote style="border-left: 3px solid var(--mauve); padding-left: 1rem; margin: 1.5rem 0; color: var(--subtext); font-style: italic;">"I know kung fu."</blockquote>
 
   <div class="modes">
     <h3>Two modes, mirrored</h3>

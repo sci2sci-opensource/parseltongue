@@ -1,0 +1,395 @@
+;; @@block 0 28babd204524dde942e4cd3dc12e16ad2701a195cc8b877741299d95055fcdf3
+;; pltg The Origin
+
+(defterm parseltongue "Parseltongue"
+    :evidence (evidence "self"
+      :quotes ("[[term:parseltongue]] is focusing on addressing")
+      :explanation "Name"))
+
+(load-document "self" "INTRO_WHITE-RABBIT.pg.md")
+
+(fact the-next-sentence-is-grounded-in-parseltongue true
+  :evidence (evidence "self"
+    :quotes ("This sentence is grounded in Parseltongue[[~fact:the-next-sentence-is-grounded-in-parseltongue]]")
+    :explanation "The sentence under this block became bound to the system"))
+
+;; PS
+;; Sorry if causality have cracked a bit. We were murdering the time, and now it's always six-o-clock here.
+
+;; @@end 0
+;; @@block 1 694cf90dc4c2187d2dbcdae54751b25d8b242b873a3ce8b525f706c5ab7fb101
+;; pltg First steps
+(fact sentence-became-part-of-engine true
+  :evidence (evidence "self"
+    :quotes ("And a few things happened: it became represented in the engine powering this documentation")
+    :explanation "The second fact appeared."))
+
+(import (quote std.std))
+(import (quote std.counting c))
+
+(derive count-facts-about-sentence 
+    (c.count-exists 
+        the-next-sentence-is-grounded-in-parseltongue
+        sentence-became-part-of-engine) 
+    :using (c.count-exists 
+            the-next-sentence-is-grounded-in-parseltongue 
+            sentence-became-part-of-engine))
+
+
+;; @@end 1
+;; @@block 2 2fb25878de644dc9b8943edfbd1e684946006fc0e063a93d6d9f0f88859c5abf
+;; pltg The Fall
+(fact the-cake-is-a-lie "The cake is a lie"
+  :evidence (evidence "self"
+    :quotes ("As we can see there is no cake")
+    :explanation "Well, at least in this text"))
+
+(derive count-facts-till-now 
+    (c.count-exists 
+        the-next-sentence-is-grounded-in-parseltongue
+        sentence-became-part-of-engine
+        the-cake-is-a-lie) 
+    :using (c.count-exists 
+            the-next-sentence-is-grounded-in-parseltongue 
+            sentence-became-part-of-engine
+            the-cake-is-a-lie))
+
+(fact there-will-be-cake "there will be cake")
+
+(derive accounting-for-a-lie
+    (c.count-exists 
+        the-next-sentence-is-grounded-in-parseltongue
+        sentence-became-part-of-engine
+        the-cake-is-a-lie
+        there-will-be-cake) 
+    :using (c.count-exists 
+            the-next-sentence-is-grounded-in-parseltongue 
+            sentence-became-part-of-engine
+            the-cake-is-a-lie
+            there-will-be-cake))
+
+(derive count-non-lie-so-far
+    (c.count-exists 
+        the-next-sentence-is-grounded-in-parseltongue
+        sentence-became-part-of-engine
+        the-cake-is-a-lie
+        (quote parseltongue)) 
+    :using (c.count-exists 
+            the-next-sentence-is-grounded-in-parseltongue 
+            sentence-became-part-of-engine
+            the-cake-is-a-lie
+            parseltongue))
+
+
+;; @@end 2
+;; @@block 3 5c18157094be3423ff3406b6fac50727922030b86ad6cd2041a68ffd1edbe32a
+;; pltg Observing the Garden
+(defterm pgmd ".pgmd"  
+    :evidence (evidence "self"
+    :quotes ("This document you're reading is written in **[[pgmd]]** ")
+    :explanation "PGMD introduction"))
+
+(defterm pltg ".pltg"  
+    :evidence (evidence "self"
+    :quotes ("This document you're reading is written in **[[pgmd]]** ")
+    :explanation "PLTG introduction"))
+
+(fact what-is-parseltongue "a formal language for knowledge representation"
+  :evidence (evidence "self"
+    :quotes ("Parseltongue is a formal language for knowledge representation")
+    :explanation "Core definition - not typed inline, resolved from here"))
+
+(fact what-is-pgmd "a format that wires parseltongue blocks through ordinary prose"
+  :evidence (evidence "self"
+    :quotes ("pgmd, a format that wires parseltongue blocks through ordinary prose")
+    :explanation "The format this document is written in"))
+
+(fact what-is-pltg "the language of the Parseltongue systems themselves"
+  :evidence (evidence "self"
+    :quotes ("[[term:pltg]]** - [[fact:what-is-pltg]]")
+    :explanation "The format the code blocks use"))
+
+(fact verbosity-is-a-feature "verbosity is a feature"
+  :evidence (evidence "self"
+    :quotes ("[[term:pltg]] is quite verbose compared to typical programming languages")
+    :explanation "The verbosity comment"))
+
+(fact llm-use-design "designed to use with the LLMs"
+  :evidence (evidence "self"
+    :quotes ("[[term:pltg]]  is quite verbose" "writing [[term:pltg]] modules and documenting things in a somewhat redundant manner is not a problem, and readability")
+    :explanation "The verbosity comment"))
+
+(fact node-kinds 4
+  :evidence (evidence "self"
+    :quotes ("A **term**" "A **fact**" "A **derivation**" "An **axiom**")
+    :explanation "The four primary node kinds"))
+
+
+(derive count-facts-garden-block     
+    (c.count-exists 
+        (quote pgmd)
+        (quote pltg)
+        what-is-parseltongue 
+        what-is-pgmd 
+        what-is-pltg
+        verbosity-is-a-feature
+        llm-use-design
+        node-kinds) 
+    :using (c.count-exists 
+        pgmd
+        pltg
+        what-is-parseltongue 
+        what-is-pgmd 
+        what-is-pltg
+        verbosity-is-a-feature
+        llm-use-design
+        node-kinds))
+
+;; @@end 3
+;; @@block 4 3267f676191b7848b892fff8af15939f50b66bf8c474b7d3f9cc538be29ac277
+;; pltg Knowing Good and Evil
+
+(load-document "atoms" "../../../atoms.py")
+(load-document "engine" "../../../engine.py")
+
+(defterm silence "SILENCE"
+    :evidence (evidence "atoms"
+    :quotes ("Silence is its own instance")
+    :explanation "Silence is fundamental to Parseltongue much like other types"))
+
+
+
+(defterm consistency "Consistent"
+    :evidence (evidence "engine"
+    :quotes ("def consistency(self, suppress_log: bool = True) -> ConsistencyReport: ...")
+    :explanation "Consistency is calculated"))
+
+(defterm grounding "Grounded"
+    :evidence (evidence "atoms"
+    :quotes ("def is_grounded(self) -> bool:" "return self.verified or self.verify_manual")
+    :explanation "Grounding is checked"))
+
+
+
+(defterm taints "Tainted"
+    :evidence (evidence "engine"
+    :quotes ("Types of consistency issues (errors — break consistent=True)." "UNVERIFIED_EVIDENCE = " "NO_EVIDENCE = " "POTENTIAL_FABRICATION =" "DIFF_DIVERGENCE = " "DIFF_VALUE_DIVERGENCE = ")
+    :explanation "Taints are issues"))
+
+
+
+(defterm derivations "Derived"
+    :evidence (evidence "atoms"
+    :quotes ("derivation: list = field(default_factory=list)" "@dataclass(frozen=True)
+class Theorem:
+")
+    :explanation "Derivations are preserved"))
+
+(fact view-count 4
+  :evidence (evidence "self"
+    :quotes ("Notebook" "Cards" "Layers" "Graph")
+    :explanation "Four rendering perspectives"))
+
+(fact views-share-data "four views of the same underlying structure"
+  :evidence (evidence "self"
+    :quotes ("four views of the same underlying structure")
+    :explanation "Views are perspectives, not separate systems"))
+
+(derive count-facts-knowing-block     
+    (c.count-exists 
+     view-count
+     views-share-data
+     (quote silence)
+     (quote consistency)
+     (quote grounding)
+     (quote taints)
+     (quote derivations)
+     ) 
+    :using (c.count-exists 
+        view-count
+        views-share-data
+        silence
+        consistency
+        grounding
+        taints
+        derivations))
+
+
+;; @@end 4
+;; @@block 5 37ad438a22035fa4556dd459da6000d16158226a2aff3aa52d58ad7ec0d8502a
+;; pltg Promises and Deception
+
+(defterm concepts-not-more 25
+  :origin "Our expected concepts limit")
+
+(defterm expect-concepts 23
+  :origin "Our expected concepts so far")
+
+
+(axiom intro-is-substantial-but-focused (< ?n concepts-not-more)
+  :origin "An introduction should not overwhelm - fewer than 20 concepts")
+
+(verify-manual (quote intro-is-substantial-but-focused) "V")
+(verify-manual (quote expect-concepts) "V")
+(verify-manual (quote concepts-not-more) "V")
+
+(fact readme-expected-focused true
+  :evidence (evidence "self"
+    :quotes ("For now this intro stays focused[[~term:focus-check]]")
+    :explanation "We are expecting focused readme"))
+
+(defterm diff-ops "Diff"
+    :evidence (evidence "self"
+    :quotes ("(diff readme-expectations replace: focus-check with: readme-expected-focused)")
+    :explanation "We are expecting focused readme"))
+
+(derive this-block-sum (c.count-exists readme-expected-focused (quote diff-ops) (quote concepts-not-more) (quote expect-concepts))
+  :using (c.count-exists readme-expected-focused diff-ops concepts-not-more expect-concepts))
+
+
+
+(derive facts-and-terms-so-far (c.sum-values count-facts-knowing-block count-facts-garden-block count-non-lie-so-far this-block-sum)
+  :using (c.sum-values  count-facts-knowing-block count-facts-garden-block count-non-lie-so-far this-block-sum))
+
+(derive focus-check intro-is-substantial-but-focused 
+  :bind ((?n facts-and-terms-so-far))
+  :using (facts-and-terms-so-far intro-is-substantial-but-focused))
+
+(diff readme-counts :replace facts-and-terms-so-far :with expect-concepts)
+(diff readme-expectations :replace focus-check :with readme-expected-focused)
+(diff ungrounded-expectations :replace concepts-not-more :with facts-and-terms-so-far)
+
+
+;; @@end 5
+;; @@block 6 5a0984a20cf50bc13c8a62b24b4ba1b48b06a8962e79b0eabbc4a30de03c4fea
+;; pltg Grounding
+
+(load-document "construct" "../__init__.py")
+
+(defterm ready (quote "✓ ready")
+  :evidence (evidence "construct"
+    :quotes ("\"kung-fu\": {" "\"description\": \"Bench mastery")
+    :explanation "Entry in TOPICS with a discovered script/scenario file means published"))
+
+(defterm todo (quote "-")
+  :evidence (evidence "construct"
+    :quotes ("\"dodge-bullets\": {" "\"description\": \"Screening, diagnostics, consistency\"")
+    :explanation "Entry in TOPICS with no script or scenario file discovered"))
+
+;; white-rabbit
+(fact script-white-rabbit todo
+  :evidence (evidence "construct"
+    :quotes ("\"white-rabbit\": {")
+    :explanation "No white-rabbit script file in scripts/"))
+(fact scenario-white-rabbit ready
+  :evidence (evidence "construct"
+    :quotes ("\"white-rabbit\": {" "\"description\": \"Introduction")
+    :explanation "This document — discovered as INTRO_WHITE-RABBIT.pg.md"))
+
+;; kung-fu
+(fact script-kung-fu ready
+  :evidence (evidence "construct"
+    :quotes ("\"kung-fu\": {" "\"description\": \"Bench mastery")
+    :explanation "Discovered from PG-SKILL_KUNG-FU.md via alias frontmatter"))
+(fact scenario-kung-fu todo
+  :evidence (evidence "construct"
+    :quotes ("\"kung-fu\": {")
+    :explanation "No scenario file in scenarios/"))
+
+;; to-connect
+(fact script-to-connect ready
+  :evidence (evidence "construct"
+    :quotes ("\"to-connect\": {" "\"description\": \"pgmd notebooks")
+    :explanation "Discovered from PGMD-SKILL_TO-CONNECT.md via name frontmatter"))
+(fact scenario-to-connect todo
+  :evidence (evidence "construct"
+    :quotes ("\"to-connect\": {")
+    :explanation "No scenario file in scenarios/"))
+
+;; dodge-bullets
+(fact script-dodge-bullets todo
+  :evidence (evidence "construct"
+    :quotes ("\"dodge-bullets\": {")
+    :explanation "No script file in scripts/"))
+(fact scenario-dodge-bullets todo
+  :evidence (evidence "construct"
+    :quotes ("\"dodge-bullets\": {")
+    :explanation "No scenario file in scenarios/"))
+
+;; jump-program
+(fact script-jump-program todo
+  :evidence (evidence "construct"
+    :quotes ("\"jump-program\": {")
+    :explanation "No script file in scripts/"))
+(fact scenario-jump-program todo
+  :evidence (evidence "construct"
+    :quotes ("\"jump-program\": {")
+    :explanation "No scenario file in scenarios/"))
+
+;; no-spoon-bending
+(fact script-no-spoon-bending todo
+  :evidence (evidence "construct"
+    :quotes ("\"no-spoon-bending\": {")
+    :explanation "No script file in scripts/"))
+(fact scenario-no-spoon-bending todo
+  :evidence (evidence "construct"
+    :quotes ("\"no-spoon-bending\": {")
+    :explanation "No scenario file in scenarios/"))
+
+;; read-the-code
+(fact script-read-the-code todo
+  :evidence (evidence "construct"
+    :quotes ("\"read-the-code\": {")
+    :explanation "No script file in scripts/"))
+(fact scenario-read-the-code todo
+  :evidence (evidence "construct"
+    :quotes ("\"read-the-code\": {")
+    :explanation "No scenario file in scenarios/"))
+
+;; about-matrix
+(fact script-about-matrix todo
+  :evidence (evidence "construct"
+    :quotes ("\"about-matrix\": {")
+    :explanation "No script file in scripts/"))
+(fact scenario-about-matrix todo
+  :evidence (evidence "construct"
+    :quotes ("\"about-matrix\": {")
+    :explanation "No scenario file in scenarios/"))
+
+;; the-truth
+(fact script-the-truth todo
+  :evidence (evidence "construct"
+    :quotes ("\"the-truth\": {")
+    :explanation "No script file in scripts/"))
+(fact scenario-the-truth todo
+  :evidence (evidence "construct"
+    :quotes ("\"the-truth\": {")
+    :explanation "No scenario file in scenarios/"))
+
+;; to-exit
+(fact script-to-exit todo
+  :evidence (evidence "construct"
+    :quotes ("\"to-exit\": {")
+    :explanation "No script file in scripts/"))
+(fact scenario-to-exit todo
+  :evidence (evidence "construct"
+    :quotes ("\"to-exit\": {")
+    :explanation "No scenario file in scenarios/"))
+
+;; to-fly
+(fact script-to-fly todo
+  :evidence (evidence "construct"
+    :quotes ("\"to-fly\": {")
+    :explanation "No script file in scripts/"))
+(fact scenario-to-fly todo
+  :evidence (evidence "construct"
+    :quotes ("\"to-fly\": {")
+    :explanation "No scenario file in scenarios/"))
+
+(derive scripts-ready (c.count-exists script-kung-fu script-to-connect)
+  :using (c.count-exists script-kung-fu script-to-connect))
+
+(derive scenarios-ready (c.count-exists scenario-white-rabbit)
+  :using (c.count-exists scenario-white-rabbit))
+
+;; @@end 6
