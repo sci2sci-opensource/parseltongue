@@ -254,10 +254,20 @@ def _walk_engine(name: str, engine: Engine, graph: dict[str, _GraphEntry], visit
         else:
             graph[name] = {"kind": NodeKind.TERM_FWD, "value": "", "inputs": [], "atom": t}
     elif name in engine.facts:
+        wff: Any = engine.facts[name].wff
+        inputs: list[str] = []
+        # If fact references a term, evaluate to resolve its value
+        if isinstance(wff, Symbol) and str(wff) in engine.terms:
+            inputs = [str(wff)]
+            try:
+                wff = engine.evaluate(wff)
+            except Exception:
+                pass
+            _walk_engine(inputs[0], engine, graph, visited)
         graph[name] = {
             "kind": NodeKind.FACT,
-            "value": engine.facts[name].wff,
-            "inputs": [],
+            "value": wff,
+            "inputs": inputs,
             "atom": engine.facts[name],
         }
     elif name in engine.axioms:

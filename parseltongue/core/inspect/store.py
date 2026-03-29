@@ -627,11 +627,12 @@ class SearchStore:
         old_hashes: dict[str, str],
         directory: str = "",
         on_progress: Callable[[int, int, str], None] | None = None,
-    ) -> tuple[DocumentIndex, int]:
+    ) -> tuple[DocumentIndex, int, set[str]]:
         """Diff hashes, update index for changed files, remove deleted. Save cache.
 
         file_texts only contains files that were actually read (stat-changed or new).
         Unchanged files' texts are pulled from History.
+        Returns (updated_index, change_count, deleted_keys).
         """
         changed = {f for f in set(old_hashes) | set(new_hashes) if old_hashes.get(f) != new_hashes.get(f)}
         deleted = set(old_hashes) - set(new_hashes)
@@ -659,7 +660,7 @@ class SearchStore:
                 original_texts = {k: all_texts.get(k, "") for k in idx_data.get("documents", {})}
                 _index = DocumentIndex.from_dict(idx_data, original_texts)
             self._dir_hashes[self._path] = new_hashes
-            return _index, 0
+            return _index, 0, set()
 
         if old_hashes and cached:
             # Partial reindex: restore unchanged from cache, reindex changed
@@ -681,16 +682,17 @@ class SearchStore:
             if on_progress:
                 on_progress(count, total_changed, key)
 
-        # Remove deleted files
-        for key in deleted:
-            if key in _index.documents:
-                del _index.documents[key]
-            all_texts.pop(key, None)
+        # Remove deleted files — COW: build new dict to avoid mutating during iteration
+        if deleted:
+            new_docs = {k: v for k, v in _index.documents.items() if k not in deleted}
+            _index.documents = new_docs
+            for key in deleted:
+                all_texts.pop(key, None)
 
         # Save index (without texts) + commit texts delta to History
         self._save_cache(directory, new_hashes, _index, changed_texts=file_texts, deleted_keys=deleted)
         self._dir_hashes[self._path] = new_hashes
-        return _index, total_changed
+        return _index, total_changed, deleted
 
     def _save_cache(
         self,
@@ -791,7 +793,7 @@ class SearchStore:
                         key_dir = str(Path(key).parent)
                         if key_dir == rel_root_str or (rel_root_str == "." and "/" not in key and "\\" not in key):
                             fpath = Path(directory) / key
-                            if fpath.suffix in ext_set:
+                            if any(key.endswith(e) for e in ext_set):
                                 paths.append((fpath, key))
                     continue
 
@@ -818,7 +820,7 @@ class SearchStore:
         exclude: list[str] | None = None,
         on_progress: Callable[[int, int, str], None] | None = None,
         force: bool = False,
-    ) -> tuple[DocumentIndex, int]:
+    ) -> tuple[DocumentIndex, int, set[str]]:
         """Walk *directory*, index every file matching *extensions*.
 
         Uses stat fingerprinting + Merkle hashing: unchanged files are skipped.
@@ -855,6 +857,19 @@ class SearchStore:
             old_hashes=None if force else old_hashes,
         )
 
+        log.info(
+            "index_incremental: dir=%r exts=%s force=%s old_hashes=%d walk_paths=%d file_texts=%d new_hashes=%d _file_stats=%d _dir_mtimes=%d",
+            directory,
+            extensions,
+            force,
+            len(old_hashes),
+            len(paths),
+            len(file_texts),
+            len(new_hashes),
+            len(self._file_stats),
+            len(self._dir_mtimes),
+        )
+
         return self._update_index(_index, file_texts, new_hashes, old_hashes, directory, on_progress)
 
     def reindex(
@@ -862,17 +877,17 @@ class SearchStore:
         _index: DocumentIndex,
         on_progress: Callable[[int, int, str], None] | None = None,
         force: bool = False,
-    ) -> tuple[DocumentIndex, int]:
+    ) -> tuple[DocumentIndex, int, set[str]]:
         """Re-walk all tracked directories, picking up new/changed/deleted files.
 
         force=True ignores stat/hash caches and re-reads every file.
         """
         if not self._store:
-            return _index, 0
+            return _index, 0, set()
 
         cached = self._store.load_index(self._path)
         if not cached:
-            return _index, 0
+            return _index, 0, set()
 
         old_hashes: dict[str, str] = {} if force else cached.get("file_hashes", {})
         directory = cached.get("directory", "")
@@ -884,7 +899,7 @@ class SearchStore:
                 self._indexed_dirs[directory] = cached.get("extensions", [".py", ".pltg", ".md", ".txt"])
 
         if not self._indexed_dirs:
-            return _index, 0
+            return _index, 0, set()
 
         if force:
             self._file_stats.clear()

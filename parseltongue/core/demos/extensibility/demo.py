@@ -1,11 +1,10 @@
 """
-Demo: System Extensibility — Effects
+Demo: Custom Effects
 
-Scenario: Instead of loading documents from Python, we pass a
-`load-data` effect at construction time.  The DSL itself calls
-(load-data "name" "path") as a top-level directive, which hits
-the catch-all `else` branch in _execute_directive and evaluates
-the expression — executing the side effect.
+Scenario: User-defined side effects passed at construction time.
+The DSL calls (load-data "name" "path") as a top-level directive,
+triggering a custom Python callback. Effects bridge the DSL and
+the host environment — any callable can become an operator.
 
 Effects are callables that receive (system, *args).  The system
 auto-wraps them so the DSL sees a plain operator.
@@ -45,7 +44,7 @@ def load_data(system, name, path):
 
 def main():
     plog = logging.getLogger("parseltongue")
-    plog.setLevel(logging.INFO)
+    plog.setLevel(logging.WARNING)
     handler = logging.StreamHandler(sys.stdout)
     handler.setFormatter(logging.Formatter("  [%(levelname)s] %(message)s"))
     plog.addHandler(handler)

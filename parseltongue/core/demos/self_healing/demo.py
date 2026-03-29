@@ -1,8 +1,10 @@
 """
-Demo: Self-Healing Probes via Effects
+Demo: Self-Healing Probes
 
-The entire flow is written in Parseltongue DSL.  Python only
-registers primitive effects and feeds the script.
+Scenario: The entire analysis flow — loading documents, checking
+consistency, diagnosing failures, and recovering — is written in
+Parseltongue DSL. Python only registers primitive effects and feeds
+the script. Effects become the instruction set for self-healing probes.
 
 Effects (the instruction set):
   (load-data name path)          — load a document
@@ -129,7 +131,7 @@ SELF_HEAL_SCRIPT = r"""
 
 def main():
     plog = logging.getLogger("parseltongue")
-    plog.setLevel(logging.INFO)
+    plog.setLevel(logging.WARNING)
     handler = logging.StreamHandler(sys.stdout)
     handler.setFormatter(logging.Formatter("  [%(levelname)s] %(message)s"))
     plog.addHandler(handler)

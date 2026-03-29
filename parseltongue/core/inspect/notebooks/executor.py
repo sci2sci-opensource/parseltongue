@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any
 
 from parseltongue.core.atoms import SILENCE
+from parseltongue.core.grammar import ParseltongueGrammar as PG
 from parseltongue.core.inspect.bench import Bench
 from parseltongue.core.notebooks.companion import CompanionTracker, companion_path_for
 from parseltongue.core.notebooks.pgmd import PgmdBlock, parse_pgmd
@@ -111,10 +112,11 @@ def execute_pgmd(
             error=traceback.format_exc(),
         )
 
-    # Step 3: Re-interpret each block to capture stdout, stderr, return values
+    # Step 3: Re-interpret each block with loader alias patching
     try:
         result_obj = bench.result(str(comp_path))
-        if result_obj and result_obj.system:
+        loader = tracker.loader
+        if result_obj and result_obj.system and loader:
             system = result_obj.system.copy(name="nb-eval", overridable=True)
             for pltg_num, (block_idx, block) in enumerate(pltg_blocks):
                 bo = block_outputs[pltg_num]
@@ -123,7 +125,13 @@ def execute_pgmd(
                 sys.stdout = cap_out
                 sys.stderr = cap_err
                 try:
-                    _, val = system.interpret(block.content)
+                    parsed = PG.dec(block.content)
+                    if isinstance(parsed, (list, tuple)) and parsed and isinstance(parsed[0], (list, tuple)):
+                        exprs = list(parsed)
+                    else:
+                        exprs = [parsed] if parsed else []
+                    patched = " ".join(PG.enc(loader.prepare_script(e, system)) for e in exprs)
+                    _, val = system.interpret(patched)
                     if val is not SILENCE and val is not None:
                         bo.result = val
                 except Exception:

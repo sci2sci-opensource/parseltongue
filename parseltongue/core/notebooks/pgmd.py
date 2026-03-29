@@ -61,14 +61,37 @@ class PgmdBlock:
     language: str = ""  # fence language tag (e.g. "scheme", "", "python")
 
 
+def strip_frontmatter(text: str) -> tuple[dict[str, str], str]:
+    """Strip YAML frontmatter from text, returning (metadata, body).
+
+    If no frontmatter is present, returns ({}, text) unchanged.
+    """
+    if not text.startswith("---"):
+        return {}, text
+    end = text.find("\n---", 3)
+    if end < 0:
+        return {}, text
+    fm_text = text[3:end].strip()
+    body = text[end + 4 :].lstrip("\n")
+    meta: dict[str, str] = {}
+    for line in fm_text.splitlines():
+        if ":" in line:
+            k, _, v = line.partition(":")
+            meta[k.strip()] = v.strip()
+    return meta, body
+
+
 def parse_pgmd(text: str) -> list[PgmdBlock]:
     """Parse a .pgmd file into typed blocks.
+
+    YAML frontmatter (if present) is stripped before parsing.
 
     Returns a list of PgmdBlock in document order:
     - ``prose``: markdown text between code fences
     - ``pltg``: executable parseltongue (scheme block with ;; pltg marker)
     - ``code``: non-executable code block (scheme without marker, or other language)
     """
+    _, text = strip_frontmatter(text)
     blocks: list[PgmdBlock] = []
     last_end = 0
 

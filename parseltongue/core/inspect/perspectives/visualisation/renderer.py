@@ -271,15 +271,43 @@ def _extract_dx_items(forms: list[list]) -> list[dict]:
     return items
 
 
+def _fmt_wff(val) -> str:
+    """Format a WFF value for display — encode s-expressions, passthrough strings."""
+    if isinstance(val, str):
+        return val
+    try:
+        from parseltongue.core.grammar import ParseltongueGrammar
+        from parseltongue.core.serialization import deserialize_sexp
+
+        return ParseltongueGrammar.enc(deserialize_sexp(val))
+    except Exception:
+        return str(val)
+
+
+def split_divergences(divergences: dict) -> tuple[dict[str, dict], dict[str, dict], bool]:
+    """Split raw divergences into real vs contaminated and compute coherence-readiness.
+
+    Returns (real_divs, contaminated, has_real_divergences).
+    Contaminated entries have an ``after`` value starting with ``<contaminated:``.
+    """
+    real_divs: dict[str, dict] = {}
+    contaminated: dict[str, dict] = {}
+    for dn, dv in divergences.items():
+        if isinstance(dv, (list, tuple)) and len(dv) >= 2:
+            before, after = _fmt_wff(dv[0]), _fmt_wff(dv[1])
+        else:
+            before, after = _fmt_wff(dv), ""
+        if after.startswith("<contaminated:"):
+            contaminated[dn] = {"before": before, "after": after}
+        else:
+            real_divs[dn] = {"before": before, "after": after}
+    return real_divs, contaminated, len(real_divs) > 0
+
+
 def _extract_df_item(form: list) -> dict | None:
     """Extract a single df (diff head) form into a viz item.
 
     (df name replace with value_a value_b divergences)
-
-    Divergences are split into two categories:
-    - real: actual value differences (before → after)
-    - contaminated: other diffs reference the same replace side (warning only)
-      Detected by after value matching ``<contaminated: ...>``
     """
     f = form[1:]
     if len(f) < 6:
@@ -290,18 +318,8 @@ def _extract_df_item(form: list) -> dict | None:
     value_a = f[3]
     value_b = f[4]
     divergences = f[5] if isinstance(f[5], dict) else {}
-    real_divs: dict[str, dict] = {}
-    contaminated: dict[str, dict] = {}
-    for dn, dv in divergences.items():
-        if isinstance(dv, (list, tuple)) and len(dv) >= 2:
-            before, after = str(dv[0]), str(dv[1])
-        else:
-            before, after = str(dv), ""
-        if after.startswith("<contaminated:"):
-            contaminated[dn] = {"before": before, "after": after}
-        else:
-            real_divs[dn] = {"before": before, "after": after}
-    coherent = value_a == value_b and len(real_divs) == 0
+    real_divs, contaminated, has_real = split_divergences(divergences)
+    coherent = value_a == value_b and not has_real
     display = f"{value_a} = {value_b}" if coherent else f"{value_a} \u2260 {value_b}"
     module = name.split(".")[0] if "." in name else ""
     return {
@@ -542,25 +560,37 @@ def _enrich_items_from_structure(items: list[dict], structure) -> None:
                 ev_status = "manual"
             else:
                 ev_status = "unverified"
-            # Build per-quote context from verification results
+            # Build per-quote context and match details from verification results
             quote_contexts = {}
+            quote_details = {}
             for vr in origin.verification or []:
                 q = vr.get("quote", "")
                 ctx = vr.get("context")
                 if q and ctx:
                     quote_contexts[q] = {"before": ctx.get("before", ""), "after": ctx.get("after", "")}
+                if q:
+                    detail = {}
+                    if vr.get("original_line", -1) != -1:
+                        detail["line"] = vr["original_line"]
+                    if vr.get("all_matches"):
+                        detail["all_matches"] = vr["all_matches"]
+                    if vr.get("confidence"):
+                        detail["confidence"] = vr["confidence"].get("score")
+                    if detail:
+                        quote_details[q] = detail
 
-            item["evidence"] = [
-                {
-                    "doc": origin.document,
-                    "quotes": origin.quotes,
-                    "quote_contexts": quote_contexts,
-                    "explanation": origin.explanation,
-                    "verified": origin.verified,
-                    "status": ev_status,
-                    "signature": origin.signature,
-                }
-            ]
+            ev_entry = {
+                "doc": origin.document,
+                "quotes": origin.quotes,
+                "quote_contexts": quote_contexts,
+                "explanation": origin.explanation,
+                "verified": origin.verified,
+                "status": ev_status,
+                "signature": origin.signature,
+            }
+            if quote_details:
+                ev_entry["quote_details"] = quote_details
+            item["evidence"] = [ev_entry]
         elif isinstance(atom, Theorem) or origin == "derived":
             item["evidence"] = [{"status": "derived"}]
         elif isinstance(origin, str) and origin:
@@ -612,6 +642,7 @@ def _enrich_items_from_structure(items: list[dict], structure) -> None:
                         "explanation": origin.explanation,
                         "verified": origin.verified,
                         "status": ev_status,
+                        "signature": origin.signature,
                     }
                 ]
             elif isinstance(atom, Theorem) or origin == "derived":
@@ -943,8 +974,12 @@ def _render_app(
         logbook=logbook,
     )
 
+    from parseltongue.core.theme import VIZ_TYPOGRAPHY, css_variables
+
     tmpl = Template(_read_template("app.html"))
     return tmpl.safe_substitute(
+        palette_css=css_variables(include_viz=True),
+        base_css=VIZ_TYPOGRAPHY,
         title=_html_escape(title),
         data_json=json.dumps(items, separators=(",", ":")),
         structure_json=json.dumps(structure_items, separators=(",", ":")),

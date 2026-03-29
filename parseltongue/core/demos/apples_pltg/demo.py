@@ -1,11 +1,10 @@
 """
-Demo: Peano Arithmetic via .pltg — Empty-Env Module Loading.
+Demo: Apple Arithmetic (.pltg)
 
-Scenario: Same orchard arithmetic as the apples demo, but executed
-entirely through .pltg file loading with an empty initial environment.
-Proves that the Loader of modules works correctly to load DSL for
-bootstrapping Peano successor notation, axioms, imports, and derives
-from scratch — no Python-side setup.
+Scenario: Same orchard arithmetic, but loaded entirely through .pltg
+files with an empty initial environment. Proves the loader bootstraps
+Peano notation, axioms, imports, and derives from scratch — no
+Python-side setup needed.
 """
 
 import json
@@ -75,7 +74,7 @@ def pltg_print(_system, *args):
 
 if __name__ == "__main__":
     plog = logging.getLogger("parseltongue")
-    plog.setLevel(logging.INFO)
+    plog.setLevel(logging.WARNING)
     handler = logging.StreamHandler(sys.stdout)
     handler.setFormatter(logging.Formatter("  [%(levelname)s] %(message)s"))
     plog.addHandler(handler)

@@ -32,6 +32,7 @@ from .renderer import (
     _html_escape,
     _localize_multi,
     _strip_internal,
+    split_divergences,
 )
 
 if TYPE_CHECKING:
@@ -58,6 +59,50 @@ _KIND_COLORS = {
     "diff": "patronus",
     "synthetic": "overlay0",
 }
+
+
+def _diff_state(node: dict) -> str:
+    """Return 'coherent', 'tainted', or 'warn' for a diff node."""
+    df = node.get("diff")
+    if not df:
+        return "coherent"
+    if df.get("coherent"):
+        cont = df.get("contaminated")
+        return "warn" if cont and len(cont) > 0 else "coherent"
+    return "tainted"
+
+
+# Color-mixed patronus text hierarchy per diff state.
+_DIFF_TEXT = {
+    "coherent": ("var(--patronus-text-primary)", "var(--patronus-text-secondary)", "var(--patronus-text-muted)"),
+    "tainted": ("var(--patronus-taint-core)", "var(--patronus-taint-glow)", "var(--patronus-taint-outer)"),
+    "warn": ("var(--patronus-warn-core)", "var(--patronus-warn-glow)", "var(--patronus-warn-outer)"),
+}
+
+
+def _text_style(color: str, node: dict | None = None) -> str:
+    """Return inline style for primary text color of a kind.
+
+    Diff nodes use color-mixed patronus palette based on coherence state.
+    """
+    if color == "patronus":
+        st = _diff_state(node) if node else "coherent"
+        return f"color:{_DIFF_TEXT[st][0]}"
+    return f"color:var(--{color})"
+
+
+def _text_style_secondary(color: str, node: dict | None = None) -> str:
+    if color == "patronus":
+        st = _diff_state(node) if node else "coherent"
+        return f"color:{_DIFF_TEXT[st][1]}"
+    return f"color:var(--{color})"
+
+
+def _text_style_muted(color: str, node: dict | None = None) -> str:
+    if color == "patronus":
+        st = _diff_state(node) if node else "coherent"
+        return f"color:{_DIFF_TEXT[st][2]}"
+    return "color:var(--overlay0)"
 
 
 # ── Value formatting ──
@@ -93,7 +138,10 @@ def _fmt_value(val_str: str) -> str:
             return "true"
         if val_str in ("False", "false"):
             return "false"
-        return val_str[:40]
+        # Strip surrounding quotes from strings
+        if len(val_str) >= 2 and val_str[0] == '"' and val_str[-1] == '"':
+            return val_str[1:-1]
+        return val_str
 
 
 # ── Markdown → HTML with footnote-style refs ──
@@ -151,12 +199,12 @@ def _md_to_html(
 # ── Heading level → CSS classes ──
 
 _HEADING_CLASSES = {
-    1: "text-2xl font-bold text-mauve mt-8 mb-4",
-    2: "text-xl font-bold text-mauve mt-8 mb-3",
-    3: "text-lg font-bold text-mauve mt-6 mb-2",
-    4: "text-base font-bold text-mauve mt-4 mb-2",
-    5: "text-sm font-bold text-mauve mt-3 mb-1",
-    6: "text-sm font-bold text-mauve mt-3 mb-1",
+    1: "text-2xl font-bold text-lavender mt-8 mb-4",
+    2: "text-xl font-bold text-lavender mt-8 mb-3",
+    3: "text-lg font-bold text-lavender mt-6 mb-2",
+    4: "text-base font-bold text-lavender mt-4 mb-2",
+    5: "text-sm font-bold text-lavender mt-3 mb-1",
+    6: "text-sm font-bold text-lavender mt-3 mb-1",
 }
 
 
@@ -354,11 +402,15 @@ def _render_inline(
                 parts.append(html_mod.escape(tok["raw"]))
 
     result = "".join(parts)
-    # Prevent clustering: insert superscript comma between adjacent footnotes.
-    # Allow intervening closing tags (</strong>, </em>) between ref spans.
+
+    # Group adjacent footnotes into a single bracketed superscript [1, 2, 3].
+    # Collect runs of adjacent nb-fn spans (allowing intervening closing tags).
+    def _group_footnotes(m):
+        return m.group(1) + m.group(2) + m.group(3)
+
     result = re.sub(
         r'(</span>)((?:</(?:strong|em|a)>)*)\s*(<span class="nb-fn[ "])',
-        r'\1\2<sup class="text-overlay0 text-[0.6em]">,</sup>\3',
+        _group_footnotes,
         result,
     )
     return result
@@ -408,6 +460,7 @@ def _render_pgmd_ref(
             "silent": silent,
             "tainted": is_tainted,
             "taint_source": is_source,
+            "node": node,
         }
     )
 
@@ -422,19 +475,21 @@ def _render_pgmd_ref(
         taint_icon = '<span class="text-yellow ml-0.5" title="tainted">&#x26a0;</span>'
 
     esc_id = html_mod.escape(node_id)
+    ts_pri = _text_style(color, node)
+    ts_sec = _text_style_secondary(color, node)
     if silent:
         return (
             f'{prefix}<span class="nb-fn cursor-pointer{taint_cls}" '
             f'data-node="{esc_id}" data-fn="{fn_num}">'
-            f'<sup class="text-{color} text-[0.65em] font-bold">{fn_num}{taint_icon}</sup></span>{suffix}'
+            f'<sup class="text-[0.65em] font-bold" style="{ts_sec}">[{fn_num}{taint_icon}]</sup></span>{suffix}'
         )
 
     val_display = html_mod.escape(val) if val else html_mod.escape(ref_name)
     return (
-        f'<span class="nb-fn text-{color} font-semibold cursor-pointer '
-        f'hover:underline decoration-dotted{taint_cls}" '
+        f'<span class="nb-fn font-semibold cursor-pointer '
+        f'hover:underline decoration-dotted{taint_cls}" style="{ts_pri}" '
         f'data-node="{esc_id}" data-fn="{fn_num}">'
-        f'{prefix}{val_display}{suffix}<sup class="text-{color} text-[0.6em] ml-0.5">{fn_num}{taint_icon}</sup></span>'
+        f'{prefix}{val_display}{suffix}<sup class="text-[0.6em] ml-0.5" style="{ts_sec}">[{fn_num}{taint_icon}]</sup></span>'
     )
 
 
@@ -480,13 +535,16 @@ def _render_footnote_list(refs: list[dict]) -> str:
             continue
         seen.add(r["num"])
         c = _KIND_COLORS.get(r["kind"], "subtext")
+        _node = r.get("node")
+        ts_sec = _text_style_secondary(c, _node)
+        ts_pri = _text_style(c, _node)
         val_html = f' = {html_mod.escape(r["value"])}' if r["value"] else ''
         rows.append(
             f'<div class="nb-fn-row flex items-center gap-1.5 py-0.5 cursor-pointer hover:bg-surface0 rounded px-1" '
             f'data-node="{html_mod.escape(r["node_id"])}" data-fn="{r["num"]}">'
-            f'<span class="text-{c} text-[0.7em] font-mono w-4 text-right">{r["num"]}</span>'
+            f'<span class="text-[0.7em] font-mono w-5 text-right" style="{ts_sec}">[{r["num"]}]</span>'
             f'<span class="w-1.5 h-1.5 rounded-full bg-{c} shrink-0"></span>'
-            f'<span class="text-{c} font-medium">{html_mod.escape(r["name"])}</span>'
+            f'<span class="font-medium" style="{ts_pri}">{html_mod.escape(r["name"])}</span>'
             f'<span class="text-subtext">{val_html}</span>'
             f'</div>'
         )
@@ -532,14 +590,17 @@ def _render_margin_pills(
             taint_icon = ""
             title = ""
         title_attr = f' title="{title}"' if title else ""
+        _node = r.get("node")
+        ts_mut = _text_style_muted(c, _node)
+        ts_pri = _text_style(c, _node)
         pills.append(
             f'<span class="nb-margin-pill inline-flex items-center gap-1 bg-surface0 '
             f'rounded-full px-2 py-0.5 text-[10px] cursor-pointer hover:bg-surface1 '
             f'transition-colors whitespace-nowrap {border_cls}"{title_attr} '
             f'data-node="{html_mod.escape(node_id)}" data-fn="{r["num"]}">'
-            f'<span class="text-overlay0 font-mono">{r["num"]}</span>'
+            f'<span class="font-mono" style="{ts_mut}">{r["num"]}</span>'
             f'<span class="w-1.5 h-1.5 rounded-full bg-{c} shrink-0"></span>'
-            f'<span class="text-{c} font-medium">{html_mod.escape(r["name"])}</span>{taint_icon}</span>'
+            f'<span class="font-medium" style="{ts_pri}">{html_mod.escape(r["name"])}</span>{taint_icon}</span>'
         )
     return "\n".join(pills)
 
@@ -590,8 +651,7 @@ def build_notebook_html(
             out_parts = []
             if result is not None:
                 result_str = str(result)
-                if len(result_str) > 500:
-                    result_str = result_str[:497] + "..."
+                # No truncation - show full output
                 out_parts.append(
                     f'<div class="border-t border-surface1 px-4 py-2 text-sm">'
                     f'<span class="text-overlay0 text-xs">Out:</span> '
@@ -634,12 +694,13 @@ def build_notebook_html(
                     else:
                         pill_border = ""
                         taint_icon = ""
+                    ts_pri = _text_style(c, node)
                     pills.append(
                         f'<span class="nb-node-pill inline-flex items-center gap-1 bg-surface0 '
                         f'rounded-full px-2 py-0.5 text-xs cursor-pointer hover:bg-surface1 {pill_border}" '
                         f'data-node="{html_mod.escape(node_id)}">'
-                        f'<span class="w-1.5 h-1.5 rounded-full bg-{c}"></span>'
-                        f'<span class="text-{c}">{html_mod.escape(bname)}</span>{val_html}{taint_icon}</span>'
+                        f'<span class="w-1.5 h-1.5 rounded-full bg-{c} shrink-0"></span>'
+                        f'<span class="font-medium" style="{ts_pri}">{html_mod.escape(bname)}</span>{val_html}{taint_icon}</span>'
                     )
             pills_row = ""
             if pills:
@@ -757,8 +818,7 @@ def build_viz_data(structure: "CoreToConsequenceStructure") -> tuple[list[dict],
         from parseltongue.core.grammar import ParseltongueGrammar
 
         value_str = ParseltongueGrammar.enc(node.value)
-        if len(value_str) > 200:
-            value_str = value_str[:197] + "..."
+        # No truncation - show full values
         depth = structure.depths.get(name, 0)
         inputs = [str(i) for i in (node.inputs or [])]
         module = name.split(".")[0] if "." in name else ""
@@ -821,30 +881,19 @@ def merge_diff_structure(
             value_a = diff_val.get("value_a")
             value_b = diff_val.get("value_b")
             divergences = diff_val.get("divergences", {})
-            coherent = value_a == value_b and len(divergences) == 0
-            # Display value: short summary for cards/inline
+            real_divs, contaminated, has_real = split_divergences(divergences)
+            coherent = value_a == value_b and not has_real
             va_s = _fmt_value(str(value_a)) if value_a is not None else "?"
             vb_s = _fmt_value(str(value_b)) if value_b is not None else "?"
-            if coherent:
-                value_str = f"{va_s} = {vb_s}"
-            else:
-                value_str = f"{va_s} \u2260 {vb_s}"
-            item_value = value_str
-            # Store full diff data for detail panel
-            # divergences: {name: [val_original, val_substituted]}
-            div_serialized = {}
-            for dk, dv in divergences.items():
-                if isinstance(dv, (list, tuple)) and len(dv) == 2:
-                    div_serialized[dk] = {"before": str(dv[0]), "after": str(dv[1])}
-                else:
-                    div_serialized[dk] = {"before": str(dv), "after": ""}
+            item_value = f"{va_s} = {vb_s}" if coherent else f"{va_s} \u2260 {vb_s}"
             diff_data = {
                 "replace": diff_val.get("replace", ""),
                 "with": diff_val.get("with", ""),
                 "value_a": str(value_a) if value_a is not None else None,
                 "value_b": str(value_b) if value_b is not None else None,
                 "coherent": coherent,
-                "divergences": div_serialized,
+                "divergences": real_divs,
+                "contaminated": contaminated,
             }
         else:
             value_str = ParseltongueGrammar.enc(node.value)
@@ -928,21 +977,25 @@ def render_notebook(
 }
 .nb-margin-pill { line-height: 1.4; }
 .nb-fn:hover sup { color: var(--mauve); }
+.nb-fn.nb-fn-active sup { color: var(--lavender); }
+.nb-row-highlight { background: var(--highlight); border-radius: 6px; transition: background 0.3s; }
+.nb-node-pill.nb-pill-active { outline: 2px solid var(--mauve); outline-offset: 1px; background: var(--surface1) !important; }
 .nb-taint-source { text-decoration: underline wavy var(--red); text-underline-offset: 3px; }
 .nb-taint-propagated { text-decoration: underline dashed var(--yellow); text-underline-offset: 3px; }
 #app { transition: margin-right 0.2s ease; }
 #app.detail-open { margin-right: min(420px, 35vw); }
 
-/* Wide screens: margin notes float to the right, still wrap horizontally */
+/* Wide screens: margin notes float to the right using available space */
 @media (min-width: 1100px) {
   .nb-margin-notes {
-    position: absolute; right: -220px; top: 0; width: 205px;
+    position: absolute; right: 0; top: 0;
+    transform: translateX(calc(100% + 16px));
+    width: calc((100vw - min(860px, 90vw)) / 2 - 40px);
+    max-width: 280px; min-width: 120px;
     margin-top: 0;
   }
-}
-@media (min-width: 1400px) {
-  .nb-margin-notes {
-    right: -260px; width: 245px;
+  .detail-open .nb-margin-notes {
+    width: calc((100vw - min(860px, 90vw) - min(420px, 35vw)) / 2 - 40px);
   }
 }
 </style>
@@ -1019,8 +1072,12 @@ document.addEventListener('DOMContentLoaded', function() {
         logbook=logbook,
     )
 
+    from parseltongue.core.theme import VIZ_TYPOGRAPHY, css_variables
+
     tmpl = Template(base)
     return tmpl.safe_substitute(
+        palette_css=css_variables(include_viz=True),
+        base_css=VIZ_TYPOGRAPHY,
         title=_html_escape(title),
         data_json=json.dumps(items, separators=(",", ":")),
         structure_json=json.dumps(structure_items, separators=(",", ":")),

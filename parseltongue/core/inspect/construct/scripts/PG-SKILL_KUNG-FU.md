@@ -1,5 +1,6 @@
 ---
 name: parseltongue-bench
+alias: kung-fu
 description: Working with Parseltongue pg-bench — a persistent inspection daemon for .pltg formal logic files. Use when the user asks to analyze, validate, or inspect documents, codebases, or datasets using grounded formal logic. Covers daemon lifecycle, search engine, layered derivation (axioms → facts → derivation → aggregation → final diff), document extraction, visualization, and hologram comparison.
 ---
 

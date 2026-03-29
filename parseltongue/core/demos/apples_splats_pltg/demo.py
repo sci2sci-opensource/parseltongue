@@ -79,7 +79,7 @@ def pltg_print(_system, *args):
 
 if __name__ == "__main__":
     plog = logging.getLogger("parseltongue")
-    plog.setLevel(logging.INFO)
+    plog.setLevel(logging.WARNING)
     handler = logging.StreamHandler(sys.stdout)
     handler.setFormatter(logging.Formatter("  [%(levelname)s] %(message)s"))
     plog.addHandler(handler)

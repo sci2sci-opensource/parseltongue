@@ -1,9 +1,10 @@
 """
-Demo: Parseltongue DSL in action.
+Demo: Revenue Reports
 
-Scenario: Analyzing company performance from multiple documents.
-Shows the system growing from a minimal base as evidence is ingested,
-with quote verification, fabrication propagation, and manual override.
+Scenario: Company performance analysis from multiple financial documents.
+The system grows from a minimal base as evidence is ingested, with quote
+verification catching fabricated claims, taint propagation marking
+downstream derivations, and manual override correcting specific facts.
 """
 
 import json
@@ -26,7 +27,7 @@ def _print_list(items):
 
 def main():
     plog = logging.getLogger("parseltongue")
-    plog.setLevel(logging.INFO)
+    plog.setLevel(logging.WARNING)
     handler = logging.StreamHandler(sys.stdout)
     handler.setFormatter(logging.Formatter("  [%(levelname)s] %(message)s"))
     plog.addHandler(handler)

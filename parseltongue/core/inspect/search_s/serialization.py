@@ -161,36 +161,61 @@ def _corpus_from_json(d: dict[str, dict[str, list[int]]]) -> dict[str, dict[str,
 
 
 def serialize_search_index(idx: "DocumentSearchIndex") -> dict:
+    snap = idx._snap
     return {
-        "documents": {name: serialize_search_document(sdoc) for name, sdoc in idx.documents.items()},
-        "corpus_stems": _corpus_to_json(idx._corpus_stems),
-        "corpus_words": _corpus_to_json(idx._corpus_words),
-        "stem_df": idx._stem_df,
-        "name_stems": {k: sorted(v) for k, v in idx._name_stems.items()},
+        "documents": {name: serialize_search_document(sdoc) for name, sdoc in snap.documents.items()},
+        "corpus_stems": _corpus_to_json(snap.corpus_stems),
+        "corpus_words": _corpus_to_json(snap.corpus_words),
+        "stem_df": snap.stem_df,
+        "name_stems": {k: sorted(v) for k, v in snap.name_stems.items()},
+        "doc_lengths": snap.doc_lengths,
+        "avgdl": snap.avgdl,
     }
 
 
 def deserialize_search_index(d: dict, doc_index: "DocumentIndex") -> "DocumentSearchIndex":
     """Restore a DocumentSearchIndex from serialized data + backing DocumentIndex."""
     from .annotators import DEFAULT_ANNOTATORS
-    from .index import DocumentSearchIndex
+    from .index import DocumentSearchIndex, _Snapshot
     from .synonyms import DEFAULT_SYNONYMS
 
     idx = object.__new__(DocumentSearchIndex)
     idx._doc_index = doc_index
     idx._annotators = list(DEFAULT_ANNOTATORS)
     idx._synonyms = DEFAULT_SYNONYMS
+    idx._quote_ranges = []
+    idx._verifier_documents = {}
+    idx._line_callers_cache = None
+    idx._line_callers_qr_id = -1
 
     # Restore documents
-    idx.documents = {}
+    documents: dict = {}
     for name, sdoc_data in d.get("documents", {}).items():
         backing_doc = doc_index.documents.get(name) if hasattr(doc_index, 'documents') else None
-        idx.documents[name] = deserialize_search_document(sdoc_data, backing_doc)
+        documents[name] = deserialize_search_document(sdoc_data, backing_doc)
 
-    # Restore corpus indices
-    idx._corpus_stems = _corpus_from_json(d.get("corpus_stems", {}))
-    idx._corpus_words = _corpus_from_json(d.get("corpus_words", {}))
-    idx._stem_df = d.get("stem_df", {})
-    idx._name_stems = {k: set(v) for k, v in d.get("name_stems", {}).items()}
+    # Restore doc_lengths / avgdl (compute if missing from old cache)
+    doc_lengths = d.get("doc_lengths")
+    avgdl = d.get("avgdl", 1.0)
+    if doc_lengths is None:
+        doc_lengths = {}
+        for name, sdoc in documents.items():
+            doc_lengths[name] = sum(len(lines) for lines in sdoc.word_to_lines.values())
+        N = len(documents)
+        total = sum(doc_lengths.values())
+        avgdl = total / N if N else 1.0
+        if avgdl == 0:
+            avgdl = 1.0
+
+    # Build snapshot — single atomic state object
+    idx._snap = _Snapshot(
+        documents=documents,
+        corpus_stems=_corpus_from_json(d.get("corpus_stems", {})),
+        corpus_words=_corpus_from_json(d.get("corpus_words", {})),
+        stem_df=d.get("stem_df", {}),
+        name_stems={k: set(v) for k, v in d.get("name_stems", {}).items()},
+        doc_lengths=doc_lengths,
+        avgdl=avgdl,
+    )
 
     return idx

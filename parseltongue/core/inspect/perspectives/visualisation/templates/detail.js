@@ -117,32 +117,43 @@ function showDetail(d) {
     }
     html += `<div><span class="text-overlay0">name:</span> <span class="text-text font-bold">${esc(d.id)}</span></div>`;
     html += `<div><span class="text-overlay0">kind:</span> <span class="${kindText(d.kind)} font-bold">${esc(d.kind)}</span></div>`;
-    // ── Diff-specific rendering ──
+    // ── Diff-specific rendering (color-mixed patronus palette) ──
     if (d.kind === 'diff' && d.diff) {
       const df = d.diff;
-      const icon = df.coherent ? '&#x2713;' : '&#x2260;';
-      const stCls = df.coherent ? 'text-green' : 'text-red';
-      const stLabel = df.coherent ? 'Coherent' : 'Divergent';
-      html += `<div class="mt-1 flex items-center gap-2"><span class="${stCls} font-bold">${icon} ${stLabel}</span></div>`;
-      html += `<div class="mt-2 bg-crust rounded-lg p-3 space-y-2">`;
+      const contKeys = df.contaminated ? Object.keys(df.contaminated) : [];
+      const hasContOnly = df.coherent && contKeys.length > 0;
+      const pri = diffTextPrimary(d.id);
+      const sec = diffTextSecondary(d.id);
+      const mut = diffTextMuted(d.id);
+      const brd = diffBorderColor(d.id);
+      let icon, stLabel;
+      if (df.coherent && !hasContOnly) {
+        icon = '&#x2713;'; stLabel = 'Coherent';
+      } else if (hasContOnly) {
+        icon = '&#x26a0;'; stLabel = 'Coherent (contaminated)';
+      } else {
+        icon = '&#x2260;'; stLabel = 'Divergent';
+      }
+      html += `<div class="mt-1 flex items-center gap-2"><span class="font-bold" style="color:${pri}">${icon} ${stLabel}</span></div>`;
+      html += `<div class="mt-2 rounded-lg p-3 space-y-2" style="background:var(--crust);border:1px solid ${brd}">`;
       // Branch A (replace)
       html += `<div class="flex items-center gap-2">`;
-      html += `<span class="text-overlay0 text-[10px] w-14 shrink-0">replace</span>`;
-      html += `<span class="text-text font-bold cursor-pointer hover:text-mauve" onclick="showDetail(ITEM_BY_ID['${(df.replace||'').replace(/'/g, "\\'")}'])">${esc(df.replace)}</span>`;
-      if (df.value_a != null) html += `<span class="text-subtext text-xs">= ${esc(df.value_a)}</span>`;
+      html += `<span class="text-[10px] w-14 shrink-0" style="color:${mut}">replace</span>`;
+      html += `<span class="font-bold cursor-pointer hover:text-mauve" style="color:${pri}" onclick="showDetail(ITEM_BY_ID['${(df.replace||'').replace(/'/g, "\\'")}'])">${esc(df.replace)}</span>`;
+      if (df.value_a != null) html += `<span class="text-xs" style="color:${sec}">= ${esc(df.value_a)}</span>`;
       html += `</div>`;
       // Branch B (with)
       html += `<div class="flex items-center gap-2">`;
-      html += `<span class="text-overlay0 text-[10px] w-14 shrink-0">with</span>`;
-      html += `<span class="text-text font-bold cursor-pointer hover:text-mauve" onclick="showDetail(ITEM_BY_ID['${(df['with']||'').replace(/'/g, "\\'")}'])">${esc(df['with'])}</span>`;
-      if (df.value_b != null) html += `<span class="text-subtext text-xs">= ${esc(df.value_b)}</span>`;
+      html += `<span class="text-[10px] w-14 shrink-0" style="color:${mut}">with</span>`;
+      html += `<span class="font-bold cursor-pointer hover:text-mauve" style="color:${pri}" onclick="showDetail(ITEM_BY_ID['${(df['with']||'').replace(/'/g, "\\'")}'])">${esc(df['with'])}</span>`;
+      if (df.value_b != null) html += `<span class="text-xs" style="color:${sec}">= ${esc(df.value_b)}</span>`;
       html += `</div>`;
       // Divergences — downstream terms that change under substitution
       if (df.divergences) {
         const divKeys = Object.keys(df.divergences);
         if (divKeys.length) {
-          html += `<div class="border-t border-surface2 pt-2 mt-2">`;
-          html += `<div class="text-red text-[10px] font-bold mb-1">Downstream divergences (${divKeys.length})</div>`;
+          html += `<div class="border-t pt-2 mt-2" style="border-color:${brd}">`;
+          html += `<div class="text-[10px] font-bold mb-1" style="color:${pri}">Downstream divergences (${divKeys.length})</div>`;
           divKeys.forEach(k => {
             const dv = df.divergences[k];
             const nameSpan = ITEM_BY_ID[k]
@@ -150,15 +161,15 @@ function showDetail(d) {
               : `<span class="text-text">${esc(k)}</span>`;
             if (dv && dv.before !== undefined) {
               html += `<div class="text-xs mt-1">${nameSpan}</div>`;
-              html += `<div class="text-[10px] ml-3 text-subtext">${esc(dv.before)} <span class="text-red">&rarr;</span> ${esc(dv.after)}</div>`;
+              html += `<div class="text-[10px] ml-3 text-subtext">${esc(dv.before)} <span style="color:${pri}">&rarr;</span> ${esc(dv.after)}</div>`;
             } else {
-              html += `<div class="text-xs mt-1">${nameSpan}: <span class="text-red">${esc(String(dv))}</span></div>`;
+              html += `<div class="text-xs mt-1">${nameSpan}: <span style="color:${pri}">${esc(String(dv))}</span></div>`;
             }
           });
           html += `</div>`;
         } else if (df.coherent) {
-          html += `<div class="border-t border-surface2 pt-2 mt-2">`;
-          html += `<div class="text-green text-[10px]">No downstream divergences</div>`;
+          html += `<div class="border-t pt-2 mt-2" style="border-color:${brd}">`;
+          html += `<div class="text-[10px]" style="color:${sec}">&#x2713; No downstream divergences</div>`;
           html += `</div>`;
         }
       }
@@ -166,16 +177,16 @@ function showDetail(d) {
       if (df.contaminated) {
         const contKeys = Object.keys(df.contaminated);
         if (contKeys.length) {
-          html += `<div class="border-t border-surface2 pt-2 mt-2">`;
-          html += `<div class="text-yellow text-[10px] font-bold mb-1">Contaminated diffs (${contKeys.length})</div>`;
-          html += `<div class="text-[10px] text-overlay0 mb-1">Other diffs reference the same replace side — not a real value divergence.</div>`;
+          html += `<div class="border-t pt-2 mt-2" style="border-color:${brd}">`;
+          html += `<div class="text-[10px] font-bold mb-1" style="color:${pri}">Contaminated diffs (${contKeys.length})</div>`;
+          html += `<div class="text-[10px] mb-1" style="color:${mut}">Other diffs reference the same replace side — not a real value divergence.</div>`;
           contKeys.forEach(k => {
             const cv = df.contaminated[k];
             const nameSpan = ITEM_BY_ID[k]
               ? `<span class="text-text font-bold cursor-pointer hover:text-mauve" onclick="showDetail(ITEM_BY_ID['${k.replace(/'/g, "\\'")}'])">${esc(k)}</span>`
               : `<span class="text-text">${esc(k)}</span>`;
             html += `<div class="text-xs mt-1">${nameSpan}</div>`;
-            html += `<div class="text-[10px] ml-3 text-overlay0">${esc(cv.before)}</div>`;
+            html += `<div class="text-[10px] ml-3" style="color:${mut}">${esc(cv.before)}</div>`;
           });
           html += `</div>`;
         }
@@ -214,18 +225,44 @@ function showDetail(d) {
         if (ev.doc) html += `<div class="text-xs"><span class="text-overlay0">doc:</span> <span class="text-sky">${esc(ev.doc)}</span></div>`;
         if (ev.quotes && ev.quotes.length) {
           const ctxs = ev.quote_contexts || {};
+          const details = ev.quote_details || {};
           ev.quotes.forEach(q => {
             const bc = st === 'verified' ? 'border-green' : 'border-yellow';
-            const ctx = ctxs[q];
-            if (ctx && (ctx.before || ctx.after)) {
-              html += `<div class="text-xs bg-surface0 rounded p-2 mt-1 whitespace-pre-wrap border-l-2 ${bc}">`;
-              if (ctx.before) html += `<span class="text-overlay0">${esc(ctx.before)}</span>`;
-              html += `<span class="font-bold text-text bg-highlight rounded-sm px-0.5">${esc(q)}</span>`;
-              if (ctx.after) html += `<span class="text-overlay0">${esc(ctx.after)}</span>`;
-              html += `</div>`;
+            const det = details[q];
+            const matches = det && det.all_matches && det.all_matches.length > 1 ? det.all_matches : null;
+            html += `<div class="text-xs bg-surface0 rounded p-2 mt-1 whitespace-pre-wrap border-l-2 ${bc}">`;
+            if (matches) {
+              // Multiple matches — same block, separated by ...
+              matches.forEach((m, i) => {
+                if (i > 0) html += `<div class="text-overlay0 text-center my-1">&#x2026;</div>`;
+                const mctx = m.context;
+                const isCurrent = m.original_line === (det.line || -1);
+                const tag = isCurrent ? '&#x25c6;' : '&#x25cb;';
+                const tagCls = isCurrent ? 'text-sky' : 'text-overlay0';
+                html += `<div class="flex gap-2"><span class="text-[9px] text-sky">L${m.original_line}</span><span class="text-[9px] text-overlay0">${esc(m.strategy)}</span><span class="text-[9px] ${tagCls}">${tag}</span></div>`;
+                if (mctx && (mctx.before || mctx.after)) {
+                  if (mctx.before) html += `<span class="text-overlay0">${esc(mctx.before)}</span>`;
+                  html += `<span class="font-bold text-text bg-highlight rounded-sm px-0.5">${esc(q)}</span>`;
+                  if (mctx.after) html += `<span class="text-overlay0">${esc(mctx.after)}</span>`;
+                } else {
+                  html += `<span class="font-bold text-text">${esc(q)}</span>`;
+                }
+              });
             } else {
-              html += `<div class="text-xs bg-surface0 rounded p-2 mt-1 whitespace-pre-wrap border-l-2 ${bc}">${esc(q)}</div>`;
+              // Single match
+              const ctx = ctxs[q];
+              const lineBadge = det && det.line ? `<span class="text-[9px] text-sky">L${det.line}</span>` : '';
+              const confBadge = det && det.confidence != null ? `<span class="text-[9px] text-overlay0">${Math.round(det.confidence * 100)}%</span>` : '';
+              if (lineBadge || confBadge) html += `<div class="flex gap-2">${lineBadge}${confBadge}</div>`;
+              if (ctx && (ctx.before || ctx.after)) {
+                if (ctx.before) html += `<span class="text-overlay0">${esc(ctx.before)}</span>`;
+                html += `<span class="font-bold text-text bg-highlight rounded-sm px-0.5">${esc(q)}</span>`;
+                if (ctx.after) html += `<span class="text-overlay0">${esc(ctx.after)}</span>`;
+              } else {
+                html += `<span class="font-bold text-text">${esc(q)}</span>`;
+              }
             }
+            html += `</div>`;
           });
         } else if (ev.quote) {
           const bc = st === 'verified' ? 'border-green' : 'border-yellow';

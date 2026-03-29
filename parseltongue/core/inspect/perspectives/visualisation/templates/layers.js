@@ -1,4 +1,17 @@
 // ── Layers View: stacked pills with curved connections ──
+
+// State-aware text/stroke for diff pills (color-mixed patronus palette)
+function _pillTextFill(name, kind) {
+  return diffTextPrimary(name) || C.text;
+}
+function _pillStroke(name, kind) {
+  if (kind !== 'diff') return kindDot(kind);
+  const st = DIFF_STATE[name];
+  if (!st || st === 'coherent') return C.patronusLine;
+  if (st === 'tainted') return C.patronusTaintOuter;
+  return C.patronusWarnOuter;  // warn
+}
+
 let layersInitialized = false;
 let focusedId = null;
 const _expandedPrefixes = new Set();  // tracks which prefix groups are expanded (persists across re-renders)
@@ -634,7 +647,7 @@ function renderLayers() {
 
     pg.append("rect")
       .attr("width", p.w).attr("height", PH).attr("rx", 14)
-      .attr("fill", C.surface0).attr("stroke", kindDot(n.kind)).attr("stroke-width", 1.5);
+      .attr("fill", C.surface0).attr("stroke", _pillStroke(name, n.kind)).attr("stroke-width", 1.5);
     pg.append("circle")
       .attr("cx", 12).attr("cy", PH / 2).attr("r", 4).attr("fill", kindDot(n.kind));
 
@@ -643,7 +656,7 @@ function renderLayers() {
     const maxCh = Math.floor((p.w - 28) / 6);
     pg.append("text")
       .attr("x", 22).attr("y", PH / 2 + 1).attr("dominant-baseline", "middle")
-      .attr("fill", C.text).attr("font-size", "10px")
+      .attr("fill", _pillTextFill(name, n.kind)).attr("font-size", "10px")
       .text((short + valS).slice(0, maxCh));
 
     pg.on("mouseover", (ev) => {
@@ -905,7 +918,7 @@ function renderLayers() {
       const n = nodeData[name];
       const p = pos[name];
       if (n && p && !p.hanging) {
-        el.select("rect").attr("stroke", kindDot(n.kind)).attr("stroke-width", 1.5).attr("stroke-dasharray", "none");
+        el.select("rect").attr("stroke", _pillStroke(name, n.kind)).attr("stroke-width", 1.5).attr("stroke-dasharray", "none");
       } else if (p && p.hanging) {
         el.select("rect").attr("stroke", C.surface2).attr("stroke-width", 1).attr("stroke-dasharray", "4,2");
       }
@@ -952,7 +965,7 @@ function renderLayers() {
       const el = d3.select(this);
       const name = el.attr("data-name");
       const n = nodeData[name];
-      el.select("rect").attr("stroke", kindDot(n ? n.kind : '')).attr("stroke-width", 1.5).attr("stroke-dasharray", "none");
+      el.select("rect").attr("stroke", n ? _pillStroke(name, n.kind) : kindDot('')).attr("stroke-width", 1.5).attr("stroke-dasharray", "none");
     });
     focusG.selectAll(".fpill-input").each(function() {
       const el = d3.select(this);
@@ -1280,13 +1293,13 @@ function renderLayers() {
       const pg = focusG.append("g").attr("transform", `translate(${p.x},${p.y})`).attr("class", "cursor-pointer fpill-result").attr("data-name", n.name);
       pg.append("rect").attr("width", p.w).attr("height", PH).attr("rx", 14)
         .attr("fill", isFocused ? C.surface1 : C.surface0)
-        .attr("stroke", isFocused ? C.mauve : kindDot(n.kind))
+        .attr("stroke", isFocused ? C.mauve : _pillStroke(n.name, n.kind))
         .attr("stroke-width", isFocused ? 3 : 1.5);
       pg.append("circle").attr("cx", 12).attr("cy", PH / 2).attr("r", 4).attr("fill", kindDot(n.kind));
       const short = n.name.includes('.') ? n.name.split('.').slice(1).join('.') : n.name;
       const maxCh = Math.floor((p.w - 28) / 6);
       pg.append("text").attr("x", 22).attr("y", PH / 2 + 1).attr("dominant-baseline", "middle")
-        .attr("fill", C.text).attr("font-size", "10px")
+        .attr("fill", _pillTextFill(n.name, n.kind)).attr("font-size", "10px")
         .text((short + (n.value ? ' =' + String(n.value).slice(0,15) : '')).slice(0, maxCh));
       pg.on("click", (ev) => {
         ev.stopPropagation();
@@ -1335,7 +1348,7 @@ function renderLayers() {
       const el = d3.select(this);
       const name = el.attr("data-name");
       const n = nodeData[name];
-      el.select("rect").attr("stroke-width", 1.5).attr("stroke", kindDot(n ? n.kind : ''));
+      el.select("rect").attr("stroke-width", 1.5).attr("stroke", n ? _pillStroke(name, n.kind) : kindDot(''));
     });
     g.selectAll(".pill-input").attr("opacity", 1);
     edgeEls.forEach(el => {

@@ -135,7 +135,22 @@ class SearchSystem2:
             if query is None:
                 return sys._search_index.match_docs(pred)
             posting = _as_posting(query)
-            return {k: v for k, v in posting.items() if pred(k[0])}
+            filtered = {k: v for k, v in posting.items() if pred(k[0])}
+            if filtered or not posting:
+                return filtered
+            # Global search found results but none in the target docs.
+            # Fall back: search within matching docs directly via corpus.
+            if isinstance(query, str):
+                from ..search_s.strategy import _make_posting
+
+                snap = sys._search_index._snap
+                for doc_name, sdoc in snap.documents.items():
+                    if not pred(doc_name):
+                        continue
+                    for line_num, line in enumerate(sdoc.lines, 1):
+                        if query.lower() in line.lower():
+                            filtered[(doc_name, line_num)] = _make_posting(doc_name, line_num, sdoc.lines)
+            return filtered
 
         def _not_in(source: str | Posting | Sentence, query: str | Posting | Sentence | None = None) -> Posting:
             def pred(d):
@@ -400,10 +415,10 @@ class SearchSystem2:
         import logging as _logging
 
         _log = _logging.getLogger("parseltongue.search_system2")
-        _log.info(
-            "refresh: _index docs=%d qr=%d",
+        _log.debug(
+            "refresh: _index docs=%d, search_index qr=%d",
             len(self._index.documents),
-            len(self._index._quote_ranges),
+            len(self._search_index._quote_ranges),
         )
         self._search_index.refresh(self._index)
 

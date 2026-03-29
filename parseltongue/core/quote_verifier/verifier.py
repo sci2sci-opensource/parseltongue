@@ -140,6 +140,7 @@ class QuoteVerifier:
         Returns a result dict containing:
             confidence — nested dict with score (float) and level (ConfidenceLevel)
             original_position — character offset in original document, or -1
+            all_matches — list of all match positions with their lines
         """
         # Pre-validate
         result, ok = self._pre_validate(doc.original_text, quote)
@@ -147,6 +148,8 @@ class QuoteVerifier:
             return result
 
         normalized_quote, _, _ = normalize_with_mapping(quote, self.config)
+
+        # Find all matches, score the first (confidence is quote-level, not position-level)
         position_info, confidence_info = self._find_quote_position(doc, quote, normalized_quote)
 
         verified = (
@@ -206,6 +209,27 @@ class QuoteVerifier:
                 result["reason"] = "Below confidence threshold"
             else:
                 result["reason"] = "Not found in document"
+
+        # All match positions — callers can use this to pick the best match
+        # (e.g. skip matches inside pltg blocks in self-referencing pgmd)
+        all_matches = doc.find_all(normalized_quote)
+        if len(all_matches) > 1:
+            matches_out = []
+            for norm_start, norm_end, strategy in all_matches:
+                orig_start = doc.position_map[norm_start]
+                orig_end = doc.position_map[min(norm_end, len(doc.position_map) - 1)]
+                line = doc.original_text[:orig_start].count("\n") + 1
+                match_ctx = self._get_context(doc.original_text, orig_start, orig_end, context_length)
+                entry = {
+                    "original_position": orig_start,
+                    "original_line": line,
+                    "normalized_position": norm_start,
+                    "strategy": strategy.value if hasattr(strategy, "value") else str(strategy),
+                }
+                if match_ctx:
+                    entry["context"] = match_ctx
+                matches_out.append(entry)
+            result["all_matches"] = matches_out
 
         return result
 

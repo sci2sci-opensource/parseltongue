@@ -27,8 +27,9 @@ import re
 import sys
 from pathlib import Path
 
+from operators import GOVERNANCE_EFFECTS
+
 from parseltongue.core import System, load_source
-from parseltongue.core.demos.data_governance_pltg.operators import GOVERNANCE_EFFECTS
 
 RESOURCES = Path(__file__).parent / "resources"
 
@@ -627,6 +628,13 @@ def main():
     handler.setFormatter(logging.Formatter("  [%(levelname)s] %(message)s"))
     plog.addHandler(handler)
 
+    # Regenerate data with corruptions (idempotent, deterministic seed)
+    from generate import main as generate_main
+
+    sys.argv = ["generate", "--clean"]
+    generate_main()
+    sys.argv = sys.argv[:1]
+
     system = System(overridable=True, effects=GOVERNANCE_EFFECTS)
     print("=" * 72)
     print("Parseltongue — Biopharma Data Governance Cross-Layer Consistency")
@@ -764,8 +772,11 @@ def main():
     if manifest_path.exists():
         manifest = json.loads(manifest_path.read_text())
         n_injected = len(manifest["corruptions"])
+        n_found = len(all_issues)
         print(f"\nManifest: {n_injected} corruptions were injected")
-        print(f"Detection coverage: {len(all_issues)}/{n_injected} issues surfaced")
+        print(f"Detection coverage: {n_found}/{n_injected} issues surfaced")
+        if n_found > n_injected:
+            print(f"  ({n_found - n_injected} extra — single corruptions cascade across layers)")
 
     print(f"\nFinal system: {system}")
 

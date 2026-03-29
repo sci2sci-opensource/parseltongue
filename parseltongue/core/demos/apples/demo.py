@@ -1,8 +1,8 @@
 """
-Demo: Parseltongue DSL — Counting Observations & Apple Arithmetic.
+Demo: Apple Arithmetic
 
-Scenario: Build arithmetic from observational field notes about counting
-physical objects, then apply it to an orchard harvest inventory.
+Scenario: Build Peano arithmetic from observational field notes about
+counting physical objects, then apply it to an orchard harvest inventory.
 Starts with a completely empty system, introduces symbols as terms,
 states parameterized axioms grounded in evidence, and derives
 concrete theorems via :bind — all in successor notation.
@@ -28,7 +28,7 @@ def _print_list(items):
 
 def main():
     plog = logging.getLogger("parseltongue")
-    plog.setLevel(logging.INFO)
+    plog.setLevel(logging.WARNING)
     handler = logging.StreamHandler(sys.stdout)
     handler.setFormatter(logging.Formatter("  [%(levelname)s] %(message)s"))
     plog.addHandler(handler)

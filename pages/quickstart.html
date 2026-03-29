@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html data-theme="dark" lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 -65.5 262 262'%3E%3Cpath d='M65.5 0C29.4 0 0 29.4 0 65.5 0 101.6 29.4 131 65.5 131c27.4 0 38.6-14.2 51.5-32.8-3.8-6.2-1.5 1.2-4.7-4.7C93.6 107.6 87.9 112.3 65.5 112.3 39.7 112.3 18.7 91.3 18.7 65.5 18.7 39.5 39.5 18.7 65.5 18.7c15.1 0 24.7 5.4 33.6 14.6 8.9 9.2 16.4 22.5 24 36.5 7.6 14 15.3 28.8 26.6 40.6C161 122.4 176.6 131 196.5 131 232.6 131 262 101.6 262 65.5 262 29.4 232.6 0 196.5 0c-28.1 0-24.5 9.9-37.4 28.1 3.8 6.1-12.3 16.7-9.1 22.5C161.4 32.2 174.1 18.7 196.5 18.7c25.8 0 46.8 21 46.8 46.8 0 26-21.1 46.8-47 46.8-14.9 0-24.2-5.4-33-14.6-8.8-9.2-16.3-22.5-24-36.5-7.6-14-15.5-28.8-26.9-40.6C101.2 8.6 85.6 0 65.5 0Z' fill='%23b4befe'/%3E%3Cpath d='M93.6 121.6c9.9-3.3 19.4-12.2 24.8-24.7 2.8-8 6.1-17.5-1.2-10-7.9 8.1-16 15-23.7 17.1v17.6Z' fill='%23b4befe'/%3E%3Cpath d='M194.9 18.7V0c-12.5-.3-17.8 4.2-29 11.9-6.4 1.2-16.9-2.4-26.6 11.2-5.6 7.9-4.9 19.7-6 21.2-1 1.6-.4 10.2 10.9 9.3 11.2-.9 30.9-21 30.9-21 5.8-4.4 13.5-13.8 19.8-14Z' fill='%23b4befe'/%3E%3C/svg%3E">
+  <title>Quickstart - Parseltongue</title>
+  <link rel="stylesheet" href="styles/theme.css">
+</head>
+<body>
+
+<div class="topnav">
+  <a class="logo" href="index.html">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -65.5 262 262" fill="currentColor"><path d="M65.5 0C29.4 0 0 29.4 0 65.5 0 101.6 29.4 131 65.5 131c27.4 0 38.6-14.2 51.5-32.8-3.8-6.2-1.5 1.2-4.7-4.7C93.6 107.6 87.9 112.3 65.5 112.3 39.7 112.3 18.7 91.3 18.7 65.5 18.7 39.5 39.5 18.7 65.5 18.7c15.1 0 24.7 5.4 33.6 14.6 8.9 9.2 16.4 22.5 24 36.5 7.6 14 15.3 28.8 26.6 40.6C161 122.4 176.6 131 196.5 131 232.6 131 262 101.6 262 65.5 262 29.4 232.6 0 196.5 0c-28.1 0-24.5 9.9-37.4 28.1 3.8 6.1-12.3 16.7-9.1 22.5C161.4 32.2 174.1 18.7 196.5 18.7c25.8 0 46.8 21 46.8 46.8 0 26-21.1 46.8-47 46.8-14.9 0-24.2-5.4-33-14.6-8.8-9.2-16.3-22.5-24-36.5-7.6-14-15.5-28.8-26.9-40.6C101.2 8.6 85.6 0 65.5 0Z"/><path d="M93.6 121.6c9.9-3.3 19.4-12.2 24.8-24.7 2.8-8 6.1-17.5-1.2-10-7.9 8.1-16 15-23.7 17.1v17.6Z"/><path d="M194.9 18.7V0c-12.5-.3-17.8 4.2-29 11.9-6.4 1.2-16.9-2.4-26.6 11.2-5.6 7.9-4.9 19.7-6 21.2-1 1.6-.4 10.2 10.9 9.3 11.2-.9 30.9-21 30.9-21 5.8-4.4 13.5-13.8 19.8-14Z"/></svg>
+    parseltongue
+  </a>
+  <nav>
+    <a href="index.html">Home</a>
+    <a href="quickstart.html" class="active">Quickstart</a>
+    <a href="demos.html">Demos</a>
+    <a href="construct.html">Construct</a>
+  </nav>
+  <button id="theme-toggle" class="theme-toggle" onclick="toggleTheme()"></button>
+</div>
+
+<div class="page">
+  <h1>Quickstart</h1>
+  <p class="subtitle">Parseltongue is a formal reasoning library. Every claim traces back to source evidence. It works with LLM agents &mdash; they write the formal logic, you steer.</p>
+
+  <h2>Install</h2>
+  <pre><code>pip install parseltongue-dsl</code></pre>
+
+  <h2>Get started</h2>
+
+  <div class="tab-bar">
+    <button class="tab-btn active" data-tab-group="env" data-tab="manual" onclick="switchTab('env','manual')">Manual</button>
+    <button class="tab-btn" data-tab-group="env" data-tab="cli" onclick="switchTab('env','cli')">Coding CLI Agent</button>
+    <button class="tab-btn" data-tab-group="env" data-tab="web" onclick="switchTab('env','web')">Web UI Agent</button>
+  </div>
+
+  <!-- ── Manual ── -->
+  <div class="tab-panel active" data-panel-group="env" data-panel="manual">
+    <h3>Explore it yourself</h3>
+    <p>The package installs a CLI called <code>pg</code> (alias <code>pg-bench</code>). It includes learning scripts &mdash; operational guides originally written for LLM agents, but readable by humans too:</p>
+    <pre><code>pg learn --help</code></pre>
+    <pre><code>Available skills:
+  pg-bench learn kung-fu        # Bench mastery &mdash; inspection, search, lens, diagnosis
+  pg-bench learn to-connect     # pgmd notebooks &mdash; prose wired through with truth</code></pre>
+    <p><strong>kung-fu</strong> covers the bench system: starting a persistent daemon, indexing documents, full-text search with an S-expression query language, consistency screening, and generating interactive HTML visualizations.</p>
+    <p><strong>to-connect</strong> covers pgmd notebooks: literate documents where markdown prose references grounded Parseltongue computations, rendered to self-contained HTML with cards, layers, and graph views.</p>
+    <p>Read a script with <code>pg learn kung-fu</code> &mdash; it prints to stdout. To run a demo:</p>
+    <pre><code>python parseltongue/core/demos/revenue_reports/demo.py</code></pre>
+    <p>To start a bench daemon and inspect the core system:</p>
+    <pre><code>pg-bench serve parseltongue/core/validation/core.pltg &amp;
+pg-bench wait
+pg screen
+pg find "engine"
+pg eval '(fmt "viz" (scope lens (find ".*")))' &gt; viz.html</code></pre>
+  </div>
+
+  <!-- ── Coding CLI Agent ── -->
+  <div class="tab-panel" data-panel-group="env" data-panel="cli">
+    <h3>Claude Code / Cursor / Aider</h3>
+    <p>Your agent has terminal access. Paste this prompt to bootstrap it with Parseltongue:</p>
+
+    <div class="prompt"><p>Run <code>pip install parseltongue-dsl</code> to install the Parseltongue formal reasoning library. It gives you a CLI called <code>pg</code>.</p><p>Run <code>pg learn --help</code> to see available learning paths, then run <code>pg learn &lt;name&gt;</code> for each one listed and read the full output carefully &mdash; these are your operational guides for working with Parseltongue.</p><p>Once you've read them, tell me what you can now do and ask me what I'd like to work on.</p></div>
+
+    <p>The agent installs the package, reads the learning scripts, and starts a conversation with you about what to do next. It now knows how to start the bench daemon, index files, search for evidence, screen for consistency, generate visualizations, and write notebooks.</p>
+  </div>
+
+  <!-- ── Web UI Agent ── -->
+  <div class="tab-panel" data-panel-group="env" data-panel="web">
+    <h3>Claude with Sandboxes</h3>
+    <p>Enable these two sandbox settings first:</p>
+    <ul style="margin:0.75rem 0 0.75rem 1.5rem; color:var(--subtext); font-size:0.9rem;">
+      <li><strong>Execute code</strong> &mdash; the agent needs to run Python and the <code>pg</code> CLI</li>
+      <li><strong>Downloads</strong> &mdash; the agent needs to fetch the library and resources into the sandbox</li>
+    </ul>
+    <p>Then paste this prompt:</p>
+
+    <div class="prompt"><p>Run <code>pip install parseltongue-dsl</code> to install the Parseltongue formal reasoning library. It gives you a CLI called <code>pg</code>.</p><p>Run <code>pg learn --help</code> to see available learning paths, then run <code>pg learn &lt;name&gt;</code> for each one listed and read the full output carefully &mdash; these are your operational guides for working with Parseltongue.</p><p>Once you've read them, tell me what you can now do and ask me what I'd like to work on. I may upload documents for you to analyze.</p></div>
+
+    <p>Same flow &mdash; the agent installs, learns, and asks what you need. Upload documents (PDF, DOCX, TXT) directly and the agent extracts text, loads them as ground truth, and builds formal analyses.</p>
+  </div>
+
+  <h2>After setup</h2>
+  <p>The agent will ask what you want to work on. Here are some starting points:</p>
+
+  <h3>Analyze a document</h3>
+  <div class="prompt"><p>I've uploaded q3_report.pdf. Extract the text with <code>pdftotext</code>, load it into Parseltongue, and build a grounded analysis. Check whether the revenue growth claims are internally consistent.</p></div>
+
+  <h3>Run a demo</h3>
+  <div class="prompt"><p>Run the revenue_reports demo from <code>parseltongue/core/demos/revenue_reports/demo.py</code> and walk me through what happens at each phase &mdash; especially the consistency report and the diff.</p></div>
+
+  <h3>Screen an existing project</h3>
+  <div class="prompt"><p>Start a bench session on <code>main.pltg</code> with <code>pg start main.pltg --user "Me" --assistant "Claude"</code>, then run <code>pg screen</code> and explain what the issues mean.</p></div>
+
+  <h3>Write a notebook</h3>
+  <div class="prompt"><p>I want to write a pgmd notebook analyzing this document. Create a project structure with <code>main.pltg</code>, extract facts with verified quotes, build derivations, and render it to HTML with <code>pg render</code>.</p></div>
+
+  <h2>Learn more</h2>
+  <p>For the human side &mdash; what Parseltongue is, why it exists, and why LLMs making ungrounded claims is an engineering problem &mdash; start with <a href="construct.html">Construct</a>. The <em>Follow the White Rabbit</em> scenario walks through the system from first principles.</p>
+  <p>For worked examples across different domains, see <a href="demos.html">Demos</a>.</p>
+</div>
+
+<script src="styles/pages.js"></script>
+</body>
+</html>

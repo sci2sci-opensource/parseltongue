@@ -1,5 +1,5 @@
 """
-Demo: Parseltongue DSL — Biomarker Evidence Conflict.
+Demo: Biomarker Evidence Conflict
 
 Scenario: Two papers report on fecal calprotectin as a diagnostic marker
 for IBD. Paper A supports its diagnostic value (high sensitivity). Paper B
@@ -27,7 +27,7 @@ def _print_list(items):
 
 def main():
     plog = logging.getLogger("parseltongue")
-    plog.setLevel(logging.INFO)
+    plog.setLevel(logging.WARNING)
     handler = logging.StreamHandler(sys.stdout)
     handler.setFormatter(logging.Formatter("  [%(levelname)s] %(message)s"))
     plog.addHandler(handler)

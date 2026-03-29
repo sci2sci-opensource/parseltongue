@@ -1601,8 +1601,15 @@ def inject_inconsistencies(
     flat_datasets = [ds for dept in all_datasets.values() for ds in dept]
     _external_datasets = [ds for ds in flat_datasets if ds.source_type == "external"]
 
+    # Datasets reachable from business products — only corrupt what we can detect
+    reachable_ds_ids = {src["dataset_id"] for bp in products for src in bp.source_datasets}
+    reachable_datasets = [ds for ds in flat_datasets if ds.dataset_id in reachable_ds_ids]
+    reachable_contracts = [
+        c for c in contracts if any(ds["dataset_id"] in reachable_ds_ids for ds in c.covered_datasets)
+    ]
+
     # ── 1. Path drift (technical layer) ──
-    victims = random.sample(flat_datasets, _n(5, len(flat_datasets)))
+    victims = random.sample(reachable_datasets, _n(5, len(reachable_datasets)))
     for ds in victims:
         old_path = ds.storage_path
         new_path = old_path.replace("s3://", "s3://migrated-")
@@ -1620,7 +1627,7 @@ def inject_inconsistencies(
         _mutate_csv(ds.department, ds.dataset_id, "storage_path", new_path)
 
     # ── 2. Table rename (technical layer) ──
-    victims = random.sample(flat_datasets, _n(3, len(flat_datasets)))
+    victims = random.sample(reachable_datasets, _n(3, len(reachable_datasets)))
     for ds in victims:
         old_table = ds.table_name
         new_table = old_table + "_v2"
@@ -1638,7 +1645,7 @@ def inject_inconsistencies(
         _mutate_csv(ds.department, ds.dataset_id, "table_name", new_table)
 
     # ── 3. Cadence change (technical layer) ──
-    victims = random.sample(flat_datasets, _n(4, len(flat_datasets)))
+    victims = random.sample(reachable_datasets, _n(4, len(reachable_datasets)))
     for ds in victims:
         old_cadence = ds.refresh_cadence
         new_cadence = _pick([c for c in CADENCES if c != old_cadence])
@@ -1675,7 +1682,7 @@ def inject_inconsistencies(
                 )
 
     # ── 5. SLA mismatch (contract layer) ──
-    modifiable = [c for c in contracts if (RESOURCES / "contracts" / f"{_slug(c.provider)}.md").exists()]
+    modifiable = [c for c in reachable_contracts if (RESOURCES / "contracts" / f"{_slug(c.provider)}.md").exists()]
     if len(modifiable) >= 3:
         victims = random.sample(modifiable, _n(3, len(modifiable)))
         for ctr in victims:

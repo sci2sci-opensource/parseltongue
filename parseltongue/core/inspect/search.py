@@ -107,17 +107,17 @@ class Search:
             for name, doc in doc_index.documents.items():
                 if name not in self._index.documents:
                     self._index.add(name, doc.original_text)
-            # Import quote ranges for provenance enrichment
-            self._index._quote_ranges = doc_index._quote_ranges
-            # Update the search system's backing doc_index reference
-            self._system._search_index._doc_index = self._index
+            # Import quote ranges + verifier docs for provenance enrichment
+            self._system._search_index.set_quote_ranges(doc_index._quote_ranges, doc_index.documents)
         self._system.refresh()
 
-    def _sync(self, updated_index):
+    def _sync(self, updated_index, deleted: set[str] | None = None):
         """Sync all references after _update_index may have replaced DocumentIndex."""
         if updated_index is not self._index:
             self._index = updated_index
             self._system._index = updated_index
+        if deleted:
+            self._system._search_index.remove_docs(deleted)
         self._system.refresh()
 
     def index_dir(
@@ -128,7 +128,7 @@ class Search:
         on_progress: Callable[[int, int, str], None] | None = None,
         force: bool = False,
     ) -> int:
-        updated, count = self._store.index_incremental(
+        updated, count, deleted = self._store.index_incremental(
             self._index,
             directory,
             extensions,
@@ -136,7 +136,7 @@ class Search:
             on_progress,
             force=force,
         )
-        self._sync(updated)
+        self._sync(updated, deleted)
         if count > 0:
             self._store.save_search_index(self._system._search_index)
         return count
@@ -153,8 +153,8 @@ class Search:
 
         force=True bypasses stat/hash caches — full tree walk + re-read.
         """
-        updated, count = self._store.reindex(self._index, on_progress, force=force)
-        self._sync(updated)
+        updated, count, deleted = self._store.reindex(self._index, on_progress, force=force)
+        self._sync(updated, deleted)
         if count > 0:
             self._store.save_search_index(self._system._search_index)
         return count

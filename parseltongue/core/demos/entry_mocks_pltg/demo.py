@@ -1,9 +1,10 @@
 """
-Demo: run-on-entry as a self-contained unit test with let + mocks.
+Demo: Entry Mocks
 
-A module rebinds forward-declared primitives (which have no concrete
-values) to mock values via let, turning formal expressions into
-computable self-tests — only when run as the entry point.
+Scenario: Self-contained unit tests using let + mocks. A module rebinds
+forward-declared primitives to mock values via run-on-entry, turning
+formal expressions into computable self-tests — only when loaded as the
+entry point.
 """
 
 import logging
@@ -50,7 +51,7 @@ EFFECTS = {
 
 if __name__ == "__main__":
     plog = logging.getLogger("parseltongue")
-    plog.setLevel(logging.INFO)
+    plog.setLevel(logging.WARNING)
     handler = logging.StreamHandler(sys.stdout)
     handler.setFormatter(logging.Formatter("  [%(levelname)s] %(message)s"))
     plog.addHandler(handler)

@@ -30,6 +30,12 @@ class MetaMark:
     value: str  # payload
     weight: float = 1.0  # boost factor
     text: str = ""  # human-readable description (e.g. "Found document lang.py")
+    _stems: frozenset[str] = frozenset()  # pre-computed stemmed tokens of key+value
+
+    def __post_init__(self):
+        if not self._stems:
+            tokens = _tokenize_meta_value(self.value) + _tokenize_meta_value(self.key)
+            object.__setattr__(self, "_stems", frozenset(stem(t) for t in tokens))
 
 
 @dataclass
@@ -108,14 +114,11 @@ class MetaIndex:
         line_num is None for doc-level marks, int for line-level marks.
         Word-level marks return None (they apply to all occurrences).
         """
-        stemmed_query = {stem(t) for t in query_tokens}
+        stemmed_query = frozenset(stem(t) for t in query_tokens)
         result: list[tuple[int | None, MetaMark]] = []
 
         def _matches(mark: MetaMark) -> bool:
-            value_tokens = _tokenize_meta_value(mark.value)
-            key_tokens = _tokenize_meta_value(mark.key)
-            all_stems = {stem(t) for t in value_tokens} | {stem(t) for t in key_tokens}
-            return bool(stemmed_query & all_stems)
+            return bool(stemmed_query & mark._stems)
 
         # Doc-level: line=None
         for mark in self.doc_meta:
