@@ -27,8 +27,16 @@ document.addEventListener('DOMContentLoaded', function() {
     btn.className = 'copy-btn';
     btn.textContent = 'copy';
     btn.addEventListener('click', function() {
-      var code = block.querySelector('code') || block.querySelector('p');
-      var text = code ? code.textContent : block.textContent;
+      var code = block.querySelector('code');
+      var text;
+      if (code && block.tagName === 'PRE') {
+        text = code.textContent;
+      } else {
+        // Collect text from all children except the copy button
+        text = Array.from(block.children).filter(function(el) {
+          return !el.classList.contains('copy-btn');
+        }).map(function(el) { return el.textContent; }).join('\n');
+      }
       navigator.clipboard.writeText(text).then(function() {
         btn.textContent = 'copied';
         btn.classList.add('copied');
