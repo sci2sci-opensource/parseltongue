@@ -140,8 +140,10 @@ class DocumentSearchIndex:
         self._annotators = annotators if annotators is not None else list(DEFAULT_ANNOTATORS)
         self._synonyms: SynonymIndex = synonyms if synonyms is not None else DEFAULT_SYNONYMS
         self._snap = _Snapshot()  # empty until _build
-        self._quote_ranges: list = []
-        self._verifier_documents: dict = {}
+        # Pick up quote_ranges from backing index if present
+        qr = getattr(doc_index, "_quote_ranges", [])
+        self._quote_ranges: list = qr
+        self._verifier_documents: dict = doc_index.documents if qr else {}
         self._line_callers_cache: dict[tuple[str, int], set[str]] | None = None
         self._line_callers_qr_id: int = -1
         self._build()
