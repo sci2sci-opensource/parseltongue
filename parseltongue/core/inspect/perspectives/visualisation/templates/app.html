@@ -31,34 +31,8 @@
 }
 </style>
 <style>
-:root, [data-theme="dark"] {
-  --base:#1e1e2e;--mantle:#181825;--crust:#11111b;
-  --surface0:#313244;--surface1:#45475a;--surface2:#585b70;
-  --overlay0:#6c7086;--text:#cdd6f4;--subtext:#a6adc8;
-  --green:#a6e3a1;--red:#f38ba8;--yellow:#f9e2af;--blue:#89b4fa;
-  --mauve:#cba6f7;--teal:#94e2d5;--peach:#fab387;--flamingo:#f2cdcd;
-  --sky:#89dceb;--lavender:#b4befe;--base-light:#262637;
-  --highlight:rgba(250,204,21,0.30);--patronus:#93b1e6;
-  --patronus-core:#abdaed;--patronus-glow:#82c8e3;--patronus-glow-outer:#58b5da;
-  --patronus-highlight:#d5edf6;--patronus-line:#1c627d;
-  --patronus-text-primary:#d5edf6;--patronus-text-secondary:#82c8e3;--patronus-text-muted:#2ea3d1;
-  --patronus-taint-core:#c47a9a;--patronus-taint-glow:#8a7ab5;--patronus-taint-outer:#a07aaa;
-  --patronus-warn-core:#c8d94a;--patronus-warn-glow:#b5c43e;--patronus-warn-outer:#a0ad35;
-}
-[data-theme="light"] {
-  --base:#f9fafb;--mantle:#ffffff;--crust:#f3f4f6;
-  --surface0:#e5e7eb;--surface1:#d1d5db;--surface2:#9ca3af;
-  --overlay0:#6b7280;--text:#111827;--subtext:#4b5563;
-  --green:#16a34a;--red:#dc2626;--yellow:#ca8a04;--blue:#2563eb;
-  --mauve:#7c3aed;--teal:#0d9488;--peach:#ea580c;--flamingo:#e11d48;
-  --sky:#0284c7;--lavender:#4f46e5;--base-light:#f3f4f6;
-  --highlight:rgba(234,179,8,0.28);--patronus:#4a72b0;
-  --patronus-core:#9ad4df;--patronus-glow:#58b5da;--patronus-glow-outer:#a4e1f9;
-  --patronus-highlight:#d4eaf2;--patronus-line:#abdaed;
-  --patronus-text-primary:#6c9aac;--patronus-text-secondary:#4e95b1;--patronus-text-muted:#2582a7;
-  --patronus-taint-core:#b0607a;--patronus-taint-glow:#7a5a95;--patronus-taint-outer:#906a90;
-  --patronus-warn-core:#a8b82e;--patronus-warn-glow:#95a528;--patronus-warn-outer:#828f22;
-}
+$palette_css
+$base_css
 </style>
 <style>
 .patronus-dot {
@@ -102,17 +76,17 @@
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
 </head>
-<body class="bg-base text-text font-mono m-0 min-h-screen transition-colors duration-200">
+<body class="bg-base text-text m-0 min-h-screen transition-colors duration-200">
 
 <div id="app">
   <!-- Header -->
   <div class="sticky top-0 z-20 bg-mantle/95 backdrop-blur border-b border-surface1 px-4 py-3">
     <div class="flex items-center gap-4 flex-wrap">
-      <h1 class="text-lg font-bold shrink-0 flex items-center gap-2"><svg width="28" height="28" viewBox="0 -65.5 262 262" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M65.5 0C29.4238 0 0 29.4238 0 65.5C0 101.613 29.3873 131 65.5 131C92.9135 131 104.098 116.818 116.964 98.25C113.126 92.0728 115.466 99.4196 112.286 93.5714C93.5714 107.607 87.9425 112.286 65.5 112.286C39.6948 112.286 18.7143 91.3052 18.7143 65.5C18.7143 39.5486 39.5486 18.7143 65.5 18.7143C80.6323 18.7143 90.2453 24.1239 99.1272 33.3348C108.009 42.5458 115.502 55.8504 123.105 69.8862C130.708 83.9219 138.42 98.6886 149.714 110.531C161.009 122.374 176.58 131 196.5 131C232.576 131 262 101.576 262 65.5C262 29.3873 232.613 0 196.5 0C168.429 0 171.974 9.90541 159.071 28.0714C162.909 34.139 146.827 44.7754 150.007 50.5871C161.411 32.1652 174.131 18.7143 196.5 18.7143C222.305 18.7143 243.286 39.6948 243.286 65.5C243.286 91.4515 222.451 112.286 196.5 112.286C181.624 112.286 172.266 106.876 163.458 97.6652C154.649 88.4542 147.119 75.1496 139.48 61.1138C131.841 47.0781 123.982 32.3114 112.578 20.4687C101.174 8.62612 85.6032 0 65.5 0Z" fill="#b4befe"/><path d="M93.5711 121.644C103.512 118.335 112.933 109.45 118.414 96.8981C121.167 88.8827 124.547 79.4334 117.237 86.9786C109.346 95.1151 101.295 101.968 93.5711 104.094V121.644Z" fill="#b4befe"/><path d="M194.941 18.7143V0.0123456C182.464 -0.266236 177.108 4.18414 165.904 11.9151C159.482 13.1204 149.035 9.50678 139.322 23.1604C133.686 31.0847 134.419 42.8264 133.354 44.406C132.292 45.9884 133.01 54.6279 144.216 53.6828C155.422 52.7406 175.107 32.75 175.107 32.75C180.867 28.3105 188.649 18.9558 194.941 18.7143Z" fill="#b4befe"/></svg><span class="text-lavender">parseltongue</span><span class="text-overlay0 font-normal text-sm">/ $title</span></h1>
+      <h1 class="font-bold shrink-0 flex items-center gap-2"><svg width="24" height="24" viewBox="0 -65.5 262 262" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M65.5 0C29.4238 0 0 29.4238 0 65.5C0 101.613 29.3873 131 65.5 131C92.9135 131 104.098 116.818 116.964 98.25C113.126 92.0728 115.466 99.4196 112.286 93.5714C93.5714 107.607 87.9425 112.286 65.5 112.286C39.6948 112.286 18.7143 91.3052 18.7143 65.5C18.7143 39.5486 39.5486 18.7143 65.5 18.7143C80.6323 18.7143 90.2453 24.1239 99.1272 33.3348C108.009 42.5458 115.502 55.8504 123.105 69.8862C130.708 83.9219 138.42 98.6886 149.714 110.531C161.009 122.374 176.58 131 196.5 131C232.576 131 262 101.576 262 65.5C262 29.3873 232.613 0 196.5 0C168.429 0 171.974 9.90541 159.071 28.0714C162.909 34.139 146.827 44.7754 150.007 50.5871C161.411 32.1652 174.131 18.7143 196.5 18.7143C222.305 18.7143 243.286 39.6948 243.286 65.5C243.286 91.4515 222.451 112.286 196.5 112.286C181.624 112.286 172.266 106.876 163.458 97.6652C154.649 88.4542 147.119 75.1496 139.48 61.1138C131.841 47.0781 123.982 32.3114 112.578 20.4687C101.174 8.62612 85.6032 0 65.5 0Z" fill="#b4befe"/><path d="M93.5711 121.644C103.512 118.335 112.933 109.45 118.414 96.8981C121.167 88.8827 124.547 79.4334 117.237 86.9786C109.346 95.1151 101.295 101.968 93.5711 104.094V121.644Z" fill="#b4befe"/><path d="M194.941 18.7143V0.0123456C182.464 -0.266236 177.108 4.18414 165.904 11.9151C159.482 13.1204 149.035 9.50678 139.322 23.1604C133.686 31.0847 134.419 42.8264 133.354 44.406C132.292 45.9884 133.01 54.6279 144.216 53.6828C155.422 52.7406 175.107 32.75 175.107 32.75C180.867 28.3105 188.649 18.9558 194.941 18.7143Z" fill="#b4befe"/></svg><span class="text-lavender">parseltongue</span><span class="text-overlay0 font-normal text-sm">/ $title</span></h1>
       <div class="flex-1 min-w-[200px] max-w-md relative">
         <input id="search" type="text" placeholder="Search names, values, modules..." autocomplete="off"
           class="w-full bg-surface0 border border-surface2 rounded-lg px-3 py-1.5 text-sm text-text placeholder-overlay0 focus:outline-none focus:border-mauve">
-        <div id="search-suggestions" class="absolute top-full left-0 right-0 bg-mantle border border-surface1 rounded-lg mt-1 max-h-[240px] overflow-y-auto hidden z-50 shadow-lg"></div>
+        <div id="search-suggestions" class="absolute top-full left-0 min-w-full w-max max-w-[500px] bg-mantle border border-surface1 rounded-lg mt-1 max-h-[240px] overflow-y-auto hidden z-50 shadow-lg"></div>
       </div>
       <div id="kind-filters" class="flex gap-1.5 flex-wrap"></div>
       <div class="flex gap-1.5 shrink-0">

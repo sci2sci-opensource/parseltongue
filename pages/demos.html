@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html data-theme="dark" lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 -65.5 262 262'%3E%3Cpath d='M65.5 0C29.4 0 0 29.4 0 65.5 0 101.6 29.4 131 65.5 131c27.4 0 38.6-14.2 51.5-32.8-3.8-6.2-1.5 1.2-4.7-4.7C93.6 107.6 87.9 112.3 65.5 112.3 39.7 112.3 18.7 91.3 18.7 65.5 18.7 39.5 39.5 18.7 65.5 18.7c15.1 0 24.7 5.4 33.6 14.6 8.9 9.2 16.4 22.5 24 36.5 7.6 14 15.3 28.8 26.6 40.6C161 122.4 176.6 131 196.5 131 232.6 131 262 101.6 262 65.5 262 29.4 232.6 0 196.5 0c-28.1 0-24.5 9.9-37.4 28.1 3.8 6.1-12.3 16.7-9.1 22.5C161.4 32.2 174.1 18.7 196.5 18.7c25.8 0 46.8 21 46.8 46.8 0 26-21.1 46.8-47 46.8-14.9 0-24.2-5.4-33-14.6-8.8-9.2-16.3-22.5-24-36.5-7.6-14-15.5-28.8-26.9-40.6C101.2 8.6 85.6 0 65.5 0Z' fill='%23b4befe'/%3E%3Cpath d='M93.6 121.6c9.9-3.3 19.4-12.2 24.8-24.7 2.8-8 6.1-17.5-1.2-10-7.9 8.1-16 15-23.7 17.1v17.6Z' fill='%23b4befe'/%3E%3Cpath d='M194.9 18.7V0c-12.5-.3-17.8 4.2-29 11.9-6.4 1.2-16.9-2.4-26.6 11.2-5.6 7.9-4.9 19.7-6 21.2-1 1.6-.4 10.2 10.9 9.3 11.2-.9 30.9-21 30.9-21 5.8-4.4 13.5-13.8 19.8-14Z' fill='%23b4befe'/%3E%3C/svg%3E">
+  <title>Demos - Parseltongue</title>
+  <link rel="stylesheet" href="styles/theme.css">
+</head>
+<body>
+
+<div class="topnav">
+  <a class="logo" href="index.html">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -65.5 262 262" fill="currentColor"><path d="M65.5 0C29.4 0 0 29.4 0 65.5 0 101.6 29.4 131 65.5 131c27.4 0 38.6-14.2 51.5-32.8-3.8-6.2-1.5 1.2-4.7-4.7C93.6 107.6 87.9 112.3 65.5 112.3 39.7 112.3 18.7 91.3 18.7 65.5 18.7 39.5 39.5 18.7 65.5 18.7c15.1 0 24.7 5.4 33.6 14.6 8.9 9.2 16.4 22.5 24 36.5 7.6 14 15.3 28.8 26.6 40.6C161 122.4 176.6 131 196.5 131 232.6 131 262 101.6 262 65.5 262 29.4 232.6 0 196.5 0c-28.1 0-24.5 9.9-37.4 28.1 3.8 6.1-12.3 16.7-9.1 22.5C161.4 32.2 174.1 18.7 196.5 18.7c25.8 0 46.8 21 46.8 46.8 0 26-21.1 46.8-47 46.8-14.9 0-24.2-5.4-33-14.6-8.8-9.2-16.3-22.5-24-36.5-7.6-14-15.5-28.8-26.9-40.6C101.2 8.6 85.6 0 65.5 0Z"/><path d="M93.6 121.6c9.9-3.3 19.4-12.2 24.8-24.7 2.8-8 6.1-17.5-1.2-10-7.9 8.1-16 15-23.7 17.1v17.6Z"/><path d="M194.9 18.7V0c-12.5-.3-17.8 4.2-29 11.9-6.4 1.2-16.9-2.4-26.6 11.2-5.6 7.9-4.9 19.7-6 21.2-1 1.6-.4 10.2 10.9 9.3 11.2-.9 30.9-21 30.9-21 5.8-4.4 13.5-13.8 19.8-14Z"/></svg>
+    parseltongue
+  </a>
+  <nav>
+    <a href="index.html">Home</a>
+    <a href="quickstart.html">Quickstart</a>
+    <a href="demos.html" class="active">Demos</a>
+    <a href="construct.html">Construct</a>
+  </nav>
+  <button id="theme-toggle" class="theme-toggle" onclick="toggleTheme()"></button>
+</div>
+
+<div class="page-wide">
+  <h1>Demos</h1>
+  <p class="subtitle">Worked examples showing Parseltongue in action. Each demo is a self-contained project.</p>
+
+  <div class="tab-bar">
+    <button class="tab-btn active" data-tab-group="dtype" data-tab="all" onclick="switchTab('dtype','all')">All</button>
+    <button class="tab-btn" data-tab-group="dtype" data-tab="pgmd" onclick="switchTab('dtype','pgmd')"><span class="badge badge-pgmd">pgmd</span></button>
+    <button class="tab-btn" data-tab-group="dtype" data-tab="pltg" onclick="switchTab('dtype','pltg')"><span class="badge badge-pltg">pltg</span></button>
+    <button class="tab-btn" data-tab-group="dtype" data-tab="py" onclick="switchTab('dtype','py')"><span class="badge badge-py">py</span></button>
+  </div>
+
+  <div class="tab-panel active" data-panel-group="dtype" data-panel="all">
+    <div class="card-grid">
+      <a class="card" href="demos/ai2ai_pgmd.html" data-kind="pgmd">
+        <h3><span class="badge badge-pgmd">pgmd</span> AI2AI Investment Memo</h3>
+        <p>Three notebook patterns &mdash; standalone, explicit, implicit &mdash; analyzing a Series A investment memo. Shows facts with verified quotes, cross-document derivation, and taint tracking.</p>
+      </a>
+      <a class="card" href="demos/apples.html" data-kind="py">
+        <h3><span class="badge badge-py">py</span> Apple Arithmetic</h3>
+        <p>Peano arithmetic from observational field notes. Builds successor notation, axioms, and derives from scratch using the Python API. Every symbol grounded in counting observations.</p>
+      </a>
+      <a class="card" href="demos/apples_pltg.html" data-kind="pltg">
+        <h3><span class="badge badge-pltg">pltg</span> Apple Arithmetic (.pltg)</h3>
+        <p>Same orchard arithmetic, but loaded entirely through .pltg files with an empty environment. Proves the loader bootstraps Peano notation, axioms, imports, and derives from scratch.</p>
+      </a>
+      <a class="card" href="demos/apples_splats_pltg.html" data-kind="pltg">
+        <h3><span class="badge badge-pltg">pltg</span> Apple Splats</h3>
+        <p>Variadic splat patterns (<code>?...</code>) for operations like <code>(sum-all a b c d)</code>. No more nested binary ops.</p>
+      </a>
+      <a class="card" href="demos/biomarkers.html" data-kind="py">
+        <h3><span class="badge badge-py">py</span> Biomarker Evidence Conflict</h3>
+        <p>Two papers on fecal calprotectin &mdash; one supports diagnostic value, the other challenges specificity. The system ingests both, derives contradictory conclusions, and flags the conflict.</p>
+      </a>
+      <a class="card" href="demos/code_check.html" data-kind="py">
+        <h3><span class="badge badge-py">py</span> Code Implementation Checks</h3>
+        <p>Facts extracted from a Python authentication module. Catches genuine code properties and fabricated claims about behavior that doesn't exist in the source.</p>
+      </a>
+      <a class="card" href="demos/data_governance_pltg.html" data-kind="pltg">
+        <h3><span class="badge badge-pltg">pltg</span> Biopharma Data Governance</h3>
+        <p>Three-layer governance: technical catalog, legal contracts, business catalog. Cross-layer consistency checking with policy axioms, compliance predicates, and variadic reductions. The reference architecture for complex analyses.</p>
+      </a>
+      <a class="card" href="demos/deferred_pltg.html" data-kind="pltg">
+        <h3><span class="badge badge-pltg">pltg</span> Deferred Directives</h3>
+        <p><code>run-on-entry</code> blocks that only fire when a file is the entry point. A library's deferred block is skipped on import, but executes when loaded directly.</p>
+      </a>
+      <a class="card" href="demos/doc_validation.html" data-kind="py">
+        <h3><span class="badge badge-py">py</span> Documentation Validation</h3>
+        <p>A library README with internally inconsistent claims. Config table says <code>max_sessions=10</code> but no code backs it up; security section makes unverifiable audit claims; session management contradicts itself.</p>
+      </a>
+      <a class="card" href="demos/entry_mocks_pltg.html" data-kind="pltg">
+        <h3><span class="badge badge-pltg">pltg</span> Entry Mocks</h3>
+        <p>Self-contained unit tests with <code>let</code> + mocks. Forward-declared primitives are rebound to mock values via <code>run-on-entry</code>, turning formal expressions into computable self-tests.</p>
+      </a>
+      <a class="card" href="demos/extensibility.html" data-kind="py">
+        <h3><span class="badge badge-py">py</span> System Extensibility</h3>
+        <p>Custom effects passed at construction time. The DSL calls <code>(load-data "name" "path")</code> as a directive, hitting a user-defined side effect.</p>
+      </a>
+      <a class="card" href="demos/revenue_reports.html" data-kind="py">
+        <h3><span class="badge badge-py">py</span> Revenue Reports</h3>
+        <p>Company performance analysis from multiple documents. System grows as evidence is ingested, with quote verification, fabrication propagation, cross-document inference, and manual override.</p>
+      </a>
+      <a class="card" href="demos/self_healing.html" data-kind="py">
+        <h3><span class="badge badge-py">py</span> Self-Healing Probes</h3>
+        <p>Entire flow written in parseltongue DSL. Python only registers primitive effects and feeds the script. Effects as an instruction set: <code>load-data</code>, probes, and recovery.</p>
+      </a>
+      <a class="card" href="demos/spec_validation.html" data-kind="py">
+        <h3><span class="badge badge-py">py</span> Spec Cross-Validation</h3>
+        <p>API spec says 30-minute tokens, max 3 sessions, no MD5. Implementation has 1-hour expiry, 5 sessions, and uses MD5. Every divergence is caught.</p>
+      </a>
+    </div>
+  </div>
+
+  <div class="tab-panel" data-panel-group="dtype" data-panel="pgmd">
+    <div class="card-grid" id="pgmd-cards"></div>
+  </div>
+  <div class="tab-panel" data-panel-group="dtype" data-panel="pltg">
+    <div class="card-grid" id="pltg-cards"></div>
+  </div>
+  <div class="tab-panel" data-panel-group="dtype" data-panel="py">
+    <div class="card-grid" id="py-cards"></div>
+  </div>
+</div>
+
+<script src="styles/pages.js"></script>
+<script>
+// Populate filtered tabs from the "all" panel
+['pgmd','pltg','py'].forEach(function(kind) {
+  var target = document.getElementById(kind + '-cards');
+  document.querySelectorAll('[data-panel="all"] [data-kind="' + kind + '"]').forEach(function(card) {
+    target.appendChild(card.cloneNode(true));
+  });
+});
+</script>
+</body>
+</html>

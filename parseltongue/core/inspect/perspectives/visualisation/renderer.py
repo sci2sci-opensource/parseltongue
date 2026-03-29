@@ -974,8 +974,12 @@ def _render_app(
         logbook=logbook,
     )
 
+    from parseltongue.core.theme import VIZ_TYPOGRAPHY, css_variables
+
     tmpl = Template(_read_template("app.html"))
     return tmpl.safe_substitute(
+        palette_css=css_variables(include_viz=True),
+        base_css=VIZ_TYPOGRAPHY,
         title=_html_escape(title),
         data_json=json.dumps(items, separators=(",", ":")),
         structure_json=json.dumps(structure_items, separators=(",", ":")),

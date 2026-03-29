@@ -1,0 +1,114 @@
+/* Pages-only component styles — palette + base typography are generated
+   from parseltongue.core.theme by build.py.  */
+
+/* ── Copy button ── */
+.copy-btn {
+  position: absolute; top: 0.5rem; right: 0.5rem;
+  background: var(--surface0); border: 1px solid var(--surface1);
+  color: var(--subtext); border-radius: 4px; cursor: pointer;
+  font-size: 0.7rem; padding: 0.2em 0.5em;
+  opacity: 0; transition: opacity 0.15s, background 0.15s, color 0.15s;
+  font-family: inherit; z-index: 1;
+}
+pre:hover .copy-btn, .prompt:hover .copy-btn { opacity: 1; }
+.copy-btn:hover { background: var(--surface1); color: var(--text); }
+.copy-btn.copied { background: var(--green); color: var(--crust); opacity: 1; }
+
+/* ── Prompt block (pastable agent prompt) ── */
+.prompt {
+  background: var(--crust); border: 1px solid var(--mauve);
+  border-radius: 8px; padding: 1.4rem 1rem 1rem; position: relative;
+  overflow-x: auto; margin: 0.75rem 0;
+}
+.prompt::before {
+  content: 'prompt'; position: absolute; top: 0.4rem; left: 0.75rem;
+  font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.05em;
+  color: var(--mauve); font-family: inherit; font-weight: 600;
+}
+.prompt p {
+  margin: 0; padding: 0; font-size: 0.9rem; color: var(--text);
+  line-height: 1.5;
+}
+
+/* ── Layout ── */
+.page { max-width: 860px; margin: 0 auto; padding: 2rem 1.5rem 4rem; }
+.page-wide { max-width: 1100px; margin: 0 auto; padding: 2rem 1.5rem 4rem; }
+
+/* ── Nav bar ── */
+.topnav {
+  display: flex; align-items: center; gap: 1rem;
+  padding: 0.75rem 1.5rem;
+  background: var(--mantle); border-bottom: 1px solid var(--surface0);
+  position: sticky; top: 0; z-index: 50;
+}
+.topnav .logo { display: flex; align-items: center; gap: 0.5rem; font-weight: 700; color: var(--lavender); }
+.topnav .logo svg { width: 24px; height: 24px; }
+.topnav nav { display: flex; gap: 0.25rem; margin-left: auto; }
+.topnav nav a {
+  padding: 0.35rem 0.75rem; border-radius: 6px; font-size: 0.85rem;
+  color: var(--subtext); transition: background 0.15s, color 0.15s;
+}
+.topnav nav a:hover { background: var(--surface0); color: var(--text); }
+.topnav nav a.active { background: var(--surface0); color: var(--lavender); }
+
+/* ── Theme toggle ── */
+.theme-toggle {
+  background: var(--surface0); border: none; color: var(--subtext);
+  width: 32px; height: 32px; border-radius: 6px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1rem; transition: background 0.15s, color 0.15s;
+}
+.theme-toggle:hover { background: var(--surface1); color: var(--text); }
+
+/* ── Cards ── */
+.card {
+  background: var(--surface0); border-radius: 10px;
+  padding: 1.25rem 1.5rem; transition: background 0.15s;
+}
+.card:hover { background: var(--surface1); }
+.card h3 { font-size: 1rem; color: var(--lavender); margin-bottom: 0.35rem; }
+.card p { font-size: 0.85rem; color: var(--subtext); }
+.card-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1rem;
+}
+
+/* ── Tabs ── */
+.tab-bar { display: flex; gap: 0.25rem; margin-bottom: 1.5rem; }
+.tab-btn {
+  padding: 0.5rem 1rem; border-radius: 8px; border: none;
+  background: var(--surface0); color: var(--subtext);
+  font-size: 0.85rem; cursor: pointer; font-family: inherit;
+  transition: background 0.15s, color 0.15s;
+}
+.tab-btn:hover { background: var(--surface1); color: var(--text); }
+.tab-btn.active { background: var(--mauve); color: var(--crust); font-weight: 600; }
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+
+/* ── Badges ── */
+.badge {
+  display: inline-block; padding: 0.15em 0.5em; border-radius: 4px;
+  font-size: 0.75rem; font-weight: 600;
+}
+.badge-pltg { background: var(--green); color: var(--crust); }
+.badge-pgmd { background: var(--mauve); color: var(--crust); }
+.badge-py { background: var(--blue); color: var(--crust); }
+
+/* ── Prism syntax highlighting (themed) ── */
+code[class*="language-"], pre[class*="language-"] {
+  color: var(--text); background: none; text-shadow: none;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+}
+pre[class*="language-"] { background: var(--mantle); }
+.token.comment, .token.prolog, .token.doctype, .token.cdata { color: var(--overlay0); font-style: italic; }
+.token.punctuation { color: var(--subtext); }
+.token.property, .token.tag, .token.constant, .token.symbol, .token.deleted { color: var(--red); }
+.token.boolean, .token.number { color: var(--peach); }
+.token.selector, .token.attr-name, .token.string, .token.char, .token.builtin, .token.inserted { color: var(--green); }
+.token.operator, .token.entity, .token.url { color: var(--sky); }
+.token.atrule, .token.attr-value, .token.keyword { color: var(--mauve); }
+.token.function, .token.class-name { color: var(--blue); }
+.token.regex, .token.important, .token.variable { color: var(--yellow); }
+.token.decorator { color: var(--peach); }
+.token.triple-quoted-string { color: var(--green); }

@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html data-theme="dark" lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 -65.5 262 262'%3E%3Cpath d='M65.5 0C29.4 0 0 29.4 0 65.5 0 101.6 29.4 131 65.5 131c27.4 0 38.6-14.2 51.5-32.8-3.8-6.2-1.5 1.2-4.7-4.7C93.6 107.6 87.9 112.3 65.5 112.3 39.7 112.3 18.7 91.3 18.7 65.5 18.7 39.5 39.5 18.7 65.5 18.7c15.1 0 24.7 5.4 33.6 14.6 8.9 9.2 16.4 22.5 24 36.5 7.6 14 15.3 28.8 26.6 40.6C161 122.4 176.6 131 196.5 131 232.6 131 262 101.6 262 65.5 262 29.4 232.6 0 196.5 0c-28.1 0-24.5 9.9-37.4 28.1 3.8 6.1-12.3 16.7-9.1 22.5C161.4 32.2 174.1 18.7 196.5 18.7c25.8 0 46.8 21 46.8 46.8 0 26-21.1 46.8-47 46.8-14.9 0-24.2-5.4-33-14.6-8.8-9.2-16.3-22.5-24-36.5-7.6-14-15.5-28.8-26.9-40.6C101.2 8.6 85.6 0 65.5 0Z' fill='%23b4befe'/%3E%3Cpath d='M93.6 121.6c9.9-3.3 19.4-12.2 24.8-24.7 2.8-8 6.1-17.5-1.2-10-7.9 8.1-16 15-23.7 17.1v17.6Z' fill='%23b4befe'/%3E%3Cpath d='M194.9 18.7V0c-12.5-.3-17.8 4.2-29 11.9-6.4 1.2-16.9-2.4-26.6 11.2-5.6 7.9-4.9 19.7-6 21.2-1 1.6-.4 10.2 10.9 9.3 11.2-.9 30.9-21 30.9-21 5.8-4.4 13.5-13.8 19.8-14Z' fill='%23b4befe'/%3E%3C/svg%3E">
+  <title>Construct - Parseltongue</title>
+  <link rel="stylesheet" href="styles/theme.css">
+  <style>
+    .construct-table { width: 100%; border-collapse: collapse; margin: 1.5rem 0; }
+    .construct-table th {
+      text-align: left; padding: 0.6rem 0.75rem; font-size: 0.8rem;
+      color: var(--overlay0); border-bottom: 1px solid var(--surface0);
+      font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em;
+    }
+    .construct-table td {
+      padding: 0.6rem 0.75rem; border-bottom: 1px solid var(--surface0);
+      font-size: 0.9rem; vertical-align: top;
+    }
+    .construct-table tr:hover td { background: var(--surface0); }
+    .construct-table tr.clickable { cursor: pointer; }
+    .construct-table tr.clickable:hover td { background: var(--surface1); }
+    .construct-table .name { color: var(--lavender); font-weight: 600; white-space: nowrap; }
+    .construct-table .desc { color: var(--subtext); }
+    .status-ready {
+      display: inline-block; padding: 0.1em 0.45em; border-radius: 4px;
+      font-size: 0.75rem; font-weight: 600;
+      background: var(--green); color: var(--crust);
+    }
+    .status-todo {
+      display: inline-block; padding: 0.1em 0.45em; border-radius: 4px;
+      font-size: 0.75rem; font-weight: 600;
+      background: var(--surface1); color: var(--overlay0);
+    }
+    .modes { margin: 1.5rem 0; }
+    .modes h3 { font-size: 1rem; margin-bottom: 0.35rem; }
+    .modes p { font-size: 0.9rem; color: var(--subtext); margin-bottom: 1rem; }
+  </style>
+</head>
+<body>
+
+<div class="topnav">
+  <a class="logo" href="index.html">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -65.5 262 262" fill="currentColor"><path d="M65.5 0C29.4 0 0 29.4 0 65.5 0 101.6 29.4 131 65.5 131c27.4 0 38.6-14.2 51.5-32.8-3.8-6.2-1.5 1.2-4.7-4.7C93.6 107.6 87.9 112.3 65.5 112.3 39.7 112.3 18.7 91.3 18.7 65.5 18.7 39.5 39.5 18.7 65.5 18.7c15.1 0 24.7 5.4 33.6 14.6 8.9 9.2 16.4 22.5 24 36.5 7.6 14 15.3 28.8 26.6 40.6C161 122.4 176.6 131 196.5 131 232.6 131 262 101.6 262 65.5 262 29.4 232.6 0 196.5 0c-28.1 0-24.5 9.9-37.4 28.1 3.8 6.1-12.3 16.7-9.1 22.5C161.4 32.2 174.1 18.7 196.5 18.7c25.8 0 46.8 21 46.8 46.8 0 26-21.1 46.8-47 46.8-14.9 0-24.2-5.4-33-14.6-8.8-9.2-16.3-22.5-24-36.5-7.6-14-15.5-28.8-26.9-40.6C101.2 8.6 85.6 0 65.5 0Z"/><path d="M93.6 121.6c9.9-3.3 19.4-12.2 24.8-24.7 2.8-8 6.1-17.5-1.2-10-7.9 8.1-16 15-23.7 17.1v17.6Z"/><path d="M194.9 18.7V0c-12.5-.3-17.8 4.2-29 11.9-6.4 1.2-16.9-2.4-26.6 11.2-5.6 7.9-4.9 19.7-6 21.2-1 1.6-.4 10.2 10.9 9.3 11.2-.9 30.9-21 30.9-21 5.8-4.4 13.5-13.8 19.8-14Z"/></svg>
+    parseltongue
+  </a>
+  <nav>
+    <a href="index.html">Home</a>
+    <a href="quickstart.html">Quickstart</a>
+    <a href="demos.html">Demos</a>
+    <a href="construct.html" class="active">Construct</a>
+  </nav>
+  <button id="theme-toggle" class="theme-toggle" onclick="toggleTheme()"></button>
+</div>
+
+<div class="page">
+  <h1>Construct</h1>
+  <p class="subtitle">The place where both agents and humans learn Parseltongue.</p>
+
+  <blockquote style="border-left: 3px solid var(--mauve); padding-left: 1rem; margin: 1.5rem 0; color: var(--subtext); font-style: italic;">"I know kung fu." &mdash; Neo</blockquote>
+
+  <div class="modes">
+    <h3>Two modes, mirrored</h3>
+    <p><strong>Scripts</strong> are for agents. An LLM loads a script with <code>pg learn &lt;name&gt;</code> and gains operational knowledge &mdash; these are the guides available via the CLI and in the repository.</p>
+    <p><strong>Scenarios</strong> are for humans. Interactive notebooks that build understanding of what Parseltongue is, how to work with it, and how to keep LLM agents accountable during collaborative sessions.</p>
+  </div>
+
+  <h2>Topics</h2>
+
+  <table class="construct-table">
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Description</th>
+        <th>Script</th>
+        <th>Scenario</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr class="clickable" onclick="location.href='construct/white-rabbit.html'">
+        <td class="name">white-rabbit</td>
+        <td class="desc">Introduction &mdash; what Parseltongue is and why it exists</td>
+        <td><span class="status-todo">&ndash;</span></td>
+        <td><a href="construct/white-rabbit.html"><span class="status-ready">ready</span></a></td>
+      </tr>
+      <tr>
+        <td class="name">kung-fu</td>
+        <td class="desc">Bench mastery &mdash; inspection, search, lens, diagnosis</td>
+        <td><span class="status-ready">ready</span></td>
+        <td><span class="status-todo">&ndash;</span></td>
+      </tr>
+      <tr>
+        <td class="name">to-connect</td>
+        <td class="desc">pgmd notebooks &mdash; prose wired through with truth</td>
+        <td><span class="status-ready">ready</span></td>
+        <td><span class="status-todo">&ndash;</span></td>
+      </tr>
+      <tr>
+        <td class="name">dodge-bullets</td>
+        <td class="desc">Screening, diagnostics, consistency</td>
+        <td><span class="status-todo">&ndash;</span></td>
+        <td><span class="status-todo">&ndash;</span></td>
+      </tr>
+      <tr>
+        <td class="name">jump-program</td>
+        <td class="desc">Resolving dynamic refs, building consistent graphs</td>
+        <td><span class="status-todo">&ndash;</span></td>
+        <td><span class="status-todo">&ndash;</span></td>
+      </tr>
+      <tr>
+        <td class="name">no-spoon-bending</td>
+        <td class="desc">Effects, verify_manual, bending accepted terms</td>
+        <td><span class="status-todo">&ndash;</span></td>
+        <td><span class="status-todo">&ndash;</span></td>
+      </tr>
+      <tr>
+        <td class="name">read-the-code</td>
+        <td class="desc">Grounding layer &mdash; documents and data to facts and axioms</td>
+        <td><span class="status-todo">&ndash;</span></td>
+        <td><span class="status-todo">&ndash;</span></td>
+      </tr>
+      <tr>
+        <td class="name">about-matrix</td>
+        <td class="desc">Systems, composition, fundamental language</td>
+        <td><span class="status-todo">&ndash;</span></td>
+        <td><span class="status-todo">&ndash;</span></td>
+      </tr>
+      <tr>
+        <td class="name">the-truth</td>
+        <td class="desc">Epistemics, std lib, grounding module, diffs</td>
+        <td><span class="status-todo">&ndash;</span></td>
+        <td><span class="status-todo">&ndash;</span></td>
+      </tr>
+      <tr>
+        <td class="name">to-exit</td>
+        <td class="desc">Scoping, projection, delegates</td>
+        <td><span class="status-todo">&ndash;</span></td>
+        <td><span class="status-todo">&ndash;</span></td>
+      </tr>
+      <tr>
+        <td class="name">to-fly</td>
+        <td class="desc">Graph navigation, search, cross-navigation</td>
+        <td><span class="status-todo">&ndash;</span></td>
+        <td><span class="status-todo">&ndash;</span></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>Start here</h2>
+  <p>If you're a human, read <a href="construct/white-rabbit.html"><strong>Follow the White Rabbit</strong></a>. It explains what Parseltongue is, why LLMs lying is an engineering problem, and walks through the system from first principles &mdash; with live parseltongue blocks running inside the document itself.</p>
+  <p>If you're steering an agent, tell it:</p>
+  <div class="prompt"><p>Run <code>pg learn kung-fu</code> and read the full output. This is your operational guide for the Parseltongue bench system.</p></div>
+  <p>Then enjoy the show of an LLM bumping into Parseltongue guardrails. You would be surprised how illusory intelligence can appear once it needs to be proven explicitly.</p>
+</div>
+
+<script src="styles/pages.js"></script>
+</body>
+</html>

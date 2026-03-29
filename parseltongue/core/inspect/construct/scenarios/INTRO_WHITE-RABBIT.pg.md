@@ -1,3 +1,8 @@
+---
+name: white-rabbit
+description: Introduction — what Parseltongue is and why it exists
+---
+
 # Follow the White Rabbit
 
 > No one could ever be told the answer to that question. They have to see it to believe it.
@@ -365,123 +370,123 @@ And enjoy the show of an LLM bumping into Parseltongue guardrails. You would be 
 
 (defterm ready (quote "✓ ready")
   :evidence (evidence "construct"
-    :quotes ("\"kung-fu\": (\"PG-SKILL_KUNG-FU.md\", \"Bench mastery")
-    :explanation "Uncommented entry in SCRIPTS/SCENARIOS dict means published"))
+    :quotes ("\"kung-fu\": {" "\"description\": \"Bench mastery")
+    :explanation "Entry in TOPICS with a discovered script/scenario file means published"))
 
 (defterm todo (quote "-")
   :evidence (evidence "construct"
-    :quotes ("# \"dodge-bullets\":     (\"DODGE-BULLETS.md\",       \"TODO:")
-    :explanation "Commented entry with TODO prefix means planned"))
+    :quotes ("\"dodge-bullets\": {" "\"description\": \"Screening, diagnostics, consistency\"")
+    :explanation "Entry in TOPICS with no script or scenario file discovered"))
 
 ;; white-rabbit
 (fact script-white-rabbit todo
   :evidence (evidence "construct"
-    :quotes ("SCRIPTS = {")
-    :explanation "No white-rabbit script yet"))
+    :quotes ("\"white-rabbit\": {")
+    :explanation "No white-rabbit script file in scripts/"))
 (fact scenario-white-rabbit ready
   :evidence (evidence "construct"
-    :quotes ("\"white-rabbit\": (" "\"Introduction")
-    :explanation "This document"))
+    :quotes ("\"white-rabbit\": {" "\"description\": \"Introduction")
+    :explanation "This document — discovered as INTRO_WHITE-RABBIT.pg.md"))
 
 ;; kung-fu
 (fact script-kung-fu ready
   :evidence (evidence "construct"
-    :quotes ("\"kung-fu\": (\"PG-SKILL_KUNG-FU.md\"")
-    :explanation "Bench mastery script"))
+    :quotes ("\"kung-fu\": {" "\"description\": \"Bench mastery")
+    :explanation "Discovered from PG-SKILL_KUNG-FU.md via alias frontmatter"))
 (fact scenario-kung-fu todo
   :evidence (evidence "construct"
-    :quotes ("# \"kung-fu\":     (\"kung-fu/\"")
-    :explanation "Scenario planned"))
+    :quotes ("\"kung-fu\": {")
+    :explanation "No scenario file in scenarios/"))
 
 ;; to-connect
 (fact script-to-connect ready
   :evidence (evidence "construct"
-    :quotes ("\"to-connect\": (" "\"PGMD-SKILL_TO-CONNECT.md\"")
-    :explanation "pgmd notebooks script"))
+    :quotes ("\"to-connect\": {" "\"description\": \"pgmd notebooks")
+    :explanation "Discovered from PGMD-SKILL_TO-CONNECT.md via name frontmatter"))
 (fact scenario-to-connect todo
   :evidence (evidence "construct"
-    :quotes ("# \"to-connect\":  (\"to-connect/\"")
-    :explanation "Scenario planned"))
+    :quotes ("\"to-connect\": {")
+    :explanation "No scenario file in scenarios/"))
 
 ;; dodge-bullets
 (fact script-dodge-bullets todo
   :evidence (evidence "construct"
-    :quotes ("# \"dodge-bullets\":     (\"DODGE-BULLETS.md\"")
-    :explanation "Screening and diagnostics"))
+    :quotes ("\"dodge-bullets\": {")
+    :explanation "No script file in scripts/"))
 (fact scenario-dodge-bullets todo
   :evidence (evidence "construct"
-    :quotes ("SCENARIOS = {")
-    :explanation "No scenario planned yet"))
+    :quotes ("\"dodge-bullets\": {")
+    :explanation "No scenario file in scenarios/"))
 
 ;; jump-program
 (fact script-jump-program todo
   :evidence (evidence "construct"
-    :quotes ("# \"jump-program\":      (\"JUMP-PROGRAM.md\"")
-    :explanation "Dynamic refs and consistent graphs"))
+    :quotes ("\"jump-program\": {")
+    :explanation "No script file in scripts/"))
 (fact scenario-jump-program todo
   :evidence (evidence "construct"
-    :quotes ("SCENARIOS = {")
-    :explanation "No scenario planned yet"))
+    :quotes ("\"jump-program\": {")
+    :explanation "No scenario file in scenarios/"))
 
 ;; no-spoon-bending
 (fact script-no-spoon-bending todo
   :evidence (evidence "construct"
-    :quotes ("# \"no-spoon-bending\":  (\"NO-SPOON-BENDING.md\"")
-    :explanation "Effects and verify_manual"))
+    :quotes ("\"no-spoon-bending\": {")
+    :explanation "No script file in scripts/"))
 (fact scenario-no-spoon-bending todo
   :evidence (evidence "construct"
-    :quotes ("SCENARIOS = {")
-    :explanation "No scenario planned yet"))
+    :quotes ("\"no-spoon-bending\": {")
+    :explanation "No scenario file in scenarios/"))
 
 ;; read-the-code
 (fact script-read-the-code todo
   :evidence (evidence "construct"
-    :quotes ("# \"read-the-code\":     (\"READ-THE-CODE.md\"")
-    :explanation "Grounding layer"))
+    :quotes ("\"read-the-code\": {")
+    :explanation "No script file in scripts/"))
 (fact scenario-read-the-code todo
   :evidence (evidence "construct"
-    :quotes ("SCENARIOS = {")
-    :explanation "No scenario planned yet"))
+    :quotes ("\"read-the-code\": {")
+    :explanation "No scenario file in scenarios/"))
 
 ;; about-matrix
 (fact script-about-matrix todo
   :evidence (evidence "construct"
-    :quotes ("# \"about-matrix\":      (\"ABOUT-MATRIX.md\"")
-    :explanation "Systems and composition"))
+    :quotes ("\"about-matrix\": {")
+    :explanation "No script file in scripts/"))
 (fact scenario-about-matrix todo
   :evidence (evidence "construct"
-    :quotes ("SCENARIOS = {")
-    :explanation "No scenario planned yet"))
+    :quotes ("\"about-matrix\": {")
+    :explanation "No scenario file in scenarios/"))
 
 ;; the-truth
 (fact script-the-truth todo
   :evidence (evidence "construct"
-    :quotes ("# \"the-truth\":         (\"THE-TRUTH.md\"")
-    :explanation "Epistemics and std lib"))
+    :quotes ("\"the-truth\": {")
+    :explanation "No script file in scripts/"))
 (fact scenario-the-truth todo
   :evidence (evidence "construct"
-    :quotes ("SCENARIOS = {")
-    :explanation "No scenario planned yet"))
+    :quotes ("\"the-truth\": {")
+    :explanation "No scenario file in scenarios/"))
 
 ;; to-exit
 (fact script-to-exit todo
   :evidence (evidence "construct"
-    :quotes ("# \"to-exit\":           (\"TO-EXIT.md\"")
-    :explanation "Scoping and projection"))
+    :quotes ("\"to-exit\": {")
+    :explanation "No script file in scripts/"))
 (fact scenario-to-exit todo
   :evidence (evidence "construct"
-    :quotes ("SCENARIOS = {")
-    :explanation "No scenario planned yet"))
+    :quotes ("\"to-exit\": {")
+    :explanation "No scenario file in scenarios/"))
 
 ;; to-fly
 (fact script-to-fly todo
   :evidence (evidence "construct"
-    :quotes ("# \"to-fly\":            (\"TO-FLY.md\"")
-    :explanation "Graph navigation and search"))
+    :quotes ("\"to-fly\": {")
+    :explanation "No script file in scripts/"))
 (fact scenario-to-fly todo
   :evidence (evidence "construct"
-    :quotes ("SCENARIOS = {")
-    :explanation "No scenario planned yet"))
+    :quotes ("\"to-fly\": {")
+    :explanation "No scenario file in scenarios/"))
 
 (derive scripts-ready (c.count-exists script-kung-fu script-to-connect)
   :using (c.count-exists script-kung-fu script-to-connect))

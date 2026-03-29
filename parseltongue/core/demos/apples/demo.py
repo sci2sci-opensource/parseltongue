@@ -28,7 +28,7 @@ def _print_list(items):
 
 def main():
     plog = logging.getLogger("parseltongue")
-    plog.setLevel(logging.INFO)
+    plog.setLevel(logging.WARNING)
     handler = logging.StreamHandler(sys.stdout)
     handler.setFormatter(logging.Formatter("  [%(levelname)s] %(message)s"))
     plog.addHandler(handler)

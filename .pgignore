@@ -18,6 +18,8 @@ __pycache__/
 .ruff_cache/
 .pytest_cache/
 
+_site/
+
 # Temp / scratch
 temp/
 documentation/

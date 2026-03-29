@@ -1,6 +1,53 @@
 // ── Notebook view JS ──
 // Depends on: core.js (kindDot, kindText, ITEM_BY_ID, switchView, showDetail)
 
+// ── Scroll state persistence across view switches ──
+let _nbScrollY = 0;
+const _origSwitchView = window.switchView || switchView;
+window.switchView = function(v) {
+  // Save scroll before leaving notebook
+  if (currentView === 'notebook') _nbScrollY = window.scrollY;
+  _origSwitchView(v);
+  // Restore scroll when returning to notebook
+  if (v === 'notebook') requestAnimationFrame(() => window.scrollTo(0, _nbScrollY));
+};
+// Re-bind buttons to patched switchView
+(typeof VIEW_BTNS !== 'undefined' ? VIEW_BTNS : []).forEach(v => {
+  const btn = document.getElementById('btn-' + v);
+  if (btn) btn.onclick = () => window.switchView(v);
+});
+
+// ── Search focus: scroll to first appearance of node in notebook ──
+window._notebookFocusNode = function(name) {
+  // Clear previous highlights
+  document.querySelectorAll('.nb-pill-active').forEach(p => p.classList.remove('nb-pill-active'));
+  document.querySelectorAll('.nb-fn-active').forEach(p => p.classList.remove('nb-fn-active'));
+  document.querySelectorAll('.nb-row-highlight').forEach(p => p.classList.remove('nb-row-highlight'));
+
+  const eName = CSS.escape(name);
+  // Prefer prose footnotes over block summary pills (prose is more contextual)
+  const el = document.querySelector(`.nb-fn[data-node="${eName}"]`)
+    || document.querySelector(`.nb-margin-pill[data-node="${eName}"]`)
+    || document.querySelector(`.nb-node-pill[data-node="${eName}"]`);
+  if (el) {
+    // Highlight the containing row if in prose
+    const row = el.closest('.nb-prose-row');
+    if (row) {
+      row.classList.add('nb-row-highlight');
+      const pill = row.querySelector(`.nb-margin-pill[data-node="${name}"]`);
+      if (pill) pill.classList.add('nb-pill-active');
+    }
+    // Highlight the element itself
+    if (el.classList.contains('nb-fn')) el.classList.add('nb-fn-active');
+    else el.classList.add('nb-pill-active');
+
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+  // Open detail
+  const item = ITEM_BY_ID[name];
+  if (item && typeof showDetail === 'function') showDetail(item);
+};
+
 // ── Footnote clicks → highlight margin pill + open detail ──
 document.querySelectorAll('.nb-fn[data-node]').forEach(el => {
   el.addEventListener('click', (e) => {

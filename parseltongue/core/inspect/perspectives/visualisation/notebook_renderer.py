@@ -199,12 +199,12 @@ def _md_to_html(
 # ── Heading level → CSS classes ──
 
 _HEADING_CLASSES = {
-    1: "text-2xl font-bold text-mauve mt-8 mb-4",
-    2: "text-xl font-bold text-mauve mt-8 mb-3",
-    3: "text-lg font-bold text-mauve mt-6 mb-2",
-    4: "text-base font-bold text-mauve mt-4 mb-2",
-    5: "text-sm font-bold text-mauve mt-3 mb-1",
-    6: "text-sm font-bold text-mauve mt-3 mb-1",
+    1: "text-2xl font-bold text-lavender mt-8 mb-4",
+    2: "text-xl font-bold text-lavender mt-8 mb-3",
+    3: "text-lg font-bold text-lavender mt-6 mb-2",
+    4: "text-base font-bold text-lavender mt-4 mb-2",
+    5: "text-sm font-bold text-lavender mt-3 mb-1",
+    6: "text-sm font-bold text-lavender mt-3 mb-1",
 }
 
 
@@ -977,6 +977,9 @@ def render_notebook(
 }
 .nb-margin-pill { line-height: 1.4; }
 .nb-fn:hover sup { color: var(--mauve); }
+.nb-fn.nb-fn-active sup { color: var(--lavender); }
+.nb-row-highlight { background: var(--highlight); border-radius: 6px; transition: background 0.3s; }
+.nb-node-pill.nb-pill-active { outline: 2px solid var(--mauve); outline-offset: 1px; background: var(--surface1) !important; }
 .nb-taint-source { text-decoration: underline wavy var(--red); text-underline-offset: 3px; }
 .nb-taint-propagated { text-decoration: underline dashed var(--yellow); text-underline-offset: 3px; }
 #app { transition: margin-right 0.2s ease; }
@@ -1069,8 +1072,12 @@ document.addEventListener('DOMContentLoaded', function() {
         logbook=logbook,
     )
 
+    from parseltongue.core.theme import VIZ_TYPOGRAPHY, css_variables
+
     tmpl = Template(base)
     return tmpl.safe_substitute(
+        palette_css=css_variables(include_viz=True),
+        base_css=VIZ_TYPOGRAPHY,
         title=_html_escape(title),
         data_json=json.dumps(items, separators=(",", ":")),
         structure_json=json.dumps(structure_items, separators=(",", ":")),
