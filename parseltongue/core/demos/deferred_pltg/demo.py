@@ -1,8 +1,9 @@
 """
-Demo: run-on-entry — deferred directives that only fire for the main file.
+Demo: Deferred Directives
 
-Shows that a library's run-on-entry block is skipped when imported,
-but executes when the library is loaded as the entry point.
+Scenario: run-on-entry blocks only fire when a file is the entry point.
+A library's deferred block is skipped on import, but executes when loaded
+directly — enabling self-tests and setup that don't pollute importers.
 """
 
 import logging

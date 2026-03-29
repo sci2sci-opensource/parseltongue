@@ -1,5 +1,5 @@
 """
-Demo: Parseltongue DSL — Biomarker Evidence Conflict.
+Demo: Biomarker Evidence Conflict
 
 Scenario: Two papers report on fecal calprotectin as a diagnostic marker
 for IBD. Paper A supports its diagnostic value (high sensitivity). Paper B
