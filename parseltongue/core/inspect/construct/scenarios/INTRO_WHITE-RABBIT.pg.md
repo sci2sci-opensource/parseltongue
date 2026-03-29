@@ -9,9 +9,12 @@ description: Introduction — what Parseltongue is and why it exists
 
 ## The Problem
 
+> _You'd be surprised how illusory intelligence becomes once it needs to be proven explicitly._
+
+
 Large language models don't know what truth is.
 
-Despite the strong flavour of philosophical complaint, I mean this as an engineering fact. Even after processing the internet several times over, and passing training on pleasing humans, solving math puzzles, and coding purple landings - LLM agents still have no sense of truth.
+Despite the strong flavour of philosophical complaint, I mean this as an engineering fact. Even after processing the internet several times over, and passing training on pleasing humans, solving math puzzles, and coding purple landing pages - LLM agents still have no sense of truth.
 
 What do I mean by "sense"? An absurd example: tomorrow everyone around you agrees that plastic vegetables make a good breakfast. It doesn't matter how many times they tell you, or even eat a piece to prove their point - you won't believe it. That's not the case for LLMs. You can call this human quality being grounded, or reasonable - the terminology doesn't matter much, as long as you get the sense of the problem.
 
@@ -361,7 +364,7 @@ pg learn kung-fu
 pg learn to-connect
 ```
 
-And enjoy the show of an LLM bumping into Parseltongue guardrails. You would be surprised how illusory intelligence can appear once it needs to be proven explicitly.
+And enjoy the show of an LLM bumping into Parseltongue guardrails. **You'd be surprised how illusory intelligence becomes once it needs to be proven explicitly.**
 
 ```scheme
 ;; pltg Grounding

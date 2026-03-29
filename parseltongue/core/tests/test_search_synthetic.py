@@ -424,6 +424,8 @@ class TestSyntheticIndexing(unittest.TestCase):
 
     def test_09_pgignore_respected(self):
         """Files matching .pgignore patterns are excluded from index."""
+        from unittest.mock import patch
+
         pgignore_dir = os.path.join(TEST_DIR, "pgignore_test")
         if os.path.exists(pgignore_dir):
             shutil.rmtree(pgignore_dir)
@@ -433,9 +435,11 @@ class TestSyntheticIndexing(unittest.TestCase):
         _write(os.path.join(pgignore_dir, "ignored_dir/secret.py"), "XYZZY_IGNORED_8823 = True")
         _write(os.path.join(pgignore_dir, "visible.py"), "XYZZY_VISIBLE_4455 = True")
 
-        store = Store(os.path.join(pgignore_dir, ".bench"))
-        search = Search(SearchStore(store=store, path=pgignore_dir))
-        search.index_dir(pgignore_dir)
+        # Config reads .pgignore from cwd — point cwd at the test dir
+        with patch("os.getcwd", return_value=pgignore_dir):
+            store = Store(os.path.join(pgignore_dir, ".bench"))
+            search = Search(SearchStore(store=store, path=pgignore_dir))
+            search.index_dir(pgignore_dir)
 
         r = search.query("XYZZY_PYCACHE_7291")
         self.assertEqual(r["total_lines"], 0, ".pgignore should exclude __pycache__")
