@@ -6,7 +6,6 @@ build-backend = "setuptools.build_meta"
 name = "parseltongue-dsl"
 version = "0.7.0"
 description = "Parseltongue: a DSL for systems which refuse to speak falsehood"
-release_tagline = "We're out of beta, we releasing on time"
 requires-python = ">=3.11"
 dependencies = ["typing_extensions>=4.0"]
 license = "Apache-2.0"
@@ -53,6 +52,9 @@ cli = [
 parseltongue = "parseltongue.cli.app:main"
 pg-bench = "parseltongue.core.inspect.bench_cli:cli"
 pg = "parseltongue.core.inspect.bench_cli:cli"
+
+[tool.parseltongue]
+release_tagline = "We're out of beta, we releasing on time"
 
 [tool.setuptools.packages.find]
 include = ["parseltongue", "parseltongue.*"]

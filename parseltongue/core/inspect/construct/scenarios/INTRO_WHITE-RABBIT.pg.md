@@ -323,7 +323,7 @@ Since all knowledge in [[term:parseltongue]] is explicit, we can check whether i
 
 ```
 
-The block above computes that we have introduced [[term:facts-and-terms-so-far]] concepts so far. We could set a goal for a focused intro - say, no more than 25 concepts. For now this intro stays focused[[~term:focus-check]]. This is the result of evaluating our rule: [[axiom:intro-is-substantial-but-focused]]. The code after this check uses the [[term:diff-ops]] operation. If this document grew too sprawling, the coherence[[~diff:readme-expectations]] check would fail, much like our main [[diff:readme-counts]] expectation. If the promise is inaccurate - say we try to replace the concept limit with the actual count - the diff will show it: [[diff:ungrounded-expectations]]
+The block above computes that we have introduced [[term:facts-and-terms-so-far]] concepts so far. We could set a goal for a focused intro - say, no more than [[term:concepts-not-more]] concepts. For now this intro stays focused[[~term:focus-check]]. This is the result of evaluating our rule: [[axiom:intro-is-substantial-but-focused]]. The code after this check uses the [[term:diff-ops]] operation. If this document grew too sprawling, the coherence[[~diff:readme-expectations]] check would fail, much like our main [[diff:readme-counts]] expectation. If the promise is inaccurate - say we try to replace the concept limit with the actual count - the diff will show it: [[diff:ungrounded-expectations]]
 
 ## The Construct
 

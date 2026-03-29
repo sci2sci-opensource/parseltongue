@@ -26,9 +26,9 @@ from pathlib import Path
 from string import Template
 from typing import TYPE_CHECKING, Any
 
+from .items import enrich_items, items_from_structure
 from .renderer import (
     _build_layers_data,
-    _enrich_items_from_structure,
     _html_escape,
     _localize_multi,
     _strip_internal,
@@ -810,35 +810,13 @@ def build_viz_data(structure: "CoreToConsequenceStructure") -> tuple[list[dict],
         layers_data: dict with layers/edges for LAYERS
         node_index: {name: item_dict} for ref lookups
     """
-    items: list[dict] = []
-    for name, node in structure.graph.items():
-        if name == "__output__":
-            continue
-        kind = node.kind.value if hasattr(node.kind, "value") else str(node.kind)
-        from parseltongue.core.grammar import ParseltongueGrammar
-
-        value_str = ParseltongueGrammar.enc(node.value)
-        # No truncation - show full values
-        depth = structure.depths.get(name, 0)
-        inputs = [str(i) for i in (node.inputs or [])]
-        module = name.split(".")[0] if "." in name else ""
-        items.append(
-            {
-                "id": name,
-                "kind": kind,
-                "value": value_str,
-                "depth": depth,
-                "inputs": inputs,
-                "evidence": [],
-                "module": module,
-            }
-        )
+    items = items_from_structure(structure)
 
     node_index = {it["id"]: it for it in items}
     item_names = set(node_index)
     local = _localize_multi(_strip_internal(structure), item_names)
     layers_data = _build_layers_data(local)
-    _enrich_items_from_structure(items, structure)
+    enrich_items(items, structure)
 
     # Rebuild index after enrichment (inputs may now be dicts)
     node_index = {it["id"]: it for it in items}
@@ -916,7 +894,7 @@ def merge_diff_structure(
         new_items.append(item)
         node_index[name] = item
 
-    _enrich_items_from_structure(new_items, diff_structure)
+    enrich_items(new_items, diff_structure)
     items.extend(new_items)
 
     # Merge layers and edges

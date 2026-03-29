@@ -202,9 +202,10 @@ def _read_pyproject() -> dict[str, str]:
     with open(ROOT / "pyproject.toml", "rb") as f:
         data = tomllib.load(f)
     proj = data.get("project", {})
+    tool_pt = data.get("tool", {}).get("parseltongue", {})
     return {
         "version": proj.get("version", "0.0.0"),
-        "release_tagline": proj.get("release_tagline", ""),
+        "release_tagline": tool_pt.get("release_tagline", ""),
     }
 
 
