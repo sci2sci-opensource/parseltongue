@@ -69,12 +69,13 @@ def default_predicate(item: dict) -> tuple[bool, str | None]:
         return True, "no evidence"
     ok_statuses = {"verified", "derived", "manual"}
     logbook = item.get("_logbook")
-    # Collect known participants from logbook
-    known_participants: set[str] | None = None
-    known_assistants: set[str] | None = None
+    # Seed known participants from v.py constants (always present)
+    from parseltongue.core.v import ASSISTANT, USER
+
+    known_participants: set[str] = {USER}
+    known_assistants: set[str] = {ASSISTANT}
+    # Extend with logbook entries if available
     if logbook:
-        known_participants = set()
-        known_assistants = set()
         for entry in logbook:
             u = entry.get("user", "")
             a = entry.get("assistant", "")
@@ -88,9 +89,7 @@ def default_predicate(item: dict) -> tuple[bool, str | None]:
             return True, f"unverified ({status or 'unknown'})"
         if status == "manual":
             sig = e.get("signature") or ""
-            if known_participants is None:
-                # No logbook — can't verify who signed, taint it
-                return True, "manually verified (no session log)"
+            # known_participants always seeded from v.py constants
             if not sig:
                 return True, "manually verified (no signature)"
             if sig in known_participants:

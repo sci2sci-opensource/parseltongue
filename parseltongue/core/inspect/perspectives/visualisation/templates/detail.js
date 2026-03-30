@@ -90,6 +90,7 @@ const appEl = document.getElementById('app');
 document.getElementById('detail-close').onclick = () => {
   panel.classList.add('translate-x-full');
   appEl.classList.remove('detail-open');
+  setTimeout(_syncViewHeight, 220);
 };
 
 function _itemType(d) {
@@ -105,6 +106,7 @@ function showDetail(d) {
   if (!d) return;
   panel.classList.remove('translate-x-full');
   appEl.classList.add('detail-open');
+  setTimeout(_syncViewHeight, 220);
   document.getElementById('detail-title').textContent = d.id || d.doc || '';
   const body = document.getElementById('detail-body');
   let html = '';
