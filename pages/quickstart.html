@@ -44,9 +44,9 @@
     <h3>Claude Code / Cursor / Aider</h3>
     <p>Your agent has terminal access. Paste this prompt to bootstrap it with Parseltongue:</p>
 
-    <div class="prompt"><p>Run <code>pip install parseltongue-dsl</code> to install the Parseltongue formal reasoning library. It gives you a CLI called <code>pg</code>.</p><p>Run <code>pg learn --help</code> to see available learning paths, then run <code>pg learn &lt;name&gt;</code> for each one listed and read the full output carefully &mdash; these are your operational guides for working with Parseltongue.</p><p>Once you've read them, tell me what you can now do and ask me what I'd like to work on.</p></div>
+    <div class="prompt"><p>Run <code>pip install parseltongue-dsl</code> to install the Parseltongue formal reasoning library. It gives you a CLI called <code>pg</code>.</p><p>Run <code>pg learn --help</code> to see available learning paths, then run <code>pg learn &lt;name&gt;</code> for each one listed and read the full output carefully &mdash; these are your operational guides for working with Parseltongue. You need to read them fully despite them being quite long.</p><p>Once you've read them, tell me what you can now do and ask me what I'd like to work on. Prefer the notebooks feature (<code>pg render</code>) for visualizations. Present rendered HTML to me via <code>open</code>, and organize render results in a dedicated directory (e.g. <code>renders/</code>).</p></div>
 
-    <p>The agent installs the package, reads the learning scripts, and starts a conversation with you about what to do next. It now knows how to start the bench daemon, index files, search for evidence, screen for consistency, generate visualizations, and write notebooks.</p>
+    <p>The agent installs the package, reads the learning scripts end-to-end, and starts a conversation with you about what to do next. It now knows how to start the bench daemon, index files, search for evidence, screen for consistency, generate visualizations, and write notebooks. Rendered notebooks and viz outputs go into a dedicated directory for easy browsing.</p>
   </div>
 
   <!-- ── Web UI Agent ── -->
@@ -59,9 +59,9 @@
     </ul>
     <p>Then paste this prompt:</p>
 
-    <div class="prompt"><p>Run <code>pip install parseltongue-dsl</code> to install the Parseltongue formal reasoning library. It gives you a CLI called <code>pg</code>.</p><p>Run <code>pg learn --help</code> to see available learning paths, then run <code>pg learn &lt;name&gt;</code> for each one listed and read the full output carefully &mdash; these are your operational guides for working with Parseltongue.</p><p>Once you've read them, tell me what you can now do and ask me what I'd like to work on. I may upload documents for you to analyze.</p></div>
+    <div class="prompt"><p>Run <code>pip install parseltongue-dsl</code> to install the Parseltongue formal reasoning library. It gives you a CLI called <code>pg</code>.</p><p>Run <code>pg learn --help</code> to see available learning paths, then run <code>pg learn &lt;name&gt;</code> for each one listed and read the full output carefully &mdash; these are your operational guides for working with Parseltongue. You need to read them fully despite them being quite long.</p><p>Once you've read them, tell me what you can now do and ask me what I'd like to work on. I may upload documents for you to analyze &mdash; we can communicate files you can't download via me uploading them directly to the chat, and they will appear in the sandbox where you run <code>pg</code>. Prefer the notebooks feature (<code>pg render</code>) for visualizations you show me.</p></div>
 
-    <p>Same flow &mdash; the agent installs, learns, and asks what you need. Upload documents (PDF, DOCX, TXT) directly and the agent extracts text, loads them as ground truth, and builds formal analyses.</p>
+    <p>Same flow &mdash; the agent installs, reads the guides end-to-end, and asks what you need. Upload documents (PDF, DOCX, TXT) directly and the agent extracts text, loads them as ground truth, and builds formal analyses. Notebooks (<code>.pgmd</code>) are the best way to see results &mdash; the agent renders them to self-contained HTML with cards, layers, and graph views.</p>
   </div>
 
   <!-- ── Manual ── -->
