@@ -11,3 +11,4 @@
 | [Viz Graph v2](in_progress/viz-graph-v2.md) | in progress | feature/viz-graph-v2 | |
 | [Viz Health Overlay](pending/viz-health-overlay.md) | pending | | |
 | [PGF — Parseltongue Formation](pending/pgf-parseltongue-formation.md) | pending | | |
+| [Scope Translation via Morphisms](pending/scope-morphisms.md) | pending | | |
