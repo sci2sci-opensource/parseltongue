@@ -20,7 +20,7 @@ Taint mode and focus/selection were mutually exclusive in v1: clicking a node in
 - Auto-fit that matches v1's framing (uses `getBBox()` with temporary SVG nodes)
 - User zoom respected — auto-fit skipped if user manually panned/zoomed
 - Stats overlay correctly positioned when header wraps to 2 rows (detail panel open)
-- v1 kept as `graph_deprecated.js` for reference
+- v1 removed
 
 ## Proposal
 
@@ -55,9 +55,10 @@ Unified `nodeAlpha()`, `nodeColor()`, `edgeAlpha()`, `edgeColor()`, `edgeLw()` c
 ## Files changed
 
 - `visualisation/templates/graph_v2.js` — new canvas+SVG hybrid renderer (replaces graph.js as primary)
-- `visualisation/templates/graph.js` → `graph_deprecated.js` — original SVG-only renderer kept for reference
+- `visualisation/templates/graph.js` — removed (original SVG-only renderer)
 - `visualisation/templates/app.html` — graph view wires graph_v2.js, simplified theme toggle cleanup
 - `visualisation/templates/detail.js` — `_syncViewHeight()` on panel open/close for header reflow
 - `visualisation/renderer.py` — loads graph_v2.js instead of graph.js
 - `visualisation/notebook_renderer.py` — loads graph_v2.js instead of graph.js
 - `visualisation/taints.py` — seed known participants from `v.py` constants
+- `pages/styles/pages.js` — unified theme localStorage key (`pltg-theme`) with viz/notebook pages
