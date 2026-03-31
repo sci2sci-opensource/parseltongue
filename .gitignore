@@ -5,6 +5,7 @@ venv
 dist
 bench.log
 build
+.DS_store
 .env
 .parseltongue-bench
 temp

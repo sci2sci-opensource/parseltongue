@@ -843,6 +843,6 @@ def _render_app(
         source_js=_read_template("source.js"),
         cards_js=_read_template("cards.js"),
         detail_js=_read_template("detail.js"),
-        graph_js=_read_template("graph.js"),
+        graph_js=_read_template("graph_v2.js"),
         layers_js=_read_template("layers.js"),
     )
