@@ -802,6 +802,16 @@ function renderGraph() {
       gRoot.selectAll('.graph-node:not(.graph-diff-node)').attr('transform', d => `translate(${d.x},${d.y})`);
       svgNodesCreated = gRoot.selectAll('.graph-node:not(.graph-diff-node)').size() > 0;
     }
+    // Camera follow: track focused node during simulation until user interacts
+    if (selectedFocusId && !userInteracted) {
+      const target = nodes.find(n => n.id === selectedFocusId);
+      if (target) {
+        const scale = currentTransform.k;
+        const tx = width / 2 - target.x * scale;
+        const ty = height / 2 - target.y * scale;
+        svg.call(zoomBehavior.transform, d3.zoomIdentity.translate(tx, ty).scale(scale));
+      }
+    }
     requestCanvasDraw();
   });
 

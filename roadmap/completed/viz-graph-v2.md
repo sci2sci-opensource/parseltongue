@@ -62,3 +62,11 @@ Unified `nodeAlpha()`, `nodeColor()`, `edgeAlpha()`, `edgeColor()`, `edgeLw()` c
 - `visualisation/notebook_renderer.py` — loads graph_v2.js instead of graph.js
 - `visualisation/taints.py` — seed known participants from `v.py` constants
 - `pages/styles/pages.js` — unified theme localStorage key (`pltg-theme`) with viz/notebook pages
+
+## Result
+
+Replaced the SVG-only graph renderer with a canvas+SVG hybrid. Canvas handles edges and overview node dots; SVG handles interactive nodes when zoomed in and permanent diff nodes with animated glow at all zoom levels. Viewport culling skips off-screen elements.
+
+Taint and focus modes now coexist — clicking a node in taint mode overlays the focus path on top of the taint layer, with non-path nodes equally dimmed. Camera tracks the focused node during force simulation settling until user interacts.
+
+Fixed stats overlay misalignment when the detail panel causes the header to wrap to two rows — `_syncViewHeight()` is called on panel open/close. Fixed taint false positives on manually signed nodes by seeding `v.py` constants as always-known participants. Unified theme localStorage key across website and viz pages.
