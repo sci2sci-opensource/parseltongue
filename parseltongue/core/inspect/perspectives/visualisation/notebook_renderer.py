@@ -1068,6 +1068,6 @@ document.addEventListener('DOMContentLoaded', function() {
         source_js=_read("source.js"),
         cards_js=_read("cards.js"),
         detail_js=_read("detail.js"),
-        graph_js=_read("graph.js"),
+        graph_js=_read("graph_v2.js"),
         layers_js=layers_js,
     )

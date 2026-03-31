@@ -8,5 +8,7 @@
 | [Consistency Coverage](pending/consistency-coverage.md) | pending | | |
 | [Core Consistency Stabilisation](pending/core-consistency-stabilisation.md) | pending | | |
 | [Multi-Index Search](pending/multi-index-search.md) | pending | | |
+| [Viz Graph v2](in_progress/viz-graph-v2.md) | in progress | feature/viz-graph-v2 | |
 | [Viz Health Overlay](pending/viz-health-overlay.md) | pending | | |
 | [PGF — Parseltongue Formation](pending/pgf-parseltongue-formation.md) | pending | | |
+| [Scope Translation via Morphisms](pending/scope-morphisms.md) | pending | | |

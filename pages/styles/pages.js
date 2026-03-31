@@ -2,16 +2,17 @@
 
 // ── Theme ──
 function initTheme() {
-  var saved = localStorage.getItem('pt-theme');
+  var saved = localStorage.getItem('pltg-theme');
   if (!saved) saved = window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
   document.documentElement.setAttribute('data-theme', saved);
+  localStorage.setItem('pltg-theme', saved);
   updateToggleIcon(saved);
 }
 function toggleTheme() {
   var current = document.documentElement.getAttribute('data-theme') || 'dark';
   var next = current === 'dark' ? 'light' : 'dark';
   document.documentElement.setAttribute('data-theme', next);
-  localStorage.setItem('pt-theme', next);
+  localStorage.setItem('pltg-theme', next);
   updateToggleIcon(next);
 }
 function updateToggleIcon(theme) {
