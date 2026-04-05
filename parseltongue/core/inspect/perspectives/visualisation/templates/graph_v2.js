@@ -143,8 +143,10 @@ function renderGraph() {
   // ── Layout constants (reactive for resize/orientation) ──
   const maxDepth = Math.max(0, ...nodes.filter(n => !n.dangling).map(n => n.depth));
   const graphView = document.getElementById('graph-view');
-  let width = window.innerWidth;
-  let height = window.innerHeight - 60;
+  function viewW() { return (window.visualViewport ? window.visualViewport.width : window.innerWidth); }
+  function viewH() { return (window.visualViewport ? window.visualViewport.height : window.innerHeight); }
+  let width = viewW();
+  let height = viewH() - 60;
 
   let BAND_W = Math.max(300, (width - 160) / Math.max(maxDepth + 1, 1));
   const PAD_LEFT = 80;
@@ -356,7 +358,8 @@ function renderGraph() {
     const showLabels = scale >= LABEL_ZOOM_MIN;
     const labelAlpha = showLabels ? Math.min(1, (scale - LABEL_ZOOM_MIN) / (LABEL_ZOOM_FULL - LABEL_ZOOM_MIN)) : 0;
 
-    // ── Draw edges ──
+    // ── Draw edges (batched by style to minimize draw calls) ──
+    const edgeBuckets = {};
     for (let i = 0; i < links.length; i++) {
       const l = links[i];
       const sx = l.source.x, sy = l.source.y, tx = l.target.x, ty = l.target.y;
@@ -364,43 +367,66 @@ function renderGraph() {
           (sy < vp.y0 && ty < vp.y0) || (sy > vp.y1 && ty > vp.y1)) continue;
 
       const sid = l.source.id, tid = l.target.id;
-      ctx.beginPath();
-      ctx.moveTo(sx, sy);
-      ctx.lineTo(tx, ty);
-      ctx.strokeStyle = edgeColor(sid, tid, linkColors[i]);
-      ctx.globalAlpha = edgeAlpha(sid, tid);
-      ctx.lineWidth = edgeLw(sid, tid);
-      ctx.stroke();
+      const color = edgeColor(sid, tid, linkColors[i]);
+      const alpha = edgeAlpha(sid, tid);
+      const lw = edgeLw(sid, tid);
+      const key = color + '|' + alpha + '|' + lw;
+      let bucket = edgeBuckets[key];
+      if (!bucket) { bucket = { color, alpha, lw, path: new Path2D() }; edgeBuckets[key] = bucket; }
+      bucket.path.moveTo(sx, sy);
+      bucket.path.lineTo(tx, ty);
+    }
+    for (const k in edgeBuckets) {
+      const b = edgeBuckets[k];
+      ctx.strokeStyle = b.color;
+      ctx.globalAlpha = b.alpha;
+      ctx.lineWidth = b.lw;
+      ctx.stroke(b.path);
     }
 
-    // ── Draw regular nodes on canvas (diff nodes are always SVG) ──
+    // ── Draw regular nodes on canvas (batched by style) ──
     const drawSvgNodes = scale >= SVG_DETAIL_ZOOM;
     ctx.globalAlpha = 1;
 
-    for (let i = 0; i < regularNodes.length; i++) {
-      const n = regularNodes[i];
-      if (!inViewport(n, vp)) continue;
-      if (drawSvgNodes) continue; // SVG layer handles these
+    if (!drawSvgNodes) {
+      const nodeBuckets = {};
+      const labelNodes = [];
+      for (let i = 0; i < regularNodes.length; i++) {
+        const n = regularNodes[i];
+        if (!inViewport(n, vp)) continue;
 
-      const r = n.dangling ? DANGLE_R : NODE_R;
-      const color = nodeColor(n) || n.color;
-      const alpha = nodeAlpha(n.id, n.dangling);
+        const r = n.dangling ? DANGLE_R : NODE_R;
+        const color = nodeColor(n) || n.color;
+        const alpha = nodeAlpha(n.id, n.dangling);
+        const key = color + '|' + alpha;
+        let bucket = nodeBuckets[key];
+        if (!bucket) { bucket = { color, alpha, path: new Path2D() }; nodeBuckets[key] = bucket; }
+        bucket.path.moveTo(n.x + r, n.y);
+        bucket.path.arc(n.x, n.y, r, 0, Math.PI * 2);
 
-      ctx.beginPath();
-      ctx.arc(n.x, n.y, r, 0, Math.PI * 2);
-      ctx.fillStyle = color;
-      ctx.globalAlpha = alpha;
-      ctx.fill();
+        if (showLabels && alpha > 0.1) labelNodes.push(n);
+      }
+      for (const k in nodeBuckets) {
+        const b = nodeBuckets[k];
+        ctx.fillStyle = b.color;
+        ctx.globalAlpha = b.alpha;
+        ctx.fill(b.path);
+      }
 
-      // Labels on canvas when zoomed in enough but below SVG threshold
-      if (showLabels && alpha > 0.1) {
+      // Labels (can't batch text, but drawn after nodes)
+      if (labelNodes.length > 0) {
         const fontSize = Math.max(6, Math.min(10, 8));
         ctx.font = `${fontSize}px sans-serif`;
-        ctx.fillStyle = n.dangling ? C.surface2 : C.text;
-        ctx.globalAlpha = alpha * labelAlpha;
-        const short = n.id.includes('.') ? n.id.split('.').slice(1).join('.') : n.id;
-        const label = short.length > 25 ? short.slice(0, 22) + '...' : short;
-        ctx.fillText(label, n.x + r + 3, n.y + 3);
+        for (let i = 0; i < labelNodes.length; i++) {
+          const n = labelNodes[i];
+          const r = n.dangling ? DANGLE_R : NODE_R;
+          const alpha = nodeAlpha(n.id, n.dangling);
+          ctx.fillStyle = n.dangling ? C.surface2 : C.text;
+          ctx.globalAlpha = alpha * labelAlpha;
+          const short = n.id.includes('.') ? n.id.split('.').slice(1).join('.') : n.id;
+          const label = short.length > 25 ? short.slice(0, 22) + '...' : short;
+          ctx.fillText(label, n.x + r + 3, n.y + 3);
+        }
       }
     }
 
@@ -834,12 +860,12 @@ function renderGraph() {
 
   // ── Resize handler (orientation change, virtual keyboard, window resize) ──
   let resizeTimer = null;
-  window.addEventListener('resize', () => {
+  function _onResize() {
     if (resizeTimer) clearTimeout(resizeTimer);
     resizeTimer = setTimeout(() => {
       resizeTimer = null;
-      const newW = window.innerWidth;
-      const newH = window.innerHeight - 60;
+      const newW = viewW();
+      const newH = viewH() - 60;
       if (newW === width && newH === height) return;
       width = newW;
       height = newH;
@@ -849,7 +875,9 @@ function renderGraph() {
       svg.attr("width", width).attr("height", height);
       requestCanvasDraw();
     }, 150);
-  });
+  }
+  window.addEventListener('resize', _onResize);
+  if (window.visualViewport) window.visualViewport.addEventListener('resize', _onResize);
 
   // ── Tick ──
   sim.on("tick", () => {

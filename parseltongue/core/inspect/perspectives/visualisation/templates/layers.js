@@ -632,6 +632,7 @@ function renderLayers() {
     });
     if (!isCollapsed && !isExpandHeader) {
       pg.on("contextmenu", (ev) => { ev.preventDefault(); ev.stopPropagation(); showFocusPopup(ev, inp.label); });
+      bindLongPress(pg, () => inp.label);
     }
   });
 
@@ -675,6 +676,7 @@ function renderLayers() {
       selectNode(name);
     });
     pg.on("contextmenu", (ev) => { ev.preventDefault(); ev.stopPropagation(); showFocusPopup(ev, name); });
+    bindLongPress(pg, () => name);
   });
 
   // ── Hanging section: disconnected L0 nodes ──
@@ -829,6 +831,30 @@ function renderLayers() {
     focusPopup.style.left = (ev.pageX + 8) + 'px';
     focusPopup.style.top = (ev.pageY - 4) + 'px';
     focusPopup.classList.remove("hidden");
+  }
+
+  // Long-press → focus popup (touch devices where contextmenu doesn't fire)
+  const LONG_PRESS_MS = 500;
+  function bindLongPress(sel, idFn) {
+    let _timer = null;
+    let _startXY = null;
+    sel.on("touchstart.lp", function(ev) {
+      const t = ev.touches[0];
+      _startXY = { x: t.clientX, y: t.clientY };
+      _timer = setTimeout(() => {
+        ev.preventDefault();
+        // Synthesize pageX/pageY for showFocusPopup
+        showFocusPopup({ pageX: t.pageX, pageY: t.pageY }, idFn(this, ev));
+      }, LONG_PRESS_MS);
+    }, { passive: false });
+    sel.on("touchmove.lp", function(ev) {
+      if (!_timer) return;
+      const t = ev.touches[0];
+      if (Math.abs(t.clientX - _startXY.x) > 10 || Math.abs(t.clientY - _startXY.y) > 10) {
+        clearTimeout(_timer); _timer = null;
+      }
+    });
+    sel.on("touchend.lp touchcancel.lp", function() { if (_timer) { clearTimeout(_timer); _timer = null; } });
   }
 
   function hideFocusPopup() {
@@ -1282,6 +1308,7 @@ function renderLayers() {
           if (d) showDetail(d);
         });
         pg.on("contextmenu", (ev) => { ev.preventDefault(); ev.stopPropagation(); showFocusPopup(ev, inp.label); });
+        bindLongPress(pg, () => inp.label);
       }
     });
 
@@ -1307,6 +1334,7 @@ function renderLayers() {
         if (d) showDetail(d);
       });
       pg.on("contextmenu", (ev) => { ev.preventDefault(); ev.stopPropagation(); showFocusPopup(ev, n.name); });
+      bindLongPress(pg, () => n.name);
       pg.on("mouseover", (ev) => {
         tooltip.html(`<b>${n.name}</b>\n${n.kind}${n.value ? '\n' + String(n.value).slice(0,80) : ''}`)
           .classed("hidden", false)

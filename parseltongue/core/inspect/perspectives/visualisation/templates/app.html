@@ -76,6 +76,8 @@ $base_css
 }
 .scrollbar-none { -ms-overflow-style: none; scrollbar-width: none; }
 .scrollbar-none::-webkit-scrollbar { display: none; }
+/* Suppress Safari long-press callout on interactive SVG pills */
+.pill-node, .pill-result, .fpill-result, .graph-node { -webkit-touch-callout: none; -webkit-user-select: none; }
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
 </head>
@@ -116,7 +118,7 @@ $base_css
   </div>
 
   <!-- Layers View -->
-  <div id="layers-view" class="hidden" style="height:calc(100dvh - 60px); position:relative">
+  <div id="layers-view" class="hidden" style="height:calc(100vh - 60px); height:calc(100dvh - 60px); position:relative">
     <svg id="layers-svg" class="w-full h-full"></svg>
     <div id="layers-tooltip" class="fixed bg-surface0 border border-surface2 rounded-lg px-3 py-2 text-xs pointer-events-none max-w-sm whitespace-pre-wrap hidden z-30"></div>
     <!-- Controls overlay, top-left -->
@@ -136,7 +138,7 @@ $base_css
   </div>
 
   <!-- Graph View -->
-  <div id="graph-view" class="hidden" style="height:calc(100dvh - 60px); position:relative">
+  <div id="graph-view" class="hidden" style="height:calc(100vh - 60px); height:calc(100dvh - 60px); position:relative">
     <svg id="graph" class="w-full h-full"></svg>
     <div id="tooltip" class="fixed bg-surface0 border border-surface2 rounded-lg px-3 py-2 text-xs pointer-events-none max-w-sm whitespace-pre-wrap hidden z-30"></div>
   </div>
