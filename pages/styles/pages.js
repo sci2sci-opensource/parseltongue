@@ -16,8 +16,8 @@ function toggleTheme() {
   updateToggleIcon(next);
 }
 function updateToggleIcon(theme) {
-  var btn = document.getElementById('theme-toggle');
-  if (btn) btn.textContent = theme === 'dark' ? '\u2600' : '\u263E';
+  var icon = document.getElementById('theme-icon');
+  if (icon) icon.innerHTML = theme === 'dark' ? '&#9790;' : '&#9788;';
 }
 initTheme();
 

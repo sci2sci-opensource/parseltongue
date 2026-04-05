@@ -40,14 +40,15 @@ pre:hover .copy-btn, .prompt:hover .copy-btn { opacity: 1; }
 
 /* ── Nav bar ── */
 .topnav {
-  display: flex; align-items: center; gap: 1rem;
-  padding: 0.75rem 1.5rem;
+  display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;
+  padding: 0.75rem 1.5rem; padding-right: 3.5rem;
   background: var(--mantle); border-bottom: 1px solid var(--surface0);
   position: sticky; top: 0; z-index: 50;
+  position: relative;
 }
 .topnav .logo { display: flex; align-items: center; gap: 0.5rem; font-weight: 700; color: var(--lavender); }
 .topnav .logo svg { width: 24px; height: 24px; }
-.topnav nav { display: flex; gap: 0.25rem; margin-left: auto; }
+.topnav nav { display: flex; gap: 0.25rem; margin-left: auto; flex-wrap: wrap; }
 .topnav nav a {
   padding: 0.35rem 0.75rem; border-radius: 6px; font-size: 0.85rem;
   color: var(--subtext); transition: background 0.15s, color 0.15s;
@@ -58,11 +59,13 @@ pre:hover .copy-btn, .prompt:hover .copy-btn { opacity: 1; }
 /* ── Theme toggle ── */
 .theme-toggle {
   background: var(--surface0); border: none; color: var(--subtext);
-  width: 32px; height: 32px; border-radius: 6px; cursor: pointer;
+  width: 24px; height: 24px; border-radius: 6px; cursor: pointer;
   display: flex; align-items: center; justify-content: center;
-  font-size: 1rem; transition: background 0.15s, color 0.15s;
+  transition: background 0.15s, color 0.15s;
+  position: absolute; top: 0.75rem; right: 1.5rem;
 }
 .theme-toggle:hover { background: var(--surface1); color: var(--text); }
+#theme-icon { font-size: 13px; line-height: 1; font-family: 'JetBrains Mono', 'Fira Code', Menlo, monospace; }
 
 /* ── Cards ── */
 .card {

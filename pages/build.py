@@ -70,7 +70,7 @@ def _topnav(active: str, prefix: str = "") -> str:
   <nav>
     {nav_items}
   </nav>
-  <button id="theme-toggle" class="theme-toggle" onclick="toggleTheme()"></button>
+  <button id="theme-toggle" class="theme-toggle" onclick="toggleTheme()"><span id="theme-icon">&#9790;</span></button>
 </div>"""
 
 
@@ -443,6 +443,7 @@ def build_construct_page():
 
   <h2>Topics</h2>
 
+  <div style="overflow-x:auto">
   <table class="construct-table">
     <thead>
       <tr>
@@ -456,6 +457,7 @@ def build_construct_page():
 {table_rows}
     </tbody>
   </table>
+  </div>
 
   <h2>Start here</h2>
   <p>If you're a human, read <a href="construct/white-rabbit.html"><strong>Follow the White Rabbit</strong></a>. It explains what Parseltongue is, why LLMs lying is an engineering problem, and walks through the system from first principles &mdash; with live parseltongue blocks running inside the document itself.</p>

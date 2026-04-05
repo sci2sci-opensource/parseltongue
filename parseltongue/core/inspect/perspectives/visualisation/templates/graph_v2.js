@@ -140,15 +140,15 @@ function renderGraph() {
   const regularNodes = nodes.filter(n => n.kind !== 'diff');
   const diffIds = new Set(diffNodes.map(n => n.id));
 
-  // ── Layout constants ──
+  // ── Layout constants (reactive for resize/orientation) ──
   const maxDepth = Math.max(0, ...nodes.filter(n => !n.dangling).map(n => n.depth));
   const graphView = document.getElementById('graph-view');
-  const width = window.innerWidth;
-  const height = window.innerHeight - 60;
+  let width = window.innerWidth;
+  let height = window.innerHeight - 60;
 
-  const BAND_W = Math.max(300, (width - 160) / Math.max(maxDepth + 1, 1));
+  let BAND_W = Math.max(300, (width - 160) / Math.max(maxDepth + 1, 1));
   const PAD_LEFT = 80;
-  const DANGLE_X = PAD_LEFT + (maxDepth + 2) * BAND_W;
+  let DANGLE_X = PAD_LEFT + (maxDepth + 2) * BAND_W;
   const NODE_R = 6;
   const DANGLE_R = 4;
   const DIFF_R = NODE_R * 1.4;
@@ -156,17 +156,23 @@ function renderGraph() {
 
   // ── Canvas layer (edges + overview regular nodes) ──
   const canvas = document.createElement('canvas');
-  canvas.width = width * window.devicePixelRatio;
-  canvas.height = height * window.devicePixelRatio;
-  canvas.style.width = width + 'px';
-  canvas.style.height = height + 'px';
   canvas.style.position = 'absolute';
   canvas.style.top = '0';
   canvas.style.left = '0';
   canvas.style.pointerEvents = 'none';
   graphView.insertBefore(canvas, graphView.firstChild);
   const ctx = canvas.getContext('2d');
-  ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+
+  function resizeCanvas() {
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = width * dpr;
+    canvas.height = height * dpr;
+    canvas.style.width = width + 'px';
+    canvas.style.height = height + 'px';
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.scale(dpr, dpr);
+  }
+  resizeCanvas();
 
   // ── SVG layer ──
   const svg = d3.select("#graph");
@@ -530,8 +536,10 @@ function renderGraph() {
     if (d.dangling) html += '\n(dangling)';
     if (taintSources.has(d.id)) html += '\n<span style="color:' + C.red + '">taint source</span>';
     else if (taintPropagated.has(d.id)) html += '\n<span style="color:' + C.yellow + '">taint propagated</span>';
+    const ttX = Math.min(e.pageX + 12, width - 200);
+    const ttY = Math.max(8, Math.min(e.pageY - 8, height - 100));
     tooltip.html(html).classed("hidden", false)
-      .style("left", (e.pageX + 12) + "px").style("top", (e.pageY - 8) + "px");
+      .style("left", ttX + "px").style("top", ttY + "px");
     if (!selectedPath && !taintMode) {
       // Highlight neighbors
       const nb = neighbors[d.id] || new Set();
@@ -665,8 +673,37 @@ function renderGraph() {
 
   const statsDiv = document.createElement('div');
   statsDiv.id = 'graph-stats';
-  statsDiv.className = 'bg-mantle/95 backdrop-blur border border-surface1 rounded-lg p-3 text-xs min-w-[160px] pointer-events-auto';
+  statsDiv.className = 'bg-mantle/95 backdrop-blur border border-surface1 rounded-lg text-xs min-w-[160px] pointer-events-auto';
   wrapper.appendChild(statsDiv);
+
+  // Clickable title bar: "Graph  123 nodes  ▾"
+  let statsCollapsed = false;
+  const statsHeader = document.createElement('div');
+  statsHeader.className = 'flex items-center gap-2 px-3 py-2 cursor-pointer select-none';
+  statsDiv.appendChild(statsHeader);
+  const statsTitle = document.createElement('span');
+  statsTitle.className = 'font-bold text-lavender';
+  statsTitle.textContent = 'Graph';
+  statsHeader.appendChild(statsTitle);
+  const statsCount = document.createElement('span');
+  statsCount.className = 'text-overlay0 font-normal';
+  statsHeader.appendChild(statsCount);
+  const statsChevron = document.createElement('span');
+  statsChevron.className = 'text-overlay0 ml-auto text-[10px]';
+  statsChevron.textContent = '\u25be';
+  statsHeader.appendChild(statsChevron);
+
+  const statsBody = document.createElement('div');
+  statsBody.id = 'graph-stats-body';
+  statsBody.className = 'px-3 pb-3';
+  statsDiv.appendChild(statsBody);
+
+  statsHeader.addEventListener('click', (e) => {
+    e.stopPropagation();
+    statsCollapsed = !statsCollapsed;
+    statsBody.style.display = statsCollapsed ? 'none' : '';
+    statsChevron.textContent = statsCollapsed ? '\u25b8' : '\u25be';
+  });
 
   const taintBtnEl = document.createElement('button');
   taintBtnEl.id = 'btn-graph-taints';
@@ -733,7 +770,9 @@ function renderGraph() {
     const kindEntries = Object.entries(kindCounts).sort((a,b) => b[1] - a[1]);
     const maxK = kindEntries.length ? Math.max(...kindEntries.map(([,v]) => v)) : 1;
 
-    let html = `<div class="font-bold text-lavender mb-2">${filterSet ? 'Selection' : 'Graph'} <span class="text-overlay0 font-normal">${total} nodes</span></div>`;
+    statsTitle.textContent = filterSet ? 'Selection' : 'Graph';
+    statsCount.textContent = `${total} nodes`;
+    let html = '';
     kindEntries.forEach(([k, count]) => {
       const barW = Math.max(4, (count / maxK) * 80);
       const color = kindDot(k);
@@ -767,7 +806,7 @@ function renderGraph() {
     if (fSources.length === 0 && fPropagated.length === 0) {
       html += `<div class="mt-1 text-green text-[10px]">\u2713 clean</div>`;
     }
-    statsDiv.innerHTML = html;
+    statsBody.innerHTML = html;
   }
 
   updateGraphStats(null);
@@ -792,6 +831,25 @@ function renderGraph() {
     const item = ITEM_BY_ID[name];
     if (item) showDetail(item);
   };
+
+  // ── Resize handler (orientation change, virtual keyboard, window resize) ──
+  let resizeTimer = null;
+  window.addEventListener('resize', () => {
+    if (resizeTimer) clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => {
+      resizeTimer = null;
+      const newW = window.innerWidth;
+      const newH = window.innerHeight - 60;
+      if (newW === width && newH === height) return;
+      width = newW;
+      height = newH;
+      BAND_W = Math.max(300, (width - 160) / Math.max(maxDepth + 1, 1));
+      DANGLE_X = PAD_LEFT + (maxDepth + 2) * BAND_W;
+      resizeCanvas();
+      svg.attr("width", width).attr("height", height);
+      requestCanvasDraw();
+    }, 150);
+  });
 
   // ── Tick ──
   sim.on("tick", () => {

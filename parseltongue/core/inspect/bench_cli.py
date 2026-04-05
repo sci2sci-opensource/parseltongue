@@ -246,6 +246,7 @@ class BenchServer:
             if action == "eval":
                 query = cmd.get("query", "")
                 query, sexp_warn = _validate_sexp(query)
+                output_path = cmd.get("output")
                 if cmd.get("profile"):
                     import cProfile
                     import pstats
@@ -281,6 +282,11 @@ class BenchServer:
                         text = _format_eval_result(result, bench=self.bench)
                 if sexp_warn:
                     text = f"⚠ {sexp_warn}\n\n{text}"
+                if output_path:
+                    out = Path(output_path)
+                    out.parent.mkdir(parents=True, exist_ok=True)
+                    out.write_text(text)
+                    return {"ok": True, "text": f"Written {len(text):,} bytes to {output_path}"}
                 return {"ok": True, "text": text}
 
             elif action == "interpret":
@@ -1470,9 +1476,12 @@ def _read_expression(expression: str | None, file: str | None) -> str:
 @cli.command("eval")
 @click.argument("expression", required=False)
 @click.option("-f", "--file", "file", default=None, help="Read expression from file.")
+@click.option(
+    "-o", "--output", "output", default=None, help="Write result to file server-side (bypasses socket size limit)."
+)
 @click.option("--raw", is_flag=True, help="Output raw S-expression (to_sexp).")
 @click.option("--profile", is_flag=True, help="Profile server-side and save to .parseltongue-bench/.")
-def eval_cmd(expression: str | None, file: str | None, raw: bool, profile: bool):
+def eval_cmd(expression: str | None, file: str | None, output: str | None, raw: bool, profile: bool):
     """Evaluate an S-expression in the bench engine (main + std + scopes).
 
     \b
@@ -1713,7 +1722,10 @@ def eval_cmd(expression: str | None, file: str | None, raw: bool, profile: bool)
         (> raises (* total 0.3)))
     """
     expr = _read_expression(expression, file)
-    _print_result(_query({"action": "eval", "query": expr, "raw": raw, "profile": profile}))
+    cmd = {"action": "eval", "query": expr, "raw": raw, "profile": profile}
+    if output:
+        cmd["output"] = str(Path(output).resolve())
+    _print_result(_query(cmd))
 
 
 @cli.command("interpret")

@@ -2,6 +2,7 @@
 <html data-theme="dark">
 <head>
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 -65.5 262 262'%3E%3Cpath d='M65.5 0C29.4 0 0 29.4 0 65.5 0 101.6 29.4 131 65.5 131c27.4 0 38.6-14.2 51.5-32.8-3.8-6.2-1.5 1.2-4.7-4.7C93.6 107.6 87.9 112.3 65.5 112.3 39.7 112.3 18.7 91.3 18.7 65.5 18.7 39.5 39.5 18.7 65.5 18.7c15.1 0 24.7 5.4 33.6 14.6 8.9 9.2 16.4 22.5 24 36.5 7.6 14 15.3 28.8 26.6 40.6C161 122.4 176.6 131 196.5 131 232.6 131 262 101.6 262 65.5 262 29.4 232.6 0 196.5 0c-28.1 0-24.5 9.9-37.4 28.1 3.8 6.1-12.3 16.7-9.1 22.5C161.4 32.2 174.1 18.7 196.5 18.7c25.8 0 46.8 21 46.8 46.8 0 26-21.1 46.8-47 46.8-14.9 0-24.2-5.4-33-14.6-8.8-9.2-16.3-22.5-24-36.5-7.6-14-15.5-28.8-26.9-40.6C101.2 8.6 85.6 0 65.5 0Z' fill='%23b4befe'/%3E%3Cpath d='M93.6 121.6c9.9-3.3 19.4-12.2 24.8-24.7 2.8-8 6.1-17.5-1.2-10 -7.9 8.1-16 15-23.7 17.1v17.6Z' fill='%23b4befe'/%3E%3Cpath d='M194.9 18.7V0c-12.5-.3-17.8 4.2-29 11.9-6.4 1.2-16.9-2.4-26.6 11.2-5.6 7.9-4.9 19.7-6 21.2-1 1.6-.4 10.2 10.9 9.3 11.2-.9 30.9-21 30.9-21 5.8-4.4 13.5-13.8 19.8-14Z' fill='%23b4befe'/%3E%3C/svg%3E">
 <title>Parseltongue — $title</title>
 <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
@@ -73,6 +74,8 @@ $base_css
   0%, 100% { transform: scale(1); opacity: 0.4; }
   50% { transform: scale(1.15); opacity: 0.25; }
 }
+.scrollbar-none { -ms-overflow-style: none; scrollbar-width: none; }
+.scrollbar-none::-webkit-scrollbar { display: none; }
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
 </head>
@@ -80,8 +83,11 @@ $base_css
 
 <div id="app">
   <!-- Header -->
-  <div class="sticky top-0 z-20 bg-mantle/95 backdrop-blur border-b border-surface1 px-4 py-3">
-    <div class="flex items-center gap-4 flex-wrap">
+  <div class="sticky top-0 z-20 bg-mantle/95 backdrop-blur border-b border-surface1 px-4 py-3 relative">
+    <button id="btn-theme" onclick="toggleTheme()" class="absolute top-3 right-4 rounded-lg bg-surface0 text-subtext hover:bg-surface1 z-10 flex items-center justify-center" style="width:24px;height:24px" title="Toggle light/dark mode">
+      <span id="theme-icon" style="font-size:13px;line-height:1;font-family:'JetBrains Mono','Fira Code',Menlo,monospace">&#9790;</span>
+    </button>
+    <div class="flex items-center gap-4 flex-wrap pr-10">
       <h1 class="font-bold shrink-0 flex items-center gap-2"><svg width="24" height="24" viewBox="0 -65.5 262 262" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M65.5 0C29.4238 0 0 29.4238 0 65.5C0 101.613 29.3873 131 65.5 131C92.9135 131 104.098 116.818 116.964 98.25C113.126 92.0728 115.466 99.4196 112.286 93.5714C93.5714 107.607 87.9425 112.286 65.5 112.286C39.6948 112.286 18.7143 91.3052 18.7143 65.5C18.7143 39.5486 39.5486 18.7143 65.5 18.7143C80.6323 18.7143 90.2453 24.1239 99.1272 33.3348C108.009 42.5458 115.502 55.8504 123.105 69.8862C130.708 83.9219 138.42 98.6886 149.714 110.531C161.009 122.374 176.58 131 196.5 131C232.576 131 262 101.576 262 65.5C262 29.3873 232.613 0 196.5 0C168.429 0 171.974 9.90541 159.071 28.0714C162.909 34.139 146.827 44.7754 150.007 50.5871C161.411 32.1652 174.131 18.7143 196.5 18.7143C222.305 18.7143 243.286 39.6948 243.286 65.5C243.286 91.4515 222.451 112.286 196.5 112.286C181.624 112.286 172.266 106.876 163.458 97.6652C154.649 88.4542 147.119 75.1496 139.48 61.1138C131.841 47.0781 123.982 32.3114 112.578 20.4687C101.174 8.62612 85.6032 0 65.5 0Z" fill="#b4befe"/><path d="M93.5711 121.644C103.512 118.335 112.933 109.45 118.414 96.8981C121.167 88.8827 124.547 79.4334 117.237 86.9786C109.346 95.1151 101.295 101.968 93.5711 104.094V121.644Z" fill="#b4befe"/><path d="M194.941 18.7143V0.0123456C182.464 -0.266236 177.108 4.18414 165.904 11.9151C159.482 13.1204 149.035 9.50678 139.322 23.1604C133.686 31.0847 134.419 42.8264 133.354 44.406C132.292 45.9884 133.01 54.6279 144.216 53.6828C155.422 52.7406 175.107 32.75 175.107 32.75C180.867 28.3105 188.649 18.9558 194.941 18.7143Z" fill="#b4befe"/></svg><span class="text-lavender">parseltongue</span><span class="text-overlay0 font-normal text-sm">/ $title</span></h1>
       <div class="flex-1 min-w-[200px] max-w-md relative">
         <input id="search" type="text" placeholder="Search names, values, modules..." autocomplete="off"
@@ -94,11 +100,8 @@ $base_css
         <button id="btn-structure" class="px-3 py-1 rounded-lg text-xs bg-surface0 text-subtext hover:bg-surface1">Structure</button>
         <button id="btn-layers" class="px-3 py-1 rounded-lg text-xs bg-surface0 text-subtext hover:bg-surface1">Layers</button>
         <button id="btn-graph" class="px-3 py-1 rounded-lg text-xs bg-surface0 text-subtext hover:bg-surface1">Graph</button>
+        <span id="count" class="text-xs text-overlay0 self-center"></span>
       </div>
-      <button id="btn-theme" onclick="toggleTheme()" class="px-2 py-1 rounded-lg text-xs bg-surface0 text-subtext hover:bg-surface1 shrink-0" title="Toggle light/dark mode">
-        <span id="theme-icon">&#9790;</span>
-      </button>
-      <span id="count" class="text-xs text-overlay0 shrink-0"></span>
     </div>
   </div>
 
@@ -113,7 +116,7 @@ $base_css
   </div>
 
   <!-- Layers View -->
-  <div id="layers-view" class="hidden" style="height:calc(100vh - 60px); position:relative">
+  <div id="layers-view" class="hidden" style="height:calc(100dvh - 60px); position:relative">
     <svg id="layers-svg" class="w-full h-full"></svg>
     <div id="layers-tooltip" class="fixed bg-surface0 border border-surface2 rounded-lg px-3 py-2 text-xs pointer-events-none max-w-sm whitespace-pre-wrap hidden z-30"></div>
     <!-- Controls overlay, top-left -->
@@ -133,13 +136,13 @@ $base_css
   </div>
 
   <!-- Graph View -->
-  <div id="graph-view" class="hidden" style="height:calc(100vh - 60px); position:relative">
+  <div id="graph-view" class="hidden" style="height:calc(100dvh - 60px); position:relative">
     <svg id="graph" class="w-full h-full"></svg>
     <div id="tooltip" class="fixed bg-surface0 border border-surface2 rounded-lg px-3 py-2 text-xs pointer-events-none max-w-sm whitespace-pre-wrap hidden z-30"></div>
   </div>
 
   <!-- Detail Panel -->
-  <div id="detail-panel" class="fixed top-0 right-0 h-full w-[420px] bg-mantle border-l border-surface1 z-30 transform translate-x-full transition-transform duration-200 overflow-y-auto">
+  <div id="detail-panel" class="fixed top-0 right-0 h-full w-full sm:w-[420px] bg-mantle border-l border-surface1 z-30 transform translate-x-full transition-transform duration-200 overflow-y-auto">
     <div class="sticky top-0 bg-mantle/95 backdrop-blur border-b border-surface1 px-4 py-3 flex items-center justify-between">
       <h2 id="detail-title" class="text-sm font-bold text-lavender truncate"></h2>
       <button id="detail-close" class="text-overlay0 hover:text-text text-lg leading-none">&times;</button>
