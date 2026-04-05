@@ -292,7 +292,7 @@ class OperationsSystemV2:
             _builtin = builtin  # bind for closure
 
             def _apply_builtin(*a):
-                return _builtin(*a)  # type: ignore[operator]
+                return _builtin(*a)
 
             return self._vectorize_call(resolved, _apply_builtin)
         real_name = self._METHOD_ALIASES.get(method_name, method_name)

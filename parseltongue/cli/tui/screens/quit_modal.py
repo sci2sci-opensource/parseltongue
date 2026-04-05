@@ -64,7 +64,7 @@ class QuitModal(ModalScreen[bool]):
             buttons = list(self.query(Button))
             focused = self.focused
             if focused is not None and focused in buttons:
-                idx = buttons.index(focused)  # type: ignore[arg-type]
+                idx = buttons.index(focused)
                 nxt = (idx + (1 if event.key == "right" else -1)) % len(buttons)
                 buttons[nxt].focus()
             elif buttons:
