@@ -335,24 +335,37 @@ _PGIGNORE_HEADER = [
 # ── Detection ─────────────────────────────────────────────────────────────────
 
 
-def detect_languages(directory: str | Path | None = None, depth: int = 2) -> list[str]:
+def detect_languages(
+    directory: str | Path | None = None,
+    depth: int = 6,
+    *,
+    use_gitignore_prune: bool = True,
+) -> list[str]:
     """Detect project languages by scanning for file extensions.
 
-    Reads .gitignore first (if present) to skip ignored directories during scan.
-    This avoids walking into build artifacts, venvs, node_modules etc.
+    Walks ``directory`` to ``depth`` levels (default 6 — deep enough for nested
+    multi-repo workspaces like xen / vcstool / google repo, where actual source
+    lives 3-5 levels below the workspace root).
+
+    If ``use_gitignore_prune`` is True (default), reads ``.gitignore`` and adds
+    its simple directory patterns to the prune set, avoiding walks into build
+    artifacts, venvs, node_modules etc. Set to False for orchestrated workspaces
+    where ``.gitignore`` deliberately hides nested git repos that ARE the project
+    (xen, vcstool) — otherwise detection silently misses everything inside them.
     """
     d = Path(directory) if directory is not None else Path(os.getcwd())
     found: set[str] = set()
     seen_exts: set[str] = set()
 
-    # Read .gitignore for directory pruning during detection
+    # Hardcoded prune floor — these are never useful to walk regardless of mode
     skip_dirs: set[str] = {"node_modules", "__pycache__", "vendor", "target", ".git"}
-    gi_patterns = _read_gitignore(d)
-    for pat in gi_patterns:
-        # Simple directory patterns (e.g. "venv", "dist/", "build/") → add to skip set
-        clean = pat.rstrip("/")
-        if "/" not in clean and "*" not in clean:
-            skip_dirs.add(clean)
+    if use_gitignore_prune:
+        gi_patterns = _read_gitignore(d)
+        for pat in gi_patterns:
+            # Simple directory patterns (e.g. "venv", "dist/", "build/") → add to skip set
+            clean = pat.rstrip("/").lstrip("/")
+            if "/" not in clean and "*" not in clean:
+                skip_dirs.add(clean)
 
     def _scan(path: Path, level: int):
         if level > depth:
@@ -408,17 +421,34 @@ def _read_gitignore(directory: Path) -> list[str]:
     return [line.strip() for line in gi.read_text().splitlines() if line.strip() and not line.strip().startswith("#")]
 
 
-def generate_pgignore(directory: str | Path | None = None) -> str:
-    """Generate .pgignore content. Absorbs .gitignore + detected language ignores."""
+def generate_pgignore(
+    directory: str | Path | None = None,
+    *,
+    absorb_gitignore: bool = True,
+) -> str:
+    """Generate .pgignore content.
+
+    With ``absorb_gitignore=True`` (default), copies the project's ``.gitignore``
+    patterns into the output under a ``# From .gitignore`` block. This is the
+    right default for the common single-repo case where ``.gitignore`` represents
+    "files I don't care about".
+
+    Set ``absorb_gitignore=False`` for orchestrated multi-repo workspaces (xen,
+    vcstool, google repo) where ``.gitignore`` deliberately hides nested child
+    repos that ARE the project. Absorbing it would skip everything you wanted
+    to index.
+    """
     d = Path(directory) if directory is not None else Path(os.getcwd())
-    languages = detect_languages(d)
+    languages = detect_languages(d, use_gitignore_prune=absorb_gitignore)
     lines = list(_PGIGNORE_HEADER)
 
-    gi_patterns = _read_gitignore(d)
-    if gi_patterns:
-        lines.append("")
-        lines.append("# From .gitignore")
-        lines.extend(gi_patterns)
+    gi_patterns: list[str] = []
+    if absorb_gitignore:
+        gi_patterns = _read_gitignore(d)
+        if gi_patterns:
+            lines.append("")
+            lines.append("# From .gitignore")
+            lines.extend(gi_patterns)
 
     seen: set[str] = set(gi_patterns)
     for lang in languages:
@@ -443,10 +473,17 @@ def _toml_list(items: list[str]) -> str:
     return f"[{inner}]"
 
 
-def generate_pg_toml(directory: str | Path | None = None) -> str:
-    """Generate pg.toml content based on project detection."""
+def generate_pg_toml(
+    directory: str | Path | None = None,
+    *,
+    use_gitignore_prune: bool = True,
+) -> str:
+    """Generate pg.toml content based on project detection.
+
+    See ``detect_languages`` for the meaning of ``use_gitignore_prune``.
+    """
     d = Path(directory) if directory is not None else Path(os.getcwd())
-    languages = detect_languages(d)
+    languages = detect_languages(d, use_gitignore_prune=use_gitignore_prune)
     extensions = extensions_for(languages)
 
     lines = [
@@ -574,6 +611,8 @@ def init(
     directory: str | Path | None = None,
     toml_mode: InitMode = "skip",
     pgignore_mode: InitMode = "skip",
+    *,
+    absorb_gitignore: bool = True,
 ) -> dict:
     """Full init: detect project, write pg.toml + .pgignore, return report.
 
@@ -581,37 +620,50 @@ def init(
       "skip"   — don't touch if exists (default)
       "force"  — overwrite entirely
       "append" — add missing entries to existing file
+
+    ``absorb_gitignore`` controls both:
+      - Whether ``.gitignore`` lines are copied into the generated ``.pgignore``
+      - Whether ``.gitignore`` patterns are used to prune the language-detection walk
+    Default True (single-repo project where .gitignore == "skip these").
+    Pass False for orchestrated multi-repo workspaces (xen, vcstool, google repo)
+    where .gitignore hides nested children that ARE the project.
     """
     d = Path(directory) if directory is not None else Path(os.getcwd())
     with _init_lock:
-        languages = detect_languages(d)
+        languages = detect_languages(d, use_gitignore_prune=absorb_gitignore)
         extensions = extensions_for(languages)
 
         toml_path = d / "pg.toml"
         pgignore_path = d / ".pgignore"
 
+        def _toml() -> str:
+            return generate_pg_toml(d, use_gitignore_prune=absorb_gitignore)
+
+        def _pgignore() -> str:
+            return generate_pgignore(d, absorb_gitignore=absorb_gitignore)
+
         # pg.toml
         if not toml_path.exists():
-            _atomic_write(toml_path, generate_pg_toml(d))
+            _atomic_write(toml_path, _toml())
             toml_action = "created"
         elif toml_mode == "force":
-            _atomic_write(toml_path, generate_pg_toml(d))
+            _atomic_write(toml_path, _toml())
             toml_action = "overwritten"
         elif toml_mode == "append":
-            changed = _append_missing_lines(toml_path, generate_pg_toml(d))
+            changed = _append_missing_lines(toml_path, _toml())
             toml_action = "appended" if changed else "unchanged"
         else:
             toml_action = "skipped"
 
         # .pgignore
         if not pgignore_path.exists():
-            _atomic_write(pgignore_path, generate_pgignore(d))
+            _atomic_write(pgignore_path, _pgignore())
             pgignore_action = "created"
         elif pgignore_mode == "force":
-            _atomic_write(pgignore_path, generate_pgignore(d))
+            _atomic_write(pgignore_path, _pgignore())
             pgignore_action = "overwritten"
         elif pgignore_mode == "append":
-            changed = _append_missing_lines(pgignore_path, generate_pgignore(d))
+            changed = _append_missing_lines(pgignore_path, _pgignore())
             pgignore_action = "appended" if changed else "unchanged"
         else:
             pgignore_action = "skipped"
@@ -623,4 +675,5 @@ def init(
         "pgignore": str(pgignore_path),
         "toml_action": toml_action,
         "pgignore_action": pgignore_action,
+        "absorb_gitignore": absorb_gitignore,
     }
