@@ -314,6 +314,34 @@ class SearchSystem2:
                 return {k: val[k] for k in keys}
             return val
 
+        def _files(query: str | Posting | Sentence) -> Sentence:
+            """Project a posting set (or sr list) to its unique document names.
+
+            Pure projection — preserves the iteration order of the input. Does
+            NOT sort. Compose with ``rank`` to control order:
+
+                (files <query>)                       — docs in raw posting order
+                (files (rank "document" <query>))     — docs by match count (desc)
+                (files (rank "callers" <query>))      — docs by traced relevance
+                (count (files <query>))                — unique-doc count
+
+            Output is a list of strings, so it composes with ``count`` and
+            ``limit`` exactly like other sentence-leaf projections.
+            """
+            val = _resolve(query)
+            seen: dict[str, None] = {}  # ordered set
+            if isinstance(val, dict):
+                for key in val.keys():
+                    if isinstance(key, tuple) and len(key) >= 1 and isinstance(key[0], str):
+                        seen.setdefault(key[0], None)
+            elif isinstance(val, list):
+                # Handles sr lists and other tagged form lists.
+                # sr forms: (sr <doc> <line> <col> <context> <callers>)
+                for entry in val:
+                    if isinstance(entry, (list, tuple)) and len(entry) >= 2 and isinstance(entry[1], str):
+                        seen.setdefault(entry[1], None)
+            return list(seen.keys())
+
         ops = {
             Symbol("and"): _and,
             Symbol("or"): _or,
@@ -333,6 +361,7 @@ class SearchSystem2:
             Symbol("rank"): _rank,
             Symbol("results"): _results,
             Symbol("limit"): _limit,
+            Symbol("files"): _files,
         }
 
         self._pltg_system = PltgSystem(initial_env=ops, docs={}, strict_derive=False, name="SearchIndex2")

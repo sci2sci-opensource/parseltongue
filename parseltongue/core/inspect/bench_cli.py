@@ -2166,14 +2166,32 @@ def _stream_index_progress(cmd: dict, every: int) -> None:
 )
 @click.option("--force", is_flag=True, help="Shorthand: force both pg.toml and .pgignore.")
 @click.option("--append", "append_flag", is_flag=True, help="Shorthand: append both pg.toml and .pgignore.")
-def init_config(directory: str, toml_mode: str, pgignore_mode: str, force: bool, append_flag: bool):
+@click.option(
+    "--no-gitignore",
+    "no_gitignore",
+    is_flag=True,
+    help=(
+        "Do not absorb .gitignore into .pgignore, and do not use .gitignore patterns "
+        "to prune the language-detection walk. Use for orchestrated multi-repo "
+        "workspaces (xen, vcstool, google repo) where .gitignore hides nested "
+        "child repos that ARE the project."
+    ),
+)
+def init_config(
+    directory: str,
+    toml_mode: str,
+    pgignore_mode: str,
+    force: bool,
+    append_flag: bool,
+    no_gitignore: bool,
+):
     """Detect project and generate pg.toml + .pgignore.
 
     \b
     Scans DIRECTORY for file extensions, detects languages, reads .gitignore,
     and writes:
       pg.toml    — extensions and language settings
-      .pgignore  — ignore patterns (absorbs .gitignore)
+      .pgignore  — ignore patterns (absorbs .gitignore by default)
 
     \b
     Modes per file (--toml, --pgignore):
@@ -2183,6 +2201,7 @@ def init_config(directory: str, toml_mode: str, pgignore_mode: str, force: bool,
 
     \b
     Shorthand flags: --force (force both), --append (append both).
+    --no-gitignore disables .gitignore absorption AND prune-set use.
     Runs automatically on first `pg-bench index` if not yet initialized.
     """
     from parseltongue.core.inspect.config import init as config_init
@@ -2192,13 +2211,20 @@ def init_config(directory: str, toml_mode: str, pgignore_mode: str, force: bool,
     elif append_flag:
         toml_mode = pgignore_mode = "append"
 
-    result = config_init(directory, toml_mode=toml_mode, pgignore_mode=pgignore_mode)
+    result = config_init(
+        directory,
+        toml_mode=toml_mode,
+        pgignore_mode=pgignore_mode,
+        absorb_gitignore=not no_gitignore,
+    )
     langs = ", ".join(result["languages"])
     exts = " ".join(result["extensions"])
     click.echo(f"Detected: {langs}")
     click.echo(f"Extensions: {exts}")
     click.echo(f"pg.toml: {result['toml_action']} ({result['pg_toml']})")
     click.echo(f".pgignore: {result['pgignore_action']} ({result['pgignore']})")
+    if no_gitignore:
+        click.echo("absorb_gitignore: false (--no-gitignore)")
 
 
 @cli.command("index")
