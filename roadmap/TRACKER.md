@@ -14,3 +14,5 @@
 | [Scope Translation via Morphisms](pending/scope-morphisms.md) | pending | | |
 | [Decouple .pgignore from .gitignore](completed/decouple-pgignore-from-gitignore.md) | done | feature/decouple-pgignore-from-gitignore | |
 | [Search files projection](completed/search-files-projection.md) | done | feature/decouple-pgignore-from-gitignore | |
+| [Incremental Reindex](pending/incremental-reindex.md) | pending | | |
+| [Daemon Singleton + Shutdown](pending/daemon-singleton-and-shutdown.md) | pending | | |
