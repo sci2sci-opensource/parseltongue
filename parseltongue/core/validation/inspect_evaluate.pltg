@@ -1,8 +1,8 @@
 ; inspect_evaluate — validation stubs for Evaluation (formerly Diagnosis)
 ; Covers: evaluation.py, diagnosis.py (backward-compat shim)
 
-(load-document "evaluation.py" "../inspect/evaluation.py")
-(load-document "diagnosis.py" "../inspect/diagnosis.py")
+; (load-document "evaluation.py" "../inspect/evaluation.py")
+; (load-document "diagnosis.py" "../inspect/diagnosis.py")
 (import (quote ..std.util))
 (defterm stub util.stub :origin "import")
 

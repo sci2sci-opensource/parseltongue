@@ -1,8 +1,8 @@
 ; inspect_search — validation stubs for Search and SearchSystem
 ; Covers: search.py, searchable.py, store.py (SearchStore)
 
-(load-document "search.py" "../inspect/search.py")
-(load-document "searchable.py" "../inspect/searchable.py")
+; (load-document "search.py" "../inspect/search.py")
+; (load-document "searchable.py" "../inspect/searchable.py")
 (import (quote ..std.util))
 (defterm stub util.stub :origin "import")
 

@@ -536,7 +536,7 @@
 
 (fact diff-evaluated-structurally true
     :evidence (evidence "engine.py"
-        :quotes ("all_diffs = sorted((self.eval_diff(n) for n in self.diffs), key=lambda d: d.name)" "downstream_divergent = [d for d in all_diffs if not d.empty and not d.diff_contamination_only]" "value_divergent = [d for d in all_diffs if d.values_diverge and d.empty]")
+        :quotes ("all_diffs = sorted((self.eval_diff(n) for n in names), key=lambda d: d.name)" "downstream_divergent = [d for d in all_diffs if not d.empty and not d.diff_contamination_only]" "value_divergent = [d for d in all_diffs if d.values_diverge and d.empty]")
         :explanation "Consistency evaluates diffs structurally — divergence is a system issue"))
 
 (defterm diff-calls-resolve-origin false
@@ -1574,7 +1574,7 @@
 
 (fact consistency-checks-three-layers true
     :evidence (evidence "engine.py"
-        :quotes ("# 1. Evidence grounding\n        unverified = []\n        manually_verified = []\n        no_evidence = []" "# 2. Fabrication propagation\n        fabrications = sorted(\n            name\n            for name, thm in self.theorems.items()\n            if isinstance(thm.origin, str) and \"potential fabrication\" in thm.origin\n        )" "# 3. Diff divergences — evaluated live\n        all_diffs = sorted((self.eval_diff(n) for n in self.diffs), key=lambda d: d.name)")
+        :quotes ("# 1. Evidence grounding\n        unverified = []\n        manually_verified = []\n        no_evidence = []" "# 2. Fabrication propagation\n        fabrications = sorted(\n            name\n            for name, thm in self.theorems.items()\n            if isinstance(thm.origin, str) and \"potential fabrication\" in thm.origin\n        )" "# 3. Diff divergences — evaluated live\n        all_diffs = sorted((self.eval_diff(n) for n in names), key=lambda d: d.name)")
         :explanation "consistency() has 3 implementation sections"))
 
 (derive export-three-layers
