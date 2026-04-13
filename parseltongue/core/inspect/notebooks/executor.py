@@ -102,6 +102,7 @@ def execute_pgmd(
 
     # Step 2: Load through bench for full probe
     bench = Bench()
+    bench.purge()
     if user or assistant:
         bench.book(user or "", assistant or "")
     try:
