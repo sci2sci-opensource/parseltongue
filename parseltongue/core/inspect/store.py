@@ -600,7 +600,11 @@ class SearchStore:
         t0 = time.perf_counter()
         file_texts = self._store.load_texts(self._path)
         t_texts = time.perf_counter() - t0
-        log.info("SearchStore.load_index: load_texts done in %.2fs (got %d texts)", t_texts, len(file_texts))
+        log.info(
+            "SearchStore.load_index: load_texts done in %.2fs (got %d texts)",
+            t_texts,
+            len(file_texts) if file_texts else 0,
+        )
         # Migration: old format stored file_texts inside the main index
         if not file_texts:
             file_texts = cached.get("file_texts", {})
