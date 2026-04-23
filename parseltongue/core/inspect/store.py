@@ -28,12 +28,14 @@ if TYPE_CHECKING:
     from .search_s.index import DocumentSearchIndex
 
 from ..ast import DirectiveNode
-from ..integrity.merkle import MerkleNode, _sha256, merkle_combine
+from ..integrity.merkle import MerkleNode, _sha256, _sha256_bytes, merkle_combine
 from ..loader.lazy_loader import LazyLoader, LazyLoadResult
 from ..quote_verifier import DocumentIndex
 from ..system import System
+from .config import load_allow_large_globs as _load_allow_large_globs
 from .config import load_extensions as _load_extensions
 from .config import load_ignore_patterns as _load_pgignore
+from .config import load_max_file_size_bytes as _load_max_file_size_bytes
 from .history import History
 from .pgz import json_pgz_read, json_pgz_write, pgz_read, pgz_write
 from .probe_core_to_consequence import CoreToConsequenceStructure
@@ -48,6 +50,24 @@ _HOME_BENCH_DIR = Path.home() / ".parseltongue" / "pg-bench"
 # Back-compat aliases for any external callers
 _pgz_write = pgz_write
 _pgz_read = pgz_read
+
+_EMPTY_SHA256 = _sha256_bytes(b"")
+
+
+def _hash_file(path: str) -> str:
+    """Hash a file's bytes with SHA-256.
+
+    Returns hex digest, or "" on OSError. Empty files short-circuit
+    to the well-known empty digest without opening the file. Larger
+    files stream via ``hashlib.file_digest`` to bound peak memory.
+    """
+    try:
+        if os.stat(path).st_size == 0:
+            return _EMPTY_SHA256
+        with open(path, "rb") as fp:
+            return hashlib.file_digest(fp, "sha256").hexdigest()
+    except OSError:
+        return ""
 
 
 def _collect_tree_leaves(node: MerkleNode) -> dict[str, str]:
@@ -168,14 +188,13 @@ class Store:
     # ── File hashing ──
 
     def hash_files(self, files: list[str]) -> dict[str, str]:
-        """Hash each file's content. Returns {path: sha256}."""
-        hashes = {}
-        for f in files:
-            try:
-                hashes[f] = _sha256(Path(f).read_text())
-            except OSError:
-                hashes[f] = ""
-        return hashes
+        """Hash each file's bytes. Returns {path: sha256}.
+
+        Uses streaming via :func:`_hash_file` so peak memory stays
+        bounded regardless of file size, and empty files short-circuit
+        without I/O.
+        """
+        return {f: _hash_file(f) for f in files}
 
     def build_file_tree(self, files: list[str], hashes: dict[str, str]) -> MerkleNode:
         """Build Merkle tree where each file is a leaf."""
@@ -532,6 +551,10 @@ class SearchStore:
         self._file_stats: dict[str, tuple] = {}
         # Directory mtime cache: abs_dir_path → mtime_ns
         self._dir_mtimes: dict[str, int] = {}
+        # Size-guardrail skips: rel_path → size_bytes. Populated by
+        # _walk_directory when a file exceeds max_file_size_bytes and is not
+        # matched by [index].allow_large. Surfaced via log.error.
+        self._skipped_large: dict[str, int] = {}
 
     def _history(self) -> History | None:
         """Get the History instance for this search store."""
@@ -540,11 +563,17 @@ class SearchStore:
         return self._store.history(self._path)
 
     def load_index(self) -> DocumentIndex:
+        import time
+
         if self._preloaded is not None:
             return self._preloaded
         if not self._store:
             return DocumentIndex()
+        log.info("SearchStore.load_index: start path=%s", self._path)
+        t0 = time.perf_counter()
         cached = self._store.load_index(self._path)
+        t_read = time.perf_counter() - t0
+        log.info("SearchStore.load_index: cache read %.2fs (size=%s)", t_read, "hit" if cached else "miss")
         if not cached:
             return DocumentIndex()
         directory = cached.get("directory", "")
@@ -561,23 +590,73 @@ class SearchStore:
         self._dir_mtimes = cached.get("dir_mtimes", {})
         self._dir_hashes[self._path] = file_hashes
         idx_data = cached.get("index", {})
+        n_docs = len(idx_data.get("documents", {}))
         # Load texts from History (separate layered OrdinalPGZ files)
+        log.info(
+            "SearchStore.load_index: load_texts start (docs=%d, hashes=%d)",
+            n_docs,
+            len(file_hashes),
+        )
+        t0 = time.perf_counter()
         file_texts = self._store.load_texts(self._path)
+        t_texts = time.perf_counter() - t0
+        log.info("SearchStore.load_index: load_texts done in %.2fs (got %d texts)", t_texts, len(file_texts))
         # Migration: old format stored file_texts inside the main index
         if not file_texts:
             file_texts = cached.get("file_texts", {})
         if file_texts and len(file_texts) >= len(file_hashes):
             original_texts = {rel: file_texts.get(rel, "") for rel in idx_data.get("documents", {})}
-            return DocumentIndex.from_dict(idx_data, original_texts)
-        # Fallback: texts missing or incomplete — re-read from disk
-        # and backfill History so next load is instant
+            log.info("SearchStore.load_index: DocumentIndex.from_dict start (docs=%d)", n_docs)
+            t0 = time.perf_counter()
+            idx = DocumentIndex.from_dict(idx_data, original_texts)
+            t_build = time.perf_counter() - t0
+            log.info(
+                "SearchStore.load_index: done docs=%d hashes=%d cache_read=%.2fs texts_load=%.2fs index_build=%.2fs",
+                n_docs,
+                len(file_hashes),
+                t_read,
+                t_texts,
+                t_build,
+            )
+            return idx
+        # Fallback: some texts are missing in History (e.g. tombstoned files still
+        # listed in file_hashes). Only fetch the missing ones from disk and merge
+        # with what we already have — no point re-reading thousands of files we
+        # just decompressed. Pass old_hashes so the stat-fingerprint fast-path
+        # skips I/O for anything that slipped through without changing on disk.
+        missing = set(file_hashes) - set(file_texts)
         base = Path(directory)
-        paths = [(base / rel, rel) for rel in file_hashes]
-        disk_texts, _ = self._read_and_hash(paths)
-        original_texts = {rel: disk_texts.get(rel, "") for rel in idx_data.get("documents", {})}
+        paths = [(base / rel, rel) for rel in missing]
+        log.info(
+            "SearchStore.load_index: fallback — %d texts missing from %d hashes, fetching from disk",
+            len(missing),
+            len(file_hashes),
+        )
+        t0 = time.perf_counter()
+        disk_texts, _ = self._read_and_hash(paths, old_hashes=file_hashes)
+        t_rehash = time.perf_counter() - t0
+        merged_texts = dict(file_texts)
+        merged_texts.update(disk_texts)
+        original_texts = {rel: merged_texts.get(rel, "") for rel in idx_data.get("documents", {})}
         if disk_texts:
-            self._store.save_texts(self._path, disk_texts)
-        return DocumentIndex.from_dict(idx_data, original_texts)
+            # Backfill History so next load has complete texts and skips the fallback.
+            self._store.save_texts(self._path, merged_texts)
+        log.info("SearchStore.load_index: DocumentIndex.from_dict start (docs=%d)", n_docs)
+        t0 = time.perf_counter()
+        idx = DocumentIndex.from_dict(idx_data, original_texts)
+        t_build = time.perf_counter() - t0
+        log.info(
+            "SearchStore.load_index [fallback]: docs=%d hashes=%d missing=%d "
+            "cache_read=%.2fs texts_load=%.2fs rehash=%.2fs index_build=%.2fs",
+            n_docs,
+            len(file_hashes),
+            len(missing),
+            t_read,
+            t_texts,
+            t_rehash,
+            t_build,
+        )
+        return idx
 
     def load_search_index(self, doc_index: DocumentIndex) -> "DocumentSearchIndex | None":
         """Load cached DocumentSearchIndex if available.
@@ -585,15 +664,33 @@ class SearchStore:
         Requires the already-loaded DocumentIndex (from load_index) for
         enrichment — avoids re-reading the cache file.
         """
+        import time
+
         from .search_s.serialization import deserialize_search_index
 
         if not self._store:
             return None
+        log.info("SearchStore.load_search_index: start path=%s", self._path)
+        t0 = time.perf_counter()
         cached = self._store.load_index(self._path)
+        t_read = time.perf_counter() - t0
+        log.info("SearchStore.load_search_index: cache read %.2fs", t_read)
         if not cached or "search_index" not in cached:
             return None
+        sidx = cached["search_index"]
+        sidx_keys = list(sidx.keys()) if isinstance(sidx, dict) else []
+        log.info("SearchStore.load_search_index: deserialize start sections=%s", sidx_keys)
         try:
-            return deserialize_search_index(cached["search_index"], doc_index)
+            t0 = time.perf_counter()
+            result = deserialize_search_index(sidx, doc_index)
+            t_build = time.perf_counter() - t0
+            log.info(
+                "SearchStore.load_search_index: done cache_read=%.2fs deserialize=%.2fs sections=%s",
+                t_read,
+                t_build,
+                sidx_keys,
+            )
+            return result
         except Exception as e:
             log.warning("Failed to restore search index: %s", e)
             return None
@@ -768,6 +865,31 @@ class SearchStore:
         except Exception as e:
             log.warning("Failed to save search index: %s", e)
 
+    def _report_skipped_large(self, threshold_bytes: int) -> None:
+        """Emit a single error-level log for files skipped by the size guardrail.
+
+        Every oversized file must be explicitly resolved — either added to
+        .pgignore or matched by a glob in [index].allow_large in pg.toml.
+        Silence is not an option: the log fires on every index pass until
+        the caller clears the skip set.
+        """
+        if not self._skipped_large:
+            return
+        items = sorted(self._skipped_large.items(), key=lambda kv: -kv[1])
+        sample = items[:10]
+        bullets = "\n".join(f"  - {p} ({size / 1024 / 1024:.1f} MB)" for p, size in sample)
+        more = f"\n  ... and {len(items) - 10} more" if len(items) > 10 else ""
+        log.error(
+            "Size guardrail: %d file(s) exceed max_file_size_bytes (%.1f MB). "
+            "These files were NOT indexed. Resolve each one by either adding "
+            "it to .pgignore or listing a matching glob in [index].allow_large "
+            "in pg.toml.\n%s%s",
+            len(items),
+            threshold_bytes / 1024 / 1024,
+            bullets,
+            more,
+        )
+
     def _walk_directory(
         self,
         directory: str,
@@ -785,6 +907,10 @@ class SearchStore:
         ignore_patterns = _load_pgignore()
         if exclude:
             ignore_patterns.extend(exclude)
+        # Config lives at workspace root (CWD), matching _load_pgignore /
+        # _load_extensions — not at the indexed directory.
+        max_file_size = _load_max_file_size_bytes()
+        allow_large = _load_allow_large_globs()
 
         paths: list[tuple[Path, str]] = []
         for root, dirs, fnames in os.walk(directory):
@@ -830,6 +956,13 @@ class SearchStore:
                     rel = str(fpath.relative_to(directory))
                     if ignore_patterns and _is_ignored(rel, ignore_patterns):
                         continue
+                    try:
+                        size = fpath.stat().st_size
+                    except OSError:
+                        continue
+                    if size > max_file_size and not _is_ignored(rel, allow_large):
+                        self._skipped_large[rel] = size
+                        continue
                     paths.append((fpath, rel))
         return paths
 
@@ -867,12 +1000,14 @@ class SearchStore:
             self._file_stats.clear()
             self._dir_mtimes.clear()
 
+        self._skipped_large.clear()
         paths = self._walk_directory(
             directory,
             extensions,
             exclude,
             old_hashes=None if force else old_hashes,
         )
+        self._report_skipped_large(_load_max_file_size_bytes())
         file_texts, new_hashes = self._read_and_hash(
             paths,
             old_hashes=None if force else old_hashes,
@@ -926,6 +1061,7 @@ class SearchStore:
             self._file_stats.clear()
             self._dir_mtimes.clear()
 
+        self._skipped_large.clear()
         # Walk ALL tracked directories — picks up new files
         all_paths: list[tuple[Path, str]] = []
         primary_dir = directory
@@ -939,6 +1075,7 @@ class SearchStore:
             )
             if not primary_dir:
                 primary_dir = dir_path
+        self._report_skipped_large(_load_max_file_size_bytes())
 
         file_texts, new_hashes = self._read_and_hash(
             all_paths,

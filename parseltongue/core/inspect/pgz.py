@@ -1,5 +1,7 @@
 """PGZ disk formats — envelope, JsonPGZ, OrdinalPGZ, and LayeredTexts.
 
+
+
 PGZ envelope — shared by JsonPGZ (wraps JSON)::
 
     [4 bytes]  magic   "PGZ\\x01"
@@ -52,9 +54,13 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import struct
+import time
 import zlib
 from pathlib import Path
+
+log = logging.getLogger("parseltongue.pgz")
 
 # ── PGZ envelope ──
 
@@ -233,9 +239,28 @@ def ordinal_pgz_read(path: Path) -> dict[str, str]:
     Decompresses both streams. For header-only access use
     ordinal_pgz_header_keys() which skips the text block.
     """
+    t0 = time.perf_counter()
+    raw_size = path.stat().st_size
     header, text_block = _ordinal_pgz_read_raw(path)
+    t_read = time.perf_counter() - t0
     entries = _parse_ordinal_header(header)
-    return {name: text_block[off : off + length].decode("utf-8") for name, off, length in entries}
+    t_parse = time.perf_counter() - t0 - t_read
+    result = {name: text_block[off : off + length].decode("utf-8") for name, off, length in entries}
+    t_total = time.perf_counter() - t0
+    log.debug(
+        "ordinal_pgz_read %s: file=%dB header=%dB text=%dB entries=%d "
+        "read_decompress=%.3fs parse=%.3fs slice_decode=%.3fs total=%.3fs",
+        path.name,
+        raw_size,
+        len(header),
+        len(text_block),
+        len(entries),
+        t_read,
+        t_parse,
+        t_total - t_read - t_parse,
+        t_total,
+    )
+    return result
 
 
 def ordinal_pgz_decode(data: bytes) -> dict[str, str]:
@@ -359,16 +384,40 @@ class LayeredTexts:
         paths = self.layer_paths()
         if not paths:
             return {}
+        log.info("LayerStack.read: merging %d layers (prefix=%s)", len(paths), self._prefix)
+        t_start = time.perf_counter()
         result: dict[str, str] = {}
         seen: set[str] = set()
+        layer_bytes = 0
+        layer_entries = 0
         # Newest first
         for path in reversed(paths):
+            t_layer = time.perf_counter()
             layer = ordinal_pgz_read(path)
+            layer_bytes += path.stat().st_size
+            layer_entries += len(layer)
+            kept = 0
             for name, text in layer.items():
                 if name not in seen:
                     seen.add(name)
                     if text:  # skip tombstones
                         result[name] = text
+                        kept += 1
+            log.debug(
+                "LayerStack.read: %s %.3fs entries=%d kept=%d",
+                path.name,
+                time.perf_counter() - t_layer,
+                len(layer),
+                kept,
+            )
+        log.info(
+            "LayerStack.read: done %d layers, %d bytes on disk, %d total entries → %d merged, %.2fs",
+            len(paths),
+            layer_bytes,
+            layer_entries,
+            len(result),
+            time.perf_counter() - t_start,
+        )
         return result
 
     def trim(self, max_layers: int):

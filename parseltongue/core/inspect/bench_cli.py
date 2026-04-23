@@ -1045,10 +1045,13 @@ def _setup_file_logging(console_level: str):
     fh.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s"))
     fh.setLevel(file_level)
     root.addHandler(fh)
-    # Console: same level
-    sh = logging.StreamHandler()
-    sh.setLevel(file_level)
-    root.addHandler(sh)
+    # Console handler: only when attached to a TTY. When daemonized, stderr is
+    # already redirected to bench.log, so a StreamHandler there would
+    # double-log every line (once timestamped via fh, once raw via stderr dup).
+    if sys.stderr.isatty():
+        sh = logging.StreamHandler()
+        sh.setLevel(file_level)
+        root.addHandler(sh)
     # Root matches lowest handler level
     root.setLevel(file_level)
 
@@ -1083,13 +1086,23 @@ def _run_server(
         def _refresh_loop():
             while True:
                 time.sleep(refresh_s)
-                if server._is_ready():
-                    try:
-                        count = server.bench.index.reindex()
-                        if count:
-                            log.info("Background reindex: %d files", count)
-                    except Exception as e:
-                        log.warning("Background reindex failed: %s", e)
+                if not server._is_ready():
+                    continue
+                try:
+                    idx = server.bench.index
+                except Exception:
+                    # No current sample yet (prepare hasn't advanced that far).
+                    continue
+                if not idx.is_loaded():
+                    # Initial cache deserialize still in progress — skip this
+                    # tick so reindex doesn't race the loader.
+                    continue
+                try:
+                    count = idx.reindex()
+                    if count:
+                        log.info("Background reindex: %d files", count)
+                except Exception as e:
+                    log.warning("Background reindex failed: %s", e)
 
         t = threading.Thread(target=_refresh_loop, daemon=True)
         t.start()
@@ -1367,12 +1380,22 @@ def _daemonize(
     if pid2 > 0:
         os._exit(0)
 
-    # Grandchild — redirect stdio, run server
-    devnull = os.open(os.devnull, os.O_RDWR)
-    os.dup2(devnull, 0)
-    os.dup2(devnull, 1)
-    os.dup2(devnull, 2)
-    os.close(devnull)
+    # Grandchild — redirect stdio to bench.log so crashes, uncaught prints,
+    # and log.error messages survive instead of vanishing into /dev/null.
+    # The RotatingFileHandler set up in _run_server writes structured lines
+    # to the same file; raw stdout/stderr from anywhere else lands alongside.
+    # Rotation keeps working — RotatingFileHandler reopens on rollover while
+    # the dup2'd fd continues writing to the pre-rotation inode, so at worst
+    # a few bytes end up in bench.log.1 instead of bench.log.
+    BENCH_DIR.mkdir(parents=True, exist_ok=True)
+    log_path = BENCH_DIR / "bench.log"
+    devnull_r = os.open(os.devnull, os.O_RDONLY)
+    log_fd = os.open(log_path, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o644)
+    os.dup2(devnull_r, 0)
+    os.dup2(log_fd, 1)
+    os.dup2(log_fd, 2)
+    os.close(devnull_r)
+    os.close(log_fd)
 
     _run_server(
         path, Path(sock), refresh_s=refresh_s, log_level=log_level, effects=effects, user=user, assistant=assistant
