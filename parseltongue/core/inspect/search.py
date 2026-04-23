@@ -54,11 +54,14 @@ define a defterm in the SearchSystem. ``(scope name expr)`` evaluates
 
 from __future__ import annotations
 
+import logging
 from typing import Callable
 
 from .store import SearchStore
 from .systems.bench_system import BenchSubsystem
 from .systems.search_system_2 import SearchSystem2 as SearchSystem
+
+log = logging.getLogger("parseltongue.search")
 
 
 class Search:
@@ -72,6 +75,11 @@ class Search:
     """
 
     def __init__(self, store: SearchStore):
+        # _loaded flips to True at the end of __init__ so callers (e.g. the
+        # refresh loop) can detect a half-built Search — the cache read may
+        # take minutes on large corpora and a stray reindex during that
+        # window would thrash the loader.
+        self._loaded = False
         self._index = store.load_index()
         self._store = store
         # Try to restore cached search index (stems, ngrams, meta, corpus)
@@ -80,6 +88,11 @@ class Search:
             self._system = SearchSystem(cached_search, self._collect)
         else:
             self._system = SearchSystem(self._index, self._collect)
+        self._loaded = True
+
+    def is_loaded(self) -> bool:
+        """True once the cached index has been fully deserialized."""
+        return self._loaded
 
     def register_scope(self, name: str, system: BenchSubsystem):
         """Register a BenchSubsystem as a named scope."""
@@ -152,7 +165,13 @@ class Search:
         re-hashes existing files, and updates stale entries.
 
         force=True bypasses stat/hash caches — full tree walk + re-read.
+
+        No-ops with a warning if the cached index isn't fully loaded yet,
+        so background refresh loops don't race the initial deserialize.
         """
+        if not self._loaded:
+            log.warning("Search.reindex: skipped — cached index not yet loaded.")
+            return 0
         updated, count, deleted = self._store.reindex(self._index, on_progress, force=force)
         self._sync(updated, deleted)
         if count > 0:

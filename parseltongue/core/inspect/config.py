@@ -9,6 +9,7 @@ Files managed:
 
 from __future__ import annotations
 
+import logging
 import os
 import sys
 import tempfile
@@ -16,6 +17,8 @@ import threading
 from pathlib import Path
 
 from parseltongue.core.loader.files import EXT_TYPE
+
+log = logging.getLogger("parseltongue.config")
 
 if sys.version_info >= (3, 11):
     import tomllib
@@ -28,6 +31,12 @@ else:
 # ── Parseltongue extensions (from loader/files.py — single source of truth) ───
 _PARSELTONGUE_EXTENSIONS = sorted(EXT_TYPE.keys())
 BASE_EXTENSIONS = [".md", ".txt"] + _PARSELTONGUE_EXTENSIONS
+
+# ── Size guardrail defaults ───────────────────────────────────────────────────
+# Files over this size are treated as anomalies during indexing: skipped and
+# reported at error-level so the user must explicitly decide — either ignore
+# them via .pgignore or permit them via [index].allow_large globs in pg.toml.
+DEFAULT_MAX_FILE_SIZE_BYTES = 1_048_576  # 1 MB
 
 # ── Language presets ──────────────────────────────────────────────────────────
 LANGUAGE_PRESETS: dict[str, list[str]] = {
@@ -495,6 +504,12 @@ def generate_pg_toml(
         "[index]",
         f"extensions = {_toml_list(extensions)}",
         "",
+        "# Size guardrail: files over this size are skipped during indexing",
+        "# and reported at error-level. Every oversized file must be either",
+        "# .pgignore'd or explicitly allowed via allow_large below.",
+        f"max_file_size_bytes = {DEFAULT_MAX_FILE_SIZE_BYTES}",
+        "allow_large = []",
+        "",
     ]
     return "\n".join(lines)
 
@@ -547,6 +562,30 @@ def load_extensions(directory: str | Path | None = None) -> list[str]:
     return list(conf.get("index", {}).get("extensions", BASE_EXTENSIONS))
 
 
+def load_max_file_size_bytes(directory: str | Path | None = None) -> int:
+    """Load the index size guardrail threshold from pg.toml.
+
+    Files larger than this are skipped during indexing and reported at
+    error-level so the user must resolve them explicitly (ignore or allow).
+    """
+    d = Path(directory) if directory is not None else Path(os.getcwd())
+    ensure_initialized(d)
+    conf = load_config(d)
+    return int(conf.get("index", {}).get("max_file_size_bytes", DEFAULT_MAX_FILE_SIZE_BYTES))
+
+
+def load_allow_large_globs(directory: str | Path | None = None) -> list[str]:
+    """Load gitignore-style globs of oversized files to index anyway.
+
+    Each entry matches paths relative to the indexed directory, using the
+    same matcher as .pgignore.
+    """
+    d = Path(directory) if directory is not None else Path(os.getcwd())
+    ensure_initialized(d)
+    conf = load_config(d)
+    return list(conf.get("index", {}).get("allow_large", []))
+
+
 def load_ignore_patterns(directory: str | Path | None = None) -> list[str]:
     """Load ignore patterns. DEFAULT_IGNORE + .pgignore lines."""
     d = Path(directory) if directory is not None else Path(os.getcwd())
@@ -561,8 +600,60 @@ def load_ignore_patterns(directory: str | Path | None = None) -> list[str]:
     return patterns
 
 
+_migrated_dirs: set[Path] = set()
+
+
+def _migrate_index_guardrails(directory: Path) -> bool:
+    """Append size-guardrail keys to an existing pg.toml if they're missing.
+
+    This is a one-time migration for projects whose pg.toml predates the
+    [index].max_file_size_bytes / allow_large keys. Idempotent: the parsed
+    [index] section is inspected, so user-edited values are never
+    overwritten. Returns True iff the file was modified.
+
+    Process-level cache keyed on the directory prevents repeated parsing
+    on hot config-loader paths.
+    """
+    if directory in _migrated_dirs:
+        return False
+    path = directory / "pg.toml"
+    if not path.exists():
+        _migrated_dirs.add(directory)
+        return False
+    try:
+        conf = load_config(directory)
+    except Exception:
+        _migrated_dirs.add(directory)
+        return False
+    index_section = conf.get("index", {})
+    missing_lines: list[str] = []
+    if "max_file_size_bytes" not in index_section:
+        missing_lines.extend(
+            [
+                "",
+                "# Size guardrail: files over this size are skipped during indexing",
+                "# and reported at error-level. Every oversized file must be either",
+                "# .pgignore'd or explicitly allowed via allow_large below.",
+                f"max_file_size_bytes = {DEFAULT_MAX_FILE_SIZE_BYTES}",
+            ]
+        )
+    if "allow_large" not in index_section:
+        missing_lines.append("allow_large = []")
+    if not missing_lines:
+        _migrated_dirs.add(directory)
+        return False
+    existing = path.read_text()
+    suffix = ("" if existing.endswith("\n") else "\n") + "\n".join(missing_lines) + "\n"
+    _atomic_write(path, existing + suffix)
+    _migrated_dirs.add(directory)
+    return True
+
+
 def ensure_initialized(directory: str | Path | None = None) -> None:
     """If pg.toml or .pgignore is missing, generate and write them.
+
+    Also migrates existing pg.toml files that predate the size-guardrail
+    keys, appending default values and logging the change so users know.
 
     Thread-safe: uses a lock so concurrent callers wait rather than
     racing to generate config simultaneously. Writes are atomic
@@ -570,13 +661,28 @@ def ensure_initialized(directory: str | Path | None = None) -> None:
     """
     d = Path(directory) if directory is not None else Path(os.getcwd())
     if (d / "pg.toml").exists() and (d / ".pgignore").exists():
-        return  # fast path — no lock needed
+        # Fast path — both files exist. Still check for guardrail migration
+        # once per directory (cached in _migrated_dirs so hot callers pay
+        # only the set-lookup cost).
+        if d not in _migrated_dirs:
+            with _init_lock:
+                if _migrate_index_guardrails(d):
+                    log.warning(
+                        "Migrated pg.toml at %s: appended default size guardrail "
+                        "(max_file_size_bytes=%d, allow_large=[]). Review and "
+                        "adjust if needed.",
+                        d,
+                        DEFAULT_MAX_FILE_SIZE_BYTES,
+                    )
+        return
     with _init_lock:
         # Re-check under lock (another thread may have written while we waited)
         if not (d / "pg.toml").exists():
             _atomic_write(d / "pg.toml", generate_pg_toml(d))
         if not (d / ".pgignore").exists():
             _atomic_write(d / ".pgignore", generate_pgignore(d))
+        # Also migrate if pg.toml was pre-existing when we entered the lock
+        _migrate_index_guardrails(d)
 
 
 def _append_missing_lines(path: Path, new_content: str) -> bool:

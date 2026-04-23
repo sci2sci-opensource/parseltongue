@@ -73,6 +73,10 @@ class Technician:
         self._lens_mem: dict = {}  # path → Lens
         self._affected: dict[str, set[str]] = {}
         self._search_mem: dict = {}  # path → Search
+        # Serializes first-construction of a Search per path so the refresh
+        # loop can't race the background prepare thread into loading the
+        # cached index twice simultaneously.
+        self._search_mem_lock = threading.Lock()
         self._ops: "OperationsSystem | None" = None  # shared, stateless
         self._session: dict | None = None  # logbook session entry
 
@@ -150,8 +154,21 @@ class Technician:
     # ── Search engine ──
 
     def search_engine(self, path: str):
-        """Get or create the Search engine for a path."""
-        if path not in self._search_mem:
+        """Get or create the Search engine for a path.
+
+        First-construction is serialized via ``_search_mem_lock`` so two
+        threads calling concurrently can't both enter ``Search(...)`` and
+        each deserialize the cached index — that was the observed
+        double-load thrash when the refresh loop fired while prepare
+        was still building the initial Search instance.
+        """
+        cached = self._search_mem.get(path)
+        if cached is not None:
+            return cached
+        with self._search_mem_lock:
+            cached = self._search_mem.get(path)
+            if cached is not None:
+                return cached
             from .search import Search
             from .store import SearchStore
 
@@ -374,6 +391,10 @@ class Technician:
         Returns (sample, affected_names).
         affected_names is None for cold/cache-hit, a set for hot-patch.
         """
+        import time
+
+        log.info("Technician.prepare: start path=%s", path)
+        t0 = time.perf_counter()
         file_list: list[str] | None = self._file_lists.get(path)
         disk_raw = None
 
@@ -385,8 +406,11 @@ class Technician:
                 self._file_lists[path] = file_list
 
         if file_list:
+            log.info("Technician.prepare: hashing %d source files", len(file_list))
+            th = time.perf_counter()
             new_hashes = self._store.hash_files(file_list)
             new_tree = self._store.build_file_tree(file_list, new_hashes)
+            log.info("Technician.prepare: hash+tree %.2fs", time.perf_counter() - th)
 
             # Memory cache — exact match
             if cached and cached[1].hash == new_tree.hash:
@@ -398,11 +422,21 @@ class Technician:
             if disk_raw is None:
                 disk_raw = self._store.read_raw(path)
             if disk_raw and disk_raw.get("merkle_root") == new_tree.hash:
+                log.info("Technician.prepare: disk-cache hit, Store.deserialize start")
+                td = time.perf_counter()
                 structure, loader = self._store.deserialize(disk_raw)
+                log.info("Technician.prepare: Store.deserialize done in %.2fs", time.perf_counter() - td)
                 sample = (path, new_tree, structure, loader)
                 self._file_hashes[path] = new_hashes
                 self._ensure_frozen()
+                log.info("Technician.prepare: _register_scopes start")
+                tr = time.perf_counter()
                 self._register_scopes(path, sample)
+                log.info(
+                    "Technician.prepare: _register_scopes done in %.2fs (total prepare %.2fs)",
+                    time.perf_counter() - tr,
+                    time.perf_counter() - t0,
+                )
                 load_result = loader.last_result
                 integrity = self._check_load_integrity(path, load_result) if load_result else self.VERIFIED
                 self._on_status(path, integrity, self.LOADING)

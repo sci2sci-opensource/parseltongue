@@ -43,17 +43,37 @@ class IndexedDocument:
 
     @classmethod
     def from_serialized(
-        cls, name: str, original_text: str, normalized_text: str, position_map: List[int]
+        cls,
+        name: str,
+        original_text: str,
+        normalized_text: str,
+        position_map: List[int],
+        word_positions: Dict[str, List[int]] | None = None,
+        collapsed_text: str | None = None,
+        collapsed_to_norm: List[int] | None = None,
     ) -> "IndexedDocument":
-        """Restore from serialized state — skips normalize_with_mapping."""
+        """Restore from serialized state.
+
+        ``word_positions``, ``collapsed_text``, and ``collapsed_to_norm`` are
+        persisted since they're the expensive part to compute (char-by-char
+        Python loops over normalized_text). If missing — e.g. a cache written
+        before this schema expanded — they're rebuilt transparently.
+        """
         obj = object.__new__(cls)
         obj.name = name
         obj.original_text = original_text
         obj.content_hash = _content_hash(original_text)
         obj.normalized_text = normalized_text
         obj.position_map = position_map
-        obj.word_positions = obj._build_word_index()
-        obj._collapsed_text, obj._collapsed_to_norm = obj._build_collapsed()
+        if word_positions is not None:
+            obj.word_positions = word_positions
+        else:
+            obj.word_positions = obj._build_word_index()
+        if collapsed_text is not None and collapsed_to_norm is not None:
+            obj._collapsed_text = collapsed_text
+            obj._collapsed_to_norm = collapsed_to_norm
+        else:
+            obj._collapsed_text, obj._collapsed_to_norm = obj._build_collapsed()
         return obj
 
     def to_dict(self) -> dict:
@@ -62,6 +82,12 @@ class IndexedDocument:
             "normalized_text": self.normalized_text,
             "position_map": self.position_map,
             "content_hash": self.content_hash,
+            # Persist the expensive index structures — restoring them is the
+            # whole point of a cache. Without these, from_serialized would
+            # rebuild them via char-by-char Python loops on every startup.
+            "word_positions": self.word_positions,
+            "collapsed_text": self._collapsed_text,
+            "collapsed_to_norm": self._collapsed_to_norm,
         }
 
     def _build_word_index(self) -> Dict[str, List[int]]:
@@ -266,6 +292,9 @@ class DocumentIndex:
                     original_text=original,
                     normalized_text=doc_data["normalized_text"],
                     position_map=doc_data["position_map"],
+                    word_positions=doc_data.get("word_positions"),
+                    collapsed_text=doc_data.get("collapsed_text"),
+                    collapsed_to_norm=doc_data.get("collapsed_to_norm"),
                 )
                 idx._hashes[name] = saved_hash
             else:
