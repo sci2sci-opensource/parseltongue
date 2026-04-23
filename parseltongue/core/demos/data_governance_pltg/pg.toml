@@ -5,3 +5,9 @@ languages = ["csv", "html", "json", "parseltongue", "python", "shell"]
 
 [index]
 extensions = [".bash", ".csv", ".htm", ".html", ".json", ".md", ".pg", ".pg.md", ".pgmd", ".pltg", ".py", ".pyi", ".sh", ".tsv", ".txt", ".zsh"]
+
+# Size guardrail: files over this size are skipped during indexing
+# and reported at error-level. Every oversized file must be either
+# .pgignore'd or explicitly allowed via allow_large below.
+max_file_size_bytes = 1048576
+allow_large = []
