@@ -1232,8 +1232,17 @@ def _run_server(
         import time
 
         def _refresh_loop():
+            # Save-when-the-dust-settles: passes are memory-only (changes
+            # searchable immediately); the slow full-corpus cache writes are
+            # batched and flushed on the first quiet pass after an editing
+            # burst, or when unsaved changes get older than MAX_UNSAVED_S.
+            MAX_UNSAVED_S = 900.0
+            QUIET_PASSES_TO_FLUSH = 2
+            pace = float(refresh_s)
+            dirty_since: float | None = None
+            quiet_passes = 0
             while True:
-                time.sleep(refresh_s)
+                time.sleep(pace)
                 if not server._is_ready():
                     continue
                 try:
@@ -1245,10 +1254,33 @@ def _run_server(
                     # Initial cache deserialize still in progress — skip this
                     # tick so reindex doesn't race the loader.
                     continue
+                if idx.reindex_busy():
+                    # A client-triggered index/reindex is running — skip the
+                    # tick rather than queue behind it on the lock.
+                    continue
                 try:
-                    count = idx.reindex()
+                    t0 = time.monotonic()
+                    count = idx.reindex(defer_save=True)
+                    duration = time.monotonic() - t0
                     if count:
-                        log.info("Background reindex: %d files", count)
+                        log.info("Background reindex: %d files in %.2fs", count, duration)
+                        quiet_passes = 0
+                        if dirty_since is None:
+                            dirty_since = time.monotonic()
+                    else:
+                        quiet_passes += 1
+                    overdue = dirty_since is not None and time.monotonic() - dirty_since > MAX_UNSAVED_S
+                    if idx.save_pending() and (quiet_passes >= QUIET_PASSES_TO_FLUSH or overdue):
+                        t0f = time.monotonic()
+                        idx.flush_saves()
+                        duration += time.monotonic() - t0f
+                        log.info("Background cache flush in %.2fs", time.monotonic() - t0f)
+                        dirty_since = None
+                    # Self-throttle: a pass that takes longer than the
+                    # configured interval must not run back-to-back — cap the
+                    # loop at ~1/6 duty cycle so it can't pin a core on trees
+                    # where the walk (or a flush) is slower than refresh_s.
+                    pace = max(float(refresh_s), 5.0 * duration)
                 except Exception as e:
                     log.warning("Background reindex failed: %s", e)
 

@@ -80,6 +80,20 @@ All five wants landed, plus a `pg stop` command that fell out of the replace mac
 
 **Tests**: `test_daemon_lifecycle.py` — 16 tests covering probe (absent/stale/live), singleton refusal message, stale-socket removal, `--replace` termination, socket-level terminate with dead-pid cleanup, shutdown action ack-before-signal ordering, ping pid/pltg advertisement, registry roundtrip/replacement/corruption tolerance, and pid liveness.
 
+**Refresh loop & cache I/O (follow-up landed on the same branch)**
+
+Live measurement on a ~2300-file multi-repo workspace exposed the refresh loop as the per-daemon cost behind the original incident: at the default 2s interval the daemon pinned a core (86–95% CPU) and sawtoothed 2.7→7.5 GB RSS with zero file changes.
+
+- Root cause: every background pass parsed the multi-hundred-MB `.idx.pgz` twice (once in `SearchStore.reindex` for hashes it already had in memory, once in `_update_index` to rebuild a DocumentIndex that hadn't changed) plus a full LayeredTexts merge.
+- No-change passes are now memory-only: hashes/tracked-dirs come from in-memory state, and the live index is returned untouched. Idle CPU dropped to ~11% mean (walk cost only), RSS flat.
+- Changed passes mutate the live index in place (`add()` is hash-guarded + COW) instead of rebuilding from disk.
+- The serialized search index moved out of `.idx.pgz` into its own `.six.pgz` (legacy inline layout still loads; first save migrates). Kills a parse + double-write per changed pass and roughly halves boot time (~40s → ~20s on the reference workspace).
+- `_sync` now runs before the disk writes, so an edit is searchable in ~10s instead of after the multi-minute full-corpus save.
+- Save-when-the-dust-settles: background passes defer the heavy cache writes (`reindex(defer_save=True)` accumulates payloads); the loop flushes after two quiet passes or 15 min of unsaved changes. Explicit `pg reindex`/`pg index` still save synchronously.
+- All reindex/index paths serialize on an in-process lock (`Search._reindex_lock`); the loop skips ticks while a client pass runs and self-throttles to ≤1/6 duty cycle via measured pass duration.
+
+Still roadmap material (incremental-reindex): the flush remains O(corpus) (~2 min CPU on the reference workspace, batched per editing burst), serialization builds ~1.8 GB transient dicts, and the per-pass walk cost is what the dir-mtime short-circuit will remove.
+
 **Deferred (follow-on entries if picked up)**
 - uint64 PGZ envelope (`PGZ\x02` magic, backward-compatible reads) if >4 GiB single payloads become real.
 - `pg watch` / inotify-driven reindex belongs to the incremental-reindex task, but the singleton guard is its prerequisite and is now in place.
