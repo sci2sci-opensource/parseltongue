@@ -66,7 +66,7 @@ open viz-results/clean.html
 # Now inject corruptions and regenerate
 python generate.py --clean
 # Restart bench (runtime data changed)
-pkill -f pg-bench; sleep 1
+pg-bench stop
 pg-bench serve checker.pltg --effects parseltongue.core.demos.data_governance_pltg.operators:GOVERNANCE_EFFECTS &
 pg-bench wait
 pg-bench eval '(fmt "viz" (scope hologram (dissect (stain policy-check))))' > viz-results/corrupt.html

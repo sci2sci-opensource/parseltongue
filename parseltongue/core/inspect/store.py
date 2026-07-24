@@ -264,8 +264,7 @@ class Store:
             "system": result.system.to_dict(),
         }
         try:
-            payload = json.dumps(data, separators=(",", ":")).encode()
-            _pgz_write(self._cache_path(path), payload)
+            json_pgz_write(self._cache_path(path), data)
             # Clean up legacy .json if it exists
             self._legacy_cache_path(path).unlink(missing_ok=True)
         except Exception as e:
@@ -315,8 +314,7 @@ class Store:
         self._ensure_dir()
         data = {"merkle_root": merkle_root, "diagnosis": dx.to_dict()}
         try:
-            payload = json.dumps(data, separators=(",", ":")).encode()
-            _pgz_write(self._diagnosis_cache_path(path), payload)
+            json_pgz_write(self._diagnosis_cache_path(path), data)
             self._legacy_diagnosis_cache_path(path).unlink(missing_ok=True)
         except Exception as e:
             log.warning("Failed to save evaluation for %s: %s", path, e)

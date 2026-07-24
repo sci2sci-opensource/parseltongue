@@ -41,3 +41,45 @@ Each piece is independently addressable and they compose naturally:
 This task is the next step after [decouple-pgignore-from-gitignore](decouple-pgignore-from-gitignore.md) and [incremental-reindex](incremental-reindex.md): together they make the bench *useful* in large workspaces; this task makes it *robust* under sustained interactive use. A long agent session that opens and closes the bench many times currently leaks daemons silently; a singleton check makes that impossible by construction.
 
 Lower-priority but worth flagging in the same area: the logbook accumulates one entry per `pg start` invocation. With the leak above, sessions accumulate dozens of duplicate logbook rows pointing at the same user/assistant pair. After (1) lands the duplication stops on its own, but a one-shot cleanup utility (`pg logbook compact` or similar) might be useful for projects that already have a polluted logbook.
+
+## Result
+
+**Branch**: feature/daemon-singleton-and-shutdown
+
+All five wants landed, plus a `pg stop` command that fell out of the replace machinery.
+
+**Singleton (`bench_cli.py`)**
+- `_probe_daemon(sock_path)` — connect + ping with a 2s timeout. Distinguishes live daemon / stale socket file / no socket.
+- `serve`, `start`, and `up` all run `_ensure_socket_free()` first: live daemon → refuse with pid, pltg path, and the three ways out (`pg reload`, `pg stop`, `--replace`); stale socket file → removed automatically; free → proceed.
+- `--replace` (new flag on all three start variants) sends the daemon a `shutdown` action over its own socket (falls back to SIGTERM via the advertised pid for daemons that don't speak it), then waits up to 15s for both the socket release and process exit before starting.
+- `_run_server` no longer unconditionally steals the socket path — the historical mechanism by which N daemons stacked up. A second daemon now refuses at bind time even if the CLI guard was bypassed.
+- New `shutdown` dispatch action: acks over the socket first, then SIGTERMs itself (works mid-load too).
+- New `pg stop [--socket]` command: clean shutdown + wait for release, and stale-socket cleanup when nothing is listening.
+
+**Process name**
+- `_daemonize` now execs `python -m parseltongue.core.inspect.bench_cli serve <pltg> ...` in the grandchild. The daemon's argv is honest: `ps` shows what it is, and `pkill -f bench_cli` matches, as the docs always claimed.
+
+**Bounded shutdown (`pgz.py`, `store.py`)**
+- Root cause of the multi-GB shutdown balloon: `json_pgz_write` one-shot `json.dumps(...).encode()` + `zlib.compress` — three full copies of the index in RAM, inside C calls that hold the GIL, so the SIGTERM handler couldn't even run until the save finished.
+- `json_pgz_write` now streams: chunked `iterencode` → sha256/zlib fed incrementally → file, header back-patched. Peak memory is the 1 MB buffer, not the payload; the GIL is released between chunks so SIGTERM stays answerable mid-save.
+- `ordinal_pgz_write` compresses per-entry — the uncompressed text block is never materialized. On-disk formats unchanged (existing roundtrip tests pass untouched).
+- All pgz writes land via `.tmp` + rename — a kill mid-save can no longer tear the cache file; the previous valid cache survives a failed save.
+- The >4 GiB envelope limit (uint32 size field) now fails fast with a clear message instead of a post-hoc `struct.error`; the running total aborts the save the moment it crosses the line.
+- `store.save` / `save_diagnosis` routed through the streaming writer.
+- `_cleanup` itself: SIGALRM 10s hard backstop, registry deregistration, then `os._exit(0)` — no interpreter finalization over a multi-GB live index.
+
+**Visibility**
+- Daemons register in `~/.parseltongue/daemons.json` (sock, pid, pltg, cwd, started) on bind and deregister on clean shutdown.
+- `pg status --all` lists every registered daemon with liveness state (`pong`/`loading`/`unresponsive`) and prunes entries whose process is gone.
+- `ping` and `status` responses now carry pid + pltg path (this is also what powers the refuse message and `--replace` fallback).
+
+**Docs**
+- Kung-fu learning path: cleanup recipe rewritten around `pg stop` / `pg start --replace` / `pg status --all`; manual `rm` of stale sockets documented as no longer needed.
+- data_governance demo README: `pkill -f pg-bench; sleep 1` → `pg-bench stop`.
+- Lifecycle help on serve/start/up and the top-level command listings updated.
+
+**Tests**: `test_daemon_lifecycle.py` — 16 tests covering probe (absent/stale/live), singleton refusal message, stale-socket removal, `--replace` termination, socket-level terminate with dead-pid cleanup, shutdown action ack-before-signal ordering, ping pid/pltg advertisement, registry roundtrip/replacement/corruption tolerance, and pid liveness.
+
+**Deferred (follow-on entries if picked up)**
+- uint64 PGZ envelope (`PGZ\x02` magic, backward-compatible reads) if >4 GiB single payloads become real.
+- `pg watch` / inotify-driven reindex belongs to the incremental-reindex task, but the singleton guard is its prerequisite and is now in place.
