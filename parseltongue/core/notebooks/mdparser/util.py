@@ -1,5 +1,5 @@
 import re
-from html import _replace_charref  # type: ignore[attr-defined]
+from html import _replace_charref  # type: ignore[attr-defined, unused-ignore]
 from typing import Match
 from urllib.parse import quote
 
