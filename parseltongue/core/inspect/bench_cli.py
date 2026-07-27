@@ -51,11 +51,13 @@ Screen (consistency checks):
     pg-bench diagnose --focus "engine."        # focus on namespace
 
 Operations:
-    pg-bench ping      # "pong" when ready
-    pg-bench wait      # blocks until ready
-    pg-bench status    # path, status, integrity
-    pg-bench reload    # invalidate + re-prepare
-    pg-bench purge     # nuclear — clear all caches
+    pg-bench ping         # "pong" when ready
+    pg-bench wait         # blocks until ready
+    pg-bench status       # path, status, integrity
+    pg-bench status --all # every known daemon on this machine
+    pg-bench reload       # invalidate + re-prepare
+    pg-bench purge        # nuclear — clear all caches
+    pg-bench stop         # clean shutdown, socket released
 """
 
 from __future__ import annotations
@@ -76,6 +78,7 @@ import click
 log = logging.getLogger("parseltongue.bench_cli")
 
 SOCK_PATH = Path.home() / ".parseltongue" / "bench.sock"
+REGISTRY_PATH = Path.home() / ".parseltongue" / "daemons.json"
 MAX_MSG = 16 * 1024 * 1024  # 16 MB
 
 
@@ -145,6 +148,130 @@ def _recv(sock: socket.socket) -> dict:
     return json.loads(buf)
 
 
+# ── Daemon registry + liveness ──
+
+
+def _registry_load() -> list[dict]:
+    try:
+        entries = json.loads(REGISTRY_PATH.read_text())
+        return entries if isinstance(entries, list) else []
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        return []
+
+
+def _registry_save(entries: list[dict]):
+    REGISTRY_PATH.parent.mkdir(parents=True, exist_ok=True)
+    REGISTRY_PATH.write_text(json.dumps(entries, indent=2) + "\n")
+
+
+def _registry_add(sock: str, pid: int, pltg: str):
+    import time
+
+    entries = [e for e in _registry_load() if e.get("sock") != sock]
+    entries.append(
+        {
+            "sock": sock,
+            "pid": pid,
+            "pltg": pltg,
+            "cwd": os.getcwd(),
+            "started": time.strftime("%Y-%m-%dT%H:%M:%S"),
+        }
+    )
+    _registry_save(entries)
+
+
+def _registry_remove(sock: str):
+    entries = [e for e in _registry_load() if e.get("sock") != sock]
+    _registry_save(entries)
+
+
+def _pid_alive(pid: int) -> bool:
+    try:
+        os.kill(pid, 0)
+        return True
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+
+
+def _probe_daemon(sock_path: Path, timeout: float = 2.0) -> dict | None:
+    """Ping the daemon on sock_path. Returns the ping response dict if a
+    live daemon answers, None if the socket is absent, stale, or silent."""
+    if not sock_path.exists():
+        return None
+    conn = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    conn.settimeout(timeout)
+    try:
+        conn.connect(str(sock_path))
+        _send(conn, {"action": "ping"})
+        return _recv(conn)
+    except (ConnectionError, FileNotFoundError, socket.timeout, OSError):
+        return None
+    finally:
+        conn.close()
+
+
+def _ensure_socket_free(sock_path: Path, replace: bool):
+    """Singleton guard for serve/start/up.
+
+    Live daemon on sock_path: refuse (or terminate it with replace=True).
+    Stale socket file: remove it and proceed.
+    """
+    info = _probe_daemon(sock_path)
+    if info is None:
+        if sock_path.exists():
+            sock_path.unlink()
+            click.echo(f"Removed stale socket {sock_path}")
+        return
+    pid = info.get("pid")
+    pltg = info.get("pltg", "unknown")
+    pid_label = pid if pid is not None else "unknown"
+    if not replace:
+        raise click.ClickException(
+            f"bench daemon already running for {pltg} (pid {pid_label}, socket {sock_path}).\n"
+            f"Use 'pg reload' to refresh it, 'pg stop' to shut it down, "
+            f"or re-run with --replace to terminate and respawn."
+        )
+    _terminate_daemon(sock_path, pid)
+
+
+def _terminate_daemon(sock_path: Path, pid: int | None, timeout_s: float = 15.0):
+    """Ask the daemon on sock_path to shut down, wait for the socket to be
+    released. Falls back to SIGTERM when the socket won't answer."""
+    import time
+
+    asked = False
+    try:
+        result = _query({"action": "shutdown"}, sock_path)
+        asked = bool(result.get("ok"))
+    except (ConnectionError, FileNotFoundError, ValueError, OSError):
+        pass
+    if not asked and pid is not None:
+        try:
+            os.kill(pid, signal.SIGTERM)
+            asked = True
+        except ProcessLookupError:
+            sock_path.unlink(missing_ok=True)
+            return
+    if not asked:
+        raise click.ClickException(
+            f"Daemon on {sock_path} did not accept the shutdown request and its pid is "
+            f"unknown (older version?). Find it with: ps aux | grep 'pg[ -]' — then SIGTERM it "
+            f"and remove the socket."
+        )
+    deadline = time.monotonic() + timeout_s
+    while time.monotonic() < deadline:
+        if not sock_path.exists() and (pid is None or not _pid_alive(pid)):
+            return
+        time.sleep(0.1)
+    raise click.ClickException(
+        f"Daemon (pid {pid if pid is not None else 'unknown'}) did not release {sock_path} "
+        f"within {timeout_s:.0f}s. As a last resort: kill -9 {pid if pid is not None else '<pid>'} "
+        f"&& rm {sock_path}"
+    )
+
+
 # ── Server ──
 
 
@@ -166,6 +293,8 @@ class BenchServer:
         self.pltg_path = pltg_path
         self._effects = effects
         self._last_search: dict | None = None  # cached last search query+params
+        # Injectable so tests can observe shutdown without killing the process
+        self._request_shutdown = lambda: os.kill(os.getpid(), signal.SIGTERM)
         if user or assistant:
             self.bench.book(user or "", assistant or "")
         if not background:
@@ -209,11 +338,23 @@ class BenchServer:
         action = cmd.get("action", "")
 
         if action == "ping":
-            return {"ok": True, "text": "pong" if self._is_ready() else "loading"}
+            return {
+                "ok": True,
+                "text": "pong" if self._is_ready() else "loading",
+                "pid": os.getpid(),
+                "pltg": self.pltg_path,
+            }
+
+        if action == "shutdown":
+            # Answer first, then signal ourselves — the client sees the ack
+            # before the socket disappears. Works even mid-load.
+            threading.Timer(0.2, self._request_shutdown).start()
+            return {"ok": True, "text": f"shutting down (pid {os.getpid()})"}
 
         if action == "status":
             lines = [
                 f"path={self.pltg_path}",
+                f"pid={os.getpid()}",
                 f"status={self.bench.status!r}",
                 f"integrity={self.bench.integrity!r}",
             ]
@@ -1068,12 +1209,19 @@ def _run_server(
     _setup_file_logging(log_level)
     sock_path.parent.mkdir(parents=True, exist_ok=True)
     if sock_path.exists():
+        # Never steal a live daemon's socket — that orphans it into an
+        # invisible CPU-burning zombie. Stale socket files are removed.
+        if _probe_daemon(sock_path) is not None:
+            log.error("bench daemon already serving %s — refusing to start (pid %d)", sock_path, os.getpid())
+            click.echo(f"bench daemon already serving {sock_path} — refusing to start.", err=True)
+            sys.exit(1)
         sock_path.unlink()
 
     # Socket first — queryable immediately (ping/status work while loading)
     sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     sock.bind(str(sock_path))
     sock.listen(4)
+    _registry_add(str(sock_path), os.getpid(), str(Path(pltg_path).resolve()))
 
     server = BenchServer(pltg_path, background=True, effects=effects, user=user, assistant=assistant)
     click.echo(f"Listening on {sock_path}")
@@ -1084,8 +1232,17 @@ def _run_server(
         import time
 
         def _refresh_loop():
+            # Save-when-the-dust-settles: passes are memory-only (changes
+            # searchable immediately); the slow full-corpus cache writes are
+            # batched and flushed on the first quiet pass after an editing
+            # burst, or when unsaved changes get older than MAX_UNSAVED_S.
+            MAX_UNSAVED_S = 900.0
+            QUIET_PASSES_TO_FLUSH = 2
+            pace = float(refresh_s)
+            dirty_since: float | None = None
+            quiet_passes = 0
             while True:
-                time.sleep(refresh_s)
+                time.sleep(pace)
                 if not server._is_ready():
                     continue
                 try:
@@ -1097,10 +1254,33 @@ def _run_server(
                     # Initial cache deserialize still in progress — skip this
                     # tick so reindex doesn't race the loader.
                     continue
+                if idx.reindex_busy():
+                    # A client-triggered index/reindex is running — skip the
+                    # tick rather than queue behind it on the lock.
+                    continue
                 try:
-                    count = idx.reindex()
+                    t0 = time.monotonic()
+                    count = idx.reindex(defer_save=True)
+                    duration = time.monotonic() - t0
                     if count:
-                        log.info("Background reindex: %d files", count)
+                        log.info("Background reindex: %d files in %.2fs", count, duration)
+                        quiet_passes = 0
+                        if dirty_since is None:
+                            dirty_since = time.monotonic()
+                    else:
+                        quiet_passes += 1
+                    overdue = dirty_since is not None and time.monotonic() - dirty_since > MAX_UNSAVED_S
+                    if idx.save_pending() and (quiet_passes >= QUIET_PASSES_TO_FLUSH or overdue):
+                        t0f = time.monotonic()
+                        idx.flush_saves()
+                        duration += time.monotonic() - t0f
+                        log.info("Background cache flush in %.2fs", time.monotonic() - t0f)
+                        dirty_since = None
+                    # Self-throttle: a pass that takes longer than the
+                    # configured interval must not run back-to-back — cap the
+                    # loop at ~1/6 duty cycle so it can't pin a core on trees
+                    # where the walk (or a flush) is slower than refresh_s.
+                    pace = max(float(refresh_s), 5.0 * duration)
                 except Exception as e:
                     log.warning("Background reindex failed: %s", e)
 
@@ -1108,9 +1288,23 @@ def _run_server(
         t.start()
 
     def _cleanup(*_):
+        # Hard backstop: if anything below hangs (wedged filesystem, wedged
+        # logging), exit anyway rather than lingering in a half-dead state.
+        signal.signal(signal.SIGALRM, lambda *_: os._exit(1))
+        signal.alarm(10)
+        log.info("bench daemon shutting down (pid %d)", os.getpid())
+        _registry_remove(str(sock_path))
         sock.close()
         sock_path.unlink(missing_ok=True)
-        sys.exit(0)
+        try:
+            sys.stdout.flush()
+            sys.stderr.flush()
+        except Exception:
+            pass
+        # os._exit skips interpreter finalization — teardown of a multi-GB
+        # live index buys nothing on the way out and is where shutdown
+        # used to wedge. The socket is gone; just exit.
+        os._exit(0)
 
     signal.signal(signal.SIGINT, _cleanup)
     signal.signal(signal.SIGTERM, _cleanup)
@@ -1120,6 +1314,8 @@ def _run_server(
             conn, _ = sock.accept()
             t = threading.Thread(target=_handle_client, args=(server, conn), daemon=True)
             t.start()
+    except Exception:
+        log.exception("bench daemon accept loop crashed")
     finally:
         _cleanup()
 
@@ -1259,6 +1455,7 @@ def cli():
       pg-bench start file.pltg     # daemonized (returns immediately)
       pg-bench up file.pltg        # foreground; pg-bench up -d to detach
       pg-bench wait                # block until ready
+      pg-bench stop                # clean shutdown, socket released
       pg-bench index parseltongue/core
       pg-bench ping   pg-bench status   pg-bench reload   pg-bench purge
 
@@ -1297,7 +1494,11 @@ def _import_effects(spec: str) -> dict:
 _LIFECYCLE_HELP = (
     "Lifecycle: the server loads a frozen cache immediately (~20ms) so queries\n"
     "work right away, then computes a live evaluation in a background thread.\n"
-    "Use 'pg-bench status' to check whether the bench is frozen or live."
+    "Use 'pg-bench status' to check whether the bench is frozen or live.\n\n"
+    "One daemon per socket: startup refuses when a live daemon already\n"
+    "serves it (--replace terminates it and takes its place; stale socket\n"
+    "files are removed automatically). Stop with 'pg-bench stop'; list all\n"
+    "known daemons with 'pg-bench status --all'."
 )
 
 _INDEX_HELP = (
@@ -1343,6 +1544,12 @@ def _serve_options(fn):
     )(fn)
     fn = click.option("--user", default=None, help="Book bench: user name.")(fn)
     fn = click.option("--assistant", default=None, help="Book bench: assistant name.")(fn)
+    fn = click.option(
+        "--replace",
+        "replace",
+        is_flag=True,
+        help="Terminate an already-running daemon on this socket and take its place.",
+    )(fn)
     fn = click.option("--verbose", "-v", is_flag=False, help="Shorthand for --log-level INFO.")(fn)
     fn = click.option(
         "--log-level",
@@ -1364,14 +1571,19 @@ def _daemonize(
     sock: str,
     refresh_s: int,
     log_level: str,
-    effects: dict | None = None,
+    effects_spec: str | None = None,
     user: str | None = None,
     assistant: str | None = None,
 ):
-    """Double-fork daemonize, then exec _run_server in the grandchild."""
+    """Double-fork, then exec `python -m ...bench_cli serve` in the grandchild.
+
+    The exec gives the daemon an honest argv — ps shows
+    `python -m parseltongue.core.inspect.bench_cli serve <pltg> ...`,
+    so `pkill -f bench_cli` actually matches the process.
+    """
     pid = os.fork()
     if pid > 0:
-        click.echo(f"Daemon launching for {path} (pid {pid})")
+        click.echo(f"Daemon launching for {path} — 'pg wait' blocks until ready, 'pg status' shows state.")
         return
 
     os.setsid()
@@ -1397,10 +1609,26 @@ def _daemonize(
     os.close(devnull_r)
     os.close(log_fd)
 
-    _run_server(
-        path, Path(sock), refresh_s=refresh_s, log_level=log_level, effects=effects, user=user, assistant=assistant
-    )
-    os._exit(0)
+    argv = [
+        sys.executable,
+        "-m",
+        "parseltongue.core.inspect.bench_cli",
+        "serve",
+        path,
+        "--socket",
+        sock,
+        "--refresh-index",
+        str(refresh_s),
+        "--log-level",
+        log_level,
+    ]
+    if effects_spec:
+        argv += ["--effects", effects_spec]
+    if user:
+        argv += ["--user", user]
+    if assistant:
+        argv += ["--assistant", assistant]
+    os.execv(sys.executable, argv)
 
 
 @cli.command()
@@ -1413,11 +1641,13 @@ def serve(
     effects_spec: str | None,
     user: str | None,
     assistant: str | None,
+    replace: bool,
     verbose: bool,
     log_level: str,
 ):
     """Start the bench server in the foreground (blocking)."""
     effects = _import_effects(effects_spec) if effects_spec else None
+    _ensure_socket_free(Path(sock), replace)
     _run_server(
         path,
         Path(sock),
@@ -1439,6 +1669,7 @@ def start(
     effects_spec: str | None,
     user: str | None,
     assistant: str | None,
+    replace: bool,
     verbose: bool,
     log_level: str,
 ):
@@ -1446,10 +1677,20 @@ def start(
 
     \b
     Double-fork daemonization — the server survives terminal close.
+    Refuses to start when a live daemon already serves the socket;
+    use --replace to terminate it and take its place.
     """
-    effects = _import_effects(effects_spec) if effects_spec else None
+    if effects_spec:
+        _import_effects(effects_spec)  # validate before forking — fail in the foreground
+    _ensure_socket_free(Path(sock), replace)
     _daemonize(
-        path, sock, refresh_s, _resolve_log_level(verbose, log_level), effects=effects, user=user, assistant=assistant
+        path,
+        sock,
+        refresh_s,
+        _resolve_log_level(verbose, log_level),
+        effects_spec=effects_spec,
+        user=user,
+        assistant=assistant,
     )
 
 
@@ -1464,6 +1705,7 @@ def up(
     effects_spec: str | None,
     user: str | None,
     assistant: str | None,
+    replace: bool,
     verbose: bool,
     log_level: str,
     detach: bool,
@@ -1477,8 +1719,9 @@ def up(
     """
     level = _resolve_log_level(verbose, log_level)
     effects = _import_effects(effects_spec) if effects_spec else None
+    _ensure_socket_free(Path(sock), replace)
     if detach:
-        _daemonize(path, sock, refresh_s, level, effects=effects, user=user, assistant=assistant)
+        _daemonize(path, sock, refresh_s, level, effects_spec=effects_spec, user=user, assistant=assistant)
     else:
         _run_server(
             path, Path(sock), refresh_s=refresh_s, log_level=level, effects=effects, user=user, assistant=assistant
@@ -2331,13 +2574,64 @@ def purge(yes: bool):
 
 
 @cli.command()
-def status():
+@click.option("--socket", "sock", default=str(SOCK_PATH), help="Unix socket path.")
+def stop(sock: str):
+    """Stop the bench daemon (clean shutdown, socket released)."""
+    sock_path = Path(sock)
+    info = _probe_daemon(sock_path)
+    if info is None:
+        if sock_path.exists():
+            sock_path.unlink()
+            click.echo(f"No live daemon — removed stale socket {sock_path}")
+        else:
+            click.echo(f"No daemon running on {sock_path}")
+        return
+    pid = info.get("pid")
+    _terminate_daemon(sock_path, pid)
+    click.echo(f"Daemon stopped (pid {pid if pid is not None else 'unknown'}), socket released.")
+
+
+@cli.command()
+@click.option(
+    "--all", "show_all", is_flag=True, help="List every known daemon (from the registry), not just this socket."
+)
+def status(show_all: bool):
     """Show server status: path, status (frozen/live), integrity.
 
     \b
     When integrity is 'corrupted', also shows loader errors, skipped
-    definitions, and warnings.
+    definitions, and warnings. With --all, lists every daemon the
+    registry knows about (any socket, any working directory) and
+    prunes entries whose process is gone.
     """
+    if show_all:
+        entries = _registry_load()
+        if not entries:
+            click.echo("No daemons registered.")
+            return
+        alive: list[dict] = []
+        for e in entries:
+            pid = e.get("pid")
+            sock = e.get("sock", "?")
+            info = _probe_daemon(Path(sock)) if sock != "?" else None
+            if info is not None:
+                state = info.get("text", "?")
+            elif pid is not None and _pid_alive(pid):
+                state = "unresponsive"
+            else:
+                state = None  # dead — prune
+            if state is None:
+                continue
+            alive.append(e)
+            click.echo(f"pid {pid}  [{state}]  {e.get('pltg', '?')}")
+            click.echo(f"    socket {sock}")
+            click.echo(f"    cwd {e.get('cwd', '?')}  started {e.get('started', '?')}")
+        if len(alive) != len(entries):
+            _registry_save(alive)
+            click.echo(
+                f"(pruned {len(entries) - len(alive)} dead registry entr{'y' if len(entries) - len(alive) == 1 else 'ies'})"
+            )
+        return
     _print_result(_query({"action": "status"}))
 
 

@@ -46,9 +46,11 @@ Booking appends a session entry to `.parseltongue-bench/logbook.jsonl` — a per
 
 **The logbook is CWD-relative.** `.parseltongue-bench/` is created in the current working directory. Always `cd` into the project directory before running `pg-bench` commands — this ensures the logbook, cache, and session history all live next to the project files. Running from a parent directory writes the logbook to the wrong location.
 
-**NEVER use `kill -9` or `pkill -9` on the daemon.** This skips the signal handler that cleans up the Unix socket at `~/.parseltongue/bench.sock`. Use normal `pkill -f bench_cli` (SIGTERM) or just `pg reload`.
+**Stop with `pg stop`, restart with `pg start --replace`.** `pg stop` asks the daemon to shut down cleanly and waits for the socket to be released; `pg start --replace` does the same and then takes its place. `pg start` refuses to run when a live daemon already serves the socket — you can never stack a second daemon by accident. `pg status --all` lists every daemon on the machine (any socket, any working directory).
 
-**If the socket is stale** (daemon died or was killed with -9): `rm -f /root/.parseltongue/bench.sock` before restarting.
+**NEVER use `kill -9` or `pkill -9` on the daemon.** This skips the signal handler that cleans up the Unix socket at `~/.parseltongue/bench.sock`. If you must signal by hand, `pkill -f bench_cli` (SIGTERM) matches the daemon's process name — but prefer `pg stop`.
+
+**If the socket is stale** (daemon died or was killed with -9): `pg start` detects it and removes it automatically. No manual `rm` needed.
 
 **Don't restart the daemon to pick up changes.** Use `pg reload` or `pg purge --yes`.
 

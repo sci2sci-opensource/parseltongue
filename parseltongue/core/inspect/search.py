@@ -55,6 +55,7 @@ define a defterm in the SearchSystem. ``(scope name expr)`` evaluates
 from __future__ import annotations
 
 import logging
+import threading
 from typing import Callable
 
 from .store import SearchStore
@@ -80,6 +81,10 @@ class Search:
         # take minutes on large corpora and a stray reindex during that
         # window would thrash the loader.
         self._loaded = False
+        # Serializes all index mutation (background refresh loop, client
+        # `pg reindex` / `pg index` threads) within the daemon process.
+        self._reindex_lock = threading.Lock()
+        self._save_dirty = False
         self._index = store.load_index()
         self._store = store
         # Try to restore cached search index (stems, ngrams, meta, corpus)
@@ -93,6 +98,11 @@ class Search:
     def is_loaded(self) -> bool:
         """True once the cached index has been fully deserialized."""
         return self._loaded
+
+    def reindex_busy(self) -> bool:
+        """True while a reindex/index pass holds the lock (advisory — for
+        pollers that would rather skip a tick than queue behind a pass)."""
+        return self._reindex_lock.locked()
 
     def register_scope(self, name: str, system: BenchSubsystem):
         """Register a BenchSubsystem as a named scope."""
@@ -141,23 +151,28 @@ class Search:
         on_progress: Callable[[int, int, str], None] | None = None,
         force: bool = False,
     ) -> int:
-        updated, count, deleted = self._store.index_incremental(
-            self._index,
-            directory,
-            extensions,
-            exclude,
-            on_progress,
-            force=force,
-        )
-        self._sync(updated, deleted)
-        if count > 0:
-            self._store.save_search_index(self._system._search_index)
-        return count
+        with self._reindex_lock:
+            updated, count, deleted = self._store.index_incremental(
+                self._index,
+                directory,
+                extensions,
+                exclude,
+                on_progress,
+                force=force,
+            )
+            # Sync first — changes become searchable before the (slow) disk
+            # writes below run.
+            self._sync(updated, deleted)
+            if count > 0:
+                self._save_dirty = True
+            self._flush_saves_locked()
+            return count
 
     def reindex(
         self,
         on_progress: Callable[[int, int, str], None] | None = None,
         force: bool = False,
+        defer_save: bool = False,
     ) -> int:
         """Re-walk tracked directories, picking up new/changed/deleted files.
 
@@ -166,17 +181,43 @@ class Search:
 
         force=True bypasses stat/hash caches — full tree walk + re-read.
 
+        defer_save=True makes the pass memory-only: changes become
+        searchable but the (slow, full-corpus) cache writes are queued
+        until flush_saves(). The background refresh loop uses this to
+        batch an editing burst into one save on the first quiet pass.
+
         No-ops with a warning if the cached index isn't fully loaded yet,
         so background refresh loops don't race the initial deserialize.
         """
         if not self._loaded:
             log.warning("Search.reindex: skipped — cached index not yet loaded.")
             return 0
-        updated, count, deleted = self._store.reindex(self._index, on_progress, force=force)
-        self._sync(updated, deleted)
-        if count > 0:
+        with self._reindex_lock:
+            updated, count, deleted = self._store.reindex(self._index, on_progress, force=force)
+            # Sync first — changes become searchable before the (slow) disk
+            # writes below run.
+            self._sync(updated, deleted)
+            if count > 0:
+                self._save_dirty = True
+            if defer_save:
+                return count
+            self._flush_saves_locked()
+            return count
+
+    def flush_saves(self):
+        """Write queued cache updates from defer_save passes to disk."""
+        with self._reindex_lock:
+            self._flush_saves_locked()
+
+    def save_pending(self) -> bool:
+        """True when defer_save passes have unflushed changes queued."""
+        return self._save_dirty
+
+    def _flush_saves_locked(self):
+        self._store.flush_pending_save()
+        if self._save_dirty:
             self._store.save_search_index(self._system._search_index)
-        return count
+            self._save_dirty = False
 
     def evaluate(self, expression: str):
         """Evaluate an S-expression in the search system, return raw result.

@@ -66,14 +66,26 @@ log = logging.getLogger("parseltongue.pgz")
 
 _PGZ_MAGIC = b"PGZ\x01"
 _PGZ_HEADER = struct.Struct("<4s32sI")  # magic + sha256 + size
+_PGZ_MAX_PAYLOAD = 2**32  # uint32 size field in the envelope — format limit
+_STREAM_BUF = 1 << 20  # flush compressed output to disk every ~1 MB
 
 
 def pgz_write(path: Path, data: bytes):
     """Write data to a .pgz file with integrity header."""
+    if len(data) >= _PGZ_MAX_PAYLOAD:
+        raise ValueError(f"Payload exceeds PGZ 4 GiB format limit (uint32 size field): {path.name}")
     digest = hashlib.sha256(data).digest()
     compressed = zlib.compress(data, level=6)
     header = _PGZ_HEADER.pack(_PGZ_MAGIC, digest, len(data))
-    path.write_bytes(header + compressed)
+    _atomic_write_bytes(path, header + compressed)
+
+
+def _atomic_write_bytes(path: Path, data: bytes):
+    """Write via a sibling .tmp then rename — a kill mid-write never leaves
+    a torn file at the real path."""
+    tmp = path.with_name(path.name + ".tmp")
+    tmp.write_bytes(data)
+    tmp.replace(path)
 
 
 def pgz_read(path: Path) -> bytes:
@@ -98,9 +110,45 @@ def pgz_read(path: Path) -> bytes:
 
 
 def json_pgz_write(path: Path, data: dict):
-    """Write a dict as JSON inside a PGZ envelope."""
-    payload = json.dumps(data, separators=(",", ":")).encode()
-    pgz_write(path, payload)
+    """Stream a dict as JSON into a PGZ envelope.
+
+    Chunked iterencode → sha256/zlib fed incrementally → file. Peak memory
+    is bounded by the buffer size, not the payload size, and the GIL is
+    released between chunks — a large save no longer blocks signal
+    delivery (SIGTERM stays answerable mid-save). The fixed-size header
+    is back-patched once digest and size are known; the write lands via
+    .tmp + rename, so neither a kill mid-save nor a failed save ever
+    clobbers the previous valid cache file.
+    """
+    encoder = json.JSONEncoder(separators=(",", ":"))
+    digest = hashlib.sha256()
+    compress = zlib.compressobj(level=6)
+    size = 0
+    tmp = path.with_name(path.name + ".tmp")
+    try:
+        with open(tmp, "wb") as f:
+            f.write(b"\x00" * _PGZ_HEADER.size)  # placeholder, patched below
+            buf = bytearray()
+            for chunk in encoder.iterencode(data):
+                raw = chunk.encode("utf-8")
+                size += len(raw)
+                if size >= _PGZ_MAX_PAYLOAD:
+                    # Abort as soon as the running total crosses the line —
+                    # don't compress gigabytes the envelope can't describe.
+                    raise ValueError(f"Payload exceeds PGZ 4 GiB format limit (uint32 size field): {path.name}")
+                digest.update(raw)
+                buf += compress.compress(raw)
+                if len(buf) >= _STREAM_BUF:
+                    f.write(buf)
+                    buf.clear()
+            buf += compress.flush()
+            f.write(buf)
+            f.seek(0)
+            f.write(_PGZ_HEADER.pack(_PGZ_MAGIC, digest.digest(), size))
+        tmp.replace(path)
+    except BaseException:
+        tmp.unlink(missing_ok=True)
+        raise
 
 
 def json_pgz_read(path: Path) -> dict:
@@ -128,21 +176,6 @@ def _build_ordinal_header(sorted_items: list[tuple[str, str]], offsets: list[tup
     return bytes(header)
 
 
-def _build_ordinal_text_block(sorted_items: list[tuple[str, str]]) -> tuple[bytes, list[tuple[int, int]]]:
-    """Build the text block with convenience labels. Returns (block, offsets)."""
-    text_block = bytearray()
-    offsets: list[tuple[int, int]] = []
-    for name, text in sorted_items:
-        label = f"---- {name} ----\n".encode()
-        text_block.extend(label)
-        start = len(text_block)
-        text_bytes = text.encode("utf-8")
-        text_block.extend(text_bytes)
-        offsets.append((start, len(text_bytes)))
-        text_block.extend(b"\n")
-    return bytes(text_block), offsets
-
-
 def _parse_ordinal_header(header: bytes) -> list[tuple[str, int, int]]:
     """Parse header → [(filename, text_offset, text_length), ...]."""
     if len(header) < 4:
@@ -166,13 +199,29 @@ def ordinal_pgz_write(path: Path, entries: dict[str, str]):
 
     Entries are sorted by key. Header and text block are compressed
     separately so the header can be read without decompressing the bulk.
+    The text stream is compressed per-entry — the uncompressed block is
+    never materialized, so peak memory is the compressed size, not the
+    corpus size. On-disk format is unchanged.
     """
     sorted_items = sorted(entries.items())
-    text_block, offsets = _build_ordinal_text_block(sorted_items)
+    compress = zlib.compressobj(level=6)
+    text_parts: list[bytes] = []
+    offsets: list[tuple[int, int]] = []
+    pos = 0
+    for name, text in sorted_items:
+        label = f"---- {name} ----\n".encode()
+        text_parts.append(compress.compress(label))
+        pos += len(label)
+        text_bytes = text.encode("utf-8")
+        offsets.append((pos, len(text_bytes)))
+        text_parts.append(compress.compress(text_bytes))
+        pos += len(text_bytes)
+        text_parts.append(compress.compress(b"\n"))
+        pos += 1
+    text_parts.append(compress.flush())
+    text_compressed = b"".join(text_parts)
     header = _build_ordinal_header(sorted_items, offsets)
-
     header_compressed = zlib.compress(header, level=6)
-    text_compressed = zlib.compress(text_block, level=6)
 
     # Integrity covers both compressed streams
     digest = hashlib.sha256(header_compressed + text_compressed).digest()
@@ -182,7 +231,7 @@ def ordinal_pgz_write(path: Path, entries: dict[str, str]):
         len(header_compressed),
         len(text_compressed),
     )
-    path.write_bytes(envelope + header_compressed + text_compressed)
+    _atomic_write_bytes(path, envelope + header_compressed + text_compressed)
 
 
 def _ordinal_pgz_read_raw(path: Path) -> tuple[bytes, bytes]:

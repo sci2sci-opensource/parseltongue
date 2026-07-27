@@ -264,8 +264,7 @@ class Store:
             "system": result.system.to_dict(),
         }
         try:
-            payload = json.dumps(data, separators=(",", ":")).encode()
-            _pgz_write(self._cache_path(path), payload)
+            json_pgz_write(self._cache_path(path), data)
             # Clean up legacy .json if it exists
             self._legacy_cache_path(path).unlink(missing_ok=True)
         except Exception as e:
@@ -315,8 +314,7 @@ class Store:
         self._ensure_dir()
         data = {"merkle_root": merkle_root, "diagnosis": dx.to_dict()}
         try:
-            payload = json.dumps(data, separators=(",", ":")).encode()
-            _pgz_write(self._diagnosis_cache_path(path), payload)
+            json_pgz_write(self._diagnosis_cache_path(path), data)
             self._legacy_diagnosis_cache_path(path).unlink(missing_ok=True)
         except Exception as e:
             log.warning("Failed to save evaluation for %s: %s", path, e)
@@ -349,6 +347,32 @@ class Store:
 
     def _index_cache_path(self, directory: str) -> Path:
         return self._dir / f"{self._cache_key(directory)}.idx.pgz"
+
+    def _search_index_cache_path(self, directory: str) -> Path:
+        return self._dir / f"{self._cache_key(directory)}.six.pgz"
+
+    def save_search_index_data(self, key: str, data: dict):
+        """Save serialized DocumentSearchIndex to its own .six.pgz.
+
+        Kept out of the main .idx.pgz so persisting it never requires
+        parsing and rewriting the (much larger) index cache."""
+        self._ensure_dir()
+        try:
+            json_pgz_write(self._search_index_cache_path(key), data)
+        except Exception as e:
+            log.warning("Failed to save search index for %s: %s", key, e)
+
+    def load_search_index_data(self, key: str) -> dict | None:
+        """Load serialized DocumentSearchIndex from .six.pgz, or None."""
+        cache_file = self._search_index_cache_path(key)
+        if not cache_file.exists():
+            return None
+        try:
+            return json_pgz_read(cache_file)
+        except Exception as e:
+            log.warning("Failed to read search index cache for %s: %s", key, e)
+            cache_file.unlink(missing_ok=True)
+            return None
 
     def history(self, key: str, max_layers: int = 42) -> History:
         """Get a History instance for a given cache key.
@@ -440,6 +464,7 @@ class Store:
         self._cache_path(path).unlink(missing_ok=True)
         self._diagnosis_cache_path(path).unlink(missing_ok=True)
         self._index_cache_path(path).unlink(missing_ok=True)
+        self._search_index_cache_path(path).unlink(missing_ok=True)
         # History layers + metadata
         self.history(path).remove_all()
         # Clean up legacy too
@@ -544,6 +569,7 @@ class SearchStore:
         self._store = store
         self._path = path
         self._dir_hashes: dict[str, dict[str, str]] = {}
+        self._pending_save: dict | None = None
         self._preloaded = index
         # Tracked directories: directory → extensions list
         self._indexed_dirs: dict[str, list[str]] = {}
@@ -676,12 +702,17 @@ class SearchStore:
             return None
         log.info("SearchStore.load_search_index: start path=%s", self._path)
         t0 = time.perf_counter()
-        cached = self._store.load_index(self._path)
+        sidx = self._store.load_search_index_data(self._path)
+        if sidx is None:
+            # Legacy layout: search_index stored inline in the main .idx.pgz.
+            # One expensive parse on the first boot after upgrade; the next
+            # save writes the dedicated .six.pgz and this path goes away.
+            cached = self._store.load_index(self._path)
+            if not cached or "search_index" not in cached:
+                return None
+            sidx = cached["search_index"]
         t_read = time.perf_counter() - t0
         log.info("SearchStore.load_search_index: cache read %.2fs", t_read)
-        if not cached or "search_index" not in cached:
-            return None
-        sidx = cached["search_index"]
         sidx_keys = list(sidx.keys()) if isinstance(sidx, dict) else []
         log.info("SearchStore.load_search_index: deserialize start sections=%s", sidx_keys)
         try:
@@ -765,35 +796,19 @@ class SearchStore:
             len(deleted),
         )
 
-        # Load cached texts from History for unchanged files
-        cached_texts: dict[str, str] = {}
-        if self._store:
-            cached_texts = self._store.load_texts(self._path) or {}
-        cached = self._store.load_index(self._path) if self._store else None
-
-        # Merge: cached texts for unchanged, fresh texts for changed/new
-        all_texts = dict(cached_texts)
-        all_texts.update(file_texts)
-
         if not changed and old_hashes:
-            # Nothing changed — restore from cache
-            if cached:
-                idx_data = cached.get("index", {})
-                original_texts = {k: all_texts.get(k, "") for k in idx_data.get("documents", {})}
-                _index = DocumentIndex.from_dict(idx_data, original_texts)
+            # Nothing changed — the live index is already current. Return it
+            # untouched: rebuilding it from the disk cache here cost two full
+            # cache parses + a DocumentIndex reconstruction per background
+            # tick, and dropped any verifier docs merged in via refresh().
             self._dir_hashes[self._path] = new_hashes
             return _index, 0, set()
 
-        if old_hashes and cached:
-            # Partial reindex: restore unchanged from cache, reindex changed
-            idx_data = cached.get("index", {})
-            unchanged_texts = {
-                k: all_texts[k] for k in all_texts if k not in changed and k in idx_data.get("documents", {})
-            }
-            if unchanged_texts and idx_data:
-                _index = DocumentIndex.from_dict(idx_data, unchanged_texts)
-
-        # Index changed (or all if no cache)
+        # Mutate the live index in place: add() re-indexes changed docs
+        # (COW-swapped, hash-guarded) and the deleted block below drops
+        # removed ones. Rebuilding _index from the disk cache here — the
+        # historical behavior — cost a full cache parse plus a LayeredTexts
+        # merge per pass, and the live index is already authoritative.
         to_index = sorted(changed) if changed else sorted(file_texts.keys())
         total_changed = len(to_index)
         count = 0
@@ -808,13 +823,43 @@ class SearchStore:
         if deleted:
             new_docs = {k: v for k, v in _index.documents.items() if k not in deleted}
             _index.documents = new_docs
-            for key in deleted:
-                all_texts.pop(key, None)
 
-        # Save index (without texts) + commit texts delta to History
-        self._save_cache(directory, new_hashes, _index, changed_texts=file_texts, deleted_keys=deleted)
+        # Defer the disk save: the full-index write takes minutes on large
+        # corpora, and running it here would delay the caller's _sync — the
+        # step that makes the changes searchable. The caller flushes after
+        # syncing (flush_pending_save), so search freshness never waits on
+        # cache durability. Pending payloads accumulate across passes so a
+        # caller may also batch several passes into one flush (the
+        # background loop flushes on the first quiet pass).
+        prev = self._pending_save
+        merged_texts = dict(prev["changed_texts"]) if prev else {}
+        merged_texts.update(file_texts)
+        merged_deleted = ((prev["deleted_keys"] if prev else set()) | deleted) - set(new_hashes)
+        for key in merged_deleted:
+            merged_texts.pop(key, None)
+        self._pending_save = {
+            "directory": directory,
+            "file_hashes": new_hashes,
+            "index": _index,
+            "changed_texts": merged_texts,
+            "deleted_keys": merged_deleted,
+        }
         self._dir_hashes[self._path] = new_hashes
         return _index, total_changed, deleted
+
+    def flush_pending_save(self):
+        """Write the cache update queued by the last index/reindex pass."""
+        info = self._pending_save
+        self._pending_save = None
+        if not info:
+            return
+        self._save_cache(
+            info["directory"],
+            info["file_hashes"],
+            info["index"],
+            changed_texts=info["changed_texts"],
+            deleted_keys=info["deleted_keys"],
+        )
 
     def _save_cache(
         self,
@@ -855,19 +900,16 @@ class SearchStore:
                     history.commit(changed_texts or {}, deleted_keys)
 
     def save_search_index(self, search_index: "DocumentSearchIndex"):
-        """Persist DocumentSearchIndex data alongside the existing cache."""
+        """Persist DocumentSearchIndex data to its own .six.pgz cache file.
+
+        Historically this parsed the whole .idx.pgz, attached a
+        "search_index" key, and rewrote it — a full read + double write of
+        the largest cache file on every changed reindex pass."""
         if not self._store:
-            return
-        cached = self._store.load_index(self._path)
-        if not cached:
             return
         from .search_s.serialization import serialize_search_index
 
-        cached["search_index"] = serialize_search_index(search_index)
-        try:
-            json_pgz_write(self._store._index_cache_path(self._path), cached)
-        except Exception as e:
-            log.warning("Failed to save search index: %s", e)
+        self._store.save_search_index_data(self._path, serialize_search_index(search_index))
 
     def _report_skipped_large(self, threshold_bytes: int) -> None:
         """Emit a single error-level log for files skipped by the size guardrail.
@@ -1045,18 +1087,24 @@ class SearchStore:
         if not self._store:
             return _index, 0, set()
 
-        cached = self._store.load_index(self._path)
-        if not cached:
-            return _index, 0, set()
-
-        old_hashes: dict[str, str] = {} if force else cached.get("file_hashes", {})
-        directory = cached.get("directory", "")
-
-        # Restore tracked dirs from cache if not already loaded
-        if not self._indexed_dirs:
-            self._indexed_dirs = cached.get("indexed_dirs", {})
-            if directory and not self._indexed_dirs:
-                self._indexed_dirs[directory] = cached.get("extensions", _load_extensions())
+        # Warm path: hashes and tracked dirs live in memory (populated by
+        # load_index at startup and refreshed on every pass). Parsing the
+        # multi-hundred-MB disk cache here on every background tick was the
+        # dominant cost of a no-change reindex.
+        old_hashes: dict[str, str] = {} if force else dict(self._dir_hashes.get(self._path) or {})
+        directory = ""
+        if (not old_hashes and not force) or not self._indexed_dirs:
+            cached = self._store.load_index(self._path)
+            if not cached:
+                return _index, 0, set()
+            if not force:
+                old_hashes = cached.get("file_hashes", {})
+            directory = cached.get("directory", "")
+            # Restore tracked dirs from cache if not already loaded
+            if not self._indexed_dirs:
+                self._indexed_dirs = cached.get("indexed_dirs", {})
+                if directory and not self._indexed_dirs:
+                    self._indexed_dirs[directory] = cached.get("extensions", _load_extensions())
 
         if not self._indexed_dirs:
             return _index, 0, set()
