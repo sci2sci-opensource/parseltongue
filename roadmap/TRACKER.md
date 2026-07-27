@@ -16,3 +16,5 @@
 | [Search files projection](completed/search-files-projection.md) | done | feature/decouple-pgignore-from-gitignore | |
 | [Incremental Reindex](pending/incremental-reindex.md) | pending | | |
 | [Daemon Singleton + Shutdown](pending/daemon-singleton-and-shutdown.md) | pending | | |
+| [Absence Evidence](pending/absence-evidence.md) | pending | | |
+| [Universal Obligations](pending/universal-obligations.md) | pending | | |
