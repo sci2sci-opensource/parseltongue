@@ -91,8 +91,8 @@ class DirectiveNode:
         stack = list(self.dependents)
         while stack:
             node = stack.pop()
-            if node.name and node.name not in seen:
-                seen.add(node.name)
+            if node.name not in seen:
+                seen.add(node)
                 result.append(node)
                 stack.extend(node.dependents)
         return result
