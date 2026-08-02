@@ -332,8 +332,9 @@ class Technician:
         """
         from .screen import Screen
 
-        # Already fresh in memory with matching merkle
-        if path in self._screen_mem and sample:
+        # Already fresh in memory with matching merkle — unless the corpus
+        # moved underneath (absence claims re-verify against the index)
+        if path in self._screen_mem and sample and not getattr(self, "_corpus_dirty", False):
             merkle_root = sample[1].hash
             disk_dx = self._store.load_diagnosis(path, merkle_root)
             if disk_dx is not None:
@@ -346,6 +347,7 @@ class Technician:
             if old_dx is not None:
                 result, sample = self.ensure_live(path, sample)
                 engine = result.system.engine
+                self._ground_corpus_evidence(path, result)
 
                 diffs_to_patch: set[str] = set()
                 for name in affected:
@@ -366,11 +368,43 @@ class Technician:
 
         # Cold — full consistency
         result, sample = self.ensure_live(path, sample)
+        self._ground_corpus_evidence(path, result)
         lc = result.consistency()
         dx = Screen.from_report(lc, result)
         self._screen_mem[path] = dx
         self._save_screen(path, dx, sample)
+        self._corpus_dirty = False
         return dx
+
+    def _ground_corpus_evidence(self, path: str, result) -> None:
+        """Register the corpus verifier and re-ground corpus_query claims.
+
+        Corpus claims are unverifiable at directive-execution time (the
+        core engine owns no corpus). The bench owns the search index, so
+        they are grounded here — before consistency computes — and
+        re-ground on every screen pass, keeping absence facts honest
+        against the current index state.
+        """
+        try:
+            from ..atoms import EVIDENCE_TYPE_CORPUS_QUERY
+            from ..engine import reverify_evidence
+            from .corpus_evidence import CorpusEvidenceVerifier
+
+            search = self.search_engine(path)
+            if not search.is_loaded():
+                return
+            engine = result.system.engine
+            engine.register_evidence_verifier(EVIDENCE_TYPE_CORPUS_QUERY, CorpusEvidenceVerifier(search, path))
+            n = reverify_evidence(engine, EVIDENCE_TYPE_CORPUS_QUERY)
+            if n:
+                log.info("Corpus evidence re-grounded: %d origin(s)", n)
+        except Exception:
+            log.exception("Corpus evidence grounding failed — claims left ungrounded")
+
+    def invalidate_screens(self) -> None:
+        """Drop cached screens — call after a corpus reindex changed files."""
+        self._screen_mem.clear()
+        self._corpus_dirty = True
 
     # Backwards compat
     _load_evaluate = _load_screen

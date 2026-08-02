@@ -51,11 +51,19 @@ class AbstractSystem(Rewriter, Interpreter):
         effects: dict[str, Callable],
         verifier,
         name: str | None = None,
+        evidence_verifiers: dict | None = None,
     ):
         env: dict = {}
         env.update(initial_env)
 
-        self.engine = Engine(env, overridable=overridable, strict_derive=strict_derive, verifier=verifier, name=name)
+        self.engine = Engine(
+            env,
+            overridable=overridable,
+            strict_derive=strict_derive,
+            verifier=verifier,
+            name=name,
+            evidence_verifiers=evidence_verifiers,
+        )
         self._docs = docs
 
         self._unresolved = set()
@@ -466,6 +474,7 @@ class DefaultSystem(AbstractSystem):
         effects: dict[str, Callable] | None = None,
         verifier=None,
         name: str | None = None,
+        evidence_verifiers: dict | None = None,
     ):
         super().__init__(
             initial_env=initial_env if initial_env is not None else DEFAULT_OPERATORS,
@@ -475,6 +484,7 @@ class DefaultSystem(AbstractSystem):
             effects=effects or {},
             verifier=verifier,
             name=name,
+            evidence_verifiers=evidence_verifiers,
         )
 
 
@@ -490,6 +500,7 @@ class EmptySystem(AbstractSystem):
         effects: dict[str, Callable] | None = None,
         verifier=None,
         name: str | None = None,
+        evidence_verifiers: dict | None = None,
     ):
         super().__init__(
             initial_env=initial_env if initial_env is not None else {},
@@ -499,6 +510,7 @@ class EmptySystem(AbstractSystem):
             effects=effects or {},
             verifier=verifier,
             name=name,
+            evidence_verifiers=evidence_verifiers,
         )
 
 

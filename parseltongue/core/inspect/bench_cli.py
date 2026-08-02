@@ -1267,6 +1267,9 @@ def _run_server(
                         quiet_passes = 0
                         if dirty_since is None:
                             dirty_since = time.monotonic()
+                        # Corpus moved — cached screens may hold stale
+                        # absence/obligation verdicts; recompute on next ask.
+                        server.bench._technician.invalidate_screens()
                     else:
                         quiet_passes += 1
                     overdue = dirty_since is not None and time.monotonic() - dirty_since > MAX_UNSAVED_S

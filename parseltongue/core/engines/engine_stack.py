@@ -16,7 +16,19 @@ from dataclasses import replace
 from typing import Callable
 
 from ..atoms import SILENCE, WFF, Evidence, Silence, Symbol
-from ..engine import ConsistencyIssue, ConsistencyReport, ConsistencyWarning, DiffResult, Fact, IssueType, WarningType
+from ..engine import (
+    ConsistencyIssue,
+    ConsistencyReport,
+    ConsistencyWarning,
+    DiffResult,
+    Fact,
+    IssueType,
+    WarningType,
+    _corpus_counter_examples,
+    _corpus_polarity,
+    _corpus_reasons,
+    reverify_evidence,
+)
 from ..engine import Engine as EngineProtocol
 from ..lang import (
     AXIOM,
@@ -25,6 +37,8 @@ from ..lang import (
     DERIVE,
     DIFF,
     EQ,
+    EVIDENCE_TYPE_CORPUS_QUERY,
+    EVIDENCE_TYPE_DOC_QUOTE,
     FACT,
     IF,
     KW_BIND,
@@ -53,6 +67,7 @@ from ..lang import (
     to_sexp,
 )
 from ..quote_verifier import QuoteVerifier
+from ..quote_verifier.evidence_verifiers import DocQuoteEvidenceVerifier, DocumentCorpusVerifier, EvidenceVerifier
 
 log = logging.getLogger("parseltongue")
 
@@ -93,6 +108,7 @@ class Engine(EngineProtocol):
         verifier: QuoteVerifier | None = None,
         name: str | None = None,
         max_eval_depth: int = 10_000,
+        evidence_verifiers: "dict[str, EvidenceVerifier] | None" = None,
     ):
         self.name: str = name or self._infer_name()
         self.axioms: dict[str, Axiom] = {}
@@ -104,6 +120,12 @@ class Engine(EngineProtocol):
         self.diff_refs: dict[str, set[str]] = {}  # name → diff names that reference it
         self.documents: dict[str, str] = {}
         self._verifier = verifier or QuoteVerifier()
+        self._evidence_verifiers: dict[str, EvidenceVerifier] = {
+            EVIDENCE_TYPE_DOC_QUOTE: DocQuoteEvidenceVerifier(self._verifier, self.documents),
+            EVIDENCE_TYPE_CORPUS_QUERY: DocumentCorpusVerifier(self._verifier.index),
+        }
+        if evidence_verifiers:
+            self._evidence_verifiers.update(evidence_verifiers)
         self.overridable = overridable
         self.strict_derive = strict_derive
         self.max_eval_depth = max_eval_depth
@@ -153,35 +175,29 @@ class Engine(EngineProtocol):
     def register_document(self, name: str, text: str):
         self.documents[name] = text
         self._verifier.index.add(name, text)
+        # Corpus claims quantify over the registered documents — a new
+        # document changes their closed world, so re-ground them.
+        reverify_evidence(self, EVIDENCE_TYPE_CORPUS_QUERY)
 
     def load_document(self, name: str, path: str):
         with open(path) as f:
             text = f.read()
-        self.documents[name] = text
-        self._verifier.index.add(name, text)
+        self.register_document(name, text)
 
     # ----------------------------------------------------------
     # Evidence Verification
     # ----------------------------------------------------------
 
     def _verify_evidence(self, evidence: Evidence, caller: str | None = None) -> Evidence:
-        if evidence.document not in self.documents:
-            log.warning("Document '%s' not registered — skipping verification", evidence.document)
+        v = self._evidence_verifiers.get(evidence.type)
+        if v is None:
+            log.warning("No verifier registered for evidence type '%s' — left ungrounded", evidence.type)
             return evidence
+        return v.verify(evidence, caller=caller)
 
-        results = self._verifier.verify_indexed_quotes(evidence.document, evidence.quotes, caller=caller)
-
-        all_verified = True
-        for r in results:
-            if r["verified"]:
-                conf = r.get("confidence", {})
-                log.info('Quote verified: "%s" (confidence: %s)', r["quote"], conf.get("level", "?"))
-            else:
-                all_verified = False
-                reason = r.get("reason", "unknown")
-                log.warning('Quote NOT verified: "%s" (%s)', r["quote"], reason)
-
-        return replace(evidence, verification=results, verified=all_verified)
+    def register_evidence_verifier(self, evidence_type: str, verifier: "EvidenceVerifier") -> None:
+        """Register (or replace) the verifier grounding one evidence type."""
+        self._evidence_verifiers[evidence_type] = verifier
 
     def _lookup(self, name: str) -> Axiom | Theorem | Term | None:
         """Find a named item across all stores."""
@@ -1635,6 +1651,8 @@ class Engine(EngineProtocol):
         unverified = []
         manually_verified = []
         no_evidence = []
+        absence_violated = []
+        obligation_violated = []
         for store in [self.facts, self.axioms, self.theorems, self.terms]:
             for name, item in store.items():  # type: ignore[attr-defined]
                 origin = item.origin
@@ -1642,7 +1660,14 @@ class Engine(EngineProtocol):
                     if not origin.verified and origin.verify_manual:
                         manually_verified.append(name)
                     elif not origin.is_grounded:
-                        unverified.append((name, origin.quotes))
+                        violated = _corpus_counter_examples(origin)
+                        if violated is not None:
+                            if _corpus_polarity(origin) == "forall":
+                                obligation_violated.append((name, violated))
+                            else:
+                                absence_violated.append((name, violated))
+                        else:
+                            unverified.append((name, origin.quotes + _corpus_reasons(origin)))
                 elif isinstance(origin, str):
                     if (
                         origin not in ("unknown", "derived")
@@ -1655,6 +1680,12 @@ class Engine(EngineProtocol):
             issues.append(ConsistencyIssue(IssueType.UNVERIFIED_EVIDENCE, sorted(unverified, key=lambda x: x[0])))
         if no_evidence:
             issues.append(ConsistencyIssue(IssueType.NO_EVIDENCE, sorted(no_evidence, key=lambda x: x[0])))
+        if absence_violated:
+            issues.append(ConsistencyIssue(IssueType.ABSENCE_VIOLATED, sorted(absence_violated, key=lambda x: x[0])))
+        if obligation_violated:
+            issues.append(
+                ConsistencyIssue(IssueType.OBLIGATION_VIOLATED, sorted(obligation_violated, key=lambda x: x[0]))
+            )
         if manually_verified:
             manual_details = {}
             for name in manually_verified:

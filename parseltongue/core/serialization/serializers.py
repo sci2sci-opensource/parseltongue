@@ -2,7 +2,14 @@
 
 from typing import Any
 
-from ..atoms import Evidence, Symbol
+from ..atoms import (
+    EVIDENCE_TYPE_CORPUS_QUERY,
+    EVIDENCE_TYPE_DOC_QUOTE,
+    CorpusSource,
+    Evidence,
+    QueryClaim,
+    Symbol,
+)
 from ..engine import Fact
 from ..lang import Axiom, Term, Theorem
 
@@ -37,7 +44,7 @@ def deserialize_sexp(obj) -> Any:
 
 
 def serialize_evidence(ev: Evidence) -> dict:
-    return {
+    d = {
         "__evidence__": True,
         "document": ev.document,
         "quotes": ev.quotes,
@@ -46,9 +53,30 @@ def serialize_evidence(ev: Evidence) -> dict:
         "verified": ev.verified,
         "verify_manual": ev.verify_manual,
     }
+    if ev.type != EVIDENCE_TYPE_DOC_QUOTE:
+        claim = ev.claims[0] if ev.claims else None
+        d["type"] = ev.type
+        d["satisfies"] = claim.satisfies if isinstance(claim, QueryClaim) else None
+        d["excludes"] = list(ev.source.excludes) if isinstance(ev.source, CorpusSource) else []
+    return d
 
 
 def deserialize_evidence(d: dict) -> Evidence:
+    ev_type = d.get("type", EVIDENCE_TYPE_DOC_QUOTE)
+    if ev_type == EVIDENCE_TYPE_CORPUS_QUERY:
+        satisfies = d.get("satisfies") or None
+        return Evidence(
+            source=CorpusSource(pattern=d["document"], excludes=tuple(d.get("excludes", []))),
+            claims=tuple(
+                QueryClaim(query=str(q), polarity="forall" if satisfies else "absent", satisfies=satisfies)
+                for q in d.get("quotes", [])
+            ),
+            explanation=d.get("explanation", ""),
+            verification=d.get("verification", []),
+            verified=d.get("verified", False),
+            verify_manual=d.get("verify_manual", False),
+            type=ev_type,
+        )
     return Evidence(
         document=d["document"],
         quotes=d.get("quotes", []),

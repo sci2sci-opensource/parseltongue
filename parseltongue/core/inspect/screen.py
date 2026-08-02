@@ -377,6 +377,8 @@ class Screen:
             "no_evidence",
             "manually_verified",
             "potential_fabrication",
+            "absence_violated",
+            "obligation_violated",
         }
     )
 

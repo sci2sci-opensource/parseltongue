@@ -18,7 +18,16 @@ from dataclasses import dataclass, field, replace
 from enum import StrEnum
 from typing import Callable, Protocol, runtime_checkable
 
-from .atoms import SILENCE, WFF, Evidence, Silence, Symbol
+from .atoms import (
+    EVIDENCE_TYPE_CORPUS_QUERY,
+    EVIDENCE_TYPE_DOC_QUOTE,
+    SILENCE,
+    WFF,
+    Evidence,
+    QueryClaim,
+    Silence,
+    Symbol,
+)
 from .lang import (
     AXIOM,
     DEFTERM,
@@ -56,6 +65,7 @@ from .lang import (
     to_sexp,
 )
 from .quote_verifier import QuoteVerifier
+from .quote_verifier.evidence_verifiers import DocQuoteEvidenceVerifier, DocumentCorpusVerifier, EvidenceVerifier
 
 log = logging.getLogger("parseltongue")
 
@@ -73,6 +83,8 @@ class IssueType(StrEnum):
     POTENTIAL_FABRICATION = "potential_fabrication"
     DIFF_DIVERGENCE = "diff_divergence"
     DIFF_VALUE_DIVERGENCE = "diff_value_divergence"
+    ABSENCE_VIOLATED = "absence_violated"
+    OBLIGATION_VIOLATED = "obligation_violated"
 
 
 class WarningType(StrEnum):
@@ -80,6 +92,58 @@ class WarningType(StrEnum):
 
     MANUALLY_VERIFIED = "manually_verified"
     DIFF_CONTAMINATION = "diff_contamination"
+
+
+def _corpus_counter_examples(origin: Evidence) -> list | None:
+    """Counter-examples from a checked-and-refuted corpus_query evidence.
+
+    Returns None when the evidence is not a corpus claim or was never
+    checked against a corpus (empty verification payload) — the generic
+    unverified-evidence path applies then. Returns the (possibly empty)
+    list of (doc, line, context) rows only for a claim a verifier refuted.
+    """
+    if origin.type != EVIDENCE_TYPE_CORPUS_QUERY or not origin.verification:
+        return None
+    refuted = [r for r in origin.verification if isinstance(r, dict) and not r.get("verified", False)]
+    if not refuted:
+        return None
+    examples = [ce for r in refuted for ce in r.get("counter_examples", [])]
+    return examples if examples else None
+
+
+def reverify_evidence(engine, evidence_type: str) -> int:
+    """Re-ground every origin of one evidence type via the engine's registry.
+
+    Called after a verifier is registered for a type that was unverifiable
+    when the directives executed (e.g. corpus claims grounded by a bench).
+    Returns the number of atoms whose origin changed.
+    """
+    changed = 0
+    for store in (engine.facts, engine.axioms, engine.theorems, engine.terms):
+        for name, item in list(store.items()):
+            origin = item.origin
+            if isinstance(origin, Evidence) and origin.type == evidence_type:
+                new_origin = engine._verify_evidence(origin, caller=name)
+                if new_origin != origin:
+                    store[name] = replace(item, origin=new_origin)
+                    changed += 1
+    return changed
+
+
+def _corpus_polarity(origin: Evidence) -> str:
+    claim = origin.claims[0] if origin.claims else None
+    return claim.polarity if isinstance(claim, QueryClaim) else "absent"
+
+
+def _corpus_reasons(origin: Evidence) -> list[str]:
+    """Verifier reasons for an unground corpus claim (e.g. closure failures)."""
+    if origin.type != EVIDENCE_TYPE_CORPUS_QUERY:
+        return []
+    return [
+        f"reason: {r['reason']}"
+        for r in origin.verification
+        if isinstance(r, dict) and not r.get("verified", False) and r.get("reason")
+    ]
 
 
 # ============================================================
@@ -170,6 +234,8 @@ class ConsistencyIssue:
             IssueType.POTENTIAL_FABRICATION: "Potential fabrication",
             IssueType.DIFF_DIVERGENCE: "Diff divergence",
             IssueType.DIFF_VALUE_DIVERGENCE: "Diff value divergence",
+            IssueType.ABSENCE_VIOLATED: "Absence violated",
+            IssueType.OBLIGATION_VIOLATED: "Obligation violated",
         }
         label = labels.get(self.type, self.type)
         parts = [f"{label}:"]
@@ -191,6 +257,16 @@ class ConsistencyIssue:
                 if isinstance(item, tuple):
                     name, origin = item
                     parts.append(f"    {name} (origin: {origin})")
+                else:
+                    parts.append(f"    {item}")
+        elif self.type in (IssueType.ABSENCE_VIOLATED, IssueType.OBLIGATION_VIOLATED):
+            for item in self.items:
+                if isinstance(item, (tuple, list)) and len(item) == 2:
+                    name, examples = item
+                    parts.append(f"    {name}")
+                    for ex in examples or []:
+                        doc, line, context = (list(ex) + ["", "", ""])[:3]
+                        parts.append(f"      {doc}:{line}: {str(context).strip()}")
                 else:
                     parts.append(f"    {item}")
         else:
@@ -346,6 +422,7 @@ class EngineImpl(Engine):
         verifier: QuoteVerifier | None = None,
         name: str | None = None,
         max_eval_depth: int = 10_000,
+        evidence_verifiers: "dict[str, EvidenceVerifier] | None" = None,
     ):
         self.name: str = name or self._infer_name()
         self.axioms: dict[str, Axiom] = {}
@@ -357,6 +434,12 @@ class EngineImpl(Engine):
         self.diff_refs: dict[str, set[str]] = {}  # name → diff names that reference it
         self.documents: dict[str, str] = {}
         self._verifier = verifier or QuoteVerifier()
+        self._evidence_verifiers: dict[str, EvidenceVerifier] = {
+            EVIDENCE_TYPE_DOC_QUOTE: DocQuoteEvidenceVerifier(self._verifier, self.documents),
+            EVIDENCE_TYPE_CORPUS_QUERY: DocumentCorpusVerifier(self._verifier.index),
+        }
+        if evidence_verifiers:
+            self._evidence_verifiers.update(evidence_verifiers)
         self.overridable = overridable
         self.strict_derive = strict_derive
         self.max_eval_depth = max_eval_depth
@@ -364,6 +447,10 @@ class EngineImpl(Engine):
 
         if sys.getrecursionlimit() < max_eval_depth:
             sys.setrecursionlimit(max_eval_depth)
+
+    def register_evidence_verifier(self, evidence_type: str, verifier: "EvidenceVerifier") -> None:
+        """Register (or replace) the verifier grounding one evidence type."""
+        self._evidence_verifiers[evidence_type] = verifier
 
     @staticmethod
     def _infer_name() -> str:
@@ -399,35 +486,25 @@ class EngineImpl(Engine):
     def register_document(self, name: str, text: str):
         self.documents[name] = text
         self._verifier.index.add(name, text)
+        # Corpus claims quantify over the registered documents — a new
+        # document changes their closed world, so re-ground them.
+        reverify_evidence(self, EVIDENCE_TYPE_CORPUS_QUERY)
 
     def load_document(self, name: str, path: str):
         with open(path) as f:
             text = f.read()
-        self.documents[name] = text
-        self._verifier.index.add(name, text)
+        self.register_document(name, text)
 
     # ----------------------------------------------------------
     # Evidence Verification
     # ----------------------------------------------------------
 
     def _verify_evidence(self, evidence: Evidence, caller: str | None = None) -> Evidence:
-        if evidence.document not in self.documents:
-            log.warning("Document '%s' not registered — skipping verification", evidence.document)
+        v = self._evidence_verifiers.get(evidence.type)
+        if v is None:
+            log.warning("No verifier registered for evidence type '%s' — left ungrounded", evidence.type)
             return evidence
-
-        results = self._verifier.verify_indexed_quotes(evidence.document, evidence.quotes, caller=caller)
-
-        all_verified = True
-        for r in results:
-            if r["verified"]:
-                conf = r.get("confidence", {})
-                log.info('Quote verified: "%s" (confidence: %s)', r["quote"], conf.get("level", "?"))
-            else:
-                all_verified = False
-                reason = r.get("reason", "unknown")
-                log.warning('Quote NOT verified: "%s" (%s)', r["quote"], reason)
-
-        return replace(evidence, verification=results, verified=all_verified)
+        return v.verify(evidence, caller=caller)
 
     def _lookup(self, name: str) -> Axiom | Theorem | Term | None:
         """Find a named item across all stores."""
@@ -1439,6 +1516,8 @@ class EngineImpl(Engine):
         unverified = []
         manually_verified = []
         no_evidence = []
+        absence_violated = []
+        obligation_violated = []
         for store in [self.facts, self.axioms, self.theorems, self.terms]:
             for name, item in store.items():  # type: ignore[attr-defined]
                 origin = item.origin
@@ -1446,7 +1525,14 @@ class EngineImpl(Engine):
                     if not origin.verified and origin.verify_manual:
                         manually_verified.append(name)
                     elif not origin.is_grounded:
-                        unverified.append((name, origin.quotes))
+                        violated = _corpus_counter_examples(origin)
+                        if violated is not None:
+                            if _corpus_polarity(origin) == "forall":
+                                obligation_violated.append((name, violated))
+                            else:
+                                absence_violated.append((name, violated))
+                        else:
+                            unverified.append((name, origin.quotes + _corpus_reasons(origin)))
                 elif isinstance(origin, str):
                     if (
                         origin not in ("unknown", "derived")
@@ -1459,6 +1545,12 @@ class EngineImpl(Engine):
             issues.append(ConsistencyIssue(IssueType.UNVERIFIED_EVIDENCE, sorted(unverified, key=lambda x: x[0])))
         if no_evidence:
             issues.append(ConsistencyIssue(IssueType.NO_EVIDENCE, sorted(no_evidence, key=lambda x: x[0])))
+        if absence_violated:
+            issues.append(ConsistencyIssue(IssueType.ABSENCE_VIOLATED, sorted(absence_violated, key=lambda x: x[0])))
+        if obligation_violated:
+            issues.append(
+                ConsistencyIssue(IssueType.OBLIGATION_VIOLATED, sorted(obligation_violated, key=lambda x: x[0]))
+            )
         if manually_verified:
             manual_details = {}
             for name in manually_verified:

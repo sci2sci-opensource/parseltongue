@@ -8,8 +8,14 @@ Import the DSL primitives directly from this package::
 
 # Types
 from .atoms import (  # noqa: F401
+    EVIDENCE_TYPE_CORPUS_QUERY,
+    EVIDENCE_TYPE_DOC_QUOTE,
     Axiom,
+    CorpusSource,
+    DocumentSource,
     Evidence,
+    QueryClaim,
+    QuoteClaim,
     Symbol,
     Term,
     Theorem,
