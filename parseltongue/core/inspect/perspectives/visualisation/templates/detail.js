@@ -280,6 +280,24 @@ function showDetail(d) {
       html += `</div>`;
     }
 
+    // ── Health (screen findings for this node) ──
+    {
+      const _hd = (typeof HEALTH_DATA !== 'undefined') ? HEALTH_DATA : {};
+      const findings = _hd[d.id] || [];
+      if (findings.length) {
+        html += `<div class="border-t border-surface2 pt-3"><span class="text-overlay0 font-bold">Health</span>`;
+        html += `<div class="mt-1 bg-crust rounded-lg p-3 text-xs space-y-2">`;
+        findings.forEach(f => {
+          const color = f.category === 'issue' ? 'text-red' : f.category === 'warning' ? 'text-yellow' : 'text-overlay0';
+          const icon = f.category === 'issue' ? '&#x2716;' : f.category === 'warning' ? '&#x26a0;' : '&#x2699;';
+          html += `<div><div class="${color} font-bold">${icon} ${esc(f.type)}</div>`;
+          if (f.detail) html += `<div class="text-subtext mt-0.5">${esc(f.detail)}</div>`;
+          html += `</div>`;
+        });
+        html += `</div></div>`;
+      }
+    }
+
     // ── Taint status ──
     {
       const _td = (typeof TAINT_DATA !== 'undefined') ? TAINT_DATA : {sources:[], tainted:[], reasons:{}};

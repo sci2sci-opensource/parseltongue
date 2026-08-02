@@ -234,6 +234,8 @@ class Technician:
                     store=self._store,
                     merkle_root=getattr(self, "_merkle_roots", {}).get(path, ""),
                     structure=structure,
+                    screen=dx,
+                    # frozen = what the store cached; coverage is live introspection
                 ),
             )
 
@@ -270,6 +272,8 @@ class Technician:
                     store=self._store,
                     merkle_root=getattr(self, "_merkle_roots", {}).get(path, ""),
                     structure=live_structure,
+                    screen=dx,
+                    coverage=self._coverage_of(result),
                 ),
             )
             vi = result.system.engine._verifier.index
@@ -405,6 +409,16 @@ class Technician:
         """Drop cached screens — call after a corpus reindex changed files."""
         self._screen_mem.clear()
         self._corpus_dirty = True
+
+    @staticmethod
+    def _coverage_of(result) -> "list | None":
+        """Typed coverage rows from a live result's system."""
+        try:
+            if result is not None and hasattr(result.system, "coverage"):
+                return result.system.coverage()
+        except Exception:
+            log.exception("Coverage measurement failed — viz proceeds without it")
+        return None
 
     # Backwards compat
     _load_evaluate = _load_screen

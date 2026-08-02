@@ -57,7 +57,26 @@ function esc(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>
 // ── State ──
 let activeKinds = new Set();
 let searchQuery = '';
+let searchMode = 'text'; // 'text' | 'diagnostics' — the search bar is typed
 let currentView = 'source';
+
+// Parse the raw search box value into (mode, query).
+// "diag:absence_violated" filters structurally by finding type/category;
+// anything else is plain text search.
+function parseSearch(raw) {
+  if (raw.toLowerCase().startsWith('diag:')) {
+    searchMode = 'diagnostics';
+    searchQuery = raw.slice(5).trim().toLowerCase();
+  } else {
+    searchMode = 'text';
+    searchQuery = raw.toLowerCase();
+  }
+}
+
+function hasFinding(id, facet) {
+  const findings = (typeof HEALTH_DATA !== 'undefined' && id && HEALTH_DATA[id]) || [];
+  return findings.some(f => f.type.toLowerCase() === facet || f.category.toLowerCase() === facet);
+}
 
 // ── Kind discovery ──
 const allKinds = [...new Set(
@@ -96,23 +115,47 @@ function _updateSuggestions(query) {
     suggestionsEl.classList.add('hidden');
     return;
   }
-  const q = query.toLowerCase();
-  // Exact prefix matches first, then substring matches
+  let q = query.toLowerCase();
+  const diagOnly = q.startsWith('diag:');
+  if (diagOnly) q = q.slice(5).trim();
+  // Health facets first — the search bar knows about findings
+  let healthRows = '';
+  if (typeof HEALTH_DATA !== 'undefined') {
+    const facets = {};
+    Object.values(HEALTH_DATA).forEach(fs => fs.forEach(f => {
+      facets[f.type] = (facets[f.type] || 0) + 1;
+      facets[f.category] = (facets[f.category] || 0) + 1;
+    }));
+    const facetNames = Object.keys(facets).sort()
+      .filter(t => !q || t.toLowerCase().includes(q))
+      .slice(0, diagOnly ? 12 : 4);
+    healthRows = facetNames.map(t =>
+      `<div class="search-suggestion px-3 py-1.5 cursor-pointer hover:bg-surface0 flex items-center gap-2 text-sm" data-health="${esc(t)}">
+        <span class="w-2 h-2 rounded-full shrink-0 bg-red"></span>
+        <span class="truncate text-red">${esc(t)}</span>
+        <span class="text-xs text-overlay0">health</span>
+        <span class="text-xs ml-auto shrink-0 text-subtext">&times; ${facets[t]}</span>
+      </div>`
+    ).join('');
+  }
+  // Exact prefix matches first, then substring matches (diag: shows facets only)
   const prefix = [];
   const substr = [];
-  _getAllNames().forEach(name => {
-    const short = name.includes('.') ? name.split('.').slice(1).join('.') : name;
-    const low = name.toLowerCase();
-    const slowLow = short.toLowerCase();
-    if (slowLow.startsWith(q) || low.startsWith(q)) prefix.push(name);
-    else if (low.includes(q) || slowLow.includes(q)) substr.push(name);
-  });
+  if (!diagOnly) {
+    _getAllNames().forEach(name => {
+      const short = name.includes('.') ? name.split('.').slice(1).join('.') : name;
+      const low = name.toLowerCase();
+      const slowLow = short.toLowerCase();
+      if (slowLow.startsWith(q) || low.startsWith(q)) prefix.push(name);
+      else if (low.includes(q) || slowLow.includes(q)) substr.push(name);
+    });
+  }
   const matches = prefix.concat(substr).slice(0, 12);
-  if (!matches.length) {
+  if (!matches.length && !healthRows) {
     suggestionsEl.classList.add('hidden');
     return;
   }
-  suggestionsEl.innerHTML = matches.map(name => {
+  suggestionsEl.innerHTML = healthRows + matches.map(name => {
     const item = ITEM_BY_ID[name];
     const kind = item ? item.kind : '';
     const dotVar = KIND_DOT_VAR[kind] || 'surface2';
@@ -134,6 +177,14 @@ function _updateSuggestions(query) {
 suggestionsEl.addEventListener('click', (e) => {
   const row = e.target.closest('.search-suggestion');
   if (!row) return;
+  if (row.dataset.health) {
+    searchEl.value = 'diag:' + row.dataset.health;
+    parseSearch(searchEl.value);
+    suggestionsEl.classList.add('hidden');
+    render();
+    if (currentView === 'health') renderHealth();
+    return;
+  }
   const name = row.dataset.name;
   searchEl.value = name;
   searchQuery = name.toLowerCase();
@@ -172,21 +223,29 @@ searchEl.addEventListener('keydown', (e) => {
     const target = (_sugIdx >= 0 && rows[_sugIdx]) ? rows[_sugIdx] : rows[0];
     if (target && open) {
       e.preventDefault();
+      suggestionsEl.classList.add('hidden');
+      _sugIdx = -1;
+      if (target.dataset.health) {
+        searchEl.value = 'diag:' + target.dataset.health;
+        parseSearch(searchEl.value);
+        render();
+        if (currentView === 'health') renderHealth();
+        return;
+      }
       const name = target.dataset.name;
       searchEl.value = name;
       searchQuery = name.toLowerCase();
-      suggestionsEl.classList.add('hidden');
-      _sugIdx = -1;
       focusCurrentView(name);
     }
   }
 });
 
 searchEl.addEventListener('input', (e) => {
-  searchQuery = e.target.value.toLowerCase();
+  parseSearch(e.target.value);
   _sugIdx = -1;
   _updateSuggestions(e.target.value);
   render();
+  if (currentView === 'health') renderHealth();
 });
 
 // ── Focus dispatch for current view ──
@@ -205,7 +264,7 @@ function focusCurrentView(name) {
 }
 
 // ── View toggle ──
-const VIEW_BTNS = ['source', 'structure', 'layers', 'graph'];
+const VIEW_BTNS = ['source', 'structure', 'layers', 'graph', 'health'];
 VIEW_BTNS.forEach(v => {
   document.getElementById('btn-' + v).onclick = () => switchView(v);
 });
@@ -224,6 +283,7 @@ function switchView(v) {
   if (v === 'structure') render();
   if (v === 'graph') renderGraph();
   if (v === 'layers') renderLayers();
+  if (v === 'health') renderHealth();
 }
 
 function _syncViewHeight() {
@@ -244,7 +304,9 @@ function filtered(source) {
     const k = d.kind || d.category || '';
     if (activeKinds.size > 0 && !activeKinds.has(k)) return false;
     if (searchQuery) {
-      const hay = JSON.stringify(d).toLowerCase();
+      if (searchMode === 'diagnostics') return hasFinding(d.id, searchQuery);
+      const findings = (typeof HEALTH_DATA !== 'undefined' && d.id && HEALTH_DATA[d.id]) || [];
+      const hay = (JSON.stringify(d) + JSON.stringify(findings)).toLowerCase();
       return hay.includes(searchQuery);
     }
     return true;

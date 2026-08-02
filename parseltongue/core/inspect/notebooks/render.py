@@ -53,6 +53,7 @@ def render_result(result: NotebookResult, title: str, include_diffs: bool = True
     node_index: dict = {}
     engine = None
     diagnostics: list[dict] = []
+    screen_obj = None
 
     bench = result.bench
     if bench is not None:
@@ -79,7 +80,7 @@ def render_result(result: NotebookResult, title: str, include_diffs: bool = True
                 print(f"Warning: diff probe failed: {e}", file=sys.stderr)
 
         try:
-            screen = bench.screen()
+            screen_obj = screen = bench.screen()  # kept whole for the page's HEALTH_DATA
             for item in screen._items:
                 sev = (
                     "error"
@@ -104,7 +105,22 @@ def render_result(result: NotebookResult, title: str, include_diffs: bool = True
         logbook=logbook,
     )
 
+    coverage = []
+    if bench is not None:
+        try:
+            coverage = bench.coverage()
+        except Exception as e:
+            print(f"Warning: coverage failed: {e}", file=sys.stderr)
+
     notebook_html = build_notebook_html(
         result.blocks, result.block_outputs, node_index, diagnostics, engine, taint_result=taint_result
     )
-    return render_notebook(title, notebook_html, items, layers_data, logbook=logbook)
+    return render_notebook(
+        title,
+        notebook_html,
+        items,
+        layers_data,
+        logbook=logbook,
+        screen=screen_obj,
+        coverage=coverage,
+    )

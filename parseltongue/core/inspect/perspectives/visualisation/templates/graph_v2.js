@@ -524,11 +524,16 @@ function renderGraph() {
         if (selectedPath && d.id === selectedFocusId) return C.mauve;
         if (taintMode && taintSources.has(d.id)) return C.red;
         if (taintMode && taintPropagated.has(d.id)) return C.yellow;
+        const findings = (typeof HEALTH_DATA !== 'undefined' && HEALTH_DATA[d.id]) || [];
+        if (findings.some(f => f.category === 'issue')) return C.red;
+        if (findings.some(f => f.category === 'warning')) return C.yellow;
         return d.dangling ? C.base : C.surface0;
       })
       .attr('stroke-width', d => {
         if (selectedPath && d.id === selectedFocusId) return 3;
         if (taintMode && (taintSources.has(d.id) || taintPropagated.has(d.id))) return 2;
+        const findings = (typeof HEALTH_DATA !== 'undefined' && HEALTH_DATA[d.id]) || [];
+        if (findings.some(f => f.category !== 'dangling')) return 2;
         return d.dangling ? 0.5 : 1.5;
       });
     regularNode.select('.node-label').attr('opacity', d => nodeAlpha(d.id, d.dangling) * (labelAlpha != null ? labelAlpha : 1));

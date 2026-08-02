@@ -102,6 +102,7 @@ $base_css
         <button id="btn-structure" class="px-3 py-1 rounded-lg text-xs bg-surface0 text-subtext hover:bg-surface1">Structure</button>
         <button id="btn-layers" class="px-3 py-1 rounded-lg text-xs bg-surface0 text-subtext hover:bg-surface1">Layers</button>
         <button id="btn-graph" class="px-3 py-1 rounded-lg text-xs bg-surface0 text-subtext hover:bg-surface1">Graph</button>
+        <button id="btn-health" class="px-3 py-1 rounded-lg text-xs bg-surface0 text-subtext hover:bg-surface1 border border-surface2">Health</button>
         <span id="count" class="text-xs text-overlay0 self-center"></span>
       </div>
     </div>
@@ -143,6 +144,11 @@ $base_css
     <div id="tooltip" class="fixed bg-surface0 border border-surface2 rounded-lg px-3 py-2 text-xs pointer-events-none max-w-sm whitespace-pre-wrap hidden z-30"></div>
   </div>
 
+  <!-- Health View — full-page diagnostics: verdict, stats, nodes, documents -->
+  <div id="health-view" class="hidden">
+    <div id="health-root" class="max-w-6xl mx-auto p-6"></div>
+  </div>
+
   <!-- Detail Panel -->
   <div id="detail-panel" class="fixed top-0 right-0 h-full w-full sm:w-[420px] bg-mantle border-l border-surface1 z-30 transform translate-x-full transition-transform duration-200 overflow-y-auto">
     <div class="sticky top-0 bg-mantle/95 backdrop-blur border-b border-surface1 px-4 py-3 flex items-center justify-between">
@@ -158,6 +164,8 @@ const DATA = $data_json;
 const STRUCTURE_DATA = $structure_json;
 const LAYERS = $layers_json;
 const TAINT_DATA = $taint_json;
+const HEALTH_DATA = $health_json;
+const COVERAGE_DATA = $coverage_json;
 const FORM_TYPE = "$form_type";
 
 // ── Theme toggle ──
@@ -203,6 +211,8 @@ $source_js
 $cards_js
 
 $detail_js
+
+$health_js
 
 $graph_js
 

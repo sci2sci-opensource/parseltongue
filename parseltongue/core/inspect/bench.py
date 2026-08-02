@@ -287,6 +287,17 @@ class Bench:
     # Backwards compat
     evaluate = screen
 
+    def coverage(self, path: str | None = None) -> list:
+        """Typed coverage measurements — live introspection over the system."""
+        path = str(Path(path).resolve()) if path else self._require_current()
+        if path not in self._mem:
+            self.prepare(path)
+        sample = self._mem.get(path)
+        result = sample[3].last_result if sample else None
+        if result is None or not hasattr(result.system, "coverage"):
+            result, _ = self._technician.ensure_live(path, sample)
+        return result.system.coverage()
+
     # ── Search ──
 
     def search(

@@ -35,6 +35,8 @@ from .renderer import (
     _strip_internal,
     split_divergences,
 )
+from .renderer import coverage_rows as _coverage_rows
+from .renderer import health_index as _health_index
 
 if TYPE_CHECKING:
     from ...probe_core_to_consequence import CoreToConsequenceStructure
@@ -938,6 +940,8 @@ def render_notebook(
     layers_data: dict,
     structure_items: list[dict] | None = None,
     logbook: list[dict] | None = None,
+    screen: Any = None,
+    coverage: list | None = None,
 ) -> str:
     """Render the full notebook app HTML.
 
@@ -1029,9 +1033,11 @@ document.addEventListener('DOMContentLoaded', function() {
 
     # 5. Read JS modules, patch core.js to include 'notebook' in VIEW_BTNS
     core_js = _read("core.js").replace(
-        "const VIEW_BTNS = ['source', 'structure', 'layers', 'graph'];",
-        "const VIEW_BTNS = ['notebook', 'source', 'structure', 'layers', 'graph'];",
+        "const VIEW_BTNS = ['source', 'structure', 'layers', 'graph', 'health'];",
+        "const VIEW_BTNS = ['notebook', 'source', 'structure', 'layers', 'graph', 'health'];",
     )
+    if "const VIEW_BTNS = ['notebook'" not in core_js:  # replace() silently no-ops on drift
+        raise RuntimeError("notebook renderer: VIEW_BTNS patch target drifted in core.js")
 
     # 6. Append notebook.js to layers.js (both are plain JS, no $ conflicts)
     notebook_js = _read("notebook.js")
@@ -1062,12 +1068,15 @@ document.addEventListener('DOMContentLoaded', function() {
         structure_json=json.dumps(structure_items, separators=(",", ":")),
         layers_json=json.dumps(layers_data, separators=(",", ":")),
         taint_json=json.dumps(taint_result.to_json(), separators=(",", ":")),
+        health_json=json.dumps(_health_index(screen), separators=(",", ":")),
+        coverage_json=json.dumps(_coverage_rows(coverage), separators=(",", ":")),
         form_type="ln",
         item_count=str(len(items)),
         core_js=core_js,
         source_js=_read("source.js"),
         cards_js=_read("cards.js"),
         detail_js=_read("detail.js"),
+        health_js=_read("health.js"),
         graph_js=_read("graph_v2.js"),
         layers_js=layers_js,
     )
