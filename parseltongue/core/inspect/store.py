@@ -80,34 +80,10 @@ def _collect_tree_leaves(node: MerkleNode) -> dict[str, str]:
     return result
 
 
-def _is_ignored(rel_path: str, patterns: list[str]) -> bool:
-    """Check if a relative path matches any .pgignore pattern (gitignore-style)."""
-    import fnmatch
-
-    parts = Path(rel_path).parts
-    for pat in patterns:
-        dir_only = pat.endswith("/")
-        p = pat.rstrip("/")
-        # Full path match
-        if fnmatch.fnmatch(rel_path, p) or fnmatch.fnmatch(rel_path, p + "/*"):
-            return True
-        # Any suffix of the path (gitignore matches at any level)
-        for i in range(len(parts)):
-            sub = str(Path(*parts[i:]))
-            if fnmatch.fnmatch(sub, p):
-                return True
-            if dir_only and fnmatch.fnmatch(sub, p + "/*"):
-                return True
-        # For directory patterns, check if any parent dir matches
-        if dir_only:
-            for i in range(len(parts) - 1):
-                parent = str(Path(*parts[: i + 1]))
-                if fnmatch.fnmatch(parent, p):
-                    return True
-                # Single-segment pattern matches any dir component
-                if "/" not in p and fnmatch.fnmatch(parts[i], p):
-                    return True
-    return False
+# Selection is core machinery (one classification for indexing,
+# load-documents, and corpus evidence); the alias keeps existing callers.
+from ..search_engine.select import classify_file  # noqa: E402
+from ..search_engine.select import is_ignored as _is_ignored  # noqa: E402
 
 
 class Store:
@@ -997,17 +973,24 @@ class SearchStore:
                 pass
 
             for fname in fnames:
-                if any(fname.endswith(e) for e in ext_set):
+                if any(fname.endswith(e) for e in ext_set):  # fast-path: skip stat on non-corpus files
                     fpath = Path(root) / fname
                     rel = str(fpath.relative_to(directory))
-                    if ignore_patterns and _is_ignored(rel, ignore_patterns):
-                        continue
                     try:
                         size = fpath.stat().st_size
                     except OSError:
                         continue
-                    if size > max_file_size and not _is_ignored(rel, allow_large):
+                    verdict = classify_file(
+                        rel,
+                        size,
+                        ignore_patterns=ignore_patterns,
+                        max_bytes=max_file_size,
+                        allow_large=allow_large,
+                    )
+                    if verdict == "oversized":
                         self._skipped_large[rel] = size
+                        continue
+                    if verdict != "ok":
                         continue
                     paths.append((fpath, rel))
         return paths

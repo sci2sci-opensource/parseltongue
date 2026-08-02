@@ -293,7 +293,7 @@ class LazyLoader(Loader):
     # Effects that must run before directives (sorted by rank within this group).
     PRE_DIRECTIVE_EFFECTS: list[list[str]] = [
         ["context"],
-        ["load-document"],
+        ["load-document", "load-documents"],
         ["import"],
     ]
     # Effects that run after all directives have executed.

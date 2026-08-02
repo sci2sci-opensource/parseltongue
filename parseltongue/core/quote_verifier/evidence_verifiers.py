@@ -92,6 +92,7 @@ class DocumentCorpusVerifier:
     def verify(self, evidence: Evidence, caller: "str | None" = None) -> Evidence:
         from ..lang import PGStringParser
         from ..search_engine.engine import compose_satisfies
+        from ..search_engine.select import is_ignored
 
         claim = evidence.claims[0] if evidence.claims else None
         if not isinstance(claim, QueryClaim):
@@ -110,19 +111,18 @@ class DocumentCorpusVerifier:
         }
 
         qe = self._query_engine()
-        scoped_docs = sorted(
-            {name for (name, _line) in qe.evaluate_posting((Symbol("in"), scope) if scope else (Symbol("in"), "*"))}
-            - {name for e in excludes for (name, _line) in qe.evaluate_posting((Symbol("in"), e))}
-        )
+        in_scope = {
+            name for (name, _line) in qe.evaluate_posting((Symbol("in"), scope) if scope else (Symbol("in"), "*"))
+        }
+        scoped_docs = sorted(name for name in in_scope if not is_ignored(name, excludes))
         if not scoped_docs:
             result["reason"] = f"no registered documents match scope '{scope}' — nothing to quantify over"
             return replace(evidence, verification=[result], verified=False)
 
         def _scoped(form):
             composed = (Symbol("in"), scope, form) if scope else form
-            for e in excludes:
-                composed = (Symbol("not-in"), e, composed)
-            return qe.evaluate_posting(composed)
+            posting = qe.evaluate_posting(composed)
+            return {k: v for k, v in posting.items() if not is_ignored(k[0], excludes)}
 
         parse = PGStringParser.translate
         try:

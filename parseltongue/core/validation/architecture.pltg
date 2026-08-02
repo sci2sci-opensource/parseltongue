@@ -1,0 +1,12 @@
+; Architectural invariants — machine-checked claims about this codebase.
+; The corpus loads broadly; each invariant carries its own :except, so
+; the phrase stays true independently of which documents any environment
+; assembles over the shared index.
+
+(load-documents "parseltongue/core" "../**/*.py")
+
+(fact core-independent-of-bench true
+  :evidence (evidence "parseltongue/core"
+             :absent (re "from (\\.+|parseltongue\\.core\\.)inspect")
+             :except ("inspect/" "tests/" "demos/")
+             :explanation "search is core machinery; the bench (inspect) composes core, never the reverse"))

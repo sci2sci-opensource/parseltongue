@@ -528,6 +528,11 @@ class Technician:
             if node.source_file and node.source_file not in seen:
                 seen.add(node.source_file)
                 files.append(node.source_file)
+        # Documents with recorded paths (load-document / load-documents)
+        for p in sorted(set(getattr(loader, "document_paths", {}).values())):
+            if p not in seen and Path(p).exists():
+                seen.add(p)
+                files.append(p)
         result = loader.last_result
         if result and result.system and result.system.engine:
             for name in sorted(result.system.engine.documents):

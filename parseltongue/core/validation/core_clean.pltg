@@ -18,6 +18,7 @@
 ; (import (quote self_test))
 (import (quote ..std.util))
 (import (quote domain))
+(import (quote architecture))
 (import (quote ..std.counting))
 
 (defterm count-exists counting.count-exists :origin "import")

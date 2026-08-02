@@ -106,6 +106,7 @@ class Loader:
         self.names_to_modules: dict[str, str] = {}
         self.names_to_lines: dict[str, int] = {}
         self._lib_paths: list[str] = lib_paths or []
+        self.document_paths: dict[str, str] = {}  # doc name → absolute file path
         self._engine: LoaderEngine = None  # type: ignore[assignment]  # created in load_main
 
     def create_md_ctx(self, abs_path, module_name):
@@ -323,7 +324,55 @@ class Loader:
             """Effect: (load-document "name" "relative/path.txt")"""
             resolved = os.path.normpath(os.path.join(self._current.current_dir, str(path)))
             system.load_document(str(name), resolved)
+            self.document_paths[str(name)] = resolved
             log.info("Loaded document '%s' from %s", name, resolved)
+            return True
+
+        def load_documents_effect(system: System, prefix, pattern, *kv) -> bool:
+            """Effect: (load-documents "prefix" "glob" :except (...) :pgignore "file" :max-bytes N :allow-large (...))
+
+            Bulk registration through the core selection machinery — the
+            same classification indexing uses, parameterized here by the
+            author: permissive by default (no size cap, no implicit
+            config), every knob of select_files reachable by keyword.
+            Documents register as "<prefix>/<relative-posix-path>".
+            """
+            from ..lang import get_keyword
+            from ..search_engine.select import DEFAULT_IGNORE, select_files
+
+            base = self._current.current_dir
+            excepts = get_keyword(kv, ":except", ())
+            excepts = list(excepts) if isinstance(excepts, (list, tuple)) else [str(excepts)]
+            ignore_file = get_keyword(kv, ":pgignore", None)
+            max_bytes = get_keyword(kv, ":max-bytes", None)
+            allow_large = get_keyword(kv, ":allow-large", ())
+
+            glob_pattern = str(pattern)
+            root, sep, tail = glob_pattern.partition("**")
+            root_dir = os.path.normpath(os.path.join(base, root)) if root else base
+            rel_pattern = ("**" + tail) if sep else os.path.basename(glob_pattern)
+            if not sep and os.path.dirname(glob_pattern):
+                root_dir = os.path.normpath(os.path.join(base, os.path.dirname(glob_pattern)))
+
+            selected, skipped = select_files(
+                root_dir,
+                rel_pattern,
+                ignore_patterns=list(DEFAULT_IGNORE) + [str(e) for e in excepts],
+                ignore_file=os.path.normpath(os.path.join(base, str(ignore_file))) if ignore_file else None,
+                max_bytes=int(max_bytes) if max_bytes is not None else None,
+                allow_large=[
+                    str(g) for g in (allow_large if isinstance(allow_large, (list, tuple)) else (allow_large,))
+                ],
+            )
+            for rel in selected:
+                abs_path = os.path.join(root_dir, rel)
+                doc_name = f"{prefix}/{rel}"
+                system.load_document(doc_name, abs_path)
+                self.document_paths[doc_name] = abs_path
+            oversized = {r: v for r, v in skipped.items() if v == "oversized"}
+            if oversized:
+                log.error("load-documents skipped %d oversized file(s): %s", len(oversized), sorted(oversized)[:5])
+            log.info("Loaded %d documents under '%s' from %s", len(selected), prefix, root_dir)
             return True
 
         def context_effect(system: System, key) -> Any:
@@ -425,6 +474,7 @@ class Loader:
             "import": import_effect,
             "run-on-entry": run_on_entry_effect,
             "load-document": load_document_effect,
+            "load-documents": load_documents_effect,
             "context": context_effect,
             "print": print_effect,
             "consistency": consistency_effect,
