@@ -31,6 +31,14 @@ Every directive must include :evidence with verbatim quotes from the source docu
     :quotes ("exact quote from document" "another exact quote if needed")
     :explanation "why these quotes support this claim")
 
+For universal claims — "X appears nowhere" / "every X is accompanied by Y" —
+the evidence form quantifies a search query over a document corpus instead
+of quoting (the source names a corpus region; :except uses .pgignore-style
+patterns; never state such claims as bare :origin assertions):
+
+  (evidence "src/auth" :absent (re "md5|sha1") :except ("tests/"))
+  (evidence "src/api" :forall (re "@app\\.route") :satisfies (near 5 (re "@requires_auth")))
+
 VERBATIM MEANS VERBATIM:
 Quotes MUST be copied character-for-character from the source document — including all formatting, special symbols, punctuation, bullet markers, numbering, currency signs, percentage signs, parentheses, dashes, and whitespace. Do NOT clean up, reformat, simplify, or normalize quotes. A quote that drops a "$", changes "—" to "-", removes a bullet "•", strips parentheses, or omits any character is NOT verbatim and will fail verification.
 

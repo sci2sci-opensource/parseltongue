@@ -16,5 +16,5 @@
 | [Search files projection](completed/search-files-projection.md) | done | feature/decouple-pgignore-from-gitignore | |
 | [Incremental Reindex](pending/incremental-reindex.md) | pending | | |
 | [Daemon Singleton + Shutdown](completed/daemon-singleton-and-shutdown.md) | done | feature/daemon-singleton-and-shutdown | |
-| [Absence Evidence](pending/absence-evidence.md) | pending | | |
-| [Universal Obligations](pending/universal-obligations.md) | pending | | |
+| [Absence Evidence](completed/absence-evidence.md) | done | feature/evidence-family-coverage-health | |
+| [Universal Obligations](completed/universal-obligations.md) | done | feature/evidence-family-coverage-health | |

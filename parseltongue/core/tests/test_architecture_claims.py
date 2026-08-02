@@ -18,15 +18,24 @@ ARCH_PLTG = os.path.join(os.path.dirname(__file__), "..", "validation", "archite
 class TestArchitectureClaims(unittest.TestCase):
     def test_core_independent_of_bench_verifies(self):
         system = LazyLoader().load_main(ARCH_PLTG, strict=True)
-        origin = system.engine.facts["core-independent-of-bench"].origin
-        self.assertTrue(origin.is_grounded, origin.verification)
-        record = origin.verification[0]
-        self.assertGreater(record["checked_files"], 50)  # quantifies over the real corpus
-        self.assertNotIn(  # the sentence's own :except carved these, not the corpus assembly
-            "parseltongue/core/inspect/bench.py", record["content_hashes"]
-        )
+        for name in ("no-relative-bench-import", "no-absolute-bench-import", "no-dynamic-bench-import"):
+            origin = system.engine.facts[name].origin
+            self.assertTrue(origin.is_grounded, (name, origin.verification))
+            record = origin.verification[0]
+            self.assertGreater(record["checked_files"], 50)  # quantifies over the real corpus
+            self.assertNotIn(  # the sentence's own :except carved these, not the corpus assembly
+                "parseltongue/core/inspect/bench.py", record["content_hashes"]
+            )
+        composite = system.engine.theorems["core-independent-of-bench"]
+        self.assertNotIn("potential fabrication", str(composite.origin))
         report = system.engine.consistency()
         self.assertTrue(report.consistent, [str(i) for i in report.issues])
+
+    def test_boundary_does_not_match_inspector(self):
+        """`from .inspector import x` is not a bench import — \\b holds the line."""
+        system = LazyLoader().load_main(ARCH_PLTG, strict=True)
+        system.engine.register_document("parseltongue/core/uses_inspector.py", "from .inspector import gadget\n")
+        self.assertTrue(system.engine.facts["no-relative-bench-import"].origin.is_grounded)
 
 
 TEST_DIR = "/tmp/architecture-claims-negative"

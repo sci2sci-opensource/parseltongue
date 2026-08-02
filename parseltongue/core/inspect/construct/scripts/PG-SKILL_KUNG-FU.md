@@ -111,6 +111,46 @@ Use `:origin` only for genuinely ungrounded claims, or to record **missing data*
   :origin "paper provides NO early detection rate for breast cancer")
 ```
 
+### Corpus-quantified facts — `:absent` and `:forall`
+
+Quote evidence proves *presence*. The evidence form also states the two
+universal claims — "X appears nowhere" and "every X is accompanied by Y" —
+quantified over a closed corpus instead of grounded in one quote:
+
+```scheme
+(fact no-weak-hash true
+  :evidence (evidence "src/auth"                    ; source names a corpus region
+    :absent (re "md5|sha1")                          ; query must have ZERO matches
+    :except ("tests/")                               ; .pgignore-style exclusions
+    :explanation "auth code never uses weak hashes"))
+
+(fact all-routes-authed true
+  :evidence (evidence "src/api"
+    :forall (re "@app\\.route")                      ; every match of this query...
+    :satisfies (near 5 (re "@requires_auth"))        ; ...must meet this condition
+    :except ("tests/")))
+```
+
+The queries are ordinary search-language forms; `:except` speaks exactly
+the `.pgignore` dialect. In any system the claims ground against the
+registered-document corpus (closed by construction); under a bench they
+ground against the file index, with a closure gate — every file in scope
+must be indexed, ignored, or `:except`'d, otherwise verification refuses
+with an actionable message. A violated claim flips false, surfaces as
+`absence_violated` / `obligation_violated` in the screen with the
+offending lines as counter-examples, and taints downstream derives.
+Claims re-verify whenever the corpus changes — they keep themselves honest.
+
+Bulk-load a corpus from the declaring file's directory with the same
+selection mechanics indexing uses:
+
+```scheme
+(load-documents "src" "../src/**/*.py" :except ("vendored/"))
+```
+
+See `validation/architecture.pltg` for a real invariant guarding this
+repository's own layering.
+
 ### Axioms — formal rules from the source document's logic
 
 Axioms need a `defterm` declaration before the `axiom` rule. Both should be grounded:

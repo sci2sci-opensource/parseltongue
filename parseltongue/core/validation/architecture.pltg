@@ -2,11 +2,32 @@
 ; The corpus loads broadly; each invariant carries its own :except, so
 ; the phrase stays true independently of which documents any environment
 ; assembles over the shared index.
+;
+; core-independent-of-bench is a composite: one absence fact per import
+; vector (relative, absolute, dynamic), conjoined by derivation. Note the
+; \b boundaries — plain stdlib `import inspect` is legitimate and must
+; not match; `.inspector` must not match either.
 
 (load-documents "parseltongue/core" "../**/*.py")
 
-(fact core-independent-of-bench true
+(fact no-relative-bench-import true
   :evidence (evidence "parseltongue/core"
-             :absent (re "from (\\.+|parseltongue\\.core\\.)inspect")
-             :except ("inspect/" "tests/" "demos/")
-             :explanation "search is core machinery; the bench (inspect) composes core, never the reverse"))
+    :absent (re "from +\\.+ *(inspect\\b|import +[^#]*\\binspect\\b)")
+    :except ("inspect/" "tests/" "demos/")
+    :explanation "no `from .inspect ...` nor inspect anywhere in a relative import name-list"))
+
+(fact no-absolute-bench-import true
+  :evidence (evidence "parseltongue/core"
+    :absent (re "parseltongue\\.core(\\.inspect\\b| +import +[^#]*\\binspect\\b)")
+    :except ("inspect/" "tests/" "demos/")
+    :explanation "no absolute import of parseltongue.core.inspect, direct or in a name-list"))
+
+(fact no-dynamic-bench-import true
+  :evidence (evidence "parseltongue/core"
+    :absent (re "(import_module|__import__)\\([^)]*inspect\\b")
+    :except ("inspect/" "tests/" "demos/")
+    :explanation "no string-based imports reaching the bench either"))
+
+(derive core-independent-of-bench
+  (and no-relative-bench-import no-absolute-bench-import no-dynamic-bench-import)
+  :using (no-relative-bench-import no-absolute-bench-import no-dynamic-bench-import))
