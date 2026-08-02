@@ -25,7 +25,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Callable
 
 if TYPE_CHECKING:
-    from .search_s.index import DocumentSearchIndex
+    from ..search_engine.index import DocumentSearchIndex
 
 from ..ast import DirectiveNode
 from ..integrity.merkle import MerkleNode, _sha256, _sha256_bytes, merkle_combine
@@ -696,7 +696,7 @@ class SearchStore:
         """
         import time
 
-        from .search_s.serialization import deserialize_search_index
+        from ..search_engine.serialization import deserialize_search_index
 
         if not self._store:
             return None
@@ -907,7 +907,7 @@ class SearchStore:
         the largest cache file on every changed reindex pass."""
         if not self._store:
             return
-        from .search_s.serialization import serialize_search_index
+        from ..search_engine.serialization import serialize_search_index
 
         self._store.save_search_index_data(self._path, serialize_search_index(search_index))
 
