@@ -155,10 +155,13 @@ def _sexp_to_clause(sentence: Sentence) -> "Clause | Sentence":
                 verified=verified,
                 type=ev_type,
             )
+        # Third-party types round-trip generically — claims as display
+        # strings, type preserved for the owning verifier.
         return Evidence(
             document=str(sentence[1]),
             quotes=list(str(q) for q in sentence[2]),  # type: ignore[union-attr]
             verified=verified,
+            type=ev_type,
         )
     if head == "theorem":
         return Theorem(

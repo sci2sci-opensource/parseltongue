@@ -77,6 +77,9 @@ def deserialize_evidence(d: dict) -> Evidence:
             verify_manual=d.get("verify_manual", False),
             type=ev_type,
         )
+    # Third-party types round-trip generically: claims as their display
+    # strings, the type preserved so the owning verifier still recognizes
+    # the instance after a cache reload.
     return Evidence(
         document=d["document"],
         quotes=d.get("quotes", []),
@@ -84,6 +87,7 @@ def deserialize_evidence(d: dict) -> Evidence:
         verification=d.get("verification", []),
         verified=d.get("verified", False),
         verify_manual=d.get("verify_manual", False),
+        type=ev_type,
     )
 
 

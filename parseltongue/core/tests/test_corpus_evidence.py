@@ -125,6 +125,12 @@ class TestEvidenceTypedInterior(unittest.TestCase):
         ev = _ev('(evidence "src/auth" :absent (re "md5") :except ("tests/" "docs/"))')
         self.assertEqual(deserialize_evidence(serialize_evidence(ev)), ev)
 
+    def test_third_party_type_round_trips(self):
+        """Extension types (e.g. a pro-side "functional") survive both round-trips."""
+        ev = Evidence(document="self-check", quotes=["(> arr 0)"], type="functional")
+        self.assertEqual(deserialize_evidence(serialize_evidence(ev)).type, "functional")
+        self.assertEqual(_sexp_to_clause(_clause_to_sexp(ev)).type, "functional")
+
     def test_doc_quote_sexp_shape_unchanged(self):
         ev = Evidence("Doc", ["q"])
         sexp = _clause_to_sexp(ev)
