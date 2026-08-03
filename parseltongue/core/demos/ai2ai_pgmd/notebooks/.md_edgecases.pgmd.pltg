@@ -51,3 +51,8 @@
 (diff nrr-vs-model :replace nrr :with nrr-model-estimate)
 
 ;; @@end 0
+;; @@block 1 562b70c7ee67caca6d279e4acb69383e6fc995177b5a67b5b7b44e18c33ae8eb
+;; pltg — alias ≠ module name
+(import (quote ..facts.ai2ai_facts af))
+
+;; @@end 1

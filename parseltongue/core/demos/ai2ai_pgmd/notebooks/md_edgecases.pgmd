@@ -194,3 +194,19 @@ All checks pass[[~term:retention-check]] and metrics look healthy.
 ## Summary
 
 $[[fact:arr]] ARR | [[fact:nrr]]% NRR | [[term:ltv-to-cac]]x LTV/CAC — **strong fundamentals** with $[[fact:cash]] runway.
+
+## Aliased imports in refs
+
+An alias valid in a code block must be valid in a prose ref — the alias here
+is deliberately different from the module name (regression case for
+issue #20, where alias-qualified refs silently degraded to plain text).
+
+```scheme
+;; pltg — alias ≠ module name
+(import (quote ..facts.ai2ai_facts af))
+```
+
+Aliased ref: $[[fact:af.mrr]] MRR. Aliased with suffix: [[fact:af.yoy-growth-pct]]% YoY.
+Module-qualified still works: $[[fact:ai2ai_facts.enterprise-arr]] enterprise ARR.
+Adjacent aliased refs: [[fact:af.revenue]][[fact:af.cogs]] — comma-separated like any others.
+Silent run collapses to one bracket: metrics hold[[~fact:af.mrr]][[~fact:af.revenue]][[~fact:af.cogs]] — three footnotes, one superscript.

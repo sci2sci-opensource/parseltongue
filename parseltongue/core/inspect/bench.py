@@ -287,6 +287,19 @@ class Bench:
     # Backwards compat
     evaluate = screen
 
+    def module_aliases(self, path: str | None = None) -> dict:
+        """alias → canonical module mappings the loader registered.
+
+        Import aliases live in the pltg evaluation namespace; pages that
+        resolve prose refs need the same mapping so a name valid in a
+        code block is valid in a ref.
+        """
+        path = str(Path(path).resolve()) if path else self._require_current()
+        sample = self._mem.get(path)
+        loader = sample[3] if sample else None
+        engine = getattr(loader, "_engine", None)
+        return dict(getattr(engine, "module_aliases", None) or {})
+
     def coverage(self, path: str | None = None) -> list:
         """Typed coverage measurements — live introspection over the system."""
         path = str(Path(path).resolve()) if path else self._require_current()

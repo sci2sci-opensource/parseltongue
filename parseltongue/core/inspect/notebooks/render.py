@@ -60,6 +60,15 @@ def render_result(result: NotebookResult, title: str, include_diffs: bool = True
         try:
             lens = bench.lens()
             items, layers_data, node_index = build_viz_data(lens._structure)
+            # Import aliases are honored by the pltg evaluator; honor them
+            # for prose refs too — twin every canonical key under its alias.
+            for alias, canonical in bench.module_aliases().items():
+                if alias == canonical:
+                    continue
+                prefix = canonical + "."
+                for key in list(node_index):
+                    if key.startswith(prefix):
+                        node_index.setdefault(alias + "." + key[len(prefix) :], node_index[key])
         except Exception as e:
             print(f"Warning: lens failed: {e}", file=sys.stderr)
             traceback.print_exc(file=sys.stderr)

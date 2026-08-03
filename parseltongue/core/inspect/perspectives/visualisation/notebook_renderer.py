@@ -152,6 +152,7 @@ def _fmt_value(val_str: str) -> str:
 # Global footnote state (reset per build_notebook_html call)
 _footnote_counter: int = 0
 _footnote_map: dict[str, int] = {}  # node_id → footnote number
+_ref_warnings: list[str] = []  # unresolved/ambiguous refs, surfaced after the build
 
 
 def _wrap_with_margin(
@@ -406,14 +407,21 @@ def _render_inline(
 
     result = "".join(parts)
 
-    # Group adjacent footnotes into a single bracketed superscript [1, 2, 3].
-    # Collect runs of adjacent nb-fn spans (allowing intervening closing tags).
-    def _group_footnotes(m):
-        return m.group(1) + m.group(2) + m.group(3)
-
+    # Two adjacency displays, by ref type — both rewrites are per-junction,
+    # so runs of any length work (N refs → N-1 junctions, one pass):
+    #  - a footnote followed by a silent ref collapses into one bracketed
+    #    superscript [1, 2, …]: the "]" of one sup and the "[" of the next
+    #    are dropped, joined with ", " inside the superscript;
+    #  - explicit value refs glued in source ([[a]][[b]]) get a ", " between
+    #    the spans so their values don't run together ("2.4M, 480,000").
     result = re.sub(
-        r'(</span>)((?:</(?:strong|em|a)>)*)\s*(<span class="nb-fn[ "])',
-        _group_footnotes,
+        r'\]</sup>(</span>(?:</(?:strong|em|a)>)*)\s*(<span class="nb-fn nb-fn-silent[^>]*>)(<sup[^>]*>)\[',
+        lambda m: "</sup>" + m.group(1) + m.group(2) + m.group(3) + ", ",
+        result,
+    )
+    result = re.sub(
+        r'(</span>)((?:</(?:strong|em|a)>)*)(<span class="nb-fn font-semibold)',
+        lambda m: m.group(1) + m.group(2) + ", " + m.group(3),
         result,
     )
     return result
@@ -437,7 +445,14 @@ def _render_pgmd_ref(
 
     node = _resolve_node(ref_name, node_index)
     if not node:
-        return f'{prefix}<span class="text-overlay0">{html_mod.escape(ref_type)}:{html_mod.escape(ref_name)}</span>{suffix}'
+        # A ref that quietly stops being wired is a grounding failure —
+        # render it loudly and record it for the render-time diagnostics.
+        _ref_warnings.append(f"unresolved ref '{ref_type}:{ref_name}'")
+        return (
+            f'{prefix}<span class="text-red border-b border-red border-dashed" '
+            f'title="unresolved reference — no node matches this name">'
+            f"{html_mod.escape(ref_type)}:{html_mod.escape(ref_name)}</span>{suffix}"
+        )
 
     node_id = node["id"]
     color = _KIND_COLORS.get(node["kind"], "subtext")
@@ -482,7 +497,7 @@ def _render_pgmd_ref(
     ts_sec = _text_style_secondary(color, node)
     if silent:
         return (
-            f'{prefix}<span class="nb-fn cursor-pointer{taint_cls}" '
+            f'{prefix}<span class="nb-fn nb-fn-silent cursor-pointer{taint_cls}" '
             f'data-node="{esc_id}" data-fn="{fn_num}">'
             f'<sup class="text-[0.65em] font-bold" style="{ts_sec}">[{fn_num}{taint_icon}]</sup></span>{suffix}'
         )
@@ -499,9 +514,13 @@ def _render_pgmd_ref(
 def _resolve_node(name: str, node_index: dict) -> dict | None:
     if name in node_index:
         return node_index[name]
-    for k, v in node_index.items():
-        if k.endswith(f".{name}"):
-            return v
+    hits = [(k, v) for k, v in node_index.items() if k.endswith(f".{name}")]
+    if len(hits) > 1:
+        distinct = sorted({v["id"] for _k, v in hits})
+        if len(distinct) > 1:
+            _ref_warnings.append(f"ambiguous ref '{name}' matches {', '.join(distinct)} — using {hits[0][1]['id']}")
+    if hits:
+        return hits[0][1]
     return None
 
 
@@ -619,9 +638,10 @@ def build_notebook_html(
     """Render pgmd blocks into notebook view HTML (goes inside #notebook-container)."""
     from parseltongue.core.inspect.notebooks.executor import BlockOutput
 
-    global _footnote_counter, _footnote_map
+    global _footnote_counter, _footnote_map, _ref_warnings
     _footnote_counter = 0
     _footnote_map = {}
+    _ref_warnings = []
 
     # Build taint sets for pill styling
     taint_sources: set[str] = set(taint_result.sources) if taint_result else set()
@@ -798,6 +818,19 @@ def build_notebook_html(
   <span><span class="text-lavender">{nth}</span> theorems</span>
   <span class="ml-auto">{health}</span>
 </div>''')
+
+    if _ref_warnings:
+        import sys as _sys
+
+        unique_warnings = list(dict.fromkeys(_ref_warnings))
+        for w in unique_warnings:
+            print(f"Warning: {w}", file=_sys.stderr)
+        rows = "".join(f'<div class="text-xs text-red mt-1">{html_mod.escape(w)}</div>' for w in unique_warnings)
+        sections.insert(
+            0,
+            f'<div class="mb-4 p-4 bg-red/10 border border-red rounded-lg">'
+            f'<div class="text-sm font-bold text-red">{len(unique_warnings)} reference problem(s)</div>{rows}</div>',
+        )
 
     return "\n".join(sections)
 
