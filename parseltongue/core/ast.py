@@ -87,12 +87,12 @@ class DirectiveNode:
     def walk_dependents(self) -> list[DirectiveNode]:
         """All transitive dependents (the subtree that breaks if this fails)."""
         result: list[DirectiveNode] = []
-        seen: set[str] = set()
+        seen: set[DirectiveNode] = set()
         stack = list(self.dependents)
         while stack:
             node = stack.pop()
-            if node.name and node.name not in seen:
-                seen.add(node.name)
+            if node not in seen:
+                seen.add(node)
                 result.append(node)
                 stack.extend(node.dependents)
         return result

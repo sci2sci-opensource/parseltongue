@@ -196,6 +196,32 @@ class TestResolveGraph(unittest.TestCase):
         names = {n.name for n in deps}
         self.assertEqual(names, {"mid", "leaf"})
 
+    def test_walk_dependents_with_unnamed_node(self):
+        """Regression test for walk_dependents to traverse through unnamed nodes.
+
+        Counter-example: if a node has name=None (e.g. an effect), it should
+        not block traversal of its dependents. This test creates:
+          root (named) -> unnamed_effect (name=None) -> leaf (named)
+
+        The bug would skip unnamed_effect and never traverse to leaf.
+        """
+        n1 = DirectiveNode(name="root", expr=[], dep_names=set(), kind="fact")
+        n2 = DirectiveNode(name=None, expr=[], dep_names={"root"}, kind="effect")
+        n3 = DirectiveNode(name="leaf", expr=[], dep_names=set(), kind="diff")
+
+        # Manually set up the dependents chain n1 -> n2 -> n3
+        n1.dependents.append(n2)
+        n2.dependents.append(n3)
+
+        deps = n1.walk_dependents()
+        names = {n.name for n in deps if n.name is not None}
+
+        # We should get both the unnamed node AND the leaf node
+        self.assertEqual(len(deps), 2, f"Expected 2 nodes, got {len(deps)}: {[n.name for n in deps]}")
+        self.assertIn(n2, deps, "Unnamed node should be in results")
+        self.assertIn(n3, deps, "Leaf node after unnamed should be in results")
+        self.assertEqual(names, {"leaf"})
+
     def test_returns_index(self):
         n1 = DirectiveNode(name="a", expr=[], dep_names=set(), kind="fact")
         n2 = DirectiveNode(name=None, expr=[], dep_names=set(), kind="effect")
