@@ -47,7 +47,32 @@ This will:
 1. Generate a **clean** (consistent) data estate and open its provenance visualization
 2. Wait for you to press Enter
 3. Inject ~15-20% corruptions across all three layers and open the corrupted visualization
-4. Compare the two side by side
+4. Wait for you to press Enter again — and **the regulator arrives**
+5. Re-judge the same estate under **Amendment 2025-A** and open the amended visualization
+
+## Stage 3: the schema reshapes by appending data
+
+The third act touches neither the data files nor the checker. Amendment
+2025-A is just *more statements* — a quotable document plus
+`policy_amendment.pltg` — **appended** after the checker (the script
+concatenates the two into a generated `checker_amended.pltg`). Loading that
+is the entire intervention. The derivation graph recomputes its own shape:
+
+- **A1 — scheduled audit cadence**: a new obligation fans out per restricted
+  contract; the graph *widens*. Contracts with bi-annual or on-demand audit
+  terms — perfectly compliant yesterday — are violations today.
+- **A2 — de-identification carve-out**: an exemption; carved-out contracts
+  satisfy the transfer duty through a different axiom path than everyone
+  else. The graph *rewires*.
+- **A3 — cross-border transfer**: a stricter duty composing above the base
+  checks; the final verdict grows two new arms. The graph *deepens*.
+
+That is the payoff over KG/OWL stacks: there, rules live in an ontology —
+changing them is a schema migration plus an opaque re-classification run.
+Here the schema **is** data. Axioms append like rows, each citing its
+sentence in the amendment verbatim; the graph re-derives its structure on
+the go, and every new edge and every new violation carries provenance. The
+main file never changed.
 
 ### Run manually
 
