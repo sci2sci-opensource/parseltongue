@@ -16,6 +16,7 @@ from dataclasses import replace
 from typing import Callable
 
 from ..atoms import SILENCE, WFF, Evidence, Silence, Symbol
+from ..dsl_loader import DslLoader
 from ..engine import (
     ConsistencyIssue,
     ConsistencyReport,
@@ -31,22 +32,12 @@ from ..engine import (
 )
 from ..engine import Engine as EngineProtocol
 from ..lang import (
-    AXIOM,
-    DEFTERM,
     DELEGATE,
-    DERIVE,
-    DIFF,
     EQ,
     EVIDENCE_TYPE_CORPUS_QUERY,
     EVIDENCE_TYPE_DOC_QUOTE,
-    FACT,
     IF,
     KW_BIND,
-    KW_EVIDENCE,
-    KW_ORIGIN,
-    KW_REPLACE,
-    KW_USING,
-    KW_WITH,
     LET,
     PROJECT,
     QUOTE,
@@ -62,7 +53,6 @@ from ..lang import (
     free_vars,
     get_keyword,
     match,
-    parse_evidence,
     substitute,
     to_sexp,
 )
@@ -109,8 +99,10 @@ class Engine(EngineProtocol):
         name: str | None = None,
         max_eval_depth: int = 10_000,
         evidence_verifiers: "dict[str, EvidenceVerifier] | None" = None,
+        dsl_loader_cls: "type[DslLoader]" = DslLoader,
     ):
         self.name: str = name or self._infer_name()
+        self.dsl = dsl_loader_cls(self)
         self.axioms: dict[str, Axiom] = {}
         self.theorems: dict[str, Theorem] = {}
         self.terms: dict[str, Term] = {}
@@ -165,7 +157,7 @@ class Engine(EngineProtocol):
 
     def execute(self, directive: Sentence) -> Silence:
         """Execute a parsed directive for its side effects."""
-        _execute_directive(self, directive)
+        self.dsl.execute_directive(directive)
         return SILENCE
 
     # ----------------------------------------------------------
@@ -1852,109 +1844,5 @@ class Engine(EngineProtocol):
 
 
 def load_source(engine: Engine, source: str) -> Silence:
-    result = PGStringParser.translate(source)
-    if isinstance(result, (list, tuple)) and result and isinstance(result[0], (list, tuple)):
-        for expr in result:
-            _execute_directive(engine, expr)
-    elif isinstance(result, (list, tuple)) and result:
-        _execute_directive(engine, result)
-    return SILENCE
-
-
-def _resolve_origin(expr) -> "str | Evidence":
-    evidence_raw = get_keyword(expr, KW_EVIDENCE, None)
-    if evidence_raw is not None:
-        return parse_evidence(evidence_raw)
-    return get_keyword(expr, KW_ORIGIN, "unknown")
-
-
-def _parse_bindings(bind_raw):
-    bindings = {}
-    for pair in bind_raw:
-        if not isinstance(pair, (list, tuple)) or len(pair) < 2:
-            log.warning("Skipping malformed bind pair: %s", pair)
-            continue
-        bindings[pair[0]] = pair[1]
-    return bindings
-
-
-def _execute_directive(engine: Engine, expr):
-    if not isinstance(expr, (list, tuple)) or not expr:
-        return
-
-    head = expr[0]
-
-    if head == AXIOM:
-        name = str(expr[1])
-        bind_raw = get_keyword(expr, KW_BIND, None)
-        if bind_raw is not None:
-            ref = str(expr[2])
-            bindings = _parse_bindings(bind_raw)
-            wff = engine.instantiate(ref, bindings)
-        else:
-            wff = expr[2]
-        engine.introduce_axiom(name, wff, _resolve_origin(expr))
-
-    elif head == DEFTERM:
-        name = str(expr[1])
-        bind_raw = get_keyword(expr, KW_BIND, None)
-        if bind_raw is not None:
-            ref = str(expr[2])
-            bindings = _parse_bindings(bind_raw)
-            defn = engine.instantiate(ref, bindings)
-        elif len(expr) < 3 or (isinstance(expr[2], str) and expr[2].startswith(":")):
-            defn = None
-        else:
-            defn = expr[2]
-        engine.introduce_term(name, defn, _resolve_origin(expr))
-
-    elif head == FACT:
-        engine.set_fact(str(expr[1]), expr[2], _resolve_origin(expr))
-
-    elif head == DERIVE:
-        name = str(expr[1])
-        using = get_keyword(expr, KW_USING, [])
-        if isinstance(using, (list, tuple)):
-            using = [str(s) for s in using]
-        bind_raw = get_keyword(expr, KW_BIND, None)
-        if bind_raw is not None:
-            ref = str(expr[2])
-            bindings = _parse_bindings(bind_raw)
-            if not bindings:
-                log.warning("Empty :bind in derive '%s' — expanding axiom '%s' directly", name, ref)
-                wff = engine.axioms[ref].wff if ref in engine.axioms else expr[2]
-            else:
-                wff = engine.instantiate(ref, bindings)
-        else:
-            wff = expr[2]
-            if isinstance(wff, Symbol) and str(wff) in engine.axioms:
-                axiom_name = str(wff)
-                log.warning("Derive '%s' used axiom name '%s' as WFF — auto-expanding", name, axiom_name)
-                wff = engine.axioms[axiom_name].wff
-            # Check: non-rewrite axioms in :using without :bind is an error.
-            # Rewrite-eligible axioms have form (= <list-pattern> <rhs>) and fire
-            # automatically during evaluation. All other axioms (implies, etc.)
-            # can only be used via :bind.
-            for u in using:
-                if u in engine.axioms:
-                    ax = engine.axioms[u]
-                    w = ax.wff
-                    is_rewrite = (
-                        isinstance(w, (list, tuple)) and len(w) == 3 and w[0] == EQ and isinstance(w[1], (list, tuple))
-                    )
-                    if not is_rewrite:
-                        ax_vars = free_vars(w)
-                        raise ValueError(
-                            f"Derive '{name}' references axiom '{u}' in :using without :bind. "
-                            f"Axiom has ?-variables {{{', '.join(str(v) for v in ax_vars)}}} "
-                            f"that must be bound via :bind. "
-                            f"(Rewrite-rule axioms with form (= <pattern> <rhs>) are allowed "
-                            f"in :using without :bind.)"
-                        )
-        engine.derive(name, wff, using)
-
-    elif head == DIFF:
-        engine.register_diff(str(expr[1]), str(get_keyword(expr, KW_REPLACE)), str(get_keyword(expr, KW_WITH)))
-
-    else:
-        engine.evaluate(expr)
+    """Back-compat shim — the logic lives on engine.dsl (DslLoader)."""
+    return engine.dsl.load_source(source)
