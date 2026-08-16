@@ -62,6 +62,7 @@ exclude = ["parseltongue.*.tests", "parseltongue.*.tests.*"]
 
 [tool.setuptools.package-data]
 "*" = ["*.txt", "*.md", "*.tcss", "*.pltg", "*.pgmd", "*.html", "*.js", "*.css"]
+parseltongue = ["py.typed"]
 
 [tool.setuptools.exclude-package-data]
 "*" = [".DS_Store"]

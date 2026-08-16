@@ -1,5 +1,6 @@
 # Include all package source
 recursive-include parseltongue *.py *.pltg *.txt *.md *.tcss *.html *.js *.json *.csv *.sh
+include parseltongue/py.typed
 
 # Mirror .gitignore: exclude generated/synthetic data from data_governance demo
 recursive-exclude parseltongue/core/demos/data_governance_pltg/resources/business_catalog *
