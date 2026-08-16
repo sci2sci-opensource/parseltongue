@@ -2,10 +2,11 @@
 
 Owns the language surface: how an :evidence form parses and which
 directives exist. Both engine implementations hold one (``engine.dsl``)
-and drive every directive through it; derived languages subclass it and
-point their engine at the subclass via ``Engine.dsl_loader_cls`` — the
-same one-line swappable-default pattern as ``System.engine_cls`` and
-``Loader.system_cls``. Defaults reproduce the core language exactly.
+and drive every directive through it; derived languages subclass it,
+point their engine at the subclass via the ``dsl_loader_cls``
+constructor default, and hand the composed engine to a system via its
+``engine`` constructor argument. Defaults reproduce the core language
+exactly.
 """
 
 import logging
