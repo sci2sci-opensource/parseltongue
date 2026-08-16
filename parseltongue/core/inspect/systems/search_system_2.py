@@ -17,7 +17,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Callable
 
 from parseltongue.core.atoms import Symbol
-from parseltongue.core.lang import Rewriter, Sentence, is_sentence, is_sentence_list
+from parseltongue.core.lang import Rewriter, Sentence, is_sentence
 
 from .bench_system import BenchSubsystem, Posting
 from .search import SearchPostingMorphism, _posting_to_sr, _SrOpsMorphism
@@ -25,7 +25,7 @@ from .search import SearchPostingMorphism, _posting_to_sr, _SrOpsMorphism
 if TYPE_CHECKING:
     from parseltongue.core.quote_verifier import DocumentIndex
 
-    from ..search_s.index import DocumentSearchIndex
+    from ...search_engine.index import DocumentSearchIndex
 
 
 class SearchSystem2:
@@ -43,217 +43,17 @@ class SearchSystem2:
     def __init__(self, index: "DocumentIndex | DocumentSearchIndex", collect: "Callable | None" = None):
         from parseltongue.core.system import System as PltgSystem
 
-        from ..search_s.index import DocumentSearchIndex
+        from ...search_engine.engine import QueryEngine
 
-        if isinstance(index, DocumentSearchIndex):
-            self._index = index._doc_index
-            self._search_index = index
-        else:
-            self._index = index
-            self._search_index = DocumentSearchIndex(index)
-        self._collect = collect  # kept for interface compat; unused internally
-        self._scopes: dict[str, BenchSubsystem | Rewriter] = {}
         self.posting_morphism = SearchPostingMorphism()
         self.ops_morphism = _SrOpsMorphism()
+        self._engine = QueryEngine(index, form_to_posting=self.posting_morphism.inverse)
+        self._index = self._engine._index
+        self._search_index = self._engine._search_index
+        self._collect = collect  # kept for interface compat; unused internally
+        self._scopes: dict[str, BenchSubsystem | Rewriter] = {}
 
         sys = self  # capture
-
-        def _resolve(x: str | Posting | Sentence) -> Posting | Sentence:
-            if isinstance(x, str):
-                return sys._to_posting(x)
-            return x
-
-        def _as_posting(x: str | Posting | Sentence) -> Posting:
-            """Ensure x is a Posting — resolve str, convert Sentence via morphism."""
-            val = _resolve(x)
-            if isinstance(val, dict):
-                return val
-            if isinstance(val, list):
-                return sys.posting_morphism.inverse(val)
-            return {}
-
-        def _delegate_ops(op: str, resolved: list[Sentence]) -> Sentence:
-            """Delegate to ops scope when args are tagged form lists."""
-            ops = sys._scopes.get("ops")
-            if ops is None:
-                raise TypeError(f"Cannot {op} tagged forms — no ops scope registered")
-            return ops.evaluate([Symbol(op + "-forms")] + resolved)
-
-        def _has_forms(resolved: list[Posting]) -> bool:
-            # NOTE: currently dead — _as_posting always returns dict, never list.
-            # Was intended for when args are Sentence (tagged form lists) not yet
-            # converted to Posting, to delegate to ops scope instead.
-            for r in resolved:
-                if isinstance(r, list) and r and isinstance(r[0], (list, tuple)):
-                    return True
-            return False
-
-        def _and(*args: str | Posting | Sentence) -> Posting:
-            sets = [_as_posting(a) for a in args]
-            if _has_forms(sets):
-                return _delegate_ops("and", sets)  # type: ignore[return-value,arg-type]
-            result = sets[0]
-            for s in sets[1:]:
-                result = {k: v for k, v in result.items() if k in s}
-            return result
-
-        def _or(*args: str | Posting | Sentence) -> Posting:
-            sets = [_as_posting(a) for a in args]
-            if _has_forms(sets):
-                return _delegate_ops("or", sets)  # type: ignore[return-value,arg-type]
-            result = dict(sets[0])
-            for s in sets[1:]:
-                result.update(s)
-            return result
-
-        def _not(*args: str | Posting | Sentence) -> Posting:
-            resolved = [_as_posting(a) for a in args]
-            if _has_forms(resolved):
-                return _delegate_ops("not", resolved)  # type: ignore[return-value,arg-type]
-            base = resolved[0]
-            for a in resolved[1:]:
-                base = {k: v for k, v in base.items() if k not in a}
-            return base
-
-        def _match_doc(doc_name: str, source: str | Posting | Sentence) -> bool:
-            import fnmatch
-
-            if isinstance(source, dict):
-                return (doc_name, 0) in source
-            if isinstance(source, list):
-                return (doc_name, 0) in _as_posting(source)
-            d, p = str(doc_name), str(source)
-            if "*" in p or "?" in p:
-                return fnmatch.fnmatch(d, p) or fnmatch.fnmatch(d, "*/" + p)
-            # Auto-glob: wrap with * so "atoms.py" matches "parseltongue/core/atoms.py"
-            return fnmatch.fnmatch(d, f"*{p}*")
-
-        def _in(source: str | Posting | Sentence, query: str | Posting | Sentence | None = None) -> Posting:
-            def pred(d):
-                return _match_doc(d, source)
-
-            if query is None:
-                return sys._search_index.match_docs(pred)
-            posting = _as_posting(query)
-            filtered = {k: v for k, v in posting.items() if pred(k[0])}
-            if filtered or not posting:
-                return filtered
-            # Global search found results but none in the target docs.
-            # Fall back: search within matching docs directly via corpus.
-            if isinstance(query, str):
-                from ..search_s.strategy import _make_posting
-
-                snap = sys._search_index._snap
-                for doc_name, sdoc in snap.documents.items():
-                    if not pred(doc_name):
-                        continue
-                    for line_num, line in enumerate(sdoc.lines, 1):
-                        if query.lower() in line.lower():
-                            filtered[(doc_name, line_num)] = _make_posting(doc_name, line_num, sdoc.lines)
-            return filtered
-
-        def _not_in(source: str | Posting | Sentence, query: str | Posting | Sentence | None = None) -> Posting:
-            def pred(d):
-                return not _match_doc(d, source)
-
-            if query is None:
-                return sys._search_index.match_docs(pred)
-            posting = _as_posting(query)
-            return {k: v for k, v in posting.items() if pred(k[0])}
-
-        def _count(*args: str | Posting | Sentence) -> int:
-            v = _resolve(args[0])
-            if isinstance(v, list):
-                return len(v)
-            if isinstance(v, dict):
-                return len(v)
-            return 0
-
-        def _near(distance: int, a: str | Posting | Sentence, b: str | Posting | Sentence) -> Posting:
-            sa, sb = _as_posting(a), _as_posting(b)
-            n = int(distance)
-            b_by_doc: dict[str, set[int]] = {}
-            for doc, line in sb:
-                b_by_doc.setdefault(doc, set()).add(line)
-            result: Posting = {}
-            for k, v in sa.items():
-                doc, line = k
-                b_lines = b_by_doc.get(doc, set())
-                if any(abs(line - bl) <= n for bl in b_lines):
-                    result[k] = v
-            return result
-
-        def _seq(a: str | Posting | Sentence, b: str | Posting | Sentence) -> Posting:
-            sa, sb = _as_posting(a), _as_posting(b)
-            b_by_doc: dict[str, int] = {}
-            for doc, line in sb:
-                if doc not in b_by_doc or line > b_by_doc[doc]:
-                    b_by_doc[doc] = line
-            return {k: v for k, v in sa.items() if k[0] in b_by_doc and k[1] < b_by_doc[k[0]]}
-
-        def _re(pattern: str, source: str | Posting | Sentence | None = None) -> Posting:
-            import re as _re_mod
-
-            rx = _re_mod.compile(pattern)
-            if source is not None:
-                posting = _as_posting(source)
-                doc_names = {k[0] for k in posting}
-            else:
-                doc_names = None
-            result: Posting = {}
-            for doc_name, sdoc in sys._search_index.documents.items():
-                if doc_names is not None and doc_name not in doc_names:
-                    continue
-                for i, line_text in enumerate(sdoc.lines, 1):
-                    if rx.search(line_text):
-                        key = (doc_name, i)
-                        result[key] = {
-                            "document": doc_name,
-                            "line": i,
-                            "column": 1,
-                            "context": line_text,
-                            "callers": [],
-                            "total_callers": 0,
-                        }
-            return result
-
-        def _lines(start: int, end: int, query: str | Posting | Sentence) -> Posting:
-            posting = _as_posting(query)
-            s, e = int(start), int(end)
-            return {k: v for k, v in posting.items() if s <= k[1] <= e}
-
-        def _context_lines(n: int, query: str | Posting | Sentence, before: bool = True, after: bool = True) -> Posting:
-            """Expand matches to include surrounding lines."""
-            posting = _as_posting(query)
-            n = int(n)
-            expanded = dict(posting)
-            for (doc, line), _ in posting.items():
-                sdoc = sys._search_index.documents.get(doc)
-                if not sdoc:
-                    continue
-                start = max(0, line - 1 - (n if before else 0))
-                end = min(len(sdoc.lines), line + (n if after else 0))
-                for i in range(start, end):
-                    key = (doc, i + 1)
-                    if key not in expanded:
-                        expanded[key] = {
-                            "document": doc,
-                            "line": i + 1,
-                            "column": 1,
-                            "context": sdoc.lines[i],
-                            "callers": [],
-                            "total_callers": 0,
-                        }
-            return expanded
-
-        def _before(n: int, query: str | Posting | Sentence) -> Posting:
-            return _context_lines(n, query, before=True, after=False)
-
-        def _after(n: int, query: str | Posting | Sentence) -> Posting:
-            return _context_lines(n, query, before=False, after=True)
-
-        def _context(n: int, query: str | Posting | Sentence) -> Posting:
-            return _context_lines(n, query, before=True, after=True)
 
         def _scope(name: str, *args: "str | Posting | Sentence") -> "Sentence | Posting | None":
             if name not in sys._scopes:
@@ -267,105 +67,20 @@ class SearchSystem2:
                     result = arg
             return result
 
-        def _strategy(name: str, query: str | Posting | Sentence) -> Posting:
-            """Explicit strategy selection: (strategy "stemmed" "query")."""
-            return sys._search_index.search(str(query), strategy=str(name))
-
-        def _rank(strategy: str, query: str | Posting | Sentence) -> Posting:
-            posting = _as_posting(query)
-            items = list(posting.values())
-            strat = str(strategy)
-            if strat == "callers":
-                traced = [ln for ln in items if ln.get("callers")]
-                untraced = [ln for ln in items if not ln.get("callers")]
-                traced.sort(key=lambda ln: (-ln["total_callers"], -ln["callers"][0]["overlap"]))
-                items = traced + untraced
-            elif strat == "coverage":
-                traced = [ln for ln in items if ln.get("callers")]
-                untraced = [ln for ln in items if not ln.get("callers")]
-                traced.sort(key=lambda ln: (-ln["callers"][0]["overlap"], -ln["total_callers"]))
-                items = traced + untraced
-            elif strat == "document":
-                by_doc: dict[str, list[dict]] = {}
-                for ln in items:
-                    by_doc.setdefault(ln["document"], []).append(ln)
-                doc_order = sorted(by_doc.keys(), key=lambda d: -len(by_doc[d]))
-                items = []
-                for doc in doc_order:
-                    doc_lines = sorted(by_doc[doc], key=lambda ln: (-ln["total_callers"], ln["line"]))
-                    items.extend(doc_lines)
-            elif strat == "line":
-                items.sort(key=lambda ln: (ln["document"], ln["line"]))
-            return {(ln["document"], ln["line"]): ln for ln in items}
-
         def _results(query: str | Posting | Sentence) -> Sentence:
             """Convert a posting set to a list of sr forms."""
-            posting = _as_posting(query)
+            posting = sys._engine.as_posting(query)
             return _posting_to_sr(posting)
 
-        def _limit(n: int, query: str | Posting | Sentence) -> Posting | Sentence:
-            """Take first N entries from a posting set or sr list."""
-            val = _resolve(query)
-            n = int(n)
-            if is_sentence_list(val):
-                return val[:n]
-            if isinstance(val, dict):
-                keys = list(val.keys())[:n]
-                return {k: val[k] for k in keys}
-            return val
-
-        def _files(query: str | Posting | Sentence) -> Sentence:
-            """Project a posting set (or sr list) to its unique document names.
-
-            Pure projection — preserves the iteration order of the input. Does
-            NOT sort. Compose with ``rank`` to control order:
-
-                (files <query>)                       — docs in raw posting order
-                (files (rank "document" <query>))     — docs by match count (desc)
-                (files (rank "callers" <query>))      — docs by traced relevance
-                (count (files <query>))                — unique-doc count
-
-            Output is a list of strings, so it composes with ``count`` and
-            ``limit`` exactly like other sentence-leaf projections.
-            """
-            val = _resolve(query)
-            seen: dict[str, None] = {}  # ordered set
-            if isinstance(val, dict):
-                for key in val.keys():
-                    if isinstance(key, tuple) and len(key) >= 1 and isinstance(key[0], str):
-                        seen.setdefault(key[0], None)
-            elif isinstance(val, list):
-                # Handles sr lists and other tagged form lists.
-                # sr forms: (sr <doc> <line> <col> <context> <callers>)
-                for entry in val:
-                    if isinstance(entry, (list, tuple)) and len(entry) >= 2 and isinstance(entry[1], str):
-                        seen.setdefault(entry[1], None)
-            return list(seen.keys())
-
-        ops = {
-            Symbol("and"): _and,
-            Symbol("or"): _or,
-            Symbol("not"): _not,
-            Symbol("in"): _in,
-            Symbol("not-in"): _not_in,
-            Symbol("count"): _count,
-            Symbol("near"): _near,
-            Symbol("seq"): _seq,
-            Symbol("re"): _re,
-            Symbol("lines"): _lines,
-            Symbol("before"): _before,
-            Symbol("after"): _after,
-            Symbol("context"): _context,
-            Symbol("scope"): _scope,
-            Symbol("strategy"): _strategy,
-            Symbol("rank"): _rank,
-            Symbol("results"): _results,
-            Symbol("limit"): _limit,
-            Symbol("files"): _files,
-        }
+        # Corpus-generic operators live in the core QueryEngine; the bench
+        # adds scope dispatch and sr-form conversion on top. (The old
+        # _delegate_ops/_has_forms branch was documented dead and dropped.)
+        ops = dict(self._engine.ops)
+        ops[Symbol("scope")] = _scope
+        ops[Symbol("results")] = _results
 
         self._pltg_system = PltgSystem(initial_env=ops, docs={}, strict_derive=False, name="SearchIndex2")
-        self._resolve = _resolve
+        self._resolve = self._engine.resolve
 
         # Wrap evaluate: internal operators use posting sets,
         # but the system produces s-expressions at the boundary

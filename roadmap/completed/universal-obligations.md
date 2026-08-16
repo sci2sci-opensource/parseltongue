@@ -45,3 +45,12 @@ Absence is the degenerate case: `:absent Q` ≡ `:forall Q :satisfies (never)`. 
 
 - No quantification beyond the indexed corpus; the closure gate is the boundary.
 - No graded compliance ("95% of routes") — an obligation holds or it is violated with counter-examples. Percentages are a display concern for the screen, not a truth value.
+
+## Shipped
+
+Landed together with absence evidence as one family: `:forall` +
+`:satisfies` on the evidence form, `:absent` the degenerate case — shared
+closure gate, staleness behavior, and screen categories
+(`obligation_violated` with counter-example postings). v1 :satisfies
+composition: `near`/`seq` relative to the match, anything else same-line
+co-occurrence (`compose_satisfies` in core/search_engine/engine.py).

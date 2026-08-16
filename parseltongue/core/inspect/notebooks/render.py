@@ -53,12 +53,22 @@ def render_result(result: NotebookResult, title: str, include_diffs: bool = True
     node_index: dict = {}
     engine = None
     diagnostics: list[dict] = []
+    screen_obj = None
 
     bench = result.bench
     if bench is not None:
         try:
             lens = bench.lens()
             items, layers_data, node_index = build_viz_data(lens._structure)
+            # Import aliases are honored by the pltg evaluator; honor them
+            # for prose refs too — twin every canonical key under its alias.
+            for alias, canonical in bench.module_aliases().items():
+                if alias == canonical:
+                    continue
+                prefix = canonical + "."
+                for key in list(node_index):
+                    if key.startswith(prefix):
+                        node_index.setdefault(alias + "." + key[len(prefix) :], node_index[key])
         except Exception as e:
             print(f"Warning: lens failed: {e}", file=sys.stderr)
             traceback.print_exc(file=sys.stderr)
@@ -79,7 +89,7 @@ def render_result(result: NotebookResult, title: str, include_diffs: bool = True
                 print(f"Warning: diff probe failed: {e}", file=sys.stderr)
 
         try:
-            screen = bench.screen()
+            screen_obj = screen = bench.screen()  # kept whole for the page's HEALTH_DATA
             for item in screen._items:
                 sev = (
                     "error"
@@ -104,7 +114,22 @@ def render_result(result: NotebookResult, title: str, include_diffs: bool = True
         logbook=logbook,
     )
 
+    coverage = []
+    if bench is not None:
+        try:
+            coverage = bench.coverage()
+        except Exception as e:
+            print(f"Warning: coverage failed: {e}", file=sys.stderr)
+
     notebook_html = build_notebook_html(
         result.blocks, result.block_outputs, node_index, diagnostics, engine, taint_result=taint_result
     )
-    return render_notebook(title, notebook_html, items, layers_data, logbook=logbook)
+    return render_notebook(
+        title,
+        notebook_html,
+        items,
+        layers_data,
+        logbook=logbook,
+        screen=screen_obj,
+        coverage=coverage,
+    )

@@ -164,7 +164,18 @@ Prefer `:evidence` with verifiable quotes over plain `:origin`:
     :explanation "why this supports the claim")
 ```
 `:origin` is for hypotheticals, imports, and synthesized claims only.
-Ungrounded evidence propagates as fabrication taint through derivations."""
+Ungrounded evidence propagates as fabrication taint through derivations.
+
+Universal claims quantify a search query over a corpus instead of quoting —
+the source names a corpus region, :except uses .pgignore-style patterns:
+```scheme
+:evidence (evidence "src/auth" :absent (re "md5|sha1") :except ("tests/"))
+:evidence (evidence "src/api" :forall (re "@route") :satisfies (near 5 (re "@auth")))
+```
+A violated claim flips false with counter-example lines (absence_violated /
+obligation_violated) and taints downstream derives; claims re-verify as the
+corpus changes. Bulk-load a corpus with
+`(load-documents "prefix" "glob" :except (...))`."""
 
 
 def _module_system() -> str:

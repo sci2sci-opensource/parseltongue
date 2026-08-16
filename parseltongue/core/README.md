@@ -55,6 +55,16 @@ load_source(s, """
         :explanation "YoY growth percentage"))
 """)
 
+# Corpus-quantified claims — absence and universal obligations over the
+# registered documents (queries are search-language forms; :except uses
+# .pgignore-style patterns). Violations surface counter-example lines.
+load_source(s, """
+    (fact no-guidance-retraction true
+      :evidence (evidence "Q3 Report"
+        :absent (re "guidance (withdrawn|retracted)")
+        :explanation "the report never walks back guidance"))
+""")
+
 # Define a computed term
 load_source(s, """
     (fact growth-target 10 :origin "Board memo")

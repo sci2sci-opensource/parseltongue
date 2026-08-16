@@ -75,16 +75,119 @@ def _origin_tag(origin) -> str:
 
 
 @dataclass(frozen=True)
-class Evidence:
-    """Structured evidence with verifiable quotes from a source document."""
+class DocumentSource:
+    """Evidence source: a single registered document."""
 
-    document: str  # registered document name
-    quotes: list[str]  # exact quotes from the document
-    explanation: str = ""  # why these quotes support the claim
+    name: str
+
+    @property
+    def display(self) -> str:
+        return self.name
+
+
+@dataclass(frozen=True)
+class CorpusSource:
+    """Evidence source: a corpus region — every classified file matching pattern."""
+
+    pattern: str  # scope pattern, e.g. "src/auth"
+    excludes: tuple[str, ...] = ()  # :except globs
+
+    @property
+    def display(self) -> str:
+        return self.pattern
+
+
+@dataclass(frozen=True)
+class QuoteClaim:
+    """Evidence claim grounded by being FOUND in the source."""
+
+    text: str
+
+    @property
+    def display(self) -> str:
+        return self.text
+
+
+@dataclass(frozen=True)
+class QueryClaim:
+    """Evidence claim quantified over every match of a search query in the source.
+
+    polarity "absent": the query must have zero matches.
+    polarity "forall": every match must satisfy the companion condition.
+    """
+
+    query: str  # search s-expression, source text
+    polarity: str = "absent"  # "absent" | "forall"
+    satisfies: str | None = None  # companion condition (:forall only)
+
+    @property
+    def display(self) -> str:
+        return self.query
+
+
+EVIDENCE_TYPE_DOC_QUOTE = "doc_quote"
+EVIDENCE_TYPE_CORPUS_QUERY = "corpus_query"
+
+
+@dataclass(frozen=True, init=False)
+class Evidence:
+    """Structured evidence: typed claims about a typed source.
+
+    ``type`` says how the instance is parsed and which verifier structure
+    applies. The default, "doc_quote", is the classic form — verbatim quotes
+    from a registered document. The language does not prescribe the
+    verification algorithm; whichever layer can ground a given type fills
+    ``verification`` and flips ``verified``.
+
+    ``document`` and ``quotes`` are interface-preserving views over the
+    typed interior, and the legacy constructor signature still works:
+    ``Evidence(document=..., quotes=..., explanation=...)``.
+    """
+
+    source: "DocumentSource | CorpusSource"
+    claims: "tuple[QuoteClaim | QueryClaim, ...]"
+    explanation: str = ""  # why this evidence supports the claim
+    type: str = EVIDENCE_TYPE_DOC_QUOTE  # discriminator: parse + verifier structure
     verification: list = field(default_factory=list)  # filled by verifier
-    verified: bool = False  # all quotes verified?
+    verified: bool = False  # claims verified?
     verify_manual: bool = False  # manually verified by user?
     signature: str | None = None  # who verified — set by verify_manual
+
+    def __init__(
+        self,
+        document=None,
+        quotes=None,
+        explanation: str = "",
+        verification: list | None = None,
+        verified: bool = False,
+        verify_manual: bool = False,
+        signature: "str | None" = None,
+        source: "DocumentSource | CorpusSource | None" = None,
+        claims: "tuple[QuoteClaim | QueryClaim, ...] | None" = None,
+        type: str = EVIDENCE_TYPE_DOC_QUOTE,
+    ):
+        if source is None:
+            source = DocumentSource(name=str(document) if document is not None else "")
+        if claims is None:
+            claims = tuple(QuoteClaim(text=str(q)) for q in (quotes or []))
+        object.__setattr__(self, "source", source)
+        object.__setattr__(self, "claims", tuple(claims))
+        object.__setattr__(self, "explanation", explanation)
+        object.__setattr__(self, "type", type)
+        object.__setattr__(self, "verification", list(verification) if verification is not None else [])
+        object.__setattr__(self, "verified", verified)
+        object.__setattr__(self, "verify_manual", verify_manual)
+        object.__setattr__(self, "signature", signature)
+
+    @property
+    def document(self) -> str:
+        """Interface-preserving view: the source's display string."""
+        return self.source.display
+
+    @property
+    def quotes(self) -> list[str]:
+        """Interface-preserving view: each claim's display string."""
+        return [c.display for c in self.claims]
 
     @property
     def is_grounded(self) -> bool:
@@ -93,7 +196,8 @@ class Evidence:
 
     def __str__(self):
         status = "grounded" if self.is_grounded else "UNVERIFIED"
-        return f"[evidence: {self.document} ({status})]"
+        tag = "evidence" if self.type == EVIDENCE_TYPE_DOC_QUOTE else f"evidence/{self.type}"
+        return f"[{tag}: {self.document} ({status})]"
 
 
 @dataclass(frozen=True)

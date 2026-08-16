@@ -35,12 +35,36 @@ log = logging.getLogger("parseltongue")
 
 
 def format_loc(file: str | None, line: int = 0, col: int = 1) -> str:
-    """Format source location as a clickable file:// link with URL-encoded path."""
+    """Format source location as a clickable file:// link with URL-encoded path.
+
+    Error messages keep the absolute clickable form; use display_loc for
+    report/screen surfaces where the project root is already known.
+    """
     if not file:
         return "?"
     from urllib.parse import quote
 
     loc = "file://" + quote(file, safe="/")
+    if line:
+        loc += f":{line}:{col}"
+    return loc
+
+
+def display_loc(file: str | None, line: int = 0, col: int = 1) -> str:
+    """Format a source location for display.
+
+    Paths under the process working directory render project-relative —
+    the reader knows the project root; the machine prefix is noise. Paths
+    outside it keep the clickable file:// form.
+    """
+    if not file:
+        return "?"
+    from pathlib import Path
+
+    try:
+        loc = Path(file).resolve().relative_to(Path.cwd()).as_posix()
+    except ValueError:
+        return format_loc(file, line, col)
     if line:
         loc += f":{line}:{col}"
     return loc
@@ -58,7 +82,7 @@ class LocatedItem:
 
     @property
     def loc(self) -> str:
-        return format_loc(self.source_file, self.source_line)
+        return display_loc(self.source_file, self.source_line)
 
 
 @dataclass
@@ -293,7 +317,7 @@ class LazyLoader(Loader):
     # Effects that must run before directives (sorted by rank within this group).
     PRE_DIRECTIVE_EFFECTS: list[list[str]] = [
         ["context"],
-        ["load-document"],
+        ["load-document", "load-documents"],
         ["import"],
     ]
     # Effects that run after all directives have executed.

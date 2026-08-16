@@ -214,7 +214,7 @@ BINARY_EXTENSIONS = frozenset(
 )
 
 # ── Default ignore patterns (hardcoded floor) ────────────────────────────────
-DEFAULT_IGNORE = [".git", ".hg", ".svn", "node_modules", ".*"]
+from ..search_engine.select import DEFAULT_IGNORE as DEFAULT_IGNORE  # noqa: E402 — canonical home is core
 
 # ── Extension → language (inverted from LANGUAGE_PRESETS) ─────────────────────
 

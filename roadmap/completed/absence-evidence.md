@@ -57,3 +57,19 @@ Three properties should hold by construction:
 ## Origin
 
 Proposed from language-design review after the daemon/refresh hardening work: the search index, Merkle roots, and guardrail classification already form a closed world per bench — absence evidence is the latent capability those pieces jointly enable.
+
+## Shipped
+
+Landed as `:absent` on the existing evidence form — no new grammar head;
+`Evidence` gained a typed interior (source/claims) and a `type`
+discriminator, with `document`/`quotes` as interface-preserving views.
+Verification dispatches through a per-type registry injected at the
+System/Engine constructor. Core grounds claims against the
+registered-document corpus (closed by construction, content-hash
+provenance, re-grounding on register_document); the bench overrides with
+the file-corpus verifier — closure gate, scoped Merkle root,
+reindex-driven re-verification. Along the way the search engine was
+promoted to core (`core/search_engine`, QueryEngine) and `load-documents`
+added for bulk corpus loading with the indexer's selection mechanics.
+First consumer: `validation/architecture.pltg` — core-independent-of-bench
+as a composite of per-import-vector absence facts.

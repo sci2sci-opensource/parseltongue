@@ -16,23 +16,28 @@ from dataclasses import replace
 from typing import Callable
 
 from ..atoms import SILENCE, WFF, Evidence, Silence, Symbol
-from ..engine import ConsistencyIssue, ConsistencyReport, ConsistencyWarning, DiffResult, Fact, IssueType, WarningType
+from ..dsl_loader import DslLoader
+from ..engine import (
+    ConsistencyIssue,
+    ConsistencyReport,
+    ConsistencyWarning,
+    DiffResult,
+    Fact,
+    IssueType,
+    WarningType,
+    _corpus_counter_examples,
+    _corpus_polarity,
+    _corpus_reasons,
+    reverify_evidence,
+)
 from ..engine import Engine as EngineProtocol
 from ..lang import (
-    AXIOM,
-    DEFTERM,
     DELEGATE,
-    DERIVE,
-    DIFF,
     EQ,
-    FACT,
+    EVIDENCE_TYPE_CORPUS_QUERY,
+    EVIDENCE_TYPE_DOC_QUOTE,
     IF,
     KW_BIND,
-    KW_EVIDENCE,
-    KW_ORIGIN,
-    KW_REPLACE,
-    KW_USING,
-    KW_WITH,
     LET,
     PROJECT,
     QUOTE,
@@ -48,11 +53,11 @@ from ..lang import (
     free_vars,
     get_keyword,
     match,
-    parse_evidence,
     substitute,
     to_sexp,
 )
 from ..quote_verifier import QuoteVerifier
+from ..quote_verifier.evidence_verifiers import DocQuoteEvidenceVerifier, DocumentCorpusVerifier, EvidenceVerifier
 
 log = logging.getLogger("parseltongue")
 
@@ -93,8 +98,11 @@ class Engine(EngineProtocol):
         verifier: QuoteVerifier | None = None,
         name: str | None = None,
         max_eval_depth: int = 10_000,
+        evidence_verifiers: "dict[str, EvidenceVerifier] | None" = None,
+        dsl_loader_cls: "type[DslLoader]" = DslLoader,
     ):
         self.name: str = name or self._infer_name()
+        self.dsl = dsl_loader_cls(self)
         self.axioms: dict[str, Axiom] = {}
         self.theorems: dict[str, Theorem] = {}
         self.terms: dict[str, Term] = {}
@@ -104,6 +112,12 @@ class Engine(EngineProtocol):
         self.diff_refs: dict[str, set[str]] = {}  # name → diff names that reference it
         self.documents: dict[str, str] = {}
         self._verifier = verifier or QuoteVerifier()
+        self._evidence_verifiers: dict[str, EvidenceVerifier] = {
+            EVIDENCE_TYPE_DOC_QUOTE: DocQuoteEvidenceVerifier(self._verifier, self.documents),
+            EVIDENCE_TYPE_CORPUS_QUERY: DocumentCorpusVerifier(self._verifier.index),
+        }
+        if evidence_verifiers:
+            self._evidence_verifiers.update(evidence_verifiers)
         self.overridable = overridable
         self.strict_derive = strict_derive
         self.max_eval_depth = max_eval_depth
@@ -143,7 +157,7 @@ class Engine(EngineProtocol):
 
     def execute(self, directive: Sentence) -> Silence:
         """Execute a parsed directive for its side effects."""
-        _execute_directive(self, directive)
+        self.dsl.execute_directive(directive)
         return SILENCE
 
     # ----------------------------------------------------------
@@ -153,35 +167,29 @@ class Engine(EngineProtocol):
     def register_document(self, name: str, text: str):
         self.documents[name] = text
         self._verifier.index.add(name, text)
+        # Corpus claims quantify over the registered documents — a new
+        # document changes their closed world, so re-ground them.
+        reverify_evidence(self, EVIDENCE_TYPE_CORPUS_QUERY)
 
     def load_document(self, name: str, path: str):
         with open(path) as f:
             text = f.read()
-        self.documents[name] = text
-        self._verifier.index.add(name, text)
+        self.register_document(name, text)
 
     # ----------------------------------------------------------
     # Evidence Verification
     # ----------------------------------------------------------
 
     def _verify_evidence(self, evidence: Evidence, caller: str | None = None) -> Evidence:
-        if evidence.document not in self.documents:
-            log.warning("Document '%s' not registered — skipping verification", evidence.document)
+        v = self._evidence_verifiers.get(evidence.type)
+        if v is None:
+            log.warning("No verifier registered for evidence type '%s' — left ungrounded", evidence.type)
             return evidence
+        return v.verify(evidence, caller=caller)
 
-        results = self._verifier.verify_indexed_quotes(evidence.document, evidence.quotes, caller=caller)
-
-        all_verified = True
-        for r in results:
-            if r["verified"]:
-                conf = r.get("confidence", {})
-                log.info('Quote verified: "%s" (confidence: %s)', r["quote"], conf.get("level", "?"))
-            else:
-                all_verified = False
-                reason = r.get("reason", "unknown")
-                log.warning('Quote NOT verified: "%s" (%s)', r["quote"], reason)
-
-        return replace(evidence, verification=results, verified=all_verified)
+    def register_evidence_verifier(self, evidence_type: str, verifier: "EvidenceVerifier") -> None:
+        """Register (or replace) the verifier grounding one evidence type."""
+        self._evidence_verifiers[evidence_type] = verifier
 
     def _lookup(self, name: str) -> Axiom | Theorem | Term | None:
         """Find a named item across all stores."""
@@ -1635,6 +1643,8 @@ class Engine(EngineProtocol):
         unverified = []
         manually_verified = []
         no_evidence = []
+        absence_violated = []
+        obligation_violated = []
         for store in [self.facts, self.axioms, self.theorems, self.terms]:
             for name, item in store.items():  # type: ignore[attr-defined]
                 origin = item.origin
@@ -1642,7 +1652,14 @@ class Engine(EngineProtocol):
                     if not origin.verified and origin.verify_manual:
                         manually_verified.append(name)
                     elif not origin.is_grounded:
-                        unverified.append((name, origin.quotes))
+                        violated = _corpus_counter_examples(origin)
+                        if violated is not None:
+                            if _corpus_polarity(origin) == "forall":
+                                obligation_violated.append((name, violated))
+                            else:
+                                absence_violated.append((name, violated))
+                        else:
+                            unverified.append((name, origin.quotes + _corpus_reasons(origin)))
                 elif isinstance(origin, str):
                     if (
                         origin not in ("unknown", "derived")
@@ -1655,6 +1672,12 @@ class Engine(EngineProtocol):
             issues.append(ConsistencyIssue(IssueType.UNVERIFIED_EVIDENCE, sorted(unverified, key=lambda x: x[0])))
         if no_evidence:
             issues.append(ConsistencyIssue(IssueType.NO_EVIDENCE, sorted(no_evidence, key=lambda x: x[0])))
+        if absence_violated:
+            issues.append(ConsistencyIssue(IssueType.ABSENCE_VIOLATED, sorted(absence_violated, key=lambda x: x[0])))
+        if obligation_violated:
+            issues.append(
+                ConsistencyIssue(IssueType.OBLIGATION_VIOLATED, sorted(obligation_violated, key=lambda x: x[0]))
+            )
         if manually_verified:
             manual_details = {}
             for name in manually_verified:
@@ -1821,109 +1844,5 @@ class Engine(EngineProtocol):
 
 
 def load_source(engine: Engine, source: str) -> Silence:
-    result = PGStringParser.translate(source)
-    if isinstance(result, (list, tuple)) and result and isinstance(result[0], (list, tuple)):
-        for expr in result:
-            _execute_directive(engine, expr)
-    elif isinstance(result, (list, tuple)) and result:
-        _execute_directive(engine, result)
-    return SILENCE
-
-
-def _resolve_origin(expr) -> "str | Evidence":
-    evidence_raw = get_keyword(expr, KW_EVIDENCE, None)
-    if evidence_raw is not None:
-        return parse_evidence(evidence_raw)
-    return get_keyword(expr, KW_ORIGIN, "unknown")
-
-
-def _parse_bindings(bind_raw):
-    bindings = {}
-    for pair in bind_raw:
-        if not isinstance(pair, (list, tuple)) or len(pair) < 2:
-            log.warning("Skipping malformed bind pair: %s", pair)
-            continue
-        bindings[pair[0]] = pair[1]
-    return bindings
-
-
-def _execute_directive(engine: Engine, expr):
-    if not isinstance(expr, (list, tuple)) or not expr:
-        return
-
-    head = expr[0]
-
-    if head == AXIOM:
-        name = str(expr[1])
-        bind_raw = get_keyword(expr, KW_BIND, None)
-        if bind_raw is not None:
-            ref = str(expr[2])
-            bindings = _parse_bindings(bind_raw)
-            wff = engine.instantiate(ref, bindings)
-        else:
-            wff = expr[2]
-        engine.introduce_axiom(name, wff, _resolve_origin(expr))
-
-    elif head == DEFTERM:
-        name = str(expr[1])
-        bind_raw = get_keyword(expr, KW_BIND, None)
-        if bind_raw is not None:
-            ref = str(expr[2])
-            bindings = _parse_bindings(bind_raw)
-            defn = engine.instantiate(ref, bindings)
-        elif len(expr) < 3 or (isinstance(expr[2], str) and expr[2].startswith(":")):
-            defn = None
-        else:
-            defn = expr[2]
-        engine.introduce_term(name, defn, _resolve_origin(expr))
-
-    elif head == FACT:
-        engine.set_fact(str(expr[1]), expr[2], _resolve_origin(expr))
-
-    elif head == DERIVE:
-        name = str(expr[1])
-        using = get_keyword(expr, KW_USING, [])
-        if isinstance(using, (list, tuple)):
-            using = [str(s) for s in using]
-        bind_raw = get_keyword(expr, KW_BIND, None)
-        if bind_raw is not None:
-            ref = str(expr[2])
-            bindings = _parse_bindings(bind_raw)
-            if not bindings:
-                log.warning("Empty :bind in derive '%s' — expanding axiom '%s' directly", name, ref)
-                wff = engine.axioms[ref].wff if ref in engine.axioms else expr[2]
-            else:
-                wff = engine.instantiate(ref, bindings)
-        else:
-            wff = expr[2]
-            if isinstance(wff, Symbol) and str(wff) in engine.axioms:
-                axiom_name = str(wff)
-                log.warning("Derive '%s' used axiom name '%s' as WFF — auto-expanding", name, axiom_name)
-                wff = engine.axioms[axiom_name].wff
-            # Check: non-rewrite axioms in :using without :bind is an error.
-            # Rewrite-eligible axioms have form (= <list-pattern> <rhs>) and fire
-            # automatically during evaluation. All other axioms (implies, etc.)
-            # can only be used via :bind.
-            for u in using:
-                if u in engine.axioms:
-                    ax = engine.axioms[u]
-                    w = ax.wff
-                    is_rewrite = (
-                        isinstance(w, (list, tuple)) and len(w) == 3 and w[0] == EQ and isinstance(w[1], (list, tuple))
-                    )
-                    if not is_rewrite:
-                        ax_vars = free_vars(w)
-                        raise ValueError(
-                            f"Derive '{name}' references axiom '{u}' in :using without :bind. "
-                            f"Axiom has ?-variables {{{', '.join(str(v) for v in ax_vars)}}} "
-                            f"that must be bound via :bind. "
-                            f"(Rewrite-rule axioms with form (= <pattern> <rhs>) are allowed "
-                            f"in :using without :bind.)"
-                        )
-        engine.derive(name, wff, using)
-
-    elif head == DIFF:
-        engine.register_diff(str(expr[1]), str(get_keyword(expr, KW_REPLACE)), str(get_keyword(expr, KW_WITH)))
-
-    else:
-        engine.evaluate(expr)
+    """Back-compat shim — the logic lives on engine.dsl (DslLoader)."""
+    return engine.dsl.load_source(source)

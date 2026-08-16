@@ -23,10 +23,11 @@ cleanup() {
 trap cleanup EXIT
 
 start_bench() {
+  local entry="${1:-checker.pltg}"
   pkill -f 'pg-bench|bench_cli' 2>/dev/null || true
   sleep 1
   rm -rf .parseltongue-bench/
-  pg-bench serve checker.pltg --effects "$EFFECTS" &disown 2>/dev/null
+  pg-bench serve "$entry" --effects "$EFFECTS" &disown 2>/dev/null
   pg-bench wait 2>/dev/null
 }
 
@@ -59,6 +60,27 @@ open viz-results/corrupt.html
 echo "Opened viz-results/corrupt.html"
 
 echo ""
+echo "=== Press Enter for the regulator to arrive (Amendment 2025-A) ==="
+read -r
+
+# ── Phase 3: Same estate, amended policy — the graph reshapes ──
+echo "=== Phase 3: Re-judging the estate under Amendment 2025-A ==="
+
+# The checker builds fact names textually, so it must stay the main
+# module — the amendment joins it in one flat namespace by concatenation.
+cat checker.pltg policy_amendment.pltg > checker_amended.pltg
+
+echo "Restarting bench with the amended checker..."
+start_bench checker_amended.pltg
+
+echo "Generating amended visualization..."
+EVAL_AMENDED='(fmt "viz" (scope hologram (dissect (stain policy-check-amended))))'
+pg-bench eval "$EVAL_AMENDED" > viz-results/amended.html 2>/dev/null
+open viz-results/amended.html
+echo "Opened viz-results/amended.html"
+
+echo ""
 echo "=== Done ==="
-echo "Clean:    viz-results/clean.html"
-echo "Corrupt:  viz-results/corrupt.html"
+echo "Clean:    viz-results/clean.html    (baseline — data fine, law lenient)"
+echo "Corrupt:  viz-results/corrupt.html  (data moved — same shape, values bleed)"
+echo "Amended:  viz-results/amended.html  (law moved on the same estate — the graph recalculates its shape)"

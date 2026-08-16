@@ -6,9 +6,10 @@ import logging
 from typing import Callable, Self
 
 from .atoms import SILENCE, Evidence, Symbol
-from .default_system_settings import DEFAULT_OPERATORS, ENGINE_DOCS
 
 # from .engine import Engine, Fact
+from .coverage import default_coverage_providers
+from .default_system_settings import DEFAULT_OPERATORS, ENGINE_DOCS
 from .engine import load_source as _engine_load_source
 from .engines.engine_stack import Engine, Fact
 from .lang import (
@@ -51,11 +52,33 @@ class AbstractSystem(Rewriter, Interpreter):
         effects: dict[str, Callable],
         verifier,
         name: str | None = None,
+        evidence_verifiers: dict | None = None,
+        coverage_providers: dict | None = None,
+        engine: "Engine | None" = None,
     ):
         env: dict = {}
         env.update(initial_env)
 
-        self.engine = Engine(env, overridable=overridable, strict_derive=strict_derive, verifier=verifier, name=name)
+        if engine is not None:
+            # Caller-composed engine (e.g. a derived language's). Its own
+            # bindings win; the base operators only fill the gaps.
+            self.engine = engine
+            for k, v in env.items():
+                self.engine.env.setdefault(k, v)
+        else:
+            self.engine = Engine(
+                env,
+                overridable=overridable,
+                strict_derive=strict_derive,
+                verifier=verifier,
+                name=name,
+                evidence_verifiers=evidence_verifiers,
+            )
+        # Coverage is introspection, not language — the registry lives on
+        # the composition layer, measuring over the engine's state.
+        self._coverage_providers: dict = default_coverage_providers()
+        if coverage_providers:
+            self._coverage_providers.update(coverage_providers)
         self._docs = docs
 
         self._unresolved = set()
@@ -63,6 +86,17 @@ class AbstractSystem(Rewriter, Interpreter):
 
         for name, fn in effects.items():
             self.engine.env[Symbol(name)] = lambda *args, _fn=fn: _fn(self, *args)
+
+    def register_coverage_provider(self, coverage_type: str, provider) -> None:
+        """Register (or replace) the provider measuring one coverage type."""
+        self._coverage_providers[coverage_type] = provider
+
+    def coverage(self) -> list:
+        """Run every registered coverage provider over the engine's state."""
+        out: list = []
+        for _type, provider in sorted(self._coverage_providers.items()):
+            out.extend(provider.measure(self.engine))
+        return out
 
     @property
     def facts(self):
@@ -131,7 +165,8 @@ class AbstractSystem(Rewriter, Interpreter):
         are shared by reference — cheap and correct for read-only parent state.
         """
         clone = object.__new__(type(self))
-        clone.engine = Engine(
+        clone._coverage_providers = dict(self._coverage_providers)
+        clone.engine = type(self.engine)(
             env={},
             overridable=overridable if overridable is not None else self.engine.overridable,
             strict_derive=self.engine.strict_derive,
@@ -466,6 +501,9 @@ class DefaultSystem(AbstractSystem):
         effects: dict[str, Callable] | None = None,
         verifier=None,
         name: str | None = None,
+        evidence_verifiers: dict | None = None,
+        coverage_providers: dict | None = None,
+        engine: "Engine | None" = None,
     ):
         super().__init__(
             initial_env=initial_env if initial_env is not None else DEFAULT_OPERATORS,
@@ -475,6 +513,9 @@ class DefaultSystem(AbstractSystem):
             effects=effects or {},
             verifier=verifier,
             name=name,
+            evidence_verifiers=evidence_verifiers,
+            coverage_providers=coverage_providers,
+            engine=engine,
         )
 
 
@@ -490,6 +531,9 @@ class EmptySystem(AbstractSystem):
         effects: dict[str, Callable] | None = None,
         verifier=None,
         name: str | None = None,
+        evidence_verifiers: dict | None = None,
+        coverage_providers: dict | None = None,
+        engine: "Engine | None" = None,
     ):
         super().__init__(
             initial_env=initial_env if initial_env is not None else {},
@@ -499,6 +543,9 @@ class EmptySystem(AbstractSystem):
             effects=effects or {},
             verifier=verifier,
             name=name,
+            evidence_verifiers=evidence_verifiers,
+            coverage_providers=coverage_providers,
+            engine=engine,
         )
 
 

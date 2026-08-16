@@ -71,3 +71,14 @@ Data governance demo with corruptions:
 - `all-omics-ok` should show fabrication when omics contracts are weakened
 - `policy-check` should show `diff_value_divergence`
 - Nodes with issues should be visually distinct from healthy nodes
+
+## Shipped
+
+Health landed as a first-class viz view rather than only per-node
+markers: HEALTH_DATA/COVERAGE_DATA side-cars next to TAINT_DATA, a
+detail-panel Health section, red/yellow card and graph markers, a
+full-page diagnostics view (verdict, stat tiles, coverage chart,
+findings and documents columns), and a typed search bar —
+diag:<facet> filters structurally by finding type/category. Notebook
+pages ship the same real side-cars. Test case: the engine overview
+notebook, which surfaced the core spec's real drift (661 issues).

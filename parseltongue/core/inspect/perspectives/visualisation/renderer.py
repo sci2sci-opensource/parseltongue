@@ -36,6 +36,34 @@ def _read_template(name: str) -> str:
     return (_TEMPLATES / name).read_text()
 
 
+def health_index(screen) -> dict:
+    """name → [{category, type, detail}] from a Screen. Danglings skipped (noise).
+
+    Shared by every page that ships HEALTH_DATA (viz app, notebooks).
+    """
+    if screen is None:
+        return {}
+    index: dict = {}
+    for item in getattr(screen, "_items", []):
+        if item.category == "dangling":
+            continue
+        index.setdefault(item.name, []).append(
+            {"category": item.category, "type": item.type, "detail": str(item.detail or "")}
+        )
+    return index
+
+
+def coverage_rows(coverage) -> list:
+    """Typed coverage rows for a page — the full subtype payload plus type + text."""
+    from dataclasses import asdict, is_dataclass
+
+    rows = []
+    for c in coverage or []:
+        payload = asdict(c) if is_dataclass(c) and not isinstance(c, type) else {}
+        rows.append({**payload, "type": c.type, "text": c.describe()})
+    return rows
+
+
 class VizRenderer(FormRenderer):
     """Tailwind + D3 renderer for bench forms."""
 
@@ -46,12 +74,22 @@ class VizRenderer(FormRenderer):
         structure: "Any | None" = None,
         loc_fn: "Callable[[str], str] | None" = None,
         diff_structure: "Any | None" = None,
+        screen: "Any | None" = None,
+        coverage: "list | None" = None,
     ):
         self._store = store
         self._merkle_root = merkle_root
         self._structure = structure  # CoreToConsequenceStructure for rail layout
         self._loc_fn = loc_fn
         self._diff_structure = diff_structure  # from probe_diffs_to_possibilities
+        self._screen = screen  # Screen — health findings keyed by node name
+        self._coverage = coverage  # list[Coverage] — typed corpus-examination measures
+
+    def _health_index(self) -> dict:
+        return health_index(self._screen)
+
+    def _coverage_rows(self) -> list:
+        return coverage_rows(self._coverage)
 
     def fmt(self, val: Any) -> str:
         key = _content_hash(_to_sexp(val))
@@ -80,6 +118,8 @@ class VizRenderer(FormRenderer):
                 _ln_title(form),
                 self._structure,
                 logbook=self._logbook,
+                health=self._health_index(),
+                coverage=self._coverage_rows(),
                 diff_structure=ds,
             )
         if tag in ("sr", "sr-fmt"):
@@ -89,20 +129,45 @@ class VizRenderer(FormRenderer):
                 "Search result",
                 self._structure,
                 logbook=self._logbook,
+                health=self._health_index(),
+                coverage=self._coverage_rows(),
                 diff_structure=ds,
             )
         if tag in ("dx", "dx-fmt"):
             return _render_app(
-                _extract_dx_items([form]), "dx", "Diagnostic", self._structure, logbook=self._logbook, diff_structure=ds
+                _extract_dx_items([form]),
+                "dx",
+                "Diagnostic",
+                self._structure,
+                logbook=self._logbook,
+                health=self._health_index(),
+                coverage=self._coverage_rows(),
+                diff_structure=ds,
             )
         if tag in ("hn", "hn-fmt"):
             return _render_app(
-                _extract_hn_items([form]), "hn", "Hologram", self._structure, logbook=self._logbook, diff_structure=ds
+                _extract_hn_items([form]),
+                "hn",
+                "Hologram",
+                self._structure,
+                logbook=self._logbook,
+                health=self._health_index(),
+                coverage=self._coverage_rows(),
+                diff_structure=ds,
             )
         if tag == "df":
             df_item = _extract_df_item(form)
             items = [df_item] if df_item is not None else []
-            return _render_app(items, "hn", "Diff", self._structure, logbook=self._logbook, diff_structure=ds)
+            return _render_app(
+                items,
+                "hn",
+                "Diff",
+                self._structure,
+                logbook=self._logbook,
+                health=self._health_index(),
+                coverage=self._coverage_rows(),
+                diff_structure=ds,
+            )
         return self.fmt_value(form)
 
     def render_form_list(self, forms: list[list]) -> str:
@@ -113,7 +178,14 @@ class VizRenderer(FormRenderer):
         ds = self._diff_structure
         if tag in ("ln", "ln-fmt"):
             return _render_app(
-                _extract_ln_items(forms), "ln", f"{n} nodes", self._structure, logbook=self._logbook, diff_structure=ds
+                _extract_ln_items(forms),
+                "ln",
+                f"{n} nodes",
+                self._structure,
+                logbook=self._logbook,
+                health=self._health_index(),
+                coverage=self._coverage_rows(),
+                diff_structure=ds,
             )
         if tag in ("sr", "sr-fmt"):
             return _render_app(
@@ -122,6 +194,8 @@ class VizRenderer(FormRenderer):
                 f"{n} results",
                 self._structure,
                 logbook=self._logbook,
+                health=self._health_index(),
+                coverage=self._coverage_rows(),
                 diff_structure=ds,
             )
         if tag in ("dx", "dx-fmt"):
@@ -131,6 +205,8 @@ class VizRenderer(FormRenderer):
                 f"{n} diagnostics",
                 self._structure,
                 logbook=self._logbook,
+                health=self._health_index(),
+                coverage=self._coverage_rows(),
                 diff_structure=ds,
             )
         if tag in ("hn", "hn-fmt", "df"):
@@ -147,6 +223,8 @@ class VizRenderer(FormRenderer):
                 f"{len(items)} holograms",
                 self._structure,
                 logbook=self._logbook,
+                health=self._health_index(),
+                coverage=self._coverage_rows(),
                 diff_structure=ds,
             )
         return self.fmt_value(forms)
@@ -715,6 +793,8 @@ def _render_app(
     structure: "Any | None" = None,
     logbook: list[dict] | None = None,
     diff_structure: "Any | None" = None,
+    health: dict | None = None,
+    coverage: list | None = None,
 ) -> str:
     structure_items = items  # default: structure tab shows same data
     layers_data: dict[str, list] = {"layers": [], "edges": []}
@@ -837,12 +917,15 @@ def _render_app(
         structure_json=json.dumps(structure_items, separators=(",", ":")),
         layers_json=json.dumps(layers_data, separators=(",", ":")),
         taint_json=json.dumps(taint_result.to_json(), separators=(",", ":")),
+        health_json=json.dumps(health or {}, separators=(",", ":")),
+        coverage_json=json.dumps(coverage or [], separators=(",", ":")),
         form_type=form_type,
         item_count=str(len(items)),
         core_js=_read_template("core.js"),
         source_js=_read_template("source.js"),
         cards_js=_read_template("cards.js"),
         detail_js=_read_template("detail.js"),
+        health_js=_read_template("health.js"),
         graph_js=_read_template("graph_v2.js"),
         layers_js=_read_template("layers.js"),
     )

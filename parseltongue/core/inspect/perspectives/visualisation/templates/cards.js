@@ -42,7 +42,12 @@ function render() {
       const _tAll = new Set(_td.tainted);
       const isTaintSource = d.id && _tSrc.has(d.id);
       const isTainted = d.id && _tAll.has(d.id);
-      const taintBorder = isTaintSource ? 'border-red' : isTainted ? 'border-yellow border-dashed' : 'border-surface1';
+      const _hd = (typeof HEALTH_DATA !== 'undefined') ? HEALTH_DATA : {};
+      const findings = (d.id && _hd[d.id]) || [];
+      const hasIssue = findings.some(f => f.category === 'issue');
+      const hasWarning = findings.some(f => f.category === 'warning');
+      const taintBorder = (isTaintSource || hasIssue) ? 'border-red'
+        : (isTainted || hasWarning) ? 'border-yellow border-dashed' : 'border-surface1';
       card.className = `bg-surface0 border ${taintBorder} rounded-lg p-3 hover:border-mauve/50 cursor-pointer transition-colors`;
       card.onclick = () => showDetail(d);
 
@@ -55,6 +60,8 @@ function render() {
         const verified = hasEv && d.evidence[0].verified;
         const taintTag = isTaintSource ? '<span class="text-red">&#x2716; taint source</span>'
           : isTainted ? '<span class="text-yellow">&#x26a0; tainted</span>' : '';
+        const healthTag = hasIssue ? `<span class="text-red">&#x2716; ${esc(findings.find(f => f.category === 'issue').type)}</span>`
+          : hasWarning ? `<span class="text-yellow">&#x26a0; ${esc(findings.find(f => f.category === 'warning').type)}</span>` : '';
 
         // Diff cards get patronus dot + state-aware styling (color-mixed)
         if (kind === 'diff' && d.diff) {
@@ -80,7 +87,7 @@ function render() {
             <div class="flex items-center gap-2 text-[10px]">
               <span style="color:${sec}">${stIcon} ${stLabel}</span>
               ${d.depth > 0 ? `<span class="text-overlay0">depth ${d.depth}</span>` : ''}
-              ${taintTag}
+              ${taintTag} ${healthTag}
             </div>
           `;
         } else {
@@ -94,7 +101,7 @@ function render() {
             ${d.inputs && d.inputs.length ? `<span>&#x2190; ${d.inputs.length} inputs</span>` : ''}
             ${hasEv ? `<span class="${verified ? 'text-green' : 'text-yellow'}">${verified ? '&#x2713; verified' : '&#x25cb; unverified'}</span>` : ''}
             ${d.depth > 0 ? `<span>depth ${d.depth}</span>` : ''}
-            ${taintTag}
+            ${taintTag} ${healthTag}
           </div>
         `;
         }

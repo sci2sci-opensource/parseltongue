@@ -38,11 +38,17 @@ from dataclasses import dataclass, field
 from typing import Protocol, TypeGuard, TypeVar
 
 from .atoms import (  # noqa: F401 — re-export
+    EVIDENCE_TYPE_CORPUS_QUERY,
+    EVIDENCE_TYPE_DOC_QUOTE,
     SILENCE,
     WFF,
     Axiom,
+    CorpusSource,
+    DocumentSource,
     Evidence,
     Primitive,
+    QueryClaim,
+    QuoteClaim,
     Silence,
     Symbol,
     Term,
@@ -100,7 +106,13 @@ def _clause_to_sexp(clause: Clause) -> Sentence:
     silence the return-value errors.
     """
     if isinstance(clause, Evidence):
-        return [Symbol("evidence"), clause.document, list(clause.quotes), clause.verified]  # type: ignore[return-value]
+        base: list = [Symbol("evidence"), clause.document, list(clause.quotes), clause.verified]
+        if clause.type != EVIDENCE_TYPE_DOC_QUOTE:
+            claim = clause.claims[0] if clause.claims else None
+            satisfies = claim.satisfies or "" if isinstance(claim, QueryClaim) else ""
+            excludes = list(clause.source.excludes) if isinstance(clause.source, CorpusSource) else []
+            base += [clause.type, satisfies, excludes]
+        return base
     if isinstance(clause, Theorem):
         return [Symbol("theorem"), clause.name, clause.wff, list(clause.derivation), _origin_to_sexp(clause.origin)]
     if isinstance(clause, Term):
@@ -126,10 +138,30 @@ def _sexp_to_clause(sentence: Sentence) -> "Clause | Sentence":
 
     if head == "evidence":
         verified = bool(sentence[3]) if len(sentence) > 3 else False
+        ev_type = str(sentence[4]) if len(sentence) > 4 else EVIDENCE_TYPE_DOC_QUOTE
+        if ev_type == EVIDENCE_TYPE_CORPUS_QUERY:
+            satisfies_s = str(sentence[5]) if len(sentence) > 5 and sentence[5] != "" else None
+            excludes = tuple(str(e) for e in sentence[6]) if len(sentence) > 6 else ()  # type: ignore[union-attr]
+            return Evidence(
+                source=CorpusSource(pattern=str(sentence[1]), excludes=excludes),
+                claims=tuple(
+                    QueryClaim(
+                        query=str(q),
+                        polarity="forall" if satisfies_s else "absent",
+                        satisfies=satisfies_s,
+                    )
+                    for q in sentence[2]  # type: ignore[union-attr]
+                ),
+                verified=verified,
+                type=ev_type,
+            )
+        # Third-party types round-trip generically — claims as display
+        # strings, type preserved for the owning verifier.
         return Evidence(
             document=str(sentence[1]),
             quotes=list(str(q) for q in sentence[2]),  # type: ignore[union-attr]
             verified=verified,
+            type=ev_type,
         )
     if head == "theorem":
         return Theorem(
@@ -280,6 +312,10 @@ KW_USING = ":using"
 KW_REPLACE = ":replace"
 KW_WITH = ":with"
 KW_BIND = ":bind"
+KW_ABSENT = ":absent"
+KW_FORALL = ":forall"
+KW_SATISFIES = ":satisfies"
+KW_EXCEPT = ":except"
 
 # ============================================================
 # Language Documentation
@@ -744,8 +780,49 @@ LANG_DOCS = {
         "category": "keyword",
         "description": "Attach a structured evidence block to a directive.  "
         "Preferred over :origin when the claim should be "
-        "quote-verified against a source document.",
+        "quote-verified against a source document.  The block "
+        "may also carry a corpus-quantified claim (:absent / "
+        ":forall) — then the source names a corpus region "
+        "instead of a registered document.",
         "example": ':evidence (evidence "Doc" :quotes ("q1") :explanation "x")',
+        "patterns": [
+            ':evidence (evidence "Doc" :quotes ("q1") :explanation "x")',
+            ':evidence (evidence "src/auth" :absent (re "md5|sha1") :except ("tests/"))',
+        ],
+    },
+    KW_ABSENT: {
+        "category": "keyword",
+        "description": "Corpus-quantified claim inside an evidence block: the "
+        "search query must have ZERO matches within the source "
+        "region.  Grounded only by a layer owning a closed "
+        "corpus (the bench search index); refused unless every "
+        "file in scope is classified.  A violation surfaces the "
+        "matches as counter-examples.",
+        "example": '(evidence "src/auth" :absent (re "md5|sha1"))',
+    },
+    KW_FORALL: {
+        "category": "keyword",
+        "description": "Corpus-quantified obligation inside an evidence "
+        "block: every match of the query must satisfy the "
+        "companion :satisfies condition.  :absent is the "
+        "degenerate case (zero matches).  Violations surface "
+        "the unsatisfied matches as counter-examples.",
+        "example": '(evidence "src/api" :forall (re "@app\\\\.route") :satisfies (near 5 (re "@requires_auth")))',
+    },
+    KW_SATISFIES: {
+        "category": "keyword",
+        "description": "Companion condition for :forall — a search form "
+        "each match must meet.  (near N cond) and (seq cond) "
+        "compose relative to the match; any other form means "
+        "same-line co-occurrence.",
+        "example": ':satisfies (near 5 (re "@requires_auth"))',
+    },
+    KW_EXCEPT: {
+        "category": "keyword",
+        "description": "Exclusions for a corpus-quantified claim — glob "
+        "patterns (matched at any path level) exempt from both "
+        "the query and the closure gate.",
+        "example": ':except ("tests/" "*.md")',
     },
     KW_USING: {
         "category": "keyword",
@@ -793,18 +870,35 @@ LANG_DOCS = {
 def parse_evidence(expr) -> Evidence:
     """Parse an evidence s-expression into an Evidence object.
 
-    Expected form:
+    Classic form (type "doc_quote"):
       (evidence "document-name"
         :quotes ("quote 1" "quote 2")
         :explanation "why these quotes support the claim")
+
+    Corpus-quantified form (type "corpus_query") — the source names a
+    corpus region instead of a registered document; the claim quantifies
+    over every match of a search query within it:
+      (evidence "src/auth"
+        :absent (re "md5|sha1")
+        :except ("tests/"))
+      (evidence "src/api"
+        :forall (re "@app\\\\.route")
+        :satisfies (near 5 (re "@requires_auth")))
     """
     if not isinstance(expr, (list, tuple)) or not expr:
         raise SyntaxError(f"Invalid evidence expression: {expr}")
 
     if expr[0] != EVIDENCE:
         raise SyntaxError(f"Evidence expression must start with 'evidence', got: {expr[0]}")
+    if len(expr) < 2:
+        raise SyntaxError(f"Evidence expression requires a source: {expr}")
 
     document = str(expr[1])
+    absent_raw = get_keyword(expr, KW_ABSENT, None)
+    forall_raw = get_keyword(expr, KW_FORALL, None)
+    if absent_raw is not None or forall_raw is not None:
+        return _parse_corpus_evidence(expr, document, absent_raw, forall_raw)
+
     quotes_raw = get_keyword(expr, KW_QUOTES, [])
     explanation = get_keyword(expr, KW_EXPLANATION, "")
 
@@ -812,6 +906,46 @@ def parse_evidence(expr) -> Evidence:
     quotes = [str(q) for q in quotes]
 
     return Evidence(document=document, quotes=quotes, explanation=explanation)
+
+
+def _render_search_form(expr, form) -> str:
+    """Render a search-query sub-form back to source text."""
+    if isinstance(form, (list, tuple)):
+        return to_sexp(form)
+    if isinstance(form, (Symbol, str)):
+        return str(form)
+    raise SyntaxError(f"Search query must be a form or string, got {form!r} in: {expr}")
+
+
+def _parse_corpus_evidence(expr, document: str, absent_raw, forall_raw) -> Evidence:
+    """Parse :absent / :forall keywords into a "corpus_query" Evidence."""
+    if absent_raw is not None and forall_raw is not None:
+        raise SyntaxError(f"Evidence cannot carry both :absent and :forall: {expr}")
+    if get_keyword(expr, KW_QUOTES, None) is not None:
+        raise SyntaxError(f"Corpus-quantified evidence takes no :quotes: {expr}")
+
+    satisfies_raw = get_keyword(expr, KW_SATISFIES, None)
+    if absent_raw is not None and satisfies_raw is not None:
+        raise SyntaxError(f":absent takes no :satisfies (use :forall): {expr}")
+    if forall_raw is not None and satisfies_raw is None:
+        raise SyntaxError(f":forall requires :satisfies: {expr}")
+
+    excludes_raw = get_keyword(expr, KW_EXCEPT, ())
+    if not isinstance(excludes_raw, (list, tuple)):
+        excludes_raw = (excludes_raw,)
+
+    polarity = "absent" if absent_raw is not None else "forall"
+    claim = QueryClaim(
+        query=_render_search_form(expr, absent_raw if absent_raw is not None else forall_raw),
+        polarity=polarity,
+        satisfies=_render_search_form(expr, satisfies_raw) if satisfies_raw is not None else None,
+    )
+    return Evidence(
+        source=CorpusSource(pattern=document, excludes=tuple(str(e) for e in excludes_raw)),
+        claims=(claim,),
+        explanation=str(get_keyword(expr, KW_EXPLANATION, "")),
+        type=EVIDENCE_TYPE_CORPUS_QUERY,
+    )
 
 
 # ============================================================

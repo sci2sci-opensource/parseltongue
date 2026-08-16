@@ -1,0 +1,119 @@
+; ══════════════════════════════════════════════════════════
+; GOVERNANCE AMENDMENT 2025-A — stage-3 intervention module
+; ══════════════════════════════════════════════════════════
+;
+; Same estate, new law. Loading this module alongside the checker adds
+; axiom nodes and two new derivation arms, and routes compliance paths
+; through a carve-out — the graph recalculates its SHAPE, not just its
+; colors. No data file changes: contracts that were compliant under the
+; base policy can turn non-compliant here purely because the law moved.
+
+
+(load-document "governance_amendment" "resources/governance_amendment.md")
+
+; ══════════════════════════════════════════════════════════
+; A1. SCHEDULED AUDIT CADENCE — a new obligation that fans out
+; ══════════════════════════════════════════════════════════
+
+(defterm audit-cadence-ok
+  :evidence (evidence "governance_amendment"
+    :quotes ("Contracts covering restricted data must provide for scheduled audits at least annually; quarterly reviews satisfy this requirement.")
+    :explanation "per-contract scheduled-audit-cadence predicate"))
+(axiom audit-cadence-ok-rule
+  (= (audit-cadence-ok ?doc)
+     (or (not (regex-match "(?i)classification..: restricted" (doc-text ?doc)))
+         (regex-match "(?i): annual audit|: quarterly compliance" (doc-text ?doc))))
+  :evidence (evidence "governance_amendment"
+    :quotes ("Bi-annual and on-demand audit arrangements do not satisfy the scheduled-cadence requirement.")
+    :explanation "Restricted contracts need annual or quarterly scheduled audits; bi-annual and on-demand fail"))
+
+(defterm check-all-audit
+  :evidence (evidence "governance_amendment"
+    :quotes ("Contracts covering restricted data must provide for scheduled audits at least annually; quarterly reviews satisfy this requirement.")
+    :explanation "all-contracts audit cadence fold"))
+(axiom check-all-audit-base
+  (= (check-all-audit (?doc))
+     (audit-cadence-ok ?doc))
+  :evidence (evidence "governance_amendment"
+    :quotes ("Contracts covering restricted data must provide for scheduled audits at least annually; quarterly reviews satisfy this requirement.")
+    :explanation "Single contract audit cadence check"))
+(axiom check-all-audit-step
+  (= (check-all-audit (?doc ?...rest))
+     (and (audit-cadence-ok ?doc) (check-all-audit ?...rest)))
+  :evidence (evidence "governance_amendment"
+    :quotes ("Contracts covering restricted data must provide for scheduled audits at least annually; quarterly reviews satisfy this requirement.")
+    :explanation "Every contract must satisfy the audit cadence requirement"))
+
+(derive all-audit-cadence-ok
+  (check-all-audit (strict contract-docs))
+  :using (contract-docs check-all-audit check-all-audit-base
+          check-all-audit-step audit-cadence-ok audit-cadence-ok-rule))
+
+; ══════════════════════════════════════════════════════════
+; A2 + A3. CROSS-BORDER TRANSFER — a requirement with a carve-out
+; ══════════════════════════════════════════════════════════
+;
+; The reroute: de-identified contracts satisfy the requirement through
+; the carve-out axiom; everyone else must show a transfer agreement.
+; Two different resolution paths to the same predicate — visible as
+; distinct edges in the stain.
+
+(defterm transfer-exempt
+  :evidence (evidence "governance_amendment"
+    :quotes ("Where a contract requires de-identification of the covered data, the datasets it covers may cross geographic regions without a separate transfer agreement.")
+    :explanation "de-identification carve-out predicate"))
+(axiom transfer-exempt-rule
+  (= (transfer-exempt ?doc)
+     (regex-match "(?i)required..: yes" (doc-text ?doc)))
+  :evidence (evidence "governance_amendment"
+    :quotes ("Where a contract requires de-identification of the covered data, the datasets it covers may cross geographic regions without a separate transfer agreement.")
+    :explanation "Contracts requiring de-identification are exempt from the transfer-agreement duty"))
+
+(defterm transfer-ok
+  :evidence (evidence "governance_amendment"
+    :quotes ("Restricted data covered by a geographically restricted contract may not be distributed across regions unless a transfer agreement is documented in the contract.")
+    :explanation "per-contract cross-border transfer predicate"))
+(axiom transfer-ok-rule
+  (= (transfer-ok ?doc)
+     (or (not (and (regex-match "(?i)classification..: restricted" (doc-text ?doc))
+                   (not (regex-match "(?i)restriction..: global" (doc-text ?doc)))))
+         (transfer-exempt ?doc)
+         (regex-match "(?i)transfer agreement" (doc-text ?doc))))
+  :evidence (evidence "governance_amendment"
+    :quotes ("A geographically restricted contract without a documented transfer agreement is non-compliant, except where the de-identification carve-out applies.")
+    :explanation "Requirement applies to restricted + geo-restricted contracts; satisfied by carve-out or documented transfer agreement"))
+
+(defterm check-all-transfer
+  :evidence (evidence "governance_amendment"
+    :quotes ("Restricted data covered by a geographically restricted contract may not be distributed across regions unless a transfer agreement is documented in the contract.")
+    :explanation "all-contracts cross-border transfer fold"))
+(axiom check-all-transfer-base
+  (= (check-all-transfer (?doc))
+     (transfer-ok ?doc))
+  :evidence (evidence "governance_amendment"
+    :quotes ("Restricted data covered by a geographically restricted contract may not be distributed across regions unless a transfer agreement is documented in the contract.")
+    :explanation "Single contract transfer check"))
+(axiom check-all-transfer-step
+  (= (check-all-transfer (?doc ?...rest))
+     (and (transfer-ok ?doc) (check-all-transfer ?...rest)))
+  :evidence (evidence "governance_amendment"
+    :quotes ("Restricted data covered by a geographically restricted contract may not be distributed across regions unless a transfer agreement is documented in the contract.")
+    :explanation "Every contract must satisfy the cross-border transfer requirement"))
+
+(derive all-transfer-ok
+  (check-all-transfer (strict contract-docs))
+  :using (contract-docs check-all-transfer check-all-transfer-base
+          check-all-transfer-step transfer-ok transfer-ok-rule
+          transfer-exempt transfer-exempt-rule))
+
+; ══════════════════════════════════════════════════════════
+; AMENDED FINAL POLICY — the base verdict grows two new arms
+; ══════════════════════════════════════════════════════════
+
+(derive policy-consistent-amended
+  (and policy-consistent all-audit-cadence-ok all-transfer-ok)
+  :using (policy-consistent all-audit-cadence-ok all-transfer-ok))
+
+(diff policy-check-amended
+  :replace policy-consistent-amended
+  :with expected-compliant)

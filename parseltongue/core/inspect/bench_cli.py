@@ -541,6 +541,17 @@ class BenchServer:
                     import json as _json
 
                     text = _json.dumps(dx.stats(), indent=2)
+                elif what == "coverage":
+                    rows = self.bench.coverage()
+                    by_type: dict[str, list] = {}
+                    for c in rows:
+                        by_type.setdefault(c.type, []).append(c.describe())
+                    parts = []
+                    for ctype in sorted(by_type):
+                        parts.append(f"[{ctype}]")
+                        parts.extend(f"  {line}" for line in by_type[ctype])
+                        parts.append("")
+                    text = "\n".join(parts).strip() if parts else "No coverage measurements."
                 else:
                     text = dx.summary()
                 return {"ok": True, "text": str(text)}
@@ -1267,6 +1278,9 @@ def _run_server(
                         quiet_passes = 0
                         if dirty_since is None:
                             dirty_since = time.monotonic()
+                        # Corpus moved — cached screens may hold stale
+                        # absence/obligation verdicts; recompute on next ask.
+                        server.bench._technician.invalidate_screens()
                     else:
                         quiet_passes += 1
                     overdue = dirty_since is not None and time.monotonic() - dirty_since > MAX_UNSAVED_S
@@ -2159,7 +2173,7 @@ _screen_opts = [
     click.option(
         "--what",
         default="summary",
-        type=click.Choice(["summary", "issues", "warnings", "danglings", "loader", "ok", "stats"]),
+        type=click.Choice(["summary", "issues", "warnings", "danglings", "loader", "ok", "stats", "coverage"]),
     ),
 ]
 
@@ -2183,6 +2197,7 @@ def screen(focus_name: str | None, what: str):
     --what loader     only loader errors (unresolved symbols, failed effects)
     --what ok         passing items (warnings + danglings, excludes issues/loader)
     --what stats      JSON breakdown by category, type, kind, namespace, file
+    --what coverage   typed corpus-examination measures, grouped by type
     --focus           filter to a namespace prefix
     """
     _screen_impl(focus_name, what)
