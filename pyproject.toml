@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "parseltongue-dsl"
-version = "0.7.4"
+version = "0.8.0"
 description = "Parseltongue: a DSL for systems which refuse to speak falsehood"
 requires-python = ">=3.11"
 dependencies = ["typing_extensions>=4.0", "click>=8.0"]
