@@ -6,7 +6,7 @@
 | [Establish Git-Based Development Tracker](completed/establish-git-based-development-tracker.md) | done | feature/dev-tracker | — |
 | [Lens Diff Traversal](completed/lens-diff-traversal.md) | done | plan/pgf | |
 | [Consistency Coverage](completed/consistency-coverage.md) | done | feature/evidence-family-coverage-health | |
-| [Core Consistency Stabilisation](pending/core-consistency-stabilisation.md) | pending | | |
+| [Core Consistency Stabilisation](in_progress/core-consistency-stabilisation.md) | in progress | feature/core-consistency-stabilisation | |
 | [Multi-Index Search](pending/multi-index-search.md) | pending | | |
 | [Viz Graph v2](completed/viz-graph-v2.md) | done | feature/viz-graph-v2 | |
 | [Viz Health Overlay](completed/viz-health-overlay.md) | done | feature/evidence-family-coverage-health | |
