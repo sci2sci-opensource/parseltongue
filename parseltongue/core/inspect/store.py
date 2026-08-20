@@ -435,12 +435,22 @@ class Store:
 
     # ── Invalidation ──
 
-    def remove(self, path: str):
+    # Corpus caches — the indexed files, not derived analysis. A reload
+    # re-observes the .pltg; the corpus survives it (claims re-ground
+    # against the existing index). Only a purge wipes these.
+    _CORPUS_SUFFIXES = (".idx.pgz", ".six.pgz", ".meta.pgz")
+
+    @classmethod
+    def _is_corpus_cache(cls, f: Path) -> bool:
+        return f.name.endswith(cls._CORPUS_SUFFIXES) or ".texts." in f.name
+
+    def remove(self, path: str, preserve_corpus: bool = False):
         """Remove cache files for a specific path — includes viz, history, texts."""
         self._cache_path(path).unlink(missing_ok=True)
         self._diagnosis_cache_path(path).unlink(missing_ok=True)
-        self._index_cache_path(path).unlink(missing_ok=True)
-        self._search_index_cache_path(path).unlink(missing_ok=True)
+        if not preserve_corpus:
+            self._index_cache_path(path).unlink(missing_ok=True)
+            self._search_index_cache_path(path).unlink(missing_ok=True)
         # History layers + metadata
         self.history(path).remove_all()
         # Clean up legacy too
@@ -451,10 +461,12 @@ class Store:
             for f in self._dir.glob("*.viz.pgz"):
                 f.unlink(missing_ok=True)
 
-    def remove_all(self):
-        """Remove all cache files."""
+    def remove_all(self, preserve_corpus: bool = False):
+        """Remove all cache files (optionally keeping the indexed corpus)."""
         if self._dir.exists():
             for f in self._dir.glob("*.pgz"):
+                if preserve_corpus and self._is_corpus_cache(f):
+                    continue
                 f.unlink()
             for f in self._dir.glob("*.json"):
                 f.unlink()

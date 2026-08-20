@@ -397,26 +397,32 @@ class Bench:
     ) -> int:
         """Index a directory — the bench-level corpus mutation.
 
-        When files actually land, cached screens may hold stale
-        absence/obligation verdicts; they are invalidated here so the next
-        screen re-grounds corpus claims against the moved index.
+        When files actually land, cached screens hold verdicts for a corpus
+        that no longer exists: they are invalidated (their cache key embeds
+        the corpus fingerprint, so they can never resurrect) and the sample
+        is re-observed so the live pass re-grounds corpus claims.
         """
         count = self.index.index_dir(directory, extensions, exclude=exclude, on_progress=on_progress, force=force)
         if count:
-            self._technician.invalidate_screens()
+            self._on_corpus_moved()
         return count
 
     def reindex(self, on_progress=None, force: bool = False, defer_save: bool = False) -> int:
         """Re-walk tracked directories — the bench-level corpus refresh.
 
-        Same screen-invalidation contract as index_dir: a pass that picked
-        up changes drops cached screens so absence/obligation verdicts
-        recompute on next ask.
+        Same contract as index_dir: a pass that picked up changes drops
+        cached screens and re-observes so verdicts follow the corpus.
         """
         count = self.index.reindex(on_progress=on_progress, force=force, defer_save=defer_save)
         if count:
-            self._technician.invalidate_screens()
+            self._on_corpus_moved()
         return count
+
+    def _on_corpus_moved(self) -> None:
+        """The corpus changed under the current sample — re-observe it."""
+        self._technician.invalidate_screens()
+        if self._current_path is not None:
+            self.prepare(self._current_path)
 
     # ── Access ──
 
