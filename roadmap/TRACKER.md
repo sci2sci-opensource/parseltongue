@@ -15,6 +15,10 @@
 | [Decouple .pgignore from .gitignore](completed/decouple-pgignore-from-gitignore.md) | done | feature/decouple-pgignore-from-gitignore | |
 | [Search files projection](completed/search-files-projection.md) | done | feature/decouple-pgignore-from-gitignore | |
 | [Incremental Reindex](pending/incremental-reindex.md) | pending | | |
+| [Wire Inspect Validators](pending/wire-inspect-validators.md) | pending | | |
+| [Deepen Core Evidence](pending/deepen-core-evidence.md) | pending | | |
+| [Coverage in Consistency Report](pending/coverage-in-consistency-report.md) | pending | | |
+| [Tracker as .pgmd](pending/pgmd-roadmap-tracker.md) | pending | | |
 | [Daemon Singleton + Shutdown](completed/daemon-singleton-and-shutdown.md) | done | feature/daemon-singleton-and-shutdown | |
 | [Absence Evidence](completed/absence-evidence.md) | done | feature/evidence-family-coverage-health | |
 | [Universal Obligations](completed/universal-obligations.md) | done | feature/evidence-family-coverage-health | |
