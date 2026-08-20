@@ -1,0 +1,127 @@
+; grammar.pltg — Ground truth and internal validation for grammar.py
+; (the s-expression reader/printer, moved out of atoms.py; the public
+; parse()/parse_all() API is re-exported from core/__init__.py)
+
+(load-document "grammar.py" "../grammar.py")
+(load-document "core_init.py" "../__init__.py")
+(import (quote ..std.counting))
+(import (quote ..std.util))
+(defterm count-exists counting.count-exists :origin "import")
+(verify-manual (quote count-exists) "V")
+
+; =====================================================================
+; Reader pipeline — tokenize / read_tokens / atom
+; =====================================================================
+
+(fact tokenize-doc "Tokenize s-expression source into atoms and parens."
+    :evidence (evidence "grammar.py"
+        :quotes ("Tokenize s-expression source into atoms and parens.")
+        :explanation "tokenize() docstring"))
+
+(fact comment-char true
+    :evidence (evidence "grammar.py"
+        :quotes ("if char == \";\":" "in_comment = True")
+        :explanation "; starts a comment in the tokenizer"))
+
+(fact read-tokens-doc "Recursively parse token list into nested Python structures."
+    :evidence (evidence "grammar.py"
+        :quotes ("Recursively parse token list into nested Python structures.")
+        :explanation "read_tokens() docstring"))
+
+(fact atom-doc "Convert a token string to a typed value."
+    :evidence (evidence "grammar.py"
+        :quotes ("Convert a token string to a typed value.")
+        :explanation "atom() docstring"))
+
+(fact atom-tries-int-first true
+    :evidence (evidence "grammar.py"
+        :quotes ("return int(token)")
+        :explanation "atom() tries int conversion first"))
+
+(fact atom-tries-float-second true
+    :evidence (evidence "grammar.py"
+        :quotes ("return float(token)")
+        :explanation "atom() tries float conversion second"))
+
+(fact atom-true-token true
+    :evidence (evidence "grammar.py"
+        :quotes ("if token == \"true\":")
+        :explanation "true token converts to boolean True"))
+
+(fact atom-false-token true
+    :evidence (evidence "grammar.py"
+        :quotes ("if token == \"false\":")
+        :explanation "false token converts to boolean False"))
+
+(fact atom-keyword-prefix true
+    :evidence (evidence "grammar.py"
+        :quotes ("if token.startswith(\":\"):")
+        :explanation "colon prefix marks keyword tokens"))
+
+(fact atom-fallback-is-symbol true
+    :evidence (evidence "grammar.py"
+        :quotes ("return Symbol(token)")
+        :explanation "unconverted tokens fall back to Symbol"))
+
+; =====================================================================
+; Printer — to_sexp
+; =====================================================================
+
+(fact to-sexp-doc "Pretty-print a Python object back to s-expression string."
+    :evidence (evidence "grammar.py"
+        :quotes ("Pretty-print a Python object back to s-expression string.")
+        :explanation "to_sexp() docstring"))
+
+(fact to-sexp-bool-roundtrip true
+    :evidence (evidence "grammar.py"
+        :quotes ("return \"true\" if obj else \"false\"")
+        :explanation "booleans print back as true/false tokens"))
+
+; =====================================================================
+; Public parse API — re-exported from core/__init__.py
+; =====================================================================
+
+(fact parse-api-alias true
+    :evidence (evidence "core_init.py"
+        :quotes ("parse = PGStringParser.translate")
+        :explanation "parse is the back-compat alias of PGStringParser.translate"))
+
+(fact parse-all-api true
+    :evidence (evidence "core_init.py"
+        :quotes ("def parse_all(source: str) -> list:" "Parse source into a list of top-level expressions.")
+        :explanation "parse_all() combines tokenizing and reading over full sources"))
+
+; =====================================================================
+; Parser stages — tokenizer, reader, public parse API
+; =====================================================================
+
+(fact tokenize-stage true
+    :evidence (evidence "grammar.py"
+        :quotes ("def tokenize(source: str, *, track_lines: bool = False)")
+        :explanation "stage 1: tokenizer"))
+
+(fact read-tokens-stage true
+    :evidence (evidence "grammar.py"
+        :quotes ("def read_tokens(tokens: list[str]) -> WFF:")
+        :explanation "stage 2: reader"))
+
+(derive parse-api-stage
+    (and parse-api-alias parse-all-api)
+    :using (parse-api-alias parse-all-api))
+
+(derive parser-stages-count
+    (count-exists tokenize-stage read-tokens-stage parse-api-stage)
+    :using (count-exists counting.count-exists-base counting.count-exists-step
+            tokenize-stage read-tokens-stage parse-api-stage))
+
+; =====================================================================
+; Exports — for core_clean.pltg cross-checks against README
+; =====================================================================
+
+(derive export-to-sexp
+    (util.export to-sexp-bool-roundtrip)
+    :using (util.export to-sexp-bool-roundtrip))
+
+(derive export-parser-stages-count
+    (util.export parser-stages-count)
+    :using (util.export parser-stages-count))

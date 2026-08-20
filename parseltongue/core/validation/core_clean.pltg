@@ -2,6 +2,7 @@
 ; No facts here — only imports, cross-module derivations, diffs, and reporting.
 
 (import (quote atoms))
+(import (quote grammar))
 (import (quote lang))
 (import (quote engine))
 (import (quote system))
@@ -192,8 +193,8 @@
 
 
 (derive splat-impl-confirmed
-    (and lang.splat-prefix-impl lang.splat-lang-docs-impl atoms.match-splat-doc atoms.substitute-splat-doc)
-    :using (lang.splat-prefix-impl lang.splat-lang-docs-impl atoms.match-splat-doc atoms.substitute-splat-doc))
+    (and lang.splat-prefix-impl lang.splat-lang-docs-impl lang.match-splat-doc lang.substitute-splat-doc)
+    :using (lang.splat-prefix-impl lang.splat-lang-docs-impl lang.match-splat-doc lang.substitute-splat-doc))
 
 (diff splat-readme-vs-impl
     :replace readme.readme-documents-splat-patterns
@@ -240,7 +241,7 @@
 
 (diff readme-vs-rewrite-bind :replace readme.readme-documents-rewrite-vs-bind :with engine.export-rewrite-vs-bind)
 
-(diff readme-vs-splat-axioms :replace readme.readme-documents-splat-in-axioms :with atoms.export-splat-confirmed)
+(diff readme-vs-splat-axioms :replace readme.readme-documents-splat-in-axioms :with lang.export-splat-confirmed)
 
 (diff readme-vs-computable-directives :replace readme.readme-documents-computable-directives :with engine.export-computable-directives)
 
@@ -258,7 +259,7 @@
 
 (diff readme-vs-rewrite-functions :replace readme.readme-documents-rewrite-as-functions :with engine.export-rewrite-as-functions)
 
-(diff readme-vs-splat-variadic :replace readme.readme-documents-splat-variadic-reduce :with atoms.export-substitute-splat)
+(diff readme-vs-splat-variadic :replace readme.readme-documents-splat-variadic-reduce :with lang.export-substitute-splat)
 
 (diff readme-vs-counting-pltg :replace readme.readme-documents-counting-pltg-link :with counting.export-counting-module-exists)
 
@@ -441,8 +442,8 @@
 
 (diff misc-frozen-dataclasses :replace readme.readme-documents-frozen-dataclasses :with atoms.export-frozen-dataclasses)
 (diff misc-symbol-class :replace readme.readme-documents-symbol-class :with atoms.export-symbol-is-str)
-(diff misc-to-sexp :replace readme.readme-documents-to-sexp :with atoms.export-to-sexp)
-(diff misc-match-substitute :replace readme.readme-documents-match-substitute :with atoms.export-match-substitute)
+(diff misc-to-sexp :replace readme.readme-documents-to-sexp :with grammar.export-to-sexp)
+(diff misc-match-substitute :replace readme.readme-documents-match-substitute :with lang.export-match-substitute)
 (diff misc-parse-evidence :replace readme.readme-documents-parse-evidence :with lang.export-parse-evidence)
 (diff misc-lang-docs :replace readme.readme-documents-lang-docs :with lang.export-lang-docs)
 (diff misc-relative-imports :replace readme.readme-documents-relative-imports :with loader.export-dot-resolution)
@@ -453,10 +454,10 @@
     :using (loader.export-namespaces loader.export-patches-symbols loader.export-patches-context))
 (diff misc-namespacing-three-stages :replace readme.readme-documents-namespacing-three-stages :with namespacing-three-stages-confirmed)
 
-(diff misc-splat-match :replace readme.readme-documents-splat-match :with atoms.export-match-substitute)
-(diff misc-splat-substitute :replace readme.readme-documents-splat-substitute :with atoms.export-substitute-splat)
-(diff misc-splat-builtins :replace readme.readme-documents-splat-builtins :with atoms.export-match-substitute)
-(diff misc-splat-vs-single :replace readme.readme-documents-splat-vs-single :with atoms.export-match-substitute)
+(diff misc-splat-match :replace readme.readme-documents-splat-match :with lang.export-match-substitute)
+(diff misc-splat-substitute :replace readme.readme-documents-splat-substitute :with lang.export-substitute-splat)
+(diff misc-splat-builtins :replace readme.readme-documents-splat-builtins :with lang.export-match-substitute)
+(diff misc-splat-vs-single :replace readme.readme-documents-splat-vs-single :with lang.export-match-substitute)
 
 (diff misc-apples-splats-demo :replace readme.readme-documents-apples-splats-demo-link :with demos.export-apples-splats-confirmed)
 (diff misc-self-healing-demo :replace readme.readme-documents-self-healing-demo-link :with demos.export-self-healing-topic)
@@ -659,7 +660,7 @@
 (diff thm-readme-consistency-layers :replace readme.readme-consistency-layers-listing-count :with engine.consistency-layers-doc-count)
 (diff thm-readme-engine-flags :replace readme.readme-engine-flags-listing-count :with engine.export-defaults-doc-count)
 (diff thm-readme-operator-categories :replace readme.readme-operator-category-count :with default_system_settings.export-operator-category-count)
-(diff thm-readme-parser-stages :replace readme.readme-parser-stages-listing-count :with atoms.export-parser-stages-count)
+(diff thm-readme-parser-stages :replace readme.readme-parser-stages-listing-count :with grammar.export-parser-stages-count)
 (diff thm-readme-issue-types :replace readme.export-issue-types-count :with engine.issue-types-impl-count)
 (diff thm-readme-warning-types :replace readme.export-warning-types-count :with engine.warning-type-count)
 (diff thm-engine-error-cross-check :replace engine.export-error-cross-check :with readme.export-issue-types-count)

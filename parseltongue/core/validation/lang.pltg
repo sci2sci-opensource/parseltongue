@@ -471,3 +471,54 @@ SPLAT_PREFIX = \"?...\"")
 (diff scope-family-docs-coverage
     :replace scope-family-docs-count
     :with scope-family-symbol-count)
+
+; =====================================================================
+; Matcher — match / free_vars / substitute (moved here from atoms.py)
+; =====================================================================
+
+(fact match-doc "Match pattern against expr. ?-prefixed symbols are pattern variables."
+    :evidence (evidence "lang.py"
+        :quotes ("Match pattern against expr. ?-prefixed symbols are pattern variables.")
+        :explanation "match() docstring"))
+
+(fact free-vars-doc "Extract all ?-prefixed symbols from an expression."
+    :evidence (evidence "lang.py"
+        :quotes ("Extract all ?-prefixed symbols from an expression.")
+        :explanation "free_vars() docstring"))
+
+(fact substitute-doc "Replace symbols with their bound values in an expression tree."
+    :evidence (evidence "lang.py"
+        :quotes ("Replace symbols with their bound values in an expression tree.")
+        :explanation "substitute() docstring"))
+
+(fact match-splat-doc true
+    :evidence (evidence "lang.py"
+        :quotes ("A ``?...name`` symbol as the last element of a list pattern matches\n    zero or more remaining elements, bound as a list.")
+        :explanation "match() documents splat patterns"))
+
+(fact substitute-splat-doc true
+    :evidence (evidence "lang.py"
+        :quotes ("``?...name`` bindings are spliced into the parent list rather than\n    inserted as a nested list.")
+        :explanation "substitute() documents splat splicing"))
+
+(fact match-splat-impl true
+    :evidence (evidence "lang.py"
+        :quotes ("if pattern and isinstance(pattern[-1], Symbol) and str(pattern[-1]).startswith(\"?...\"):")
+        :explanation "match() implements trailing-splat capture"))
+
+(fact substitute-splat-impl true
+    :evidence (evidence "lang.py"
+        :quotes ("if isinstance(sub, Symbol) and str(sub).startswith(\"?...\") and sub in bindings:" "result.extend(val)")
+        :explanation "substitute() splices splat bindings into the parent list"))
+
+(derive export-match-substitute
+    (util.export match-splat-doc)
+    :using (util.export match-splat-doc))
+
+(derive export-substitute-splat
+    (util.export substitute-splat-doc)
+    :using (util.export substitute-splat-doc))
+
+(derive export-splat-confirmed
+    (util.export match-splat-impl)
+    :using (util.export match-splat-impl))
