@@ -64,6 +64,13 @@ class CorpusEvidenceVerifier:
             result["reason"] = "search index is empty — nothing to quantify over"
             return replace(evidence, verification=[result], verified=False)
 
+        # A scope that names no indexed file and no directory under the
+        # root refers to a registered document, not a file-corpus region —
+        # that claim is grounded by the document-corpus verifier at load
+        # time; re-certifying it over zero files would be vacuous.
+        if scope and not (self._root / scope).is_dir() and not any(self._in_scope(d, scope) for d in indexed):
+            return evidence
+
         unclassified = self._closure_gaps(scope, excludes, indexed)
         if unclassified:
             shown = ", ".join(unclassified[:5]) + ("…" if len(unclassified) > 5 else "")
