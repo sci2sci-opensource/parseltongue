@@ -24,11 +24,11 @@
 (import (quote inspect_main))
 (import (quote ..std.counting))
 
-(defterm count-exists counting.count-exists :origin "import")
+(import (quote counting.count-exists))
 ; verify in-place — core loads after verify_manual, so circular dep if done there
 (verify-manual (quote count-exists))
 
-(defterm stub util.stub :origin "import")
+(import (quote util.stub))
 
 
 ; =====================================================================

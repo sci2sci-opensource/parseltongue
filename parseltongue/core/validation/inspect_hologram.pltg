@@ -3,7 +3,7 @@
 
 (load-document "hologram.py" "../inspect/optics/hologram.py")
 (import (quote ..std.util))
-(defterm stub util.stub :origin "import")
+(import (quote util.stub))
 
 ; ── Hologram API ──
 (derive stub-hologram-init stub :using (stub))

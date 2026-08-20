@@ -20,8 +20,8 @@
 (state)
 
 (import (quote src.primitives))
-(defterm local-zero src.primitives.zero :origin "import")
-(defterm local-succ src.primitives.succ :origin "import")
+(import (quote src.primitives.zero local-zero))
+(import (quote src.primitives.succ local-succ))
 
 (print "  Introduced: zero, succ, =, +, -, >, *")
 (state)

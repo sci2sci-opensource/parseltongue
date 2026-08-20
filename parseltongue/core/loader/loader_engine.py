@@ -138,6 +138,7 @@ class LoaderEngine(Executor[LoaderTranslationResult]):
         self.names_to_modules: dict[str, str] = {}
         self.names_to_lines: dict[str, int] = {}
         self.module_aliases: dict[str, str] = {}
+        self.entity_aliases: dict[str, str] = {}
         self._imported: set[str] = set()
         self._lib_modules: set[str] = set(lib_modules or [])
         self._report = MorphismReport()
@@ -206,6 +207,10 @@ class LoaderEngine(Executor[LoaderTranslationResult]):
         if alias not in self.module_aliases:
             self.module_aliases[alias] = canonical
 
+    def register_entity_alias(self, alias: str, canonical: str) -> None:
+        """Register a local imported-entity name for canonical rewriting."""
+        self.entity_aliases[alias] = canonical
+
     def is_lib_module(self, module_name: str) -> bool:
         """Check if a module is a lib-level (standard library) module."""
         return module_name in self._lib_modules
@@ -226,6 +231,7 @@ class LoaderEngine(Executor[LoaderTranslationResult]):
                 ms=ms,
                 env=EngineKnown(self._inner),
                 aliases=self.module_aliases,
+                entity_aliases=self.entity_aliases,
                 names_to_modules=self.names_to_modules,
                 report=self._report,
                 morphism=self._morphism,
@@ -360,6 +366,7 @@ class LoaderEngine(Executor[LoaderTranslationResult]):
 
         # Sync context with current engine state (imports grow aliases mid-loop)
         ctx.aliases = self.module_aliases
+        ctx.entity_aliases = self.entity_aliases
         ctx.names_to_modules = self.names_to_modules
         if extra_names is not None:
             ctx.known_names = _UnionKnown(ctx.known_names, extra_names)
@@ -378,7 +385,7 @@ class LoaderEngine(Executor[LoaderTranslationResult]):
         # Patch symbols against live engine state
         if not lad.is_main:
             self.patch_symbols(expr, ctx, line, skip_index=lad.skip_index)
-        elif ctx.aliases:
+        elif ctx.aliases or ctx.entity_aliases:
             self.patch_symbols(expr, ctx, line, skip_index=lad.skip_index)
 
     def delegate_one(self, lad: LoaderAnnotatedDirective) -> None:

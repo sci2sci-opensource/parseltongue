@@ -114,6 +114,7 @@ class Engine(EngineProtocol):
         self.diffs: dict[str, dict] = {}
         self.diff_refs: dict[str, set[str]] = {}  # name → diff names that reference it
         self.documents: dict[str, str] = {}
+        self._entity_aliases: dict[str, str] = {}
         self._verifier = verifier or QuoteVerifier()
         self._evidence_verifiers: dict[str, EvidenceVerifier] = {
             EVIDENCE_TYPE_DOC_QUOTE: DocQuoteEvidenceVerifier(self._verifier, self.documents),
@@ -193,6 +194,18 @@ class Engine(EngineProtocol):
     def register_evidence_verifier(self, evidence_type: str, verifier: "EvidenceVerifier") -> None:
         """Register (or replace) the verifier grounding one evidence type."""
         self._evidence_verifiers[evidence_type] = verifier
+
+    def register_entity_alias(self, alias: str, canonical: str) -> None:
+        self._entity_aliases[alias] = canonical
+
+    def _canonicalize_entity_aliases(self, expr):
+        if not self._entity_aliases:
+            return expr
+        if isinstance(expr, Symbol):
+            return Symbol(self._entity_aliases.get(str(expr), str(expr)))
+        if isinstance(expr, (list, tuple)):
+            return [self._canonicalize_entity_aliases(item) for item in expr]
+        return expr
 
     def _lookup(self, name: str) -> Axiom | Theorem | Term | None:
         """Find a named item across all stores."""
@@ -347,6 +360,7 @@ class Engine(EngineProtocol):
         When *axiom_scope* is provided, only those rules are tried;
         otherwise all axioms and theorems in the system are used.
         """
+        expr = self._canonicalize_entity_aliases(expr)
         log.info("_rewrite depth=%d expr=%r", depth, expr)
         if depth > 100:
             return expr
@@ -364,6 +378,9 @@ class Engine(EngineProtocol):
         # as head mean this expression is data — skip immediately.
         heads, var_arities = self._axiom_heads(axiom_scope)
         head = expr[0] if expr else None
+        if isinstance(head, Symbol) and str(head) in self._entity_aliases:
+            expr = [Symbol(self._entity_aliases[str(head)]), *expr[1:]]
+            head = expr[0]
         if not isinstance(head, Symbol):
             return list(expr) if isinstance(expr, tuple) else expr
         if head not in heads:
@@ -380,7 +397,7 @@ class Engine(EngineProtocol):
             wff = rule.wff
             if not (isinstance(wff, (list, tuple)) and len(wff) == 3 and wff[0] == EQ):
                 continue
-            lhs, rhs = wff[1], wff[2]
+            lhs, rhs = self._canonicalize_entity_aliases(wff[1]), wff[2]
             if not isinstance(lhs, (list, tuple)):
                 continue
             bindings = match(lhs, expr)
@@ -456,6 +473,10 @@ class Engine(EngineProtocol):
             # ATOM: Symbol
             # ==============================================================
             if isinstance(expr, Symbol):
+                canonical = self._entity_aliases.get(str(expr))
+                if canonical is not None:
+                    expr = Symbol(canonical)
+                    continue
                 if expr in env:
                     result = env[expr]
                     log.info("_eval symbol %r -> %r", expr, result)
@@ -1656,35 +1677,10 @@ class Engine(EngineProtocol):
         no_evidence = []
         absence_violated = []
         obligation_violated = []
-        def _alias_target_origin(item, seen: set | None = None):
-            """Origin of the directive an import-alias term ultimately names.
-
-            An alias defterm — a Term whose definition is a bare Symbol
-            naming another directive — introduces no claim of its own, so
-            its epistemic status is its target's. Returns None when the
-            item is not such an alias (or the chain doesn't resolve).
-            """
-            if seen is None:
-                seen = set()
-            if not isinstance(item, Term) or not isinstance(item.definition, Symbol):
-                return None
-            target_name = str(item.definition)
-            if target_name in seen:
-                return None
-            seen.add(target_name)
-            target = self._lookup(target_name)
-            if target is None:
-                return None
-            deeper = _alias_target_origin(target, seen)
-            return deeper if deeper is not None else target.origin
 
         for store in [self.facts, self.axioms, self.theorems, self.terms]:
             for name, item in store.items():  # type: ignore[attr-defined]
                 origin = item.origin
-                if isinstance(origin, str):
-                    inherited = _alias_target_origin(item)
-                    if inherited is not None:
-                        origin = inherited
                 if isinstance(origin, Evidence):
                     if not origin.verified and origin.verify_manual:
                         manually_verified.append(name)

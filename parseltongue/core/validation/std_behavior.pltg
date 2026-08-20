@@ -18,7 +18,7 @@
 (import (quote ..std.std))
 (import (quote ..std.counting))
 
-(defterm count-exists counting.count-exists :origin "import")
+(import (quote counting.count-exists))
 (verify-manual (quote count-exists) "V")
 
 ; =====================================================================

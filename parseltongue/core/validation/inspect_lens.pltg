@@ -5,7 +5,7 @@
 (load-document "base.py" "../inspect/optics/base.py")
 (load-document "optics_init.py" "../inspect/optics/__init__.py")
 (import (quote ..std.util))
-(defterm stub util.stub :origin "import")
+(import (quote util.stub))
 
 ; ── Lens API ──
 (derive stub-lens-view stub :using (stub))

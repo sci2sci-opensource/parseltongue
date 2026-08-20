@@ -76,6 +76,7 @@ class LoaderTranslatorV2(Translator):
         env: "EngineKnown | set[str] | dict | None" = None,
         *,
         aliases: dict[str, str] | None = None,
+        entity_aliases: dict[str, str] | None = None,
         names_to_modules: dict[str, str] | None = None,
         report: MorphismReport | None = None,
         morphism: LoaderMorphismV2 | None = None,
@@ -85,6 +86,7 @@ class LoaderTranslatorV2(Translator):
         self._morphism = morphism or _lm_v2
         self.env = env or set()
         self.aliases = aliases or {}
+        self.entity_aliases = entity_aliases or {}
         self.names_to_modules = names_to_modules if names_to_modules is not None else {}
         self._report = report or MorphismReport()
         self._engine_name = engine_name
@@ -101,6 +103,7 @@ class LoaderTranslatorV2(Translator):
             source_file=self._ms.source_file,
             known_names=self.env,
             aliases=self.aliases,
+            entity_aliases=self.entity_aliases,
             names_to_modules=self.names_to_modules,
             report=self._report,
             engine_name=self._engine_name,

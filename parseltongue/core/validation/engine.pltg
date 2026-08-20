@@ -8,7 +8,7 @@
 (import (quote ..std.lists))
 (import (quote lang))
 (import (quote ..std.util))
-(defterm count-exists counting.count-exists :origin "import")
+(import (quote counting.count-exists))
 
 (verify-manual (quote count-exists) "V")
 

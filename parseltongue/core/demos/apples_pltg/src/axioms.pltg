@@ -1,12 +1,12 @@
 ; Phase 2: Axioms of Peano arithmetic
 
-(defterm zero src.primitives.zero :origin "import")
-(defterm succ src.primitives.succ :origin "import")
-(defterm = src.primitives.= :origin "import")
-(defterm + src.primitives.+ :origin "import")
-(defterm - src.primitives.- :origin "import")
-(defterm > src.primitives.> :origin "import")
-(defterm * src.primitives.* :origin "import")
+(import (quote src.primitives.zero))
+(import (quote src.primitives.succ))
+(import (quote src.primitives.=))
+(import (quote src.primitives.+))
+(import (quote src.primitives.-))
+(import (quote src.primitives.>))
+(import (quote src.primitives.*))
 
 (axiom eq-reflexive (= ?x ?x)
   :evidence (evidence "Counting Observations"

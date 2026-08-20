@@ -17,7 +17,7 @@
 (load-document "self_healing" "../demos/self_healing/demo.py")
 (load-document "spec_validation" "../demos/spec_validation/demo.py")
 (import (quote ..std.counting))
-(defterm count-exists counting.count-exists :origin "import")
+(import (quote counting.count-exists))
 
 ; .pltg source files — module system patterns
 (load-document "splats_demo_pltg" "../demos/apples_splats_pltg/demo.pltg")
@@ -615,14 +615,14 @@ patterns for variadic operations: sum-all, count-gt, all-gt.")
 
 (axiom alias-resolves (= ?alias ?m-symbol)
     :evidence (evidence "apples_demo_pltg"
-        :quotes ("(defterm local-zero src.primitives.zero :origin \"import\")"
-                 "(defterm local-succ src.primitives.succ :origin \"import\")")
+        :quotes ("(import (quote src.primitives.zero local-zero))"
+                 "(import (quote src.primitives.succ local-succ))")
         :explanation "Local alias defterm makes ?alias equal to the namespaced ?m-symbol"))
 
 ; Concrete instantiation: local-zero = src.primitives.zero
 (fact alias-local-zero-exists true
     :evidence (evidence "apples_demo_pltg"
-        :quotes ("(defterm local-zero src.primitives.zero :origin \"import\")")
+        :quotes ("(import (quote src.primitives.zero local-zero))")
         :explanation "demo.pltg aliases zero"))
 
 (fact alias-local-zero-used-in-bind true
@@ -643,16 +643,16 @@ patterns for variadic operations: sum-all, count-gt, all-gt.")
 
 (axiom defterm-alias-is-lazy (= ?alias ?target)
     :evidence (evidence "apples_axioms_pltg"
-        :quotes ("(defterm - src.primitives.- :origin \"import\")"
-                 "(defterm > src.primitives.> :origin \"import\")")
+        :quotes ("(import (quote src.primitives.-))"
+                 "(import (quote src.primitives.>))")
         :explanation "defterm aliasing is inherently lazy — resolution is deferred regardless of quote"))
 
 ; The quote wrapper is redundant: both patterns produce the same result
 (fact no-explicit-lazy-label true
     :evidence (evidence "apples_axioms_pltg"
-        :quotes ("(defterm = src.primitives.= :origin \"import\")"
-                 "(defterm + src.primitives.+ :origin \"import\")"
-                 "(defterm - src.primitives.- :origin \"import\")")
+        :quotes ("(import (quote src.primitives.=))"
+                 "(import (quote src.primitives.+))"
+                 "(import (quote src.primitives.-))")
         :explanation "No alias carries an explicit 'lazy' label — all use plain 'import'"))
 
 ; --- Proof chain: quote is redundant in defterm aliasing ---
@@ -660,7 +660,7 @@ patterns for variadic operations: sum-all, count-gt, all-gt.")
 ; Step 1: let rebinds a bare (non-quoted) defterm alias
 (fact let-rebinds-bare-alias true
     :evidence (evidence "entry_mocks_math_pltg"
-        :quotes ("(defterm zero primitives.zero :origin \"import\")"
+        :quotes ("(import (quote primitives.zero))"
                  "(let ((primitives.zero 0)" "(primitives.plus +)" "(primitives.equals =))")
         :explanation "math.pltg aliases primitives.zero without quote, then let rebinds it to 0"))
 
@@ -675,8 +675,8 @@ patterns for variadic operations: sum-all, count-gt, all-gt.")
 ; Step 3: defterm uses the same resolution mechanism for all aliases
 (fact defterm-same-mechanism true
     :evidence (evidence "apples_axioms_pltg"
-        :quotes ("(defterm zero src.primitives.zero :origin \"import\")"
-                 "(defterm = src.primitives.= :origin \"import\")")
+        :quotes ("(import (quote src.primitives.zero))"
+                 "(import (quote src.primitives.=))")
         :explanation "All aliases go through the same defterm path — no quote distinction"))
 
 ; Step 4: therefore every defterm is lazy — quote adds nothing
@@ -693,37 +693,37 @@ patterns for variadic operations: sum-all, count-gt, all-gt.")
 
 (defterm lazy-alias-zero (if every-defterm-is-lazy 1 0)
     :evidence (evidence "apples_axioms_pltg"
-        :quotes ("(defterm zero src.primitives.zero :origin \"import\")")
+        :quotes ("(import (quote src.primitives.zero))")
         :explanation "bare alias — lazy by axiom chain"))
 
 (defterm lazy-alias-succ (if every-defterm-is-lazy 1 0)
     :evidence (evidence "apples_axioms_pltg"
-        :quotes ("(defterm succ src.primitives.succ :origin \"import\")")
+        :quotes ("(import (quote src.primitives.succ))")
         :explanation "bare alias — lazy by axiom chain"))
 
 (defterm lazy-alias-eq (if every-defterm-is-lazy 1 0)
     :evidence (evidence "apples_axioms_pltg"
-        :quotes ("(defterm = src.primitives.= :origin \"import\")")
+        :quotes ("(import (quote src.primitives.=))")
         :explanation "alias — lazy by axiom chain"))
 
 (defterm lazy-alias-plus (if every-defterm-is-lazy 1 0)
     :evidence (evidence "apples_axioms_pltg"
-        :quotes ("(defterm + src.primitives.+ :origin \"import\")")
+        :quotes ("(import (quote src.primitives.+))")
         :explanation "alias — lazy by axiom chain"))
 
 (defterm lazy-alias-minus (if every-defterm-is-lazy 1 0)
     :evidence (evidence "apples_axioms_pltg"
-        :quotes ("(defterm - src.primitives.- :origin \"import\")")
+        :quotes ("(import (quote src.primitives.-))")
         :explanation "bare alias — lazy by axiom chain"))
 
 (defterm lazy-alias-gt (if every-defterm-is-lazy 1 0)
     :evidence (evidence "apples_axioms_pltg"
-        :quotes ("(defterm > src.primitives.> :origin \"import\")")
+        :quotes ("(import (quote src.primitives.>))")
         :explanation "bare alias — lazy by axiom chain"))
 
 (defterm lazy-alias-mul (if every-defterm-is-lazy 1 0)
     :evidence (evidence "apples_axioms_pltg"
-        :quotes ("(defterm * src.primitives.* :origin \"import\")")
+        :quotes ("(import (quote src.primitives.*))")
         :explanation "bare alias — lazy by axiom chain"))
 
 (derive actual-lazy-count
@@ -1244,7 +1244,7 @@ patterns for variadic operations: sum-all, count-gt, all-gt.")
 
 (defterm module-axioms-impl-count 7
     :evidence (evidence "apples_demo_pltg"
-        :quotes ("(defterm local-zero src.primitives.zero :origin \"import\")")
+        :quotes ("(import (quote src.primitives.zero local-zero))")
         :explanation "7 module system axiom proof facts across demo sources"))
 
 (diff module-axioms-coverage

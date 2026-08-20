@@ -5,7 +5,7 @@
 ; to axiomatically assert that self-consistency is unprovable.
 
 (import (quote ..std.counting))
-(defterm count-exists counting.count-exists :origin "import")
+(import (quote counting.count-exists))
 
 (load-document "README" "../README.md")
 

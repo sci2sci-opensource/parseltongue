@@ -12,7 +12,7 @@
 (load-document "lang.py" "../lang.py")
 (import (quote ..std.counting))
 (import (quote ..std.util))
-(defterm count-exists counting.count-exists :origin "import")
+(import (quote counting.count-exists))
 
 ; =====================================================================
 ; SCOPE handler — dispatches to callable or self

@@ -16,21 +16,21 @@
 ; --- Phase 1: Primitives ---
 (print "\n--- Phase 1: Introduce primitive symbols ---")
 (import (quote src.primitives))
-(defterm local-zero src.primitives.zero :origin "import")
-(defterm local-succ src.primitives.succ :origin "import")
+(import (quote src.primitives.zero local-zero))
+(import (quote src.primitives.succ local-succ))
 
 ; --- Phase 2: Axioms (Peano + splat reductions) ---
 (print "\n--- Phase 2: Axioms ---")
 (import (quote src.axioms))
 
 ; Local aliases for readable derives
-(defterm = src.axioms.= :origin "import")
-(defterm + src.axioms.+ :origin "import")
-(defterm > src.axioms.> :origin "import")
-(defterm and src.axioms.and :origin "import")
-(defterm sum-all src.axioms.sum-all :origin "import")
-(defterm count-gt src.axioms.count-gt :origin "import")
-(defterm all-gt src.axioms.all-gt :origin "import")
+(import (quote src.axioms.=))
+(import (quote src.axioms.+))
+(import (quote src.axioms.>))
+(import (quote src.axioms.and))
+(import (quote src.axioms.sum-all))
+(import (quote src.axioms.count-gt))
+(import (quote src.axioms.all-gt))
 
 (print "  Axioms:")
 (list-axioms)

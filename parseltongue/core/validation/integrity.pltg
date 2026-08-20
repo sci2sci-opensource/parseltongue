@@ -15,8 +15,8 @@
 (load-document "__init__.py" "../integrity/__init__.py")
 (import (quote ..std.counting))
 (import (quote ..std.util))
-(defterm count-exists counting.count-exists :origin "import")
-(defterm stub util.stub :origin "import")
+(import (quote counting.count-exists))
+(import (quote util.stub))
 
 ; =====================================================================
 ; chain.py — Linear integrity

@@ -356,7 +356,7 @@ The system's own [`validation/verify_manual.pltg`](validation/verify_manual.pltg
 (verify-manual (quote counting.count-exists-step))
 ```
 
-**Import aliases** — `(defterm count-exists counting.count-exists :origin "import")` creates a local shorthand. Every module that imports `counting.pltg` produces one of these. They're mechanical and safe, but the checker flags them because `:origin` is not `:evidence`. The verification module lists them all:
+**Selective imports** — `(import (quote counting.count-exists))` imports one entity under its own name; `(import (quote counting.count-exists ce))` gives it an explicit local name. Both names bind the imported directive itself, preserving its identity and evidence.
 
 ```scheme
 (verify-manual (quote atoms.count-exists))

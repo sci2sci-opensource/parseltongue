@@ -3,7 +3,7 @@
 (load-document "system.py" "../system.py")
 (import (quote ..std.counting))
 (import (quote ..std.util))
-(defterm count-exists counting.count-exists :origin "import")
+(import (quote counting.count-exists))
 
 ; =====================================================================
 ; System class — documented contract

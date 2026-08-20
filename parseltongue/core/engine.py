@@ -106,17 +106,36 @@ def reverify_evidence(engine, evidence_type: str) -> int:
 
     Called after a verifier is registered for a type that was unverifiable
     when the directives executed (e.g. corpus claims grounded by a bench).
-    Returns the number of atoms whose origin changed.
+    Returns the number of store keys whose directive origin changed. Aliases
+    count separately because each sharing key is updated.
     """
     changed = 0
+    # Import aliases bind multiple store keys to one frozen directive.
+    # Re-verify each directive once and reuse the replacement under every
+    # sharing key; replacing each key independently would split the alias
+    # identity and make later identity-aware operations update only one name.
+    replacements: dict[int, tuple[Fact | Axiom | Theorem | Term, Fact | Axiom | Theorem | Term]] = {}
     for store in (engine.facts, engine.axioms, engine.theorems, engine.terms):
         for name, item in list(store.items()):
+            shared = replacements.get(id(item))
+            if shared is not None and shared[0] is item:
+                replacement = shared[1]
+                if replacement is not item:
+                    store[name] = replacement
+                    changed += 1
+                continue
             origin = item.origin
             if isinstance(origin, Evidence) and origin.type == evidence_type:
-                new_origin = engine._verify_evidence(origin, caller=name)
+                # item.name is the directive's canonical name; `name` may be
+                # one of several loader-created aliases for the same object.
+                new_origin = engine._verify_evidence(origin, caller=item.name)
                 if new_origin != origin:
-                    store[name] = replace(item, origin=new_origin)
+                    replacement = replace(item, origin=new_origin)
+                    replacements[id(item)] = (item, replacement)
+                    store[name] = replacement
                     changed += 1
+                else:
+                    replacements[id(item)] = (item, item)
     return changed
 
 
@@ -383,6 +402,7 @@ class Engine(Rewriter, Executor, Protocol):
     strict_derive: bool
 
     def register_document(self, name: str, text: str) -> None: ...
+    def register_entity_alias(self, alias: str, canonical: str) -> None: ...
     def load_document(self, name: str, path: str) -> None: ...
     def set_fact(self, name: str, value: WFF, origin: object) -> None: ...
     def introduce_axiom(self, name: str, wff: object, origin: object) -> Axiom: ...
@@ -426,6 +446,7 @@ class EngineImpl(Engine):
         self.diffs: dict[str, dict] = {}
         self.diff_refs: dict[str, set[str]] = {}  # name → diff names that reference it
         self.documents: dict[str, str] = {}
+        self._entity_aliases: dict[str, str] = {}
         self._verifier = verifier or QuoteVerifier()
         self._evidence_verifiers: dict[str, EvidenceVerifier] = {
             EVIDENCE_TYPE_DOC_QUOTE: DocQuoteEvidenceVerifier(self._verifier, self.documents),
@@ -444,6 +465,18 @@ class EngineImpl(Engine):
     def register_evidence_verifier(self, evidence_type: str, verifier: "EvidenceVerifier") -> None:
         """Register (or replace) the verifier grounding one evidence type."""
         self._evidence_verifiers[evidence_type] = verifier
+
+    def register_entity_alias(self, alias: str, canonical: str) -> None:
+        self._entity_aliases[alias] = canonical
+
+    def _canonicalize_entity_aliases(self, expr):
+        if not self._entity_aliases:
+            return expr
+        if isinstance(expr, Symbol):
+            return Symbol(self._entity_aliases.get(str(expr), str(expr)))
+        if isinstance(expr, (list, tuple)):
+            return [self._canonicalize_entity_aliases(item) for item in expr]
+        return expr
 
     @staticmethod
     def _infer_name() -> str:
@@ -632,6 +665,7 @@ class EngineImpl(Engine):
         When *axiom_scope* is provided, only those rules are tried;
         otherwise all axioms and theorems in the system are used.
         """
+        expr = self._canonicalize_entity_aliases(expr)
         log.info("_rewrite depth=%d expr=%r", depth, expr)
         if depth > 100:
             return expr
@@ -649,6 +683,9 @@ class EngineImpl(Engine):
         # as head mean this expression is data — skip immediately.
         heads, var_arities = self._axiom_heads(axiom_scope)
         head = expr[0] if expr else None
+        if isinstance(head, Symbol) and str(head) in self._entity_aliases:
+            expr = [Symbol(self._entity_aliases[str(head)]), *expr[1:]]
+            head = expr[0]
         if not isinstance(head, Symbol):
             return list(expr) if isinstance(expr, tuple) else expr
         if head not in heads:
@@ -665,7 +702,7 @@ class EngineImpl(Engine):
             wff = rule.wff
             if not (isinstance(wff, (list, tuple)) and len(wff) == 3 and wff[0] == EQ):
                 continue
-            lhs, rhs = wff[1], wff[2]
+            lhs, rhs = self._canonicalize_entity_aliases(wff[1]), wff[2]
             if not isinstance(lhs, (list, tuple)):
                 continue
             bindings = match(lhs, expr)

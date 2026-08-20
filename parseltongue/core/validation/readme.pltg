@@ -4,7 +4,7 @@
 (import (quote ..std.counting))
 (import (quote ..std.epistemics))
 (import (quote ..std.util))
-(defterm count-exists counting.count-exists :origin "import")
+(import (quote counting.count-exists))
 
 ; =====================================================================
 ; Top-level claims
@@ -522,7 +522,7 @@
 
 (fact readme-documents-manual-import-aliases true
     :evidence (evidence "README"
-        :quotes ("**Import aliases** — `(defterm count-exists counting.count-exists :origin \"import\")` creates a local shorthand. Every module that imports `counting.pltg` produces one of these. They're mechanical and safe, but the checker flags them because `:origin` is not `:evidence`.")
+        :quotes ("**Selective imports** — `(import (quote counting.count-exists))` imports one entity under its own name; `(import (quote counting.count-exists ce))` gives it an explicit local name. Both names bind the imported directive itself, preserving its identity and evidence.")
         :explanation "README documents import aliases as manually verified category"))
 
 (fact readme-documents-manual-hypotheticals true

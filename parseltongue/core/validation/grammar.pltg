@@ -6,7 +6,7 @@
 (load-document "core_init.py" "../__init__.py")
 (import (quote ..std.counting))
 (import (quote ..std.util))
-(defterm count-exists counting.count-exists :origin "import")
+(import (quote counting.count-exists))
 (verify-manual (quote count-exists) "V")
 
 ; =====================================================================
