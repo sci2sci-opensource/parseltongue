@@ -229,11 +229,16 @@ class Engine(EngineProtocol):
 
         # Write back under every key that shares this item. Import aliasing
         # registers the same (frozen) object under several names; replacing
-        # only the named key would silently split the aliases apart.
+        # only the named key would silently split the aliases apart — and
+        # all sharing keys must receive the SAME new object, so identity
+        # keeps expressing that they are one directive.
         def _sign_store(store: dict[str, _SignableT]) -> None:
+            new_item: _SignableT | None = None
             for key, value in store.items():
                 if value is item:
-                    store[key] = replace(value, origin=new_origin)
+                    if new_item is None:
+                        new_item = replace(value, origin=new_origin)
+                    store[key] = new_item
 
         _sign_store(self.facts)
         _sign_store(self.axioms)
