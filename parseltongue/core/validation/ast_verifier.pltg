@@ -30,8 +30,8 @@
 
 (fact node-has-kind true
     :evidence (evidence "ast.py"
-        :quotes ("kind: str  # \"fact\", \"axiom\", \"defterm\", \"derive\", \"diff\", \"effect\"")
-        :explanation "DirectiveNode has a kind field with 6 possible values"))
+        :quotes ("kind: DirectiveKind")
+        :explanation "DirectiveNode has a kind field typed as the DirectiveKind enum (7 members)"))
 
 (fact node-has-source-file true
     :evidence (evidence "ast.py"
@@ -108,7 +108,7 @@
 
 (fact kind-effect true
     :evidence (evidence "ast.py"
-        :quotes ("return DirectiveNode(name=None, expr=expr, dep_names=set(), kind=\"effect\", source_order=order)")
+        :quotes ("return DirectiveNode(name=None, expr=expr, dep_names=set(), kind=DirectiveKind.EFFECT, source_order=order)")
         :explanation "Unrecognized heads become effects"))
 
 (derive kind-count
@@ -126,8 +126,8 @@
 
 (fact extract-recurses-lists true
     :evidence (evidence "ast.py"
-        :quotes ("elif isinstance(expr, list):\n        for item in expr:\n            extract_symbols(item, out)")
-        :explanation "extract_symbols recurses into nested lists"))
+        :quotes ("elif isinstance(expr, (list, tuple)):\n        for item in expr:\n            extract_symbols(item, out)")
+        :explanation "extract_symbols recurses into nested lists and tuples"))
 
 (derive extract-behavior-count
     (count-exists extract-skips-variables extract-recurses-lists)
@@ -149,8 +149,8 @@
 
 (fact derive-extracts-from-using true
     :evidence (evidence "ast.py"
-        :quotes ("using = get_keyword(expr, KW_USING, [])\n        if isinstance(using, list):\n            for s in using:\n                deps.add(str(s))")
-        :explanation "Derives extract from :using list"))
+        :quotes ("using = get_keyword(expr, KW_USING, [])\n        if isinstance(using, (list, tuple)):\n            for s in using:\n                deps.add(str(s))")
+        :explanation "Derives extract from :using sequence (list or tuple)"))
 
 (fact derive-extracts-from-bind true
     :evidence (evidence "ast.py"
@@ -214,8 +214,8 @@
 
 (fact walk-deduplicates true
     :evidence (evidence "ast.py"
-        :quotes ("seen: set[str] = set()\n        stack = list(self.dependents)\n        while stack:\n            node = stack.pop()\n            if node.name and node.name not in seen:\n                seen.add(node.name)")
-        :explanation "walk_dependents deduplicates by name"))
+        :quotes ("seen: set[DirectiveNode] = set()\n        stack = list(self.dependents)\n        while stack:\n            node = stack.pop()\n            if node not in seen:\n                seen.add(node)")
+        :explanation "walk_dependents deduplicates by node identity"))
 
 (derive walk-behavior-count
     (count-exists walk-uses-stack walk-deduplicates)
@@ -228,7 +228,7 @@
 (axiom effects-have-no-name
     (implies ?is-effect ?name-is-none)
     :evidence (evidence "ast.py"
-        :quotes ("return DirectiveNode(name=None, expr=expr, dep_names=set(), kind=\"effect\", source_order=order)")
+        :quotes ("return DirectiveNode(name=None, expr=expr, dep_names=set(), kind=DirectiveKind.EFFECT, source_order=order)")
         :explanation "Effects always have name=None"))
 
 (axiom children-and-dependents-are-inverse
@@ -286,48 +286,53 @@
     :using (count-exists has-directive-node-class has-extract-symbols-fn has-parse-directive-fn has-resolve-graph-fn))
 
 ; =====================================================================
-; Docstring layer — module docstring enumerates what DirectiveNode carries
+; Documentation layer — what the docstrings (module + class) attest that
+; DirectiveNode carries. The old module-docstring bullet list is gone;
+; the module docstring now names the carried concerns in one line and
+; the class docstring documents the graph fields in prose. Fields the
+; docstrings no longer name individually (expr, source_file,
+; source_order) are attested by their field declarations.
 ; =====================================================================
 
 (fact doc-carries-name true
     :evidence (evidence "ast.py"
-        :quotes ("- The defined name (if any)")
-        :explanation "Module docstring lists name as a carried field"))
+        :quotes ("**DirectiveNode** — name, kind, deps, source provenance, DAG links.")
+        :explanation "Module docstring lists name among what DirectiveNode carries"))
 
 (fact doc-carries-expr true
     :evidence (evidence "ast.py"
-        :quotes ("- The raw expression for later execution")
-        :explanation "Module docstring lists expression as a carried field"))
+        :quotes ("expr: Any")
+        :explanation "Docstrings no longer name expr; the field declaration proves DirectiveNode carries the raw expression"))
 
 (fact doc-carries-dep-names true
     :evidence (evidence "ast.py"
-        :quotes ("- The set of symbol dependency names (unresolved)")
-        :explanation "Module docstring lists dep names as a carried field"))
+        :quotes ("``dep_names`` holds the raw symbol names extracted during parsing.")
+        :explanation "Class docstring documents dep_names as a carried field"))
 
 (fact doc-carries-kind true
     :evidence (evidence "ast.py"
-        :quotes ("- The directive kind (fact, axiom, defterm, derive, diff, effect)")
-        :explanation "Module docstring lists kind as a carried field"))
+        :quotes ("**DirectiveNode** — name, kind, deps, source provenance, DAG links.")
+        :explanation "Module docstring lists kind among what DirectiveNode carries"))
 
 (fact doc-carries-source-file true
     :evidence (evidence "ast.py"
-        :quotes ("- The source file path that defined the directive")
-        :explanation "Module docstring lists source file as a carried field"))
+        :quotes ("source_file: str = \"\"")
+        :explanation "Docstring covers this only as 'source provenance'; the field declaration proves source_file"))
 
 (fact doc-carries-source-order true
     :evidence (evidence "ast.py"
-        :quotes ("- The source order (parse position within the file)")
-        :explanation "Module docstring lists source order as a carried field"))
+        :quotes ("source_order: int = 0")
+        :explanation "Docstring covers this only as 'source provenance'; the field declaration proves source_order"))
 
 (fact doc-carries-children true
     :evidence (evidence "ast.py"
-        :quotes ("- Resolved child node references (nodes this directive depends on)")
-        :explanation "Module docstring lists children as a carried field"))
+        :quotes ("``children`` is populated later by ``resolve_graph`` — it contains\n    references to the DirectiveNode objects this node depends on.")
+        :explanation "Class docstring documents children as a carried field"))
 
 (fact doc-carries-dependents true
     :evidence (evidence "ast.py"
-        :quotes ("- Resolved dependent node references (nodes that depend on this one)")
-        :explanation "Module docstring lists dependents as a carried field"))
+        :quotes ("``dependents`` is the reverse: nodes that depend on this one.")
+        :explanation "Class docstring documents dependents as a carried field"))
 
 (derive doc-carries-count
     (count-exists doc-carries-name doc-carries-expr doc-carries-dep-names doc-carries-kind
@@ -336,38 +341,42 @@
                          doc-carries-source-file doc-carries-source-order doc-carries-children doc-carries-dependents))
 
 ; =====================================================================
-; Docstring layer — kind comment enumerates kind values
+; Declaration layer — the DirectiveKind enum enumerates kind values
+; (replaces the old inline `kind: str  # ...` comment). NOTE: the enum
+; also defines ERROR = "error", a 7th kind with no parse_directive
+; branch; it is not counted here so the pairing against kind-count
+; (the 6 parse branches) stays exact.
 ; =====================================================================
 
 (fact kind-comment-fact true
     :evidence (evidence "ast.py"
-        :quotes ("kind: str  # \"fact\", \"axiom\", \"defterm\", \"derive\", \"diff\", \"effect\"")
-        :explanation "Kind comment lists fact"))
+        :quotes ("FACT = \"fact\"")
+        :explanation "DirectiveKind enum defines fact"))
 
 (fact kind-comment-axiom true
     :evidence (evidence "ast.py"
-        :quotes ("kind: str  # \"fact\", \"axiom\", \"defterm\", \"derive\", \"diff\", \"effect\"")
-        :explanation "Kind comment lists axiom"))
+        :quotes ("AXIOM = \"axiom\"")
+        :explanation "DirectiveKind enum defines axiom"))
 
 (fact kind-comment-defterm true
     :evidence (evidence "ast.py"
-        :quotes ("kind: str  # \"fact\", \"axiom\", \"defterm\", \"derive\", \"diff\", \"effect\"")
-        :explanation "Kind comment lists defterm"))
+        :quotes ("DEFTERM = \"defterm\"")
+        :explanation "DirectiveKind enum defines defterm"))
 
 (fact kind-comment-derive true
     :evidence (evidence "ast.py"
-        :quotes ("kind: str  # \"fact\", \"axiom\", \"defterm\", \"derive\", \"diff\", \"effect\"")
-        :explanation "Kind comment lists derive"))
+        :quotes ("DERIVE = \"derive\"")
+        :explanation "DirectiveKind enum defines derive"))
 
 (fact kind-comment-diff true
     :evidence (evidence "ast.py"
-        :quotes ("kind: str  # \"fact\", \"axiom\", \"defterm\", \"derive\", \"diff\", \"effect\"")
-        :explanation "Kind comment lists diff"))
+        :quotes ("DIFF = \"diff\"")
+        :explanation "DirectiveKind enum defines diff"))
 
 (fact kind-comment-effect true
     :evidence (evidence "ast.py"
-        :quotes ("kind: str  # \"fact\", \"axiom\", \"defterm\", \"derive\", \"diff\", \"effect\"")
-        :explanation "Kind comment lists effect"))
+        :quotes ("EFFECT = \"effect\"")
+        :explanation "DirectiveKind enum defines effect"))
 
 (derive kind-comment-count
     (count-exists kind-comment-fact kind-comment-axiom kind-comment-defterm kind-comment-derive kind-comment-diff kind-comment-effect)
@@ -419,12 +428,12 @@
 ; Items × Layers diffs — docstring vs implementation
 ; =====================================================================
 
-; Module docstring carries (5) vs actual fields (8) — docstring omits
-; source_file, source_order, children-as-field, dependents-as-field
-; (graph refs are described as one bullet covering children+dependents)
+; Documentation-layer carriage (8) vs actual fields (8) — attested via
+; docstring mentions where they exist, field declarations otherwise
 (diff doc-carries-vs-fields :replace doc-carries-count :with node-field-count)
 
-; Kind comment (6) vs parse_directive branches (6)
+; DirectiveKind enum members with parse branches (6) vs parse_directive
+; branches (6) — the enum's 7th member, ERROR, has no branch here
 (diff kind-comment-vs-branches :replace kind-comment-count :with kind-count)
 
 ; Each kind branch has its own dep-extraction logic

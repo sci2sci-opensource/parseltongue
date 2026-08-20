@@ -51,9 +51,9 @@
         :quotes ("Starts with a completely empty system")
         :explanation "Apples begins from empty env"))
 
-(fact apples-pltg-topic "Peano Arithmetic via .pltg — Empty-Env Module Loading"
+(fact apples-pltg-topic "Apple Arithmetic (.pltg)"
     :evidence (evidence "apples_pltg"
-        :quotes ("Demo: Peano Arithmetic via .pltg — Empty-Env Module Loading.")
+        :quotes ("Demo: Apple Arithmetic (.pltg)")
         :explanation "Proves loader bootstraps DSL from empty env"))
 
 (fact apples-splats-pltg-topic "Apple Arithmetic with Variadic Splats"
@@ -104,7 +104,7 @@ patterns for variadic operations: sum-all, count-gt, all-gt.")
 
 (fact deferred-skips-on-import true
     :evidence (evidence "deferred_pltg"
-        :quotes ("skipped when imported")
+        :quotes ("skipped on import")
         :explanation "run-on-entry skipped on import"))
 
 (fact doc-validation-topic "Documentation Validation"
@@ -117,9 +117,9 @@ patterns for variadic operations: sum-all, count-gt, all-gt.")
         :quotes ("catches every inconsistency")
         :explanation "Catches internal contradictions in docs"))
 
-(fact entry-mocks-topic "run-on-entry as a self-contained unit test"
+(fact entry-mocks-topic "Entry Mocks"
     :evidence (evidence "entry_mocks_pltg"
-        :quotes ("run-on-entry as a self-contained unit test")
+        :quotes ("Demo: Entry Mocks")
         :explanation "Entry mocks demo topic"))
 
 (fact entry-mocks-uses-let true
@@ -127,14 +127,14 @@ patterns for variadic operations: sum-all, count-gt, all-gt.")
         :quotes ("rebinds forward-declared primitives")
         :explanation "Uses let to rebind primitives as mocks"))
 
-(fact extensibility-topic "System Extensibility"
+(fact extensibility-topic "Custom Effects"
     :evidence (evidence "extensibility"
-        :quotes ("System Extensibility")
+        :quotes ("Demo: Custom Effects")
         :explanation "Extensibility demo topic"))
 
 (fact extensibility-uses-effects true
     :evidence (evidence "extensibility"
-        :quotes ("pass a" "load-data" "effect at construction time")
+        :quotes ("User-defined side effects passed at construction time." "load-data")
         :explanation "Demonstrates effects mechanism"))
 
 (fact extensibility-effects-receive-system true
@@ -142,9 +142,9 @@ patterns for variadic operations: sum-all, count-gt, all-gt.")
         :quotes ("Effects are callables that receive (system, *args)")
         :explanation "Effect calling convention documented"))
 
-(fact revenue-topic "Analyzing company performance"
+(fact revenue-topic "Revenue Reports"
     :evidence (evidence "revenue_reports"
-        :quotes ("Analyzing company performance")
+        :quotes ("Demo: Revenue Reports")
         :explanation "Revenue reports demo topic"))
 
 (fact revenue-shows-manual-override true
@@ -152,14 +152,14 @@ patterns for variadic operations: sum-all, count-gt, all-gt.")
         :quotes ("manual override")
         :explanation "Shows verify_manual workflow"))
 
-(fact self-healing-topic "Self-Healing Probes via Effects"
+(fact self-healing-topic "Self-Healing Probes"
     :evidence (evidence "self_healing"
-        :quotes ("Self-Healing Probes via Effects")
+        :quotes ("Demo: Self-Healing Probes")
         :explanation "Self-healing demo topic"))
 
 (fact self-healing-all-dsl true
     :evidence (evidence "self_healing"
-        :quotes ("The entire flow is written in Parseltongue DSL")
+        :quotes ("The entire analysis flow" "Parseltongue DSL. Python only registers primitive effects")
         :explanation "Everything is DSL, Python only provides effects"))
 
 (fact self-healing-has-snapshot true
@@ -223,12 +223,12 @@ patterns for variadic operations: sum-all, count-gt, all-gt.")
 
 (fact apples-count 1
     :evidence (evidence "apples"
-        :quotes ("Demo: Parseltongue DSL")
+        :quotes ("Demo: Apple Arithmetic")
         :explanation "apples demo exists"))
 
 (fact apples-pltg-count 1
     :evidence (evidence "apples_pltg"
-        :quotes ("Demo: Peano Arithmetic via .pltg")
+        :quotes ("Demo: Apple Arithmetic (.pltg)")
         :explanation "apples_pltg demo exists"))
 
 (fact apples-splats-pltg-count 1
@@ -238,7 +238,7 @@ patterns for variadic operations: sum-all, count-gt, all-gt.")
 
 (fact biomarkers-count 1
     :evidence (evidence "biomarkers"
-        :quotes ("Demo: Parseltongue DSL")
+        :quotes ("Demo: Biomarker Evidence Conflict")
         :explanation "biomarkers demo exists"))
 
 (fact code-check-count 1
@@ -248,7 +248,7 @@ patterns for variadic operations: sum-all, count-gt, all-gt.")
 
 (fact deferred-pltg-count 1
     :evidence (evidence "deferred_pltg"
-        :quotes ("Demo: run-on-entry")
+        :quotes ("Demo: Deferred Directives")
         :explanation "deferred_pltg demo exists"))
 
 (fact doc-validation-count 1
@@ -258,22 +258,22 @@ patterns for variadic operations: sum-all, count-gt, all-gt.")
 
 (fact entry-mocks-count 1
     :evidence (evidence "entry_mocks_pltg"
-        :quotes ("Demo: run-on-entry as a self-contained unit test")
+        :quotes ("Demo: Entry Mocks")
         :explanation "entry_mocks_pltg demo exists"))
 
 (fact extensibility-count 1
     :evidence (evidence "extensibility"
-        :quotes ("Demo: System Extensibility")
+        :quotes ("Demo: Custom Effects")
         :explanation "extensibility demo exists"))
 
 (fact revenue-count 1
     :evidence (evidence "revenue_reports"
-        :quotes ("Demo: Parseltongue DSL in action.")
+        :quotes ("Demo: Revenue Reports")
         :explanation "revenue_reports demo exists"))
 
 (fact self-healing-count 1
     :evidence (evidence "self_healing"
-        :quotes ("Demo: Self-Healing Probes via Effects")
+        :quotes ("Demo: Self-Healing Probes")
         :explanation "self_healing demo exists"))
 
 (fact spec-validation-count 1
@@ -460,7 +460,7 @@ patterns for variadic operations: sum-all, count-gt, all-gt.")
 (axiom pltg-demo-proves-loader-bootstrap
     (implies (and ?pltg-topic ?empty-env) (and ?successor ?starts-empty))
     :evidence (evidence "apples_pltg"
-        :quotes ("Demo: Peano Arithmetic via .pltg — Empty-Env Module Loading.\n\nScenario: Same orchard arithmetic as the apples demo, but executed\nentirely through .pltg file loading with an empty initial environment.\nProves that the Loader of modules works correctly to load DSL for\nbootstrapping Peano successor notation, axioms, imports, and derives\nfrom scratch — no Python-side setup.")
+        :quotes ("Demo: Apple Arithmetic (.pltg)\n\nScenario: Same orchard arithmetic, but loaded entirely through .pltg\nfiles with an empty initial environment. Proves the loader bootstraps\nPeano notation, axioms, imports, and derives from scratch — no\nPython-side setup needed.")
         :explanation "If the pltg demo exists and starts empty, then loader bootstrapped successor notation and empty-start invariant"))
 
 (derive pltg-loader-bootstrap-confirmed
@@ -1117,7 +1117,7 @@ patterns for variadic operations: sum-all, count-gt, all-gt.")
 
 (defterm entry-mocks-features-impl-count 2
     :evidence (evidence "entry_mocks_pltg"
-        :quotes ("run-on-entry as a self-contained unit test with let + mocks" "rebinds forward-declared primitives")
+        :quotes ("Self-contained unit tests using let + mocks" "rebinds forward-declared primitives")
         :explanation "2 entry mocks demo features in source"))
 
 (diff entry-mocks-features-coverage
@@ -1133,7 +1133,7 @@ patterns for variadic operations: sum-all, count-gt, all-gt.")
 
 (defterm extensibility-features-impl-count 3
     :evidence (evidence "extensibility"
-        :quotes ("System Extensibility" "load-data" "Effects are callables that receive (system, *args)")
+        :quotes ("Custom Effects" "load-data" "Effects are callables that receive (system, *args)")
         :explanation "3 extensibility demo features in source"))
 
 (diff extensibility-features-coverage
@@ -1149,7 +1149,7 @@ patterns for variadic operations: sum-all, count-gt, all-gt.")
 
 (defterm revenue-features-impl-count 2
     :evidence (evidence "revenue_reports"
-        :quotes ("Analyzing company performance" "manual override")
+        :quotes ("Company performance analysis" "manual override")
         :explanation "2 revenue demo features in source"))
 
 (diff revenue-features-coverage
@@ -1165,7 +1165,7 @@ patterns for variadic operations: sum-all, count-gt, all-gt.")
 
 (defterm self-healing-features-impl-count 2
     :evidence (evidence "self_healing"
-        :quotes ("Self-Healing Probes via Effects" "The entire flow is written in Parseltongue DSL")
+        :quotes ("Self-Healing Probes" "Parseltongue DSL. Python only registers primitive effects")
         :explanation "2 self-healing demo features in source"))
 
 (diff self-healing-features-coverage
@@ -1271,12 +1271,12 @@ patterns for variadic operations: sum-all, count-gt, all-gt.")
 ; Exports
 ; =====================================================================
 
-(derive self-healing-exists (= self-healing-topic "Self-Healing Probes via Effects") :using (self-healing-topic))
+(derive self-healing-exists (= self-healing-topic "Self-Healing Probes") :using (self-healing-topic))
 (derive export-self-healing-topic
     (util.export self-healing-exists)
     :using (util.export self-healing-exists))
 
-(derive extensibility-exists (= extensibility-topic "System Extensibility") :using (extensibility-topic))
+(derive extensibility-exists (= extensibility-topic "Custom Effects") :using (extensibility-topic))
 (derive export-extensibility-topic
     (util.export extensibility-exists)
     :using (util.export extensibility-exists))

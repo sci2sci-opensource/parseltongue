@@ -390,7 +390,7 @@ The hypothetical values are manually verified because they represent scenarios i
 
 ## Execution Engine
 
-The engine evaluates s-expressions left-to-right, applying rewrite axioms up to a depth limit of 100, with an `=`-rewrite fallback for structural equality. Four special forms are handled directly by the engine:
+The engine evaluates s-expressions left-to-right, applying rewrite axioms up to a depth limit of 100, with an `=`-rewrite fallback for structural equality. Eight special forms are handled directly by the engine:
 
 | Form | Behavior |
 |---|---|
@@ -398,6 +398,10 @@ The engine evaluates s-expressions left-to-right, applying rewrite axioms up to 
 | `let` | `(let ((x 1) (y 2)) body)` — binds local variables, evaluates body in extended env |
 | `quote` | `(quote expr)` — returns expression unevaluated |
 | `strict` | `(strict expr)` — forces eager evaluation, overriding default lazy strategy |
+| `scope` | `(scope name expr ...)` — evaluates expressions in the named scope; `self` targets the current engine, other names resolve to registered scopes |
+| `self` | `(self expr ...)` — identity scope, evaluates expressions in the current engine |
+| `project` | `(project expr)` or `(project basis expr)` — evaluates in the current or named basis, yields a concrete value across the scope boundary |
+| `delegate` | `(delegate body)` — transport modifier: each scope in the chain posts a proposal to the delegate's `:bind` stack, the handler picks by nesting depth or pattern |
 
 The `Engine` constructor accepts two behavioral flags:
 

@@ -1,6 +1,7 @@
 ; engine.pltg — Ground truth and internal validation for engine.py
 
 (load-document "engine.py" "../engine.py")
+(load-document "dsl_loader.py" "../dsl_loader.py")
 (import (quote ..std.counting))
 (import (quote ..std.epistemics))
 (import (quote ..std.lists))
@@ -121,7 +122,7 @@
 ; engine tries rewriting both sides and comparing results
 (fact eq-has-rewrite-fallback true
     :evidence (evidence "engine.py"
-        :quotes ("if result is False and head == EQ and any(isinstance(a, list) for a in args):")
+        :quotes ("if result is False and head == EQ and any(isinstance(a, (list, tuple)) for a in args):")
         :explanation "EQ comparison has a rewrite fallback path"))
 
 ; =====================================================================
@@ -282,33 +283,33 @@
 ; =====================================================================
 
 (fact load-source-handles-axiom true
-    :evidence (evidence "engine.py"
+    :evidence (evidence "dsl_loader.py"
         :quotes ("if head == AXIOM:")
         :explanation "Loader handles axiom directive"))
 
 (fact load-source-handles-defterm true
-    :evidence (evidence "engine.py"
+    :evidence (evidence "dsl_loader.py"
         :quotes ("elif head == DEFTERM:")
         :explanation "Loader handles defterm directive"))
 
 (fact load-source-handles-fact true
-    :evidence (evidence "engine.py"
+    :evidence (evidence "dsl_loader.py"
         :quotes ("elif head == FACT:")
         :explanation "Loader handles fact directive"))
 
 (fact load-source-handles-derive true
-    :evidence (evidence "engine.py"
+    :evidence (evidence "dsl_loader.py"
         :quotes ("elif head == DERIVE:")
         :explanation "Loader handles derive directive"))
 
 (fact load-source-handles-diff true
-    :evidence (evidence "engine.py"
+    :evidence (evidence "dsl_loader.py"
         :quotes ("elif head == DIFF:")
         :explanation "Loader handles diff directive"))
 
 ; Fallback: unknown directives are evaluated as expressions
 (fact load-source-fallback-evaluates true
-    :evidence (evidence "engine.py"
+    :evidence (evidence "dsl_loader.py"
         :quotes ("engine.evaluate(expr)")
         :explanation "Unknown directives fall through to evaluate"))
 
@@ -366,7 +367,7 @@
             load-source-handles-axiom load-source-handles-defterm load-source-handles-fact load-source-handles-derive load-source-handles-diff load-source-fallback-evaluates))
 
 (defterm directive-loader-impl-count 6
-    :evidence (evidence "engine.py"
+    :evidence (evidence "dsl_loader.py"
         :quotes ("if head == AXIOM:" "elif head == DEFTERM:" "elif head == FACT:" "elif head == DERIVE:" "elif head == DIFF:" "engine.evaluate(expr)")
         :explanation "6 directive handler branches in source"))
 
@@ -477,37 +478,38 @@
 ; --- evidence-attachable: fact/axiom/defterm call _resolve_origin ---
 
 (fact fact-calls-resolve-origin true
-    :evidence (evidence "engine.py"
-        :quotes ("engine.set_fact(str(expr[1]), expr[2], _resolve_origin(expr))")
-        :explanation "fact directive calls _resolve_origin"))
+    :evidence (evidence "dsl_loader.py"
+        :quotes ("engine.set_fact(str(expr[1]), expr[2], self.resolve_origin(expr))")
+        :explanation "fact directive calls resolve_origin"))
 
 (fact axiom-calls-resolve-origin true
-    :evidence (evidence "engine.py"
-        :quotes ("engine.introduce_axiom(name, wff, _resolve_origin(expr))")
-        :explanation "axiom directive calls _resolve_origin"))
+    :evidence (evidence "dsl_loader.py"
+        :quotes ("engine.introduce_axiom(name, wff, self.resolve_origin(expr))")
+        :explanation "axiom directive calls resolve_origin"))
 
 (fact defterm-calls-resolve-origin true
-    :evidence (evidence "engine.py"
-        :quotes ("engine.introduce_term(name, defn, _resolve_origin(expr))")
-        :explanation "defterm directive calls _resolve_origin"))
+    :evidence (evidence "dsl_loader.py"
+        :quotes ("engine.introduce_term(name, defn, self.resolve_origin(expr))")
+        :explanation "defterm directive calls resolve_origin"))
 
-; _resolve_origin checks :evidence keyword
+; resolve_origin checks :evidence keyword
 (fact resolve-origin-checks-evidence true
-    :evidence (evidence "engine.py"
-        :quotes ("evidence_raw = get_keyword(expr, KW_EVIDENCE, None)\n    if evidence_raw is not None:\n        return parse_evidence(evidence_raw)")
-        :explanation "_resolve_origin checks for :evidence keyword"))
+    :evidence (evidence "dsl_loader.py"
+        :quotes ("evidence_raw = get_keyword(expr, KW_EVIDENCE, None)\n        if evidence_raw is not None:\n            return self.parse_evidence(evidence_raw)")
+        :explanation "resolve_origin checks for :evidence keyword"))
 
-; _resolve_origin checks :origin keyword
+; resolve_origin checks :origin keyword
 (fact resolve-origin-checks-origin true
-    :evidence (evidence "engine.py"
+    :evidence (evidence "dsl_loader.py"
         :quotes ("return get_keyword(expr, KW_ORIGIN, \"unknown\")")
-        :explanation "_resolve_origin falls back to :origin keyword"))
+        :explanation "resolve_origin falls back to :origin keyword"))
 
-; _resolve_origin handles both paths
+; resolve_origin handles both paths
 (fact resolve-origin-checks-both true
-    :evidence (evidence "engine.py"
-        :quotes ("def _resolve_origin(expr) -> \"str | Evidence\":\n    evidence_raw = get_keyword(expr, KW_EVIDENCE, None)\n    if evidence_raw is not None:\n        return parse_evidence(evidence_raw)\n    return get_keyword(expr, KW_ORIGIN, \"unknown\")")
-        :explanation "_resolve_origin tries :evidence first, falls back to :origin"))
+    :evidence (evidence "dsl_loader.py"
+        :quotes ("def resolve_origin(self, expr) -> \"str | Evidence\":"
+                 "evidence_raw = get_keyword(expr, KW_EVIDENCE, None)\n        if evidence_raw is not None:\n            return self.parse_evidence(evidence_raw)\n        return get_keyword(expr, KW_ORIGIN, \"unknown\")")
+        :explanation "resolve_origin tries :evidence first, falls back to :origin"))
 
 (derive bound-evidence-attachable lang.evidence-attachable
     :bind ((?is-fact fact-calls-resolve-origin)
@@ -536,13 +538,13 @@
 
 (fact diff-evaluated-structurally true
     :evidence (evidence "engine.py"
-        :quotes ("all_diffs = sorted((self.eval_diff(n) for n in self.diffs), key=lambda d: d.name)" "downstream_divergent = [d for d in all_diffs if not d.empty and not d.diff_contamination_only]" "value_divergent = [d for d in all_diffs if d.values_diverge and d.empty]")
+        :quotes ("all_diffs = sorted((self.eval_diff(n) for n in names), key=lambda d: d.name)" "downstream_divergent = [d for d in all_diffs if not d.empty and not d.diff_contamination_only]" "value_divergent = [d for d in all_diffs if d.values_diverge and d.empty]")
         :explanation "Consistency evaluates diffs structurally — divergence is a system issue"))
 
 (defterm diff-calls-resolve-origin false
-    :evidence (evidence "engine.py"
+    :evidence (evidence "dsl_loader.py"
         :quotes ("engine.register_diff(str(expr[1]), str(get_keyword(expr, KW_REPLACE)), str(get_keyword(expr, KW_WITH)))")
-        :explanation "diff handler calls register_diff directly — no _resolve_origin, no evidence attachment"))
+        :explanation "diff handler calls register_diff directly — no resolve_origin, no evidence attachment"))
 
 (derive bound-diff-no-evidence lang.diff-no-evidence
     :bind ((?is-diff load-source-handles-diff)
@@ -566,8 +568,8 @@
 
 (fact expr-references-recurses-lists true
     :evidence (evidence "engine.py"
-        :quotes ("return any(Engine._expr_references(sub, name) for sub in expr)")
-        :explanation "_expr_references recurses into list expressions via Engine static call"))
+        :quotes ("return any(EngineImpl._expr_references(sub, name) for sub in expr)")
+        :explanation "_expr_references recurses into list expressions via EngineImpl static call"))
 
 ; =====================================================================
 ; _dependents — cross-type dependency tracking (Items × Layers)
@@ -800,12 +802,12 @@
 
 (fact unverified-is-grounded false
     :evidence (evidence "engine.py"
-        :quotes ("elif not origin.is_grounded:\n                        unverified.append(name)")
+        :quotes ("elif not origin.is_grounded:" "unverified.append((name, origin.quotes + _corpus_reasons(origin)))")
         :explanation "unverified evidence: grounded = false"))
 
 (fact unverified-is-manually-validated false
     :evidence (evidence "engine.py"
-        :quotes ("if not origin.verified and origin.verify_manual:\n                        manually_verified.append(name)\n                    elif not origin.is_grounded:\n                        unverified.append(name)")
+        :quotes ("if not origin.verified and origin.verify_manual:\n                        manually_verified.append(name)\n                    elif not origin.is_grounded:")
         :explanation "unverified path is elif after manual check — manually validated = false"))
 
 (derive witness-evidence-hallucinated ungrounded-is-hallucinated
@@ -981,7 +983,7 @@
 
 (fact unverified-is-unverified true
     :evidence (evidence "engine.py"
-        :quotes ("elif not origin.is_grounded:\n                        unverified.append(name)")
+        :quotes ("elif not origin.is_grounded:" "unverified.append((name, origin.quotes + _corpus_reasons(origin)))")
         :explanation "evidence is not grounded → appended to unverified list"))
 
 (derive unverified-causes-error error-on-unverified
@@ -1569,8 +1571,8 @@
 
 (fact consistency-checks-three-layers true
     :evidence (evidence "engine.py"
-        :quotes ("# 1. Evidence grounding\n        unverified = []\n        manually_verified = []\n        no_evidence = []" "# 2. Fabrication propagation\n        fabrications = sorted(\n            name\n            for name, thm in self.theorems.items()\n            if isinstance(thm.origin, str) and \"potential fabrication\" in thm.origin\n        )" "# 3. Diff divergences — evaluated live\n        all_diffs = sorted((self.eval_diff(n) for n in self.diffs), key=lambda d: d.name)")
-        :explanation "consistency() has 3 implementation sections"))
+        :quotes ("# 1. Evidence grounding\n        unverified = []\n        manually_verified = []\n        no_evidence = []" "# 2. Fabrication propagation\n        fabrications = sorted(\n            name\n            for name, thm in self.theorems.items()\n            if isinstance(thm.origin, str) and \"potential fabrication\" in thm.origin\n        )" "issues, warnings = self._check_evidence()\n        diff_issues, diff_warnings = self._check_diffs()")
+        :explanation "consistency() checks 3 layers: evidence grounding and fabrication propagation via _check_evidence, diff divergences via _check_diffs"))
 
 (derive export-three-layers
     (util.export consistency-checks-three-layers)

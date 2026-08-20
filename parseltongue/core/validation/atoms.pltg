@@ -11,7 +11,7 @@
 
 (fact module-claims-pure-types true
     :evidence (evidence "atoms.py"
-        :quotes ("Pure types, s-expression reader/printer.")
+        :quotes ("Pure types. No grammar, no domain knowledge, no state.")
         :explanation "Module docstring claims pure types"))
 
 (fact module-claims-no-domain true
@@ -23,8 +23,7 @@
 (axiom purity-implies-immutable
     (implies ?pure (not ?mutable))
     :evidence (evidence "atoms.py"
-        :quotes ("Pure types, s-expression reader/printer.
-No domain knowledge, no state.")
+        :quotes ("Pure types. No grammar, no domain knowledge, no state.")
         :explanation "Module docstring claims both purity and statelessness — pure types with no state should be immutable"))
 
 ; Code facts: frozen/immutable status of each atom type
@@ -35,7 +34,7 @@ No domain knowledge, no state.")
 
 (fact evidence-is-frozen true
     :evidence (evidence "atoms.py"
-        :quotes ("@dataclass(frozen=True)\nclass Evidence:")
+        :quotes ("@dataclass(frozen=True, init=False)\nclass Evidence:")
         :explanation "Evidence is a frozen dataclass"))
 
 (fact axiom-class-is-frozen true
@@ -71,9 +70,9 @@ No domain knowledge, no state.")
 ; Evidence — the grounding mechanism
 ; =====================================================================
 
-(fact evidence-docstring "Structured evidence with verifiable quotes from a source document."
+(fact evidence-docstring "Structured evidence: typed claims about a typed source."
     :evidence (evidence "atoms.py"
-        :quotes ("Structured evidence with verifiable quotes from a source document.")
+        :quotes ("Structured evidence: typed claims about a typed source.")
         :explanation "Evidence's documented purpose"))
 
 (fact evidence-verified-default false
@@ -182,60 +181,60 @@ No domain knowledge, no state.")
 ; Reader pipeline: tokenize -> read_tokens -> atom
 ; =====================================================================
 
-(fact tokenize-doc "Tokenize s-expression source into atoms and parens."
+(fact tokenize-doc false
     :evidence (evidence "atoms.py"
-        :quotes ("Tokenize s-expression source into atoms and parens.")
-        :explanation "tokenize docstring"))
+        :quotes ("Pure types. No grammar, no domain knowledge, no state.")
+        :explanation "tokenize moved to the grammar layer — atoms.py no longer contains or documents a tokenizer"))
 
-(fact comment-char ";"
+(fact comment-char false
     :evidence (evidence "atoms.py"
-        :quotes ("if char == \";\":")
-        :explanation "Semicolon starts comments"))
+        :quotes ("Pure types. No grammar, no domain knowledge, no state.")
+        :explanation "Comment handling left atoms.py with the tokenizer — no reader code remains here"))
 
-(fact read-tokens-doc "Recursively parse token list into nested Python structures."
+(fact read-tokens-doc false
     :evidence (evidence "atoms.py"
-        :quotes ("Recursively parse token list into nested Python structures.")
-        :explanation "read_tokens docstring"))
+        :quotes ("Pure types. No grammar, no domain knowledge, no state.")
+        :explanation "read_tokens moved to the grammar layer — no reader code remains in atoms.py"))
 
-(fact atom-doc "Convert a token string to a typed value."
+(fact atom-doc false
     :evidence (evidence "atoms.py"
-        :quotes ("Convert a token string to a typed value.")
-        :explanation "atom docstring"))
+        :quotes ("Pure types. No grammar, no domain knowledge, no state.")
+        :explanation "atom() moved to the grammar layer — atoms.py no longer documents token conversion"))
 
 ; atom() conversion chain: int -> float -> bool -> string -> keyword -> Symbol
-(fact atom-tries-int-first true
+(fact atom-tries-int-first false
     :evidence (evidence "atoms.py"
-        :quotes ("return int(token)")
-        :explanation "First tries int conversion"))
+        :quotes ("Pure types. No grammar, no domain knowledge, no state.")
+        :explanation "atom()'s conversion chain moved to the grammar layer — no int conversion in atoms.py"))
 
-(fact atom-tries-float-second true
+(fact atom-tries-float-second false
     :evidence (evidence "atoms.py"
-        :quotes ("return float(token)")
-        :explanation "Then tries float"))
+        :quotes ("Pure types. No grammar, no domain knowledge, no state.")
+        :explanation "atom()'s conversion chain moved to the grammar layer — no float conversion in atoms.py"))
 
-(fact atom-keyword-prefix ":"
+(fact atom-keyword-prefix false
     :evidence (evidence "atoms.py"
-        :quotes ("if token.startswith(\":\"):")
-        :explanation "Colon-prefixed tokens stay as strings"))
+        :quotes ("Pure types. No grammar, no domain knowledge, no state.")
+        :explanation "Keyword-token handling moved to the grammar layer — not in atoms.py"))
 
-(fact atom-fallback-is-symbol true
+(fact atom-fallback-is-symbol false
     :evidence (evidence "atoms.py"
-        :quotes ("return Symbol(token)")
-        :explanation "Everything else becomes a Symbol"))
+        :quotes ("Pure types. No grammar, no domain knowledge, no state.")
+        :explanation "atom()'s Symbol fallback moved to the grammar layer — atoms.py only defines the Symbol type"))
 
 ; =====================================================================
 ; parse / parse_all contract
 ; =====================================================================
 
-(fact parse-doc "Parse a source string into an s-expression."
+(fact parse-doc false
     :evidence (evidence "atoms.py"
-        :quotes ("Parse a source string into an s-expression.")
-        :explanation "parse docstring"))
+        :quotes ("Pure types. No grammar, no domain knowledge, no state.")
+        :explanation "parse moved to the grammar layer — atoms.py contains no parsing"))
 
-(fact parse-all-doc "Parse all top-level s-expressions from source."
+(fact parse-all-doc false
     :evidence (evidence "atoms.py"
-        :quotes ("Parse all top-level s-expressions from source.")
-        :explanation "parse_all docstring"))
+        :quotes ("Pure types. No grammar, no domain knowledge, no state.")
+        :explanation "parse_all moved to the grammar layer — atoms.py contains no parsing"))
 
 ; parse is tokenize + single read_tokens
 ; parse_all is tokenize + loop of read_tokens
@@ -245,60 +244,57 @@ No domain knowledge, no state.")
 ; to_sexp — roundtrip printer
 ; =====================================================================
 
-(fact to-sexp-doc "Pretty-print a Python object back to s-expression string."
+(fact to-sexp-doc false
     :evidence (evidence "atoms.py"
-        :quotes ("Pretty-print a Python object back to s-expression string.")
-        :explanation "to_sexp docstring"))
+        :quotes ("Pure types. No grammar, no domain knowledge, no state.")
+        :explanation "to_sexp moved to the grammar layer — printing in atoms.py goes through ParseltongueGrammar.enc"))
 
-(fact to-sexp-bool-true "true"
+(fact to-sexp-bool-true false
     :evidence (evidence "atoms.py"
-        :quotes ("return \"true\" if obj else \"false\"")
-        :explanation "Booleans print as true/false"))
+        :quotes ("Pure types. No grammar, no domain knowledge, no state.")
+        :explanation "Boolean printing moved to the grammar layer with to_sexp — not in atoms.py"))
 
-(fact to-sexp-bool-false "false"
+(fact to-sexp-bool-false false
     :evidence (evidence "atoms.py"
-        :quotes ("return \"true\" if obj else \"false\"")
-        :explanation "to_sexp prints False as 'false'"))
+        :quotes ("Pure types. No grammar, no domain knowledge, no state.")
+        :explanation "Boolean printing moved to the grammar layer with to_sexp — not in atoms.py"))
 
 ; =====================================================================
 ; DSL helpers — match, free_vars, substitute
 ; =====================================================================
 
-(fact match-doc "Match pattern against expr. ?-prefixed symbols are pattern variables."
+(fact match-doc false
     :evidence (evidence "atoms.py"
-        :quotes ("Match pattern against expr. ?-prefixed symbols are pattern variables.")
-        :explanation "match docstring"))
+        :quotes ("Pure types. No grammar, no domain knowledge, no state.")
+        :explanation "match moved to the grammar layer — atoms.py has no pattern matching"))
 
-(fact free-vars-doc "Extract all ?-prefixed symbols from an expression."
+(fact free-vars-doc false
     :evidence (evidence "atoms.py"
-        :quotes ("Extract all ?-prefixed symbols from an expression.")
-        :explanation "free_vars docstring"))
+        :quotes ("Pure types. No grammar, no domain knowledge, no state.")
+        :explanation "free_vars moved to the grammar layer — not in atoms.py"))
 
-(fact substitute-doc "Replace symbols with their bound values in an expression tree."
+(fact substitute-doc false
     :evidence (evidence "atoms.py"
-        :quotes ("Replace symbols with their bound values in an expression tree.")
-        :explanation "substitute docstring"))
+        :quotes ("Pure types. No grammar, no domain knowledge, no state.")
+        :explanation "substitute moved to the grammar layer — not in atoms.py"))
 
 ; Splat pattern support — docstring ground truth
-(fact match-splat-doc true
+(fact match-splat-doc false
     :evidence (evidence "atoms.py"
-        :quotes ("A ``?...name`` symbol as the last element of a list pattern matches
-    zero or more remaining elements, bound as a list.")
-        :explanation "match docstring documents ?... splat pattern support"))
+        :quotes ("Pure types. No grammar, no domain knowledge, no state.")
+        :explanation "match and its ?... splat documentation moved to the grammar layer — not in atoms.py"))
 
-(fact substitute-splat-doc true
+(fact substitute-splat-doc false
     :evidence (evidence "atoms.py"
-        :quotes ("``?...name`` bindings are spliced into the parent list rather than
-    inserted as a nested list.")
-        :explanation "substitute docstring documents ?... splicing behavior"))
+        :quotes ("Pure types. No grammar, no domain knowledge, no state.")
+        :explanation "substitute and its ?... splicing documentation moved to the grammar layer — not in atoms.py"))
 
 ; Axiom: match produces bindings that substitute can consume
 (axiom match-substitute-roundtrip
     (= (implies (?bindings ?pattern ?expr) (= ?expr (?substitute ?pattern ?bindings))) true)
     :evidence (evidence "atoms.py"
-        :quotes ("Match pattern against expr. ?-prefixed symbols are pattern variables."
-                 "Replace symbols with their bound values in an expression tree.")
-        :explanation "match and substitute are inverses — match extracts bindings, substitute applies them"))
+        :quotes ("Pure types. No grammar, no domain knowledge, no state.")
+        :explanation "match and substitute moved to the grammar layer — the roundtrip schema is retained unbound, no longer grounded in atoms.py"))
 
 ; =====================================================================
 ; Internal consistency: module contract vs content
@@ -312,15 +308,15 @@ No domain knowledge, no state.")
     :using (module-claims-pure-types module-claims-no-domain))
 
 ; atom() true/false token values
-(fact atom-true-token "true"
+(fact atom-true-token false
     :evidence (evidence "atoms.py"
-        :quotes ("if token == \"true\":")
-        :explanation "true token"))
+        :quotes ("Pure types. No grammar, no domain knowledge, no state.")
+        :explanation "atom() token handling moved to the grammar layer — no true-token branch in atoms.py"))
 
-(fact atom-false-token "false"
+(fact atom-false-token false
     :evidence (evidence "atoms.py"
-        :quotes ("if token == \"false\":")
-        :explanation "false token"))
+        :quotes ("Pure types. No grammar, no domain knowledge, no state.")
+        :explanation "atom() token handling moved to the grammar layer — no false-token branch in atoms.py"))
 
 ; Derive: atom() and to_sexp are roundtrip-compatible for booleans
 ; atom("true") -> True, to_sexp(True) -> "true"
@@ -340,10 +336,10 @@ No domain knowledge, no state.")
         :explanation "Grounded evidence displays grounded"))
 
 ; Term display logic: primitive vs computed
-(fact term-has-body-display "to_sexp"
+(fact term-has-body-display "ParseltongueGrammar.enc"
     :evidence (evidence "atoms.py"
-        :quotes ("to_sexp(self.definition)")
-        :explanation "Terms with a body display via to_sexp"))
+        :quotes ("ParseltongueGrammar.enc(self.definition)")
+        :explanation "Terms with a body display via ParseltongueGrammar.enc"))
 
 (fact term-definition-check "self.definition is not None"
     :evidence (evidence "atoms.py"
@@ -353,7 +349,7 @@ No domain knowledge, no state.")
 (axiom term-display-rule
     (if ?has-definition ?to-sexp ?primitive)
     :evidence (evidence "atoms.py"
-        :quotes ("to_sexp(self.definition) if self.definition is not None else \"(primitive)\"")
+        :quotes ("ParseltongueGrammar.enc(self.definition) if self.definition is not None else \"(primitive)\"")
         :explanation "If has definition show sexp, else show (primitive)"))
 
 ; Display says "primitive" — does the docstring agree?
@@ -386,10 +382,11 @@ No domain knowledge, no state.")
     :using (count-exists counting.count-exists-base counting.count-exists-step
             tokenize-doc read-tokens-doc atom-doc parse-doc parse-all-doc comment-char))
 
-(defterm reader-impl-count 6
+(defterm reader-impl-count 0
     :evidence (evidence "atoms.py"
-        :quotes ("def tokenize(" "def read_tokens(" "def atom(" "def parse(" "def parse_all(" "if char == \";\":")
-        :explanation "6 reader pipeline features in source"))
+        :quotes ("Pure types. No grammar, no domain knowledge, no state."
+                 "Atoms is the foundation layer (pure types, no behavior). Grammar depends\n# on atoms for Symbol/Silence/WFF — that's correct.")
+        :explanation "Reader pipeline moved to the grammar layer — 0 reader features remain in atoms.py"))
 
 (diff reader-pipeline-coverage
     :replace reader-doc-count
@@ -402,10 +399,11 @@ No domain knowledge, no state.")
     :using (count-exists counting.count-exists-base counting.count-exists-step
             atom-tries-int-first atom-tries-float-second atom-keyword-prefix atom-false-token atom-fallback-is-symbol))
 
-(defterm atom-conv-impl-count 5
+(defterm atom-conv-impl-count 0
     :evidence (evidence "atoms.py"
-        :quotes ("return int(token)" "return float(token)" "if token.startswith(\":\"):" "if token == \"false\":" "return Symbol(token)")
-        :explanation "5 conversion branches in atom()"))
+        :quotes ("Pure types. No grammar, no domain knowledge, no state."
+                 "Atoms is the foundation layer (pure types, no behavior). Grammar depends\n# on atoms for Symbol/Silence/WFF — that's correct.")
+        :explanation "atom() and its conversion branches moved to the grammar layer — 0 remain in atoms.py"))
 
 (diff atom-conversion-coverage
     :replace atom-conv-doc-count
@@ -420,7 +418,7 @@ No domain knowledge, no state.")
 
 (defterm core-types-impl-count 6
     :evidence (evidence "atoms.py"
-        :quotes ("class Symbol(str):" "Just a string with a distinct type" "Structured evidence with verifiable quotes" "An axiom: a foundational WFF" "A theorem: a WFF derived from" "A term/concept/primitive")
+        :quotes ("class Symbol(str):" "Just a string with a distinct type" "Structured evidence: typed claims about a typed source" "An axiom: a foundational WFF" "A theorem: a WFF derived from" "A term/concept/primitive")
         :explanation "6 core type properties in source"))
 
 (diff core-types-coverage
@@ -476,10 +474,11 @@ No domain knowledge, no state.")
     :using (count-exists counting.count-exists-base counting.count-exists-step
             match-doc free-vars-doc substitute-doc to-sexp-doc match-substitute-roundtrip))
 
-(defterm dsl-helpers-impl-count 4
+(defterm dsl-helpers-impl-count 0
     :evidence (evidence "atoms.py"
-        :quotes ("def match(" "def free_vars(" "def substitute(" "def to_sexp(")
-        :explanation "4 DSL helper functions in source"))
+        :quotes ("Pure types. No grammar, no domain knowledge, no state."
+                 "Atoms is the foundation layer (pure types, no behavior). Grammar depends\n# on atoms for Symbol/Silence/WFF — that's correct.")
+        :explanation "match/free_vars/substitute/to_sexp moved to the grammar layer — 0 DSL helpers remain in atoms.py"))
 
 (diff dsl-helpers-coverage
     :replace dsl-helpers-doc-count
@@ -498,7 +497,7 @@ No domain knowledge, no state.")
 
 (defterm term-display-impl-count 2
     :evidence (evidence "atoms.py"
-        :quotes ("(primitive)" "to_sexp(self.definition)")
+        :quotes ("(primitive)" "ParseltongueGrammar.enc(self.definition)")
         :explanation "2 display paths in Term.__str__"))
 
 (derive term-display-full-doc-count
@@ -513,21 +512,15 @@ No domain knowledge, no state.")
 
 ; --- 8. Splat pattern support ---
 
-(fact match-splat-impl true
+(fact match-splat-impl false
     :evidence (evidence "atoms.py"
-        :quotes ("# Splat: ?...name as last element matches remaining items
-        if (pattern and isinstance(pattern[-1], Symbol)
-                and str(pattern[-1]).startswith(\"?...\")):")
-        :explanation "match() implements ?... splat matching"))
+        :quotes ("Pure types. No grammar, no domain knowledge, no state.")
+        :explanation "match() and its ?... splat matching moved to the grammar layer — not in atoms.py"))
 
-(fact substitute-splat-impl true
+(fact substitute-splat-impl false
     :evidence (evidence "atoms.py"
-        :quotes ("if (isinstance(sub, Symbol) and str(sub).startswith(\"?...\")
-                    and sub in bindings):
-                val = bindings[sub]
-                if isinstance(val, list):
-                    result.extend(val)")
-        :explanation "substitute() implements ?... splicing"))
+        :quotes ("Pure types. No grammar, no domain knowledge, no state.")
+        :explanation "substitute() and its ?... splicing moved to the grammar layer — not in atoms.py"))
 
 (derive splat-doc-count
     (count-exists match-splat-doc substitute-splat-doc)
@@ -564,7 +557,7 @@ No domain knowledge, no state.")
 
 (defterm evidence-is-mutable (not evidence-is-frozen)
     :evidence (evidence "atoms.py"
-        :quotes ("@dataclass(frozen=True)\nclass Evidence:")
+        :quotes ("@dataclass(frozen=True, init=False)\nclass Evidence:")
         :explanation "Frozen dataclass is not mutable"))
 
 (derive purity-immutable-bound purity-implies-immutable
@@ -581,7 +574,7 @@ No domain knowledge, no state.")
          theorem-class-is-frozen term-class-is-frozen)
     :evidence (evidence "atoms.py"
         :quotes ("class Symbol(str):\n    \"\"\"A symbol in Parseltongue. Just a string with a distinct type.\"\"\""
-                 "@dataclass(frozen=True)\nclass Evidence:"
+                 "@dataclass(frozen=True, init=False)\nclass Evidence:"
                  "@dataclass(frozen=True)\nclass Axiom:"
                  "@dataclass(frozen=True)\nclass Theorem:"
                  "@dataclass(frozen=True)\nclass Term:")
@@ -695,12 +688,12 @@ No domain knowledge, no state.")
 
 (fact axiom-impl-wff true
     :evidence (evidence "atoms.py"
-        :quotes ("class Axiom:\n    \"\"\"An axiom: a foundational WFF assumed true, with evidence.\n\n    Every axiom carries a wff (never None).\n    \"\"\"\n\n    name: str\n    wff: Any")
+        :quotes ("class Axiom:\n    \"\"\"An axiom: a foundational WFF assumed true, with evidence.\n\n    Every axiom carries a wff (never None).\n    \"\"\"\n\n    name: str\n    wff: WFF")
         :explanation "Axiom class: wff is required field, no default"))
 
 (fact theorem-impl-wff true
     :evidence (evidence "atoms.py"
-        :quotes ("class Theorem:\n    \"\"\"A theorem: a WFF derived from facts, axioms, terms, or other theorems.\n\n    Every theorem carries a wff (never None).\n    \"\"\"\n\n    name: str\n    wff: Any")
+        :quotes ("class Theorem:\n    \"\"\"A theorem: a WFF derived from facts, axioms, terms, or other theorems.\n\n    Every theorem carries a wff (never None).\n    \"\"\"\n\n    name: str\n    wff: WFF")
         :explanation "Theorem class: wff is required field, no default"))
 
 (fact term-impl-primitive true
@@ -710,8 +703,8 @@ No domain knowledge, no state.")
 
 (fact term-impl-computed true
     :evidence (evidence "atoms.py"
-        :quotes ("to_sexp(self.definition) if self.definition is not None")
-        :explanation "Non-None definition displays via to_sexp"))
+        :quotes ("ParseltongueGrammar.enc(self.definition) if self.definition is not None")
+        :explanation "Non-None definition displays via ParseltongueGrammar.enc"))
 
 ; --- Doc-side binds ---
 
@@ -807,7 +800,7 @@ No domain knowledge, no state.")
     (util.export symbol-is-immutable)
     :using (util.export symbol-is-immutable))
 
-(derive to-sexp-exists (= to-sexp-doc "Pretty-print a Python object back to s-expression string.") :using (to-sexp-doc))
+(derive to-sexp-exists (= to-sexp-doc false) :using (to-sexp-doc))
 (derive export-to-sexp
     (util.export to-sexp-exists)
     :using (util.export to-sexp-exists))

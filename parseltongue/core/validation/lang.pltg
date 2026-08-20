@@ -319,9 +319,11 @@ SPLAT_PREFIX = \"?...\"")
 ; --- 2. Special forms ---
 
 (derive special-forms-doc-count
-    (count-exists if-symbol let-symbol quote-symbol strict-symbol eq-symbol)
+    (count-exists if-symbol let-symbol quote-symbol strict-symbol eq-symbol
+                  scope-symbol self-symbol project-symbol delegate-symbol)
     :using (count-exists counting.count-exists-base counting.count-exists-step
-            if-symbol let-symbol quote-symbol strict-symbol eq-symbol))
+            if-symbol let-symbol quote-symbol strict-symbol eq-symbol
+            scope-symbol self-symbol project-symbol delegate-symbol))
 
 (defterm special-forms-impl-count 9
     :evidence (evidence "lang.py"
@@ -433,7 +435,39 @@ SPLAT_PREFIX = \"?...\"")
         :quotes ("DELEGATE = Symbol(\"delegate\")")
         :explanation "delegate special form"))
 
-(defterm stub-scope-lang-docs :origin "TODO: SCOPE LANG_DOCS entry — dispatches to callable, project resolved eagerly")
-(defterm stub-self-lang-docs :origin "TODO: SELF LANG_DOCS entry — identity scope, evaluates in current engine")
-(defterm stub-project-lang-docs :origin "TODO: PROJECT LANG_DOCS entry — evaluate in current or named basis")
-(defterm stub-delegate-lang-docs :origin "TODO: DELEGATE LANG_DOCS entry — :bind stack semantics, ?_level, conditional patterns")
+; LANG_DOCS entries for the scope family — landed; former TODO stubs
+; graduated into grounded facts, paired against the symbol declarations.
+
+(fact scope-lang-docs true
+    :evidence (evidence "lang.py"
+        :quotes ("SCOPE: {" "Evaluate expressions in a named scope.")
+        :explanation "SCOPE LANG_DOCS entry"))
+
+(fact self-lang-docs true
+    :evidence (evidence "lang.py"
+        :quotes ("SELF: {" "Evaluate expressions in the current engine.")
+        :explanation "SELF LANG_DOCS entry"))
+
+(fact project-lang-docs true
+    :evidence (evidence "lang.py"
+        :quotes ("PROJECT: {" "Evaluate an expression in a named basis and yield the value.")
+        :explanation "PROJECT LANG_DOCS entry"))
+
+(fact delegate-lang-docs true
+    :evidence (evidence "lang.py"
+        :quotes ("DELEGATE: {" "Transport modifier — a happens-before operation where each scope")
+        :explanation "DELEGATE LANG_DOCS entry"))
+
+(derive scope-family-docs-count
+    (count-exists scope-lang-docs self-lang-docs project-lang-docs delegate-lang-docs)
+    :using (count-exists counting.count-exists-base counting.count-exists-step
+            scope-lang-docs self-lang-docs project-lang-docs delegate-lang-docs))
+
+(derive scope-family-symbol-count
+    (count-exists scope-symbol self-symbol project-symbol delegate-symbol)
+    :using (count-exists counting.count-exists-base counting.count-exists-step
+            scope-symbol self-symbol project-symbol delegate-symbol))
+
+(diff scope-family-docs-coverage
+    :replace scope-family-docs-count
+    :with scope-family-symbol-count)

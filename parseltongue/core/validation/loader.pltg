@@ -1,6 +1,7 @@
 ; loader.pltg — Ground truth from loader.py
 
 (load-document "loader.py" "../loader/loader.py")
+(load-document "loader_engine.py" "../loader/loader_engine.py")
 (import (quote ..std.counting))
 (import (quote ..std.util))
 (defterm count-exists counting.count-exists :origin "import")
@@ -107,21 +108,21 @@
 ; =====================================================================
 
 (fact loader-namespaces-definitions true
-    :evidence (evidence "loader.py"
-        :quotes ("Namespace definition names for non-main modules"
-                 "expr[1] = f\"{self._current.module_name}.{expr[1]}\"")
+    :evidence (evidence "loader_engine.py"
+        :quotes ("Namespace the definition name at index.name for non-main modules."
+                 "new_name = f\"{ctx.module_name}.{old_name}\"")
         :explanation "Non-main definitions get module prefix"))
 
 (fact loader-patches-symbols true
     :evidence (evidence "loader.py"
         :quotes ("Recursively namespace bare symbols in expression bodies."
-                 "candidate = f\"{self._current.module_name}.{s}\"")
+                 "self._engine.patch_expr(expr, module_name=self._current.module_name)")
         :explanation "Symbol references are patched to namespaced versions"))
 
 (fact loader-patches-context true
     :evidence (evidence "loader.py"
         :quotes ("Recursively patch (context :key)"
-                 "patched = f\"{self._current.module_name}.{expr[1]}\"")
+                 "self._engine.patch_context_expr(expr, module_name=self._current.module_name)")
         :explanation "Context keys are patched with module name"))
 
 ; =====================================================================
@@ -162,7 +163,7 @@
 
 (fact effect-verify-manual-doc true
     :evidence (evidence "loader.py"
-        :quotes ("Effect: (verify-manual name) — manually verify a fact/term/axiom.")
+        :quotes ("Effect: (verify-manual name [signature]) — manually verify a fact/term/axiom.")
         :explanation "verify-manual effect docstring"))
 
 (fact effect-dangerously-eval-doc true
@@ -301,7 +302,7 @@
 
 (fact effect-import-deduplicates true
     :evidence (evidence "loader.py"
-        :quotes ("if abs_path in self._imported:" "return True")
+        :quotes ("if abs_path in self._path_to_module:" "return True")
         :explanation "import effect skips already-imported modules"))
 
 (fact effect-load-document-resolves-path true
@@ -331,21 +332,21 @@
 (axiom import-deduplication
     (implies ?already-imported ?skips-load)
     :evidence (evidence "loader.py"
-        :quotes ("if abs_path in self._imported:" "log.debug(\"Module '%s' already imported, skipping\", module_name)" "return True")
+        :quotes ("if abs_path in self._path_to_module:" "log.debug(\"Module '%s' already imported, skipping\", module_name)" "return True")
         :explanation "Already-imported files are skipped"))
 
 ; Axiom 4: namespacing only for non-main — main definitions stay bare
 (axiom namespacing-only-non-main
     (implies ?is-main (not ?namespace-applied))
-    :evidence (evidence "loader.py"
-        :quotes ("if head in DSL_KEYWORDS or head in SPECIAL_FORMS:" "if not self._current.is_main:" "expr[1] = f\"{self._current.module_name}.{expr[1]}\"")
+    :evidence (evidence "loader_engine.py"
+        :quotes ("Namespace the definition name at index.name for non-main modules." "if lad.needs_namespace:" "self.patch_definition_name(ad, ctx)")
         :explanation "Only non-main module definitions get namespaced"))
 
 ; Axiom 5: context resolves via registry — names_to_modules lookup
 (axiom context-resolves-via-registry
     (implies ?module-known ?uses-registry-ctx)
     :evidence (evidence "loader.py"
-        :quotes ("module = self.names_to_modules.get(key_str)" "if module is not None:" "ctx = self.modules_contexts[module]")
+        :quotes ("module = self._engine.names_to_modules.get(key_str)" "if module is not None:" "ctx = self.modules_contexts[module]")
         :explanation "Context keys resolve to correct module context via registry"))
 
 ; Axiom 6: consistency default prints — no args means print and return True
@@ -462,7 +463,7 @@
 ; =====================================================================
 
 (fact import-resolves-dots-to-sep true
-    :evidence (evidence "loader.py"
+    :evidence (evidence "loader_engine.py"
         :quotes ("module_name.replace(\".\", os.sep) + \".pltg\"")
         :explanation "Dots become path separators, .pltg appended"))
 
@@ -680,7 +681,7 @@
 (defterm effect-behavior-expected 6
     :evidence (evidence "loader.py"
         :quotes ("def print_effect" "if prop == \":file\":" "if not self._current.is_main:"
-                 "if abs_path in self._file_stack:" "if abs_path in self._imported:"
+                 "if abs_path in self._file_stack:" "if abs_path in self._path_to_module:"
                  "resolved = os.path.normpath")
         :explanation "6 behavioral facts across all effects"))
 

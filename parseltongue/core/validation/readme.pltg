@@ -1620,10 +1620,10 @@
         :quotes ("with an = -rewrite fallback for structural equality")
         :explanation "README documents =-rewrite fallback for structural equality"))
 
-(fact readme-documents-engine-special-forms 4
+(fact readme-documents-engine-special-forms 8
     :evidence (evidence "README"
-        :quotes ("Four special forms are handled directly by the engine")
-        :explanation "README documents 4 special forms in engine"))
+        :quotes ("Eight special forms are handled directly by the engine")
+        :explanation "README documents 8 special forms in engine"))
 
 (fact readme-documents-engine-special-if true
     :evidence (evidence "README"
@@ -1644,6 +1644,26 @@
     :evidence (evidence "README"
         :quotes ("strict" "(strict expr) — forces eager evaluation, overriding default lazy strategy")
         :explanation "README documents strict special form with behavior"))
+
+(fact readme-documents-engine-special-scope true
+    :evidence (evidence "README"
+        :quotes ("scope" "(scope name expr ...)` — evaluates expressions in the named scope")
+        :explanation "README documents scope special form with behavior"))
+
+(fact readme-documents-engine-special-self true
+    :evidence (evidence "README"
+        :quotes ("self" "(self expr ...)` — identity scope, evaluates expressions in the current engine")
+        :explanation "README documents self special form with behavior"))
+
+(fact readme-documents-engine-special-project true
+    :evidence (evidence "README"
+        :quotes ("project" "(project basis expr)` — evaluates in the current or named basis")
+        :explanation "README documents project special form with behavior"))
+
+(fact readme-documents-engine-special-delegate true
+    :evidence (evidence "README"
+        :quotes ("delegate" "(delegate body)` — transport modifier: each scope in the chain posts a proposal")
+        :explanation "README documents delegate special form with behavior"))
 
 (fact readme-documents-engine-strict-derive true
     :evidence (evidence "README"
@@ -1953,11 +1973,19 @@
     (count-exists readme-documents-engine-special-if
                   readme-documents-engine-special-let
                   readme-documents-engine-special-quote
-                  readme-documents-engine-special-strict)
+                  readme-documents-engine-special-strict
+                  readme-documents-engine-special-scope
+                  readme-documents-engine-special-self
+                  readme-documents-engine-special-project
+                  readme-documents-engine-special-delegate)
     :using (count-exists readme-documents-engine-special-if
                          readme-documents-engine-special-let
                          readme-documents-engine-special-quote
-                         readme-documents-engine-special-strict))
+                         readme-documents-engine-special-strict
+                         readme-documents-engine-special-scope
+                         readme-documents-engine-special-self
+                         readme-documents-engine-special-project
+                         readme-documents-engine-special-delegate))
 
 (diff readme-special-forms-vs-stated :replace readme-special-forms-listing-count :with readme-documents-engine-special-forms)
 
