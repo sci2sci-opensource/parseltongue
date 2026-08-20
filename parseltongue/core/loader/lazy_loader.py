@@ -70,6 +70,49 @@ def display_loc(file: str | None, line: int = 0, col: int = 1) -> str:
     return loc
 
 
+def collapse_alias_shadows(dangling, referenced, engine) -> set:
+    """Collapse import-alias shadows out of a dangling set.
+
+    The loader registers an imported module's directives under every alias
+    prefix, so several store keys can bind the *same* frozen directive
+    object (e.g. ``lists.map`` and ``std.lists.map``). Likewise an alias
+    defterm — a Term whose definition is a bare Symbol naming another
+    directive — is a name-binding, not content. A directive therefore
+    dangles only if NO name bound to it is referenced, and an alias
+    defterm is referenced iff its target is. Single source of truth for
+    this measure — the coverage tests import it too.
+    """
+    from ..atoms import Symbol
+
+    stores = (engine.facts, engine.axioms, engine.terms, engine.theorems)
+
+    def _lookup(name):
+        for store in stores:
+            if name in store:
+                return store[name]
+        return None
+
+    referenced_ids = {id(obj) for obj in map(_lookup, referenced) if obj is not None}
+
+    def _is_referenced(name):
+        if name in referenced:
+            return True
+        obj = _lookup(name)
+        return obj is not None and id(obj) in referenced_ids
+
+    def _alias_referenced(name, seen):
+        if name in seen:
+            return False  # cycle guard
+        seen.add(name)
+        term = engine.terms.get(name)
+        if term is None or not isinstance(term.definition, Symbol):
+            return False
+        target = str(term.definition)
+        return _is_referenced(target) or _alias_referenced(target, seen)
+
+    return {n for n in dangling if not _is_referenced(n) and not _alias_referenced(n, set())}
+
+
 @dataclass
 class LocatedItem:
     """A consistency item enriched with source location."""
@@ -149,7 +192,9 @@ class LocatedConsistencyReport:
 
         diff_names = set(engine.diffs.keys())
         all_names = set(engine.facts) | set(engine.axioms) | set(engine.terms) | set(engine.theorems)
-        dangling_names = sorted(name for name in all_names if not referenced_by.get(name) and name not in diff_names)
+        dangling = {name for name in all_names if not referenced_by.get(name) and name not in diff_names}
+        referenced = {name for name, parents in referenced_by.items() if parents}
+        dangling_names = sorted(collapse_alias_shadows(dangling, referenced, engine))
 
         result = []
         for name in dangling_names:

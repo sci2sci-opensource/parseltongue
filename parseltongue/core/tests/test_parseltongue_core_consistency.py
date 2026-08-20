@@ -14,45 +14,15 @@ CORE_PLTG = os.path.join(os.path.dirname(__file__), "..", "validation", "core_cl
 def _drop_alias_shadows(dangling, referenced, engine):
     """Collapse import-alias shadows out of a dangling set.
 
-    The loader registers an imported module's directives under every alias
-    prefix (LoaderEngine.register_module/register_alias in
-    parseltongue/core/loader/loader_engine.py), so e.g. ``lists.map`` and
-    ``std.lists.map`` are two store keys bound to the *same* frozen directive
-    object.  Likewise an alias defterm — a Term whose definition is a bare
-    Symbol naming another directive — is a name-binding, not content (the
-    consistency checker resolves these the same way via
-    ``_alias_target_origin``).  A directive is therefore dangling only if NO
-    name bound to it is referenced, and an alias defterm is referenced iff
-    its target is.  Returns a new set with such shadow names removed.
+    Thin wrapper over the production measure — see
+    ``parseltongue.core.loader.lazy_loader.collapse_alias_shadows`` for
+    the alias semantics (several store keys bound to one frozen directive
+    object; alias defterms follow their target). Kept as a named seam so
+    the three dangling tests share one call site.
     """
-    from parseltongue.core.atoms import Symbol
+    from parseltongue.core.loader.lazy_loader import collapse_alias_shadows
 
-    def _lookup(name):
-        for store in (engine.facts, engine.axioms, engine.terms, engine.theorems):
-            if name in store:
-                return store[name]
-        return None
-
-    referenced_ids = {id(obj) for obj in map(_lookup, referenced) if obj is not None}
-
-    def _is_referenced(name):
-        if name in referenced:
-            return True
-        obj = _lookup(name)
-        return obj is not None and id(obj) in referenced_ids
-
-    def _alias_referenced(name, seen):
-        """Follow an alias-defterm chain; True if any link is referenced."""
-        if name in seen:
-            return False  # cycle guard
-        seen.add(name)
-        term = engine.terms[name] if name in engine.terms else None
-        if term is None or not isinstance(term.definition, Symbol):
-            return False
-        target = str(term.definition)
-        return _is_referenced(target) or _alias_referenced(target, seen)
-
-    return {name for name in dangling if not _is_referenced(name) and not _alias_referenced(name, set())}
+    return collapse_alias_shadows(dangling, referenced, engine)
 
 
 class TestParseltongueCoreConsistency(unittest.TestCase):
