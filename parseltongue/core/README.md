@@ -733,9 +733,26 @@ result.error_trees()                 # tree view of error cascades
 result.summary()                     # human-readable summary
 ```
 
+Three entry points expose lazy loading: the `lazy_load_pltg()` function, the `LazyLoader.load_main()` method, and the `LazyLoader.ast` property (all parsed `DirectiveNode`s from the most recent load).
+
+Fault tolerance rests on six mechanisms:
+
+1. **Parse errors are caught** — recorded as error nodes instead of crashing the load
+2. **Effect errors are caught** — a failing effect is recorded and the load continues
+3. **Directive errors are caught** — a failing directive is recorded and its name marked failed
+4. **Intra-module dependencies are checked** — graph-linked children must load before a directive executes
+5. **Cross-module dependencies are checked** — directives referencing a failed name are skipped
+6. **Failures are tracked globally** — failed names accumulate across all modules of a load
+
+Effects execute in two ranked groups around the directives: pre-directive effects (`context`, then `load-document`/`load-documents`, then `import`) fire before any directive; post-directive effects (`run-on-entry`, then `verify-manual`, then `print`/`consistency`/`dangerously-eval`) fire after. Within each group an effect-rank lookup orders the effects.
+
+Symbol patching resolves bare references against the names collected in the parse phase — the patch pass exists as its own step and checks membership in the collected name set before rewriting a symbol.
+
+Source lines are tracked end-to-end: each parsed sentence's line number lands in its node's `source_line`, so errors report file:line.
+
 ### AST
 
-The `ast` module provides a dependency graph over parsed directives. `DirectiveNode` is a frozen dataclass with 8 fields:
+The `ast` module provides a dependency graph over parsed directives. `DirectiveNode` is a frozen dataclass with 9 fields:
 
 | Field | Description |
 |---|---|
@@ -745,6 +762,7 @@ The `ast` module provides a dependency graph over parsed directives. `DirectiveN
 | `kind` | One of 6 kinds: `fact`, `axiom`, `defterm`, `derive`, `diff`, `effect` |
 | `source_file` | File path where the directive was defined |
 | `source_order` | Integer position in source |
+| `source_line` | 1-based line number where the directive starts |
 | `children` | Set of nodes this directive depends on (populated by `resolve_graph`) |
 | `dependents` | Set of nodes that depend on this directive (inverse of `children`) |
 

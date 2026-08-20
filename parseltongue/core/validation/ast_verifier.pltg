@@ -43,6 +43,11 @@
         :quotes ("source_order: int = 0")
         :explanation "DirectiveNode tracks parse order"))
 
+(fact node-has-source-line true
+    :evidence (evidence "ast.py"
+        :quotes ("source_line: int = 0")
+        :explanation "DirectiveNode tracks the 1-based source line"))
+
 (fact node-has-children true
     :evidence (evidence "ast.py"
         :quotes ("children: list[DirectiveNode] = field(default_factory=list, repr=False)")
@@ -55,9 +60,9 @@
 
 (derive node-field-count
     (count-exists node-has-name node-has-expr node-has-dep-names node-has-kind
-                  node-has-source-file node-has-source-order node-has-children node-has-dependents)
+                  node-has-source-file node-has-source-order node-has-source-line node-has-children node-has-dependents)
     :using (count-exists node-has-name node-has-expr node-has-dep-names node-has-kind
-                         node-has-source-file node-has-source-order node-has-children node-has-dependents))
+                         node-has-source-file node-has-source-order node-has-source-line node-has-children node-has-dependents))
 
 ; =====================================================================
 ; DirectiveNode identity — hash by id, eq by identity
@@ -324,6 +329,11 @@
         :quotes ("source_order: int = 0")
         :explanation "Docstring covers this only as 'source provenance'; the field declaration proves source_order"))
 
+(fact doc-carries-source-line true
+    :evidence (evidence "ast.py"
+        :quotes ("source_line: int = 0")
+        :explanation "Docstring covers this only as 'source provenance'; the field declaration proves source_line"))
+
 (fact doc-carries-children true
     :evidence (evidence "ast.py"
         :quotes ("``children`` is populated later by ``resolve_graph`` — it contains\n    references to the DirectiveNode objects this node depends on.")
@@ -336,9 +346,9 @@
 
 (derive doc-carries-count
     (count-exists doc-carries-name doc-carries-expr doc-carries-dep-names doc-carries-kind
-                  doc-carries-source-file doc-carries-source-order doc-carries-children doc-carries-dependents)
+                  doc-carries-source-file doc-carries-source-order doc-carries-source-line doc-carries-children doc-carries-dependents)
     :using (count-exists doc-carries-name doc-carries-expr doc-carries-dep-names doc-carries-kind
-                         doc-carries-source-file doc-carries-source-order doc-carries-children doc-carries-dependents))
+                         doc-carries-source-file doc-carries-source-order doc-carries-source-line doc-carries-children doc-carries-dependents))
 
 ; =====================================================================
 ; Declaration layer — the DirectiveKind enum enumerates kind values
@@ -494,5 +504,3 @@
 
 ; --- TODO: new functionality ---
 
-(defterm stub-source-line-field
-    :origin "TODO: DirectiveNode gained source_line: int = 0 field — quote ast.py and add paired diff")

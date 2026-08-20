@@ -50,3 +50,6 @@
 
 ; axiom 14 (config-flag-gates-step): hypothetical disabled-step return
 (verify-manual (quote quote_verifier.no-transformations) "V")
+
+; --- readme negation fact (evidence doesn't compute -> false) ---
+(verify-manual (quote readme.evidence-computes) "V")

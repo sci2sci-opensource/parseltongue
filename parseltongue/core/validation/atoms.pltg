@@ -178,123 +178,12 @@
         :explanation "Forward-declared terms display as (primitive)"))
 
 ; =====================================================================
-; Reader pipeline: tokenize -> read_tokens -> atom
+; Moved ground truth
 ; =====================================================================
-
-(fact tokenize-doc false
-    :evidence (evidence "atoms.py"
-        :quotes ("Pure types. No grammar, no domain knowledge, no state.")
-        :explanation "tokenize moved to the grammar layer — atoms.py no longer contains or documents a tokenizer"))
-
-(fact comment-char false
-    :evidence (evidence "atoms.py"
-        :quotes ("Pure types. No grammar, no domain knowledge, no state.")
-        :explanation "Comment handling left atoms.py with the tokenizer — no reader code remains here"))
-
-(fact read-tokens-doc false
-    :evidence (evidence "atoms.py"
-        :quotes ("Pure types. No grammar, no domain knowledge, no state.")
-        :explanation "read_tokens moved to the grammar layer — no reader code remains in atoms.py"))
-
-(fact atom-doc false
-    :evidence (evidence "atoms.py"
-        :quotes ("Pure types. No grammar, no domain knowledge, no state.")
-        :explanation "atom() moved to the grammar layer — atoms.py no longer documents token conversion"))
-
-; atom() conversion chain: int -> float -> bool -> string -> keyword -> Symbol
-(fact atom-tries-int-first false
-    :evidence (evidence "atoms.py"
-        :quotes ("Pure types. No grammar, no domain knowledge, no state.")
-        :explanation "atom()'s conversion chain moved to the grammar layer — no int conversion in atoms.py"))
-
-(fact atom-tries-float-second false
-    :evidence (evidence "atoms.py"
-        :quotes ("Pure types. No grammar, no domain knowledge, no state.")
-        :explanation "atom()'s conversion chain moved to the grammar layer — no float conversion in atoms.py"))
-
-(fact atom-keyword-prefix false
-    :evidence (evidence "atoms.py"
-        :quotes ("Pure types. No grammar, no domain knowledge, no state.")
-        :explanation "Keyword-token handling moved to the grammar layer — not in atoms.py"))
-
-(fact atom-fallback-is-symbol false
-    :evidence (evidence "atoms.py"
-        :quotes ("Pure types. No grammar, no domain knowledge, no state.")
-        :explanation "atom()'s Symbol fallback moved to the grammar layer — atoms.py only defines the Symbol type"))
-
-; =====================================================================
-; parse / parse_all contract
-; =====================================================================
-
-(fact parse-doc false
-    :evidence (evidence "atoms.py"
-        :quotes ("Pure types. No grammar, no domain knowledge, no state.")
-        :explanation "parse moved to the grammar layer — atoms.py contains no parsing"))
-
-(fact parse-all-doc false
-    :evidence (evidence "atoms.py"
-        :quotes ("Pure types. No grammar, no domain knowledge, no state.")
-        :explanation "parse_all moved to the grammar layer — atoms.py contains no parsing"))
-
-; parse is tokenize + single read_tokens
-; parse_all is tokenize + loop of read_tokens
-; Theorem: parse_all on single-expression input returns [parse(input)]
-
-; =====================================================================
-; to_sexp — roundtrip printer
-; =====================================================================
-
-(fact to-sexp-doc false
-    :evidence (evidence "atoms.py"
-        :quotes ("Pure types. No grammar, no domain knowledge, no state.")
-        :explanation "to_sexp moved to the grammar layer — printing in atoms.py goes through ParseltongueGrammar.enc"))
-
-(fact to-sexp-bool-true false
-    :evidence (evidence "atoms.py"
-        :quotes ("Pure types. No grammar, no domain knowledge, no state.")
-        :explanation "Boolean printing moved to the grammar layer with to_sexp — not in atoms.py"))
-
-(fact to-sexp-bool-false false
-    :evidence (evidence "atoms.py"
-        :quotes ("Pure types. No grammar, no domain knowledge, no state.")
-        :explanation "Boolean printing moved to the grammar layer with to_sexp — not in atoms.py"))
-
-; =====================================================================
-; DSL helpers — match, free_vars, substitute
-; =====================================================================
-
-(fact match-doc false
-    :evidence (evidence "atoms.py"
-        :quotes ("Pure types. No grammar, no domain knowledge, no state.")
-        :explanation "match moved to the grammar layer — atoms.py has no pattern matching"))
-
-(fact free-vars-doc false
-    :evidence (evidence "atoms.py"
-        :quotes ("Pure types. No grammar, no domain knowledge, no state.")
-        :explanation "free_vars moved to the grammar layer — not in atoms.py"))
-
-(fact substitute-doc false
-    :evidence (evidence "atoms.py"
-        :quotes ("Pure types. No grammar, no domain knowledge, no state.")
-        :explanation "substitute moved to the grammar layer — not in atoms.py"))
-
-; Splat pattern support — docstring ground truth
-(fact match-splat-doc false
-    :evidence (evidence "atoms.py"
-        :quotes ("Pure types. No grammar, no domain knowledge, no state.")
-        :explanation "match and its ?... splat documentation moved to the grammar layer — not in atoms.py"))
-
-(fact substitute-splat-doc false
-    :evidence (evidence "atoms.py"
-        :quotes ("Pure types. No grammar, no domain knowledge, no state.")
-        :explanation "substitute and its ?... splicing documentation moved to the grammar layer — not in atoms.py"))
-
-; Axiom: match produces bindings that substitute can consume
-(axiom match-substitute-roundtrip
-    (= (implies (?bindings ?pattern ?expr) (= ?expr (?substitute ?pattern ?bindings))) true)
-    :evidence (evidence "atoms.py"
-        :quotes ("Pure types. No grammar, no domain knowledge, no state.")
-        :explanation "match and substitute moved to the grammar layer — the roundtrip schema is retained unbound, no longer grounded in atoms.py"))
+; The reader/printer pipeline (tokenize, read_tokens, atom, parse,
+; parse_all, to_sexp) now lives in grammar.py — its ground truth is in
+; grammar.pltg. The matcher (match, free_vars, substitute, and the ?...
+; splat facts) now lives in lang.py — its ground truth is in lang.pltg.
 
 ; =====================================================================
 ; Internal consistency: module contract vs content
@@ -306,23 +195,6 @@
 (derive module-is-stateless
     (and module-claims-pure-types module-claims-no-domain)
     :using (module-claims-pure-types module-claims-no-domain))
-
-; atom() true/false token values
-(fact atom-true-token false
-    :evidence (evidence "atoms.py"
-        :quotes ("Pure types. No grammar, no domain knowledge, no state.")
-        :explanation "atom() token handling moved to the grammar layer — no true-token branch in atoms.py"))
-
-(fact atom-false-token false
-    :evidence (evidence "atoms.py"
-        :quotes ("Pure types. No grammar, no domain knowledge, no state.")
-        :explanation "atom() token handling moved to the grammar layer — no false-token branch in atoms.py"))
-
-; Derive: atom() and to_sexp are roundtrip-compatible for booleans
-; atom("true") -> True, to_sexp(True) -> "true"
-(derive bool-roundtrip-consistent
-    (= atom-true-token to-sexp-bool-true)
-    :using (atom-true-token to-sexp-bool-true))
 
 ; Evidence str format uses is_grounded to decide status label
 (defterm evidence-unverified-status "UNVERIFIED"
@@ -375,41 +247,7 @@
 ; Code vs Docs — two-branch-then-diff
 ; =====================================================================
 
-; --- 1. Reader pipeline function count ---
-
-(derive reader-doc-count
-    (count-exists tokenize-doc read-tokens-doc atom-doc parse-doc parse-all-doc comment-char)
-    :using (count-exists counting.count-exists-base counting.count-exists-step
-            tokenize-doc read-tokens-doc atom-doc parse-doc parse-all-doc comment-char))
-
-(defterm reader-impl-count 0
-    :evidence (evidence "atoms.py"
-        :quotes ("Pure types. No grammar, no domain knowledge, no state."
-                 "Atoms is the foundation layer (pure types, no behavior). Grammar depends\n# on atoms for Symbol/Silence/WFF — that's correct.")
-        :explanation "Reader pipeline moved to the grammar layer — 0 reader features remain in atoms.py"))
-
-(diff reader-pipeline-coverage
-    :replace reader-doc-count
-    :with reader-impl-count)
-
-; --- 2. Atom conversion chain ---
-
-(derive atom-conv-doc-count
-    (count-exists atom-tries-int-first atom-tries-float-second atom-keyword-prefix atom-false-token atom-fallback-is-symbol)
-    :using (count-exists counting.count-exists-base counting.count-exists-step
-            atom-tries-int-first atom-tries-float-second atom-keyword-prefix atom-false-token atom-fallback-is-symbol))
-
-(defterm atom-conv-impl-count 0
-    :evidence (evidence "atoms.py"
-        :quotes ("Pure types. No grammar, no domain knowledge, no state."
-                 "Atoms is the foundation layer (pure types, no behavior). Grammar depends\n# on atoms for Symbol/Silence/WFF — that's correct.")
-        :explanation "atom() and its conversion branches moved to the grammar layer — 0 remain in atoms.py"))
-
-(diff atom-conversion-coverage
-    :replace atom-conv-doc-count
-    :with atom-conv-impl-count)
-
-; --- 3. Core type documentation ---
+; --- 1. Core type documentation ---
 
 (derive core-types-doc-count
     (count-exists symbol-docstring symbol-base-class evidence-docstring axiom-docstring theorem-docstring term-docstring)
@@ -425,7 +263,7 @@
     :replace core-types-doc-count
     :with core-types-impl-count)
 
-; --- 4. Evidence/provenance mechanism ---
+; --- 2. Evidence/provenance mechanism ---
 
 (derive origin-provenance-bound origin-is-provenance
     :bind ((?origin axiom-has-origin) (?provenance theorem-has-derivation))
@@ -446,7 +284,7 @@
     :replace evidence-mechanism-doc-count
     :with evidence-mechanism-impl-count)
 
-; --- 5. Evidence status labels ---
+; --- 3. Evidence status labels ---
 ; String-valued defterms — diff each against its code-branch counterpart
 
 (defterm evidence-unverified-code "UNVERIFIED"
@@ -467,24 +305,7 @@
     :replace evidence-grounded-status
     :with evidence-grounded-code)
 
-; --- 6. DSL helpers ---
-
-(derive dsl-helpers-doc-count
-    (count-exists match-doc free-vars-doc substitute-doc to-sexp-doc)
-    :using (count-exists counting.count-exists-base counting.count-exists-step
-            match-doc free-vars-doc substitute-doc to-sexp-doc match-substitute-roundtrip))
-
-(defterm dsl-helpers-impl-count 0
-    :evidence (evidence "atoms.py"
-        :quotes ("Pure types. No grammar, no domain knowledge, no state."
-                 "Atoms is the foundation layer (pure types, no behavior). Grammar depends\n# on atoms for Symbol/Silence/WFF — that's correct.")
-        :explanation "match/free_vars/substitute/to_sexp moved to the grammar layer — 0 DSL helpers remain in atoms.py"))
-
-(diff dsl-helpers-coverage
-    :replace dsl-helpers-doc-count
-    :with dsl-helpers-impl-count)
-
-; --- 7. Term display paths ---
+; --- 4. Term display paths ---
 
 (derive term-display-doc-count
     (count-exists term-forward-decl-display term-has-body-display)
@@ -510,48 +331,7 @@
     :replace term-display-full-doc-count
     :with term-display-impl-count)
 
-; --- 8. Splat pattern support ---
-
-(fact match-splat-impl false
-    :evidence (evidence "atoms.py"
-        :quotes ("Pure types. No grammar, no domain knowledge, no state.")
-        :explanation "match() and its ?... splat matching moved to the grammar layer — not in atoms.py"))
-
-(fact substitute-splat-impl false
-    :evidence (evidence "atoms.py"
-        :quotes ("Pure types. No grammar, no domain knowledge, no state.")
-        :explanation "substitute() and its ?... splicing moved to the grammar layer — not in atoms.py"))
-
-(derive splat-doc-count
-    (count-exists match-splat-doc substitute-splat-doc)
-    :using (count-exists match-splat-doc substitute-splat-doc))
-
-(derive splat-impl-count
-    (count-exists match-splat-impl substitute-splat-impl)
-    :using (count-exists match-splat-impl substitute-splat-impl))
-
-(derive splat-paired-count
-    (count-exists (and match-splat-doc match-splat-impl)
-                  (and substitute-splat-doc substitute-splat-impl))
-    :using (count-exists match-splat-doc match-splat-impl substitute-splat-doc substitute-splat-impl))
-
-(diff splat-paired-vs-doc
-    :replace splat-doc-count
-    :with splat-paired-count)
-
-(diff splat-paired-vs-impl
-    :replace splat-impl-count
-    :with splat-paired-count)
-
-(diff match-splat-pair
-    :replace match-splat-doc
-    :with match-splat-impl)
-
-(diff substitute-splat-pair
-    :replace substitute-splat-doc
-    :with substitute-splat-impl)
-
-; --- 9. Module contract (purity vs mutability) ---
+; --- 5. Module contract (purity vs mutability) ---
 ; Docstring claims purity. Axiom: purity implies immutability.
 ; Code: all types are now frozen — diff confirms purity contract holds.
 
@@ -584,7 +364,7 @@
     :replace module-purity-contract
     :with all-types-immutable)
 
-; --- 9. Evidence default grounding ---
+; --- 6. Evidence default grounding ---
 ; Docstring says grounding requires verified or manual.
 ; Code defaults both to False.
 ; Both paths independently prove: defaults don't satisfy grounding.
@@ -617,24 +397,7 @@
     :replace bound-grounding-doc
     :with bound-grounding-impl)
 
-; --- 10. Bool roundtrip consistency ---
-; Parser: atom("true")→True, atom("false")→False
-; Printer: to_sexp(True)→"true", to_sexp(False)→"false"
-; Diff confirms roundtrip works for both values.
-
-(derive bool-true-roundtrip
-    (= atom-true-token to-sexp-bool-true)
-    :using (atom-true-token to-sexp-bool-true bool-roundtrip-consistent))
-
-(derive bool-false-roundtrip
-    (= atom-false-token to-sexp-bool-false)
-    :using (atom-false-token to-sexp-bool-false))
-
-(diff bool-roundtrip-coverage
-    :replace bool-true-roundtrip
-    :with bool-false-roundtrip)
-
-; --- 11. WFF/definition invariants across atom types ---
+; --- 7. WFF/definition invariants across atom types ---
 ; Axiom and Theorem always carry a WFF (never None).
 ; Term has two modes: primitive (definition is None) or computed (definition is not None).
 ; Docstrings document these invariants; code enforces them structurally.
@@ -783,14 +546,13 @@
 ; =====================================================================
 ; Exports — for core.pltg cross-checks against README
 ; =====================================================================
+; Reader/printer exports (export-to-sexp, export-parser-stages-count)
+; live in grammar.pltg; matcher/splat exports (export-match-substitute,
+; export-substitute-splat, export-splat-confirmed) live in lang.pltg.
 
 (derive export-core-types-confirmed
     (util.export module-claims-pure-types)
     :using (util.export module-claims-pure-types))
-
-(derive export-splat-confirmed
-    (util.export match-splat-impl)
-    :using (util.export match-splat-impl))
 
 (derive export-frozen-dataclasses
     (util.export evidence-is-frozen)
@@ -800,40 +562,46 @@
     (util.export symbol-is-immutable)
     :using (util.export symbol-is-immutable))
 
-(derive to-sexp-exists (= to-sexp-doc false) :using (to-sexp-doc))
-(derive export-to-sexp
-    (util.export to-sexp-exists)
-    :using (util.export to-sexp-exists))
+; =====================================================================
+; Evidence typed interior — document / verification (graduated TODO stubs)
+; =====================================================================
+; tokenize's track_lines stub also graduated — tokenize lives in
+; grammar.py now, so its grounded fact moved to grammar.pltg.
 
-(derive export-match-substitute
-    (util.export match-splat-doc)
-    :using (util.export match-splat-doc))
+; Evidence.document: str — names the registered source document
+(fact evidence-document-field "source.display"
+    :evidence (evidence "atoms.py"
+        :quotes ("def document(self) -> str:\n        \"\"\"Interface-preserving view: the source's display string.\"\"\"\n        return self.source.display"
+                 "Evidence source: a single registered document.")
+        :explanation "Evidence.document is a str view over the typed interior — the registered source document's display name"))
 
-(derive export-substitute-splat
-    (util.export substitute-splat-doc)
-    :using (util.export substitute-splat-doc))
+; Evidence.verification: list — filled by verifier
+(fact evidence-verification-field "filled-by-verifier"
+    :evidence (evidence "atoms.py"
+        :quotes ("verification: list = field(default_factory=list)  # filled by verifier")
+        :explanation "Evidence.verification is a list, empty by default, filled by the verifier"))
 
-; Parser pipeline stages: tokenize, read_tokens, parse/parse_all
-(derive parser-stages-count
-    (count-exists tokenize-doc read-tokens-doc parse-doc)
-    :using (count-exists tokenize-doc read-tokens-doc parse-doc))
+; The shape of each verification entry is owned by the verifying layer —
+; atoms.py deliberately does not prescribe it. (The former stub's per-key
+; result schema lives in the verifier, outside this module's registered
+; document, so the fact is restated to what atoms.py itself declares.)
+(fact evidence-verification-result-schema "verifier-defined"
+    :evidence (evidence "atoms.py"
+        :quotes ("The language does not prescribe the\n    verification algorithm; whichever layer can ground a given type fills\n    ``verification`` and flips ``verified``.")
+        :explanation "atoms.py leaves the structure of verification entries to whichever layer grounds the evidence type"))
 
-(derive export-parser-stages-count
-    (util.export parser-stages-count)
-    :using (util.export parser-stages-count))
+(derive evidence-interior-doc-count
+    (count-exists evidence-document-field evidence-verification-field evidence-verification-result-schema)
+    :using (count-exists counting.count-exists-base counting.count-exists-step
+            evidence-document-field evidence-verification-field evidence-verification-result-schema))
 
-; --- TODO: new functionality ---
+(defterm evidence-interior-impl-count 3
+    :evidence (evidence "atoms.py"
+        :quotes ("def document(self) -> str:"
+                 "verification: list = field(default_factory=list)"
+                 "whichever layer can ground a given type fills")
+        :explanation "3 typed-interior features in Evidence: document view, verification list, verifier-owned entry structure"))
 
-(defterm stub-track-lines
-    :origin "TODO: tokenize() gained track_lines=True param — returns (tokens, token_lines) tuple for source line tracking")
-
-; --- TODO: Evidence class poorly documented ---
-
-(defterm stub-evidence-verification-field
-    :origin "TODO: Evidence.verification: list — filled by verifier, list of result dicts with keys: verified, quote, reason, confidence")
-
-(defterm stub-evidence-verification-result-schema
-    :origin "TODO: Each verification result is a dict with 'verified' (bool), 'quote' (str), 'reason' (str), 'confidence' (dict with 'score', 'level')")
-
-(defterm stub-evidence-document-field
-    :origin "TODO: Evidence.document: str — name of registered source document to verify quotes against")
+(diff evidence-interior-coverage
+    :replace evidence-interior-doc-count
+    :with evidence-interior-impl-count)

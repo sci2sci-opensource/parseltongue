@@ -115,6 +115,26 @@
             tokenize-stage read-tokens-stage parse-api-stage))
 
 ; =====================================================================
+; tokenize track_lines — doc vs impl (graduated TODO stub from atoms.pltg)
+; =====================================================================
+
+(fact tokenize-track-lines true
+    :evidence (evidence "grammar.py"
+        :quotes ("def tokenize(source: str, *, track_lines: bool = False) -> list[str] | tuple[list[str], list[int]]:"
+                 "If *track_lines* is True, returns ``(tokens, token_lines)`` where\n    ``token_lines[i]`` is the 1-based line number of ``tokens[i]``.")
+        :explanation "tokenize() gained track_lines — docstring documents the (tokens, token_lines) return shape"))
+
+(fact tokenize-track-lines-impl true
+    :evidence (evidence "grammar.py"
+        :quotes ("def tokenize(source: str, *, track_lines: Literal[True]) -> tuple[list[str], list[int]]: ..."
+                 "token_lines.append(current_start_line)")
+        :explanation "overload: track_lines=True returns (tokens, token_lines); tokenizer records 1-based start lines"))
+
+(diff tokenize-track-lines-pair
+    :replace tokenize-track-lines
+    :with tokenize-track-lines-impl)
+
+; =====================================================================
 ; Exports — for core_clean.pltg cross-checks against README
 ; =====================================================================
 

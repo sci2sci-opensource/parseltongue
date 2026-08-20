@@ -20,7 +20,6 @@ class TestParseltongueCoreConsistency(unittest.TestCase):
         cls.system = loader.load_main(CORE_PLTG, strict=True)
         cls.module_files = {name: ctx.current_file for name, ctx in loader.modules_contexts.items()}
 
-    @pytest.mark.xfail(reason="WIP: 2 consistency issues remain")
     def test_core_consistency(self):
         report = self.system.consistency()
         print(report.verbose())
@@ -432,7 +431,6 @@ class TestParseltongueCoreConsistency(unittest.TestCase):
 
         self.assertEqual(dangling_before, dangling_after, "evaluate() changed dangling set:\n" + "\n".join(msg))
 
-    @pytest.mark.xfail(reason="WIP: 2 consistency issues remain")
     def test_provenance_and_synthetic_diffs(self):
         """Traverse every diff to ground and assert none are fully synthetic.
 

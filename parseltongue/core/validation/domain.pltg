@@ -9,3 +9,8 @@
 ; Something is controlled means human.
 (axiom manual-control-implies-human (implies ?manual-available ?human-in-loop)
     :origin "manual verification capability implies human-in-the-loop workflow")
+
+; Design observations with no document source — signed in place
+; (domain loads after verify_manual, so signatures cannot live there).
+(verify-manual (quote manual-control-implies-human) "V")
+(verify-manual (quote set-implies-fast) "V")

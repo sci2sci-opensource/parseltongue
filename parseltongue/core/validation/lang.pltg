@@ -33,6 +33,26 @@
         :quotes ("EQ = Symbol(\"=\")")
         :explanation "= symbol"))
 
+(fact scope-symbol "scope"
+    :evidence (evidence "lang.py"
+        :quotes ("SCOPE = Symbol(\"scope\")")
+        :explanation "scope special form"))
+
+(fact self-symbol "self"
+    :evidence (evidence "lang.py"
+        :quotes ("SELF = Symbol(\"self\")")
+        :explanation "self special form"))
+
+(fact project-symbol "project"
+    :evidence (evidence "lang.py"
+        :quotes ("PROJECT = Symbol(\"project\")")
+        :explanation "project special form"))
+
+(fact delegate-symbol "delegate"
+    :evidence (evidence "lang.py"
+        :quotes ("DELEGATE = Symbol(\"delegate\")")
+        :explanation "delegate special form"))
+
 (fact special-forms-tuple-size 8
     :evidence (evidence "lang.py"
         :quotes ("SPECIAL_FORMS = (IF, LET, QUOTE, STRICT, SCOPE, SELF, PROJECT, DELEGATE)")
@@ -414,26 +434,6 @@ SPLAT_PREFIX = \"?...\"")
 ; =====================================================================
 ; Scope special forms — new symbols
 ; =====================================================================
-
-(fact scope-symbol "scope"
-    :evidence (evidence "lang.py"
-        :quotes ("SCOPE = Symbol(\"scope\")")
-        :explanation "scope special form"))
-
-(fact self-symbol "self"
-    :evidence (evidence "lang.py"
-        :quotes ("SELF = Symbol(\"self\")")
-        :explanation "self special form"))
-
-(fact project-symbol "project"
-    :evidence (evidence "lang.py"
-        :quotes ("PROJECT = Symbol(\"project\")")
-        :explanation "project special form"))
-
-(fact delegate-symbol "delegate"
-    :evidence (evidence "lang.py"
-        :quotes ("DELEGATE = Symbol(\"delegate\")")
-        :explanation "delegate special form"))
 
 ; LANG_DOCS entries for the scope family — landed; former TODO stubs
 ; graduated into grounded facts, paired against the symbol declarations.

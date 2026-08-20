@@ -2,6 +2,7 @@
 
 (load-document "engine.py" "../engine.py")
 (load-document "dsl_loader.py" "../dsl_loader.py")
+(load-document "engine_stack.py" "../engines/engine_stack.py")
 (import (quote ..std.counting))
 (import (quote ..std.epistemics))
 (import (quote ..std.lists))
@@ -313,6 +314,14 @@
         :quotes ("engine.evaluate(expr)")
         :explanation "Unknown directives fall through to evaluate"))
 
+; The computable directive set is exactly the five dispatch branches.
+; Evidence never dispatches — it enters directives only through
+; resolve_origin, as origin data.
+(derive computable-directives-impl-count
+    (count-exists load-source-handles-fact load-source-handles-axiom load-source-handles-defterm load-source-handles-derive load-source-handles-diff)
+    :using (count-exists counting.count-exists-base counting.count-exists-step
+            load-source-handles-fact load-source-handles-axiom load-source-handles-defterm load-source-handles-derive load-source-handles-diff))
+
 ; =====================================================================
 ; Code vs Docs — two-branch-then-diff
 ; =====================================================================
@@ -486,6 +495,15 @@
     :evidence (evidence "dsl_loader.py"
         :quotes ("engine.introduce_axiom(name, wff, self.resolve_origin(expr))")
         :explanation "axiom directive calls resolve_origin"))
+
+(fact evidence-not-dispatched true
+    :evidence (evidence "dsl_loader.py"
+        :quotes ("if head == AXIOM:" "elif head == DEFTERM:" "elif head == FACT:" "elif head == DERIVE:" "elif head == DIFF:")
+        :explanation "the directive dispatch has exactly these five branches — no evidence branch; evidence reaches directives via resolve_origin only"))
+
+(derive evidence-excluded-impl
+    (and evidence-not-dispatched fact-calls-resolve-origin)
+    :using (evidence-not-dispatched fact-calls-resolve-origin))
 
 (fact defterm-calls-resolve-origin true
     :evidence (evidence "dsl_loader.py"
@@ -1481,6 +1499,60 @@
     :using (util.export consistency-states-total))
 
 ; =====================================================================
+; Scope special forms (scope/self/project/delegate) — engine_stack.py
+; =====================================================================
+
+(fact scope-handler true
+    :evidence (evidence "engine_stack.py"
+        :quotes ("elif head == SCOPE:\n                    result = self._eval_scope(expr, env, axiom_scope, restricted)" "if scope_name == SELF:" "resolved = [_rp(a) for a in expr[2:]]\n            log.info(\"_rp scope=%r resolved=%r\", scope_name, resolved)\n            return scope_val(scope_name, *resolved)")
+        :explanation "SCOPE dispatches to _eval_scope, which handles the self identity scope or a callable target and resolves project/delegate in the args via _rp"))
+
+(fact self-handler true
+    :evidence (evidence "engine_stack.py"
+        :quotes ("elif head == SELF:\n                    args_list = expr[1:]\n                    if not args_list:\n                        result = []\n                    elif len(args_list) == 1:\n                        expr = args_list[0]")
+        :explanation "SELF evaluates all args in the current engine (identity scope): no args yields [], a single arg is tail-evaluated, multiple args go through the _K_SELF_ARGS frame"))
+
+(fact project-handler true
+    :evidence (evidence "engine_stack.py"
+        :quotes ("elif head == PROJECT:\n                    if len(expr) == 2:\n                        expr = expr[1]\n                        continue\n                    basis = expr[1]" "stack.append((_K_PROJECT_BASIS, basis, expr[2]))")
+        :explanation "PROJECT with 1 arg evaluates in the current engine; with 2 args it evaluates the body against a named basis via the _K_PROJECT_BASIS frame"))
+
+(fact delegate-handler true
+    :evidence (evidence "engine_stack.py"
+        :quotes ("elif head == DELEGATE:\n                    result = self._eval_delegate(expr, env, axiom_scope, restricted)" "while isinstance(e, (list, tuple)) and e and e[0] == DELEGATE:\n            depth += 1" "for proposal in reversed(binds):\n            if proposal != []:\n                found += 1\n                if found == depth:\n                    return proposal")
+        :explanation "DELEGATE counts nesting depth by peeling nested delegate heads, then picks the depth-th non-empty proposal from the :bind proposal stack"))
+
+(fact rp-walk true
+    :evidence (evidence "engine_stack.py"
+        :quotes ("def _rp(e):\n                if not isinstance(e, (list, tuple)) or not e:\n                    return e\n                if e[0] == PROJECT:\n                    return self._eval(e, env, axiom_scope, restricted)" "proposal = _delegate_proposal(e)\n                        new_binds = existing + [proposal]" "return base + [KW_BIND, new_binds]")
+        :explanation "_rp is the project resolution walk inside SCOPE: it eagerly evaluates project subexpressions and posts delegate proposals onto the :bind stack"))
+
+(fact delegate-proposal true
+    :evidence (evidence "engine_stack.py"
+        :quotes ("def _delegate_proposal(delegate_expr):\n                pattern = None\n                e = delegate_expr\n                while isinstance(e, (list, tuple)) and e and e[0] == DELEGATE:" "if vname == \"?_level\":\n                        bindings[var] = level" "bound_body = substitute(body, bindings)\n                bound_body = _resolve_projects(bound_body)" "bound_pattern = substitute(pattern, bindings)")
+        :explanation "_delegate_proposal peels delegate nesting to find pattern and body, binds ?-vars from env plus ?_level, evaluates the body and checks the conditional pattern before accepting the proposal"))
+
+; Four special-form branches in the _eval dispatch
+(defterm scope-family-forms-count 4
+    :evidence (evidence "engine_stack.py"
+        :quotes ("elif head == SELF:" "elif head == PROJECT:" "elif head == DELEGATE:" "elif head == SCOPE:")
+        :explanation "Four scope-family special-form branches in the _eval dispatch loop"))
+
+(derive scope-family-handler-count
+    (count-exists scope-handler self-handler project-handler delegate-handler)
+    :using (count-exists counting.count-exists-base counting.count-exists-step
+            scope-handler self-handler project-handler delegate-handler))
+
+(derive scope-family-helper-count
+    (count-exists rp-walk delegate-proposal)
+    :using (count-exists counting.count-exists-base counting.count-exists-step
+            rp-walk delegate-proposal))
+
+(diff scope-family-handlers-vs-forms
+    :replace scope-family-handler-count
+    :with scope-family-forms-count)
+
+; =====================================================================
 ; Exports — for core.pltg cross-checks against README
 ; =====================================================================
 
@@ -1495,6 +1567,18 @@
 (derive export-computable-directives
     (util.export load-source-handles-derive)
     :using (util.export load-source-handles-derive))
+
+(derive export-computable-directive-impl-count
+    (util.export computable-directives-impl-count)
+    :using (util.export computable-directives-impl-count))
+
+(derive export-scope-family-handler-count
+    (util.export scope-family-handler-count)
+    :using (util.export scope-family-handler-count))
+
+(derive export-evidence-excluded
+    (util.export evidence-excluded-impl)
+    :using (util.export evidence-excluded-impl))
 
 (derive export-effects-in-computable
     (util.export load-source-fallback-evaluates)
@@ -1624,14 +1708,5 @@
     (util.export expr-references-is-static)
     :using (util.export expr-references-is-static))
 
-; --- TODO: new functionality ---
-(defterm stub-suppress-log :origin "TODO: consistency() gained suppress_log: bool = True param — silences log.warning output by default")
-
-; --- Scope special forms in _eval ---
-(defterm stub-scope-handler :origin "TODO: SCOPE handler — dispatches to callable or self, resolves project/delegate in args via _rp")
-(defterm stub-self-handler :origin "TODO: SELF handler — evaluates all args in current engine (identity scope)")
-(defterm stub-project-handler :origin "TODO: PROJECT handler — evaluates in current engine (1 arg) or named basis (2 args)")
-(defterm stub-delegate-handler :origin "TODO: DELEGATE handler — counts nesting depth, picks from :bind proposal stack")
-(defterm stub-rp :origin "TODO: _rp — project resolution walk inside SCOPE, eagerly evaluates project, posts delegate proposals to :bind stack")
-(defterm stub-delegate-proposal :origin "TODO: _delegate_proposal — peels delegate nesting, binds ?-vars from env + ?_level, evaluates conditional pattern then body")
+; suppress_log: bool = True on consistency() is covered by consistency-has-impl above.
 

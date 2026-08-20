@@ -26,9 +26,6 @@
 ; verify in-place — core loads after verify_manual, so circular dep if done there
 (verify-manual (quote count-exists) "V")
 
-(defterm stub util.stub :origin "import")
-
-
 ; =====================================================================
 ; Special forms: README vs lang.py
 ; =====================================================================
@@ -353,10 +350,17 @@
 (diff ee-dependents-derivation-check :replace engine.export-dependents-derivation-check :with readme.export-diff-follows-derivation-chains)
 (diff ee-dependents-transitivity :replace engine.export-dependents-transitivity :with readme.export-diff-transitive)
 (diff ee-dependents-types :replace engine.export-dependents-types :with readme.export-diff-scan-type-count)
-(diff ee-dependents-scan-paired :replace readme.export-diff-scan-paired :with stub :using (stub))
-(diff ee-computable-directives :replace readme.export-computable-directive-count :with stub :using (stub))
-(diff ee-evidence-excluded :replace readme.bound-evidence-excludes-computation :with stub :using (stub))
-(diff ee-diff-scans-five :replace readme.readme-diff-scans-five-types :with stub :using (stub))
+(diff ee-dependents-scan-paired :replace readme.export-diff-scan-paired :with engine.export-dependents-types)
+(diff ee-computable-directives :replace readme.export-computable-directive-count :with engine.export-computable-directive-impl-count)
+(diff ee-evidence-excluded :replace readme.bound-evidence-excludes-computation :with engine.export-evidence-excluded)
+
+; README claims the diff scan transitively covers all five definition
+; types; the impl side pairs the 5-type scan count with transitivity.
+(derive diff-scans-five-impl
+    (and (= engine.export-dependents-types 5) engine.export-dependents-transitivity)
+    :using (engine.export-dependents-types engine.export-dependents-transitivity))
+
+(diff ee-diff-scans-five :replace readme.readme-diff-scans-five-types :with diff-scans-five-impl)
 
 (diff ee-eval-diff-excludes-self :replace engine.eval-diff-excludes-self :with readme.export-diff-excludes-self)
 (diff ee-eval-diff-handles-diff-contamination :replace engine.eval-diff-handles-diff-contamination :with readme.export-diff-contaminates-diffs)
@@ -567,20 +571,14 @@
     (and readme.readme-documents-ast-field-children readme.readme-documents-ast-field-dependents)
     :using (readme.readme-documents-ast-field-children readme.readme-documents-ast-field-dependents))
 
-(derive stub-ast-effects-no-name stub :using (stub))
-(derive stub-ast-extract-behavior stub :using (stub))
-(derive stub-ast-graph-behavior stub :using (stub))
-(derive stub-ast-identity-paired stub :using (stub))
-(derive stub-ast-node-identity stub :using (stub))
-(derive stub-ast-walk-behavior stub :using (stub))
 
 (diff thm-ast-children-dependents :replace ast_verifier.bound-children-dependents :with readme-ast-children-and-dependents)
-(diff thm-ast-effects-no-name :replace ast_verifier.bound-effects-no-name :with stub-ast-effects-no-name)
-(diff thm-ast-extract-behavior :replace ast_verifier.extract-behavior-count :with stub-ast-extract-behavior)
-(diff thm-ast-graph-behavior :replace ast_verifier.graph-behavior-count :with stub-ast-graph-behavior)
-(diff thm-ast-identity-paired :replace ast_verifier.identity-paired :with stub-ast-identity-paired)
-(diff thm-ast-node-identity :replace ast_verifier.node-identity-paired :with stub-ast-node-identity)
-(diff thm-ast-walk-behavior :replace ast_verifier.walk-behavior-count :with stub-ast-walk-behavior)
+(diff thm-ast-effects-no-name :replace ast_verifier.bound-effects-no-name :with readme.readme-documents-ast-effects-no-name)
+(diff thm-ast-extract-behavior :replace ast_verifier.extract-behavior-count :with readme.readme-ast-extract-behavior-count)
+(diff thm-ast-graph-behavior :replace ast_verifier.graph-behavior-count :with readme.readme-ast-graph-behavior-count)
+(diff thm-ast-identity-paired :replace ast_verifier.identity-paired :with readme.readme-ast-identity-count)
+(diff thm-ast-node-identity :replace ast_verifier.node-identity-paired :with readme.readme-ast-identity-count)
+(diff thm-ast-walk-behavior :replace ast_verifier.walk-behavior-count :with readme.readme-ast-walk-behavior-count)
 
 ; --- lazy_loader theorems ---
 (derive readme-lazy-result-count
@@ -595,22 +593,15 @@
                          readme.readme-documents-lazy-result-skipped
                          readme.readme-documents-lazy-result-loaded))
 
-(derive stub-lazy-entry-points stub :using (stub))
-(derive stub-lazy-fault-tolerance stub :using (stub))
-(derive stub-lazy-patch-paired stub :using (stub))
-(derive stub-lazy-pre-effects stub :using (stub))
-(derive stub-lazy-post-effects stub :using (stub))
-(derive stub-lazy-effect-rank stub :using (stub))
-(derive stub-lazy-line-tracking stub :using (stub))
 
-(diff thm-lazy-entry-points :replace lazy_loader.entry-point-count :with stub-lazy-entry-points)
-(diff thm-lazy-fault-tolerance :replace lazy_loader.fault-tolerance-count :with stub-lazy-fault-tolerance)
+(diff thm-lazy-entry-points :replace lazy_loader.entry-point-count :with readme.readme-lazy-entry-point-count)
+(diff thm-lazy-fault-tolerance :replace lazy_loader.fault-tolerance-count :with readme.readme-lazy-fault-tolerance-count)
 (diff thm-lazy-name-collection :replace lazy_loader.name-collection-enables-patching :with readme.readme-documents-lazy-loader-phase-patch)
-(diff thm-lazy-patch-paired :replace lazy_loader.patch-paired :with stub-lazy-patch-paired)
-(diff thm-lazy-pre-effects :replace lazy_loader.export-pre-directive-effects :with stub-lazy-pre-effects)
-(diff thm-lazy-post-effects :replace lazy_loader.export-post-directive-effects :with stub-lazy-post-effects)
-(diff thm-lazy-effect-rank :replace lazy_loader.export-effect-rank :with stub-lazy-effect-rank)
-(diff thm-lazy-line-tracking :replace lazy_loader.export-line-tracking :with stub-lazy-line-tracking)
+(diff thm-lazy-patch-paired :replace lazy_loader.patch-paired :with readme.readme-lazy-patch-count)
+(diff thm-lazy-pre-effects :replace lazy_loader.export-pre-directive-effects :with readme.readme-documents-lazy-pre-effects)
+(diff thm-lazy-post-effects :replace lazy_loader.export-post-directive-effects :with readme.readme-documents-lazy-post-effects)
+(diff thm-lazy-effect-rank :replace lazy_loader.export-effect-rank :with readme.readme-documents-lazy-effect-rank)
+(diff thm-lazy-line-tracking :replace lazy_loader.export-line-tracking :with readme.readme-documents-lazy-line-tracking)
 (diff thm-lazy-result-methods :replace lazy_loader.result-method-count :with readme-lazy-result-count)
 
 ; --- other module theorems ---
@@ -670,25 +661,9 @@
 (diff thm-readme-manual-categories :replace readme.export-manual-categories-count :with manual-categories-count)
 
 
-; --- TODO: inspect/lens module coverage ---
-
-(defterm stub-probe-structure
-    :origin "TODO: probe(term, engine) → CoreToConsequenceStructure — graph, layers, depths, max_depth")
-
-(defterm stub-lens-api
-    :origin "TODO: Lens class — view, view_layer, view_consumer, view_node, view_inputs, view_subgraph, view_kinds, view_roots, focus")
-
-(defterm stub-perspective-instances
-    :origin "TODO: Perspective instances (not types) — MarkdownPerspective, AsciiPerspective, MDebuggerPerspective")
-
-(defterm stub-mdebugger-perspective
-    :origin "TODO: MDebuggerPerspective takes LazyLoader, annotates output with file:line from AST, uses os.path.relpath")
-
-(defterm stub-inspect-loaded
-    :origin "TODO: inspect_loaded(term, loader) — convenience combining probe + Lens with MDebuggerPerspective")
-
-(defterm stub-brief-vs-detailed
-    :origin "TODO: fmt_dsl(brief=True) truncates quotes in structure view; fmt_origin_rows(detailed=True) shows QV line + confidence in detail view")
+; The inspect/lens layer is validated by its own modules
+; (inspect_main.pltg → inspect_bench/search/lens/evaluate/hologram);
+; the TODO stubs that used to sit here predate those modules.
 
 ; =====================================================================
 ; Full

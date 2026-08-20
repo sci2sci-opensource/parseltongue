@@ -780,7 +780,32 @@
     (util.export effect-import-deduplicates)
     :using (util.export effect-import-deduplicates))
 
-; --- TODO: new functionality ---
+; =====================================================================
+; PltgError — source-located loader errors
+; =====================================================================
 
-(defterm stub-pltg-error
-    :origin "TODO: PltgError exception class added — wraps errors with file:line and import stack trace")
+(fact pltg-error-class true
+    :evidence (evidence "loader.py"
+        :quotes ("class PltgError(Exception):"
+                 "Error with .pltg source location and import stack.")
+        :explanation "PltgError exception class with its docstring"))
+
+(fact pltg-error-wraps-location true
+    :evidence (evidence "loader.py"
+        :quotes ("self.file = file"
+                 "self.line = line"
+                 "self.stack = stack or []"
+                 "loc = format_loc(self.file, self.line)"
+                 "parts.append(f\"  imported from {format_loc(frame)}\")")
+        :explanation "PltgError stores file/line/import stack and renders file:line plus the import chain"))
+
+(derive pltg-error-fact-count
+    (count-exists pltg-error-class pltg-error-wraps-location)
+    :using (count-exists pltg-error-class pltg-error-wraps-location))
+
+(defterm pltg-error-expected 2
+    :evidence (evidence "loader.py"
+        :quotes ("class PltgError(Exception):" "loc = format_loc(self.file, self.line)")
+        :explanation "2 grounded PltgError facts: class definition and file:line wrapping"))
+
+(diff pltg-error-coverage :replace pltg-error-fact-count :with pltg-error-expected)
