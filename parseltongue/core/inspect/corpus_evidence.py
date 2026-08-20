@@ -15,6 +15,7 @@ with the corpus size and — on refutation — counter-example rows.
 
 import fnmatch
 import logging
+import os
 from dataclasses import replace
 from pathlib import Path
 
@@ -126,22 +127,42 @@ class CorpusEvidenceVerifier:
             return set()
 
     def _closure_gaps(self, scope: str, excludes: tuple, indexed: set) -> list:
-        """Files on disk inside the scope that are neither indexed nor classified."""
-        base = (self._root / scope) if scope and (self._root / scope).is_dir() else self._root
+        """Files on disk inside the scope that are neither indexed nor classified.
+
+        Walks only when the scope names a real directory under the root —
+        a scope naming a single document (or an index-relative file) has
+        no directory tree to close over. The walk prunes ignored
+        directories instead of enumerating them (rglob through .git or a
+        virtualenv costs minutes per claim).
+        """
+        if scope and (self._root / scope).is_dir():
+            base = self._root / scope
+        elif scope:
+            # Scope names a document / file, not a directory — closure over
+            # the index alone; nothing on disk to walk.
+            return []
+        else:
+            base = self._root
         patterns = load_ignore_patterns(self._root)
         gaps = []
-        for path in sorted(base.rglob("*")):
-            if not path.is_file():
-                continue
-            rel = path.relative_to(self._root).as_posix()
-            if not self._in_scope(rel, scope):
-                continue
-            if self._excluded(rel, excludes):
-                continue
-            if _is_ignored(rel, patterns):
-                continue
-            if rel not in indexed:
-                gaps.append(rel)
+        for dirpath, dirnames, filenames in os.walk(base):
+            rel_dir = Path(dirpath).relative_to(self._root).as_posix()
+            # Prune ignored subtrees before descending
+            dirnames[:] = [
+                d
+                for d in sorted(dirnames)
+                if not _is_ignored((f"{rel_dir}/{d}" if rel_dir != "." else d) + "/placeholder", patterns)
+            ]
+            for fname in sorted(filenames):
+                rel = f"{rel_dir}/{fname}" if rel_dir != "." else fname
+                if not self._in_scope(rel, scope):
+                    continue
+                if self._excluded(rel, excludes):
+                    continue
+                if _is_ignored(rel, patterns):
+                    continue
+                if rel not in indexed:
+                    gaps.append(rel)
         return gaps
 
     def _postings(self, query_text: str, scope: str, excludes: tuple) -> dict:
