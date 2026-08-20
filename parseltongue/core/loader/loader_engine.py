@@ -15,7 +15,6 @@ is pure: reuses or creates a translator, translates, returns frozen analysis
 
 import logging
 import os
-from typing import Any
 
 from ..ast import AnnotatedDirective, NavList
 from ..atoms import SILENCE, Silence, Symbol
@@ -27,6 +26,9 @@ from .loader_morphism import (
     MorphismReport,
     PatchContext,
     _lm_v2,
+    _patch_in_parent,
+    _resolve_bare,
+    _resolve_dotted,
 )
 from .loader_translator import (
     EngineKnown,
@@ -37,47 +39,8 @@ from .loader_translator import (
 log = logging.getLogger("parseltongue.loader")
 
 
-# ============================================================
-# Patching helpers (pure, no engine state needed)
-# ============================================================
-
-
-def _patch_in_parent(expr: Any, index: int, value: Any) -> None:
-    """Replace expr[index] with value. If expr is a tuple, rebuild and replace in parent."""
-    if isinstance(expr, list):
-        expr[index] = value
-    elif isinstance(expr, tuple):
-        parent = getattr(expr, 'parent', None)
-        if parent is not None:
-            pos = getattr(expr, 'pos', None)
-            new = expr[:index] + (value,) + expr[index + 1 :]
-            parent[pos] = new
-
-
-def _resolve_dotted(s: str, ctx: PatchContext, line: int) -> str | None:
-    """Try to resolve a dotted symbol via aliases. Returns resolved name or None."""
-    for alias, canonical in ctx.aliases.items():
-        prefix = alias + "."
-        if s.startswith(prefix):
-            target = canonical + s[len(alias) :]
-            if target in ctx.known_names:
-                ctx.log_resolution(s, target, f"alias:{alias}->{canonical}", line)
-                return target
-    return None
-
-
-def _resolve_bare(s: str, ctx: PatchContext, line: int) -> str | None:
-    """Try to resolve a bare symbol via module namespace or aliases. Returns resolved name or None."""
-    candidate = f"{ctx.module_name}.{s}"
-    if candidate in ctx.known_names:
-        ctx.log_resolution(s, candidate, "module", line)
-        return candidate
-    for alias, canonical in ctx.aliases.items():
-        target = f"{canonical}.{s}"
-        if target in ctx.known_names:
-            ctx.log_resolution(s, target, f"alias:{alias}->{canonical}", line)
-            return target
-    return None
+# Patching helpers (_patch_in_parent, _resolve_bare, _resolve_dotted)
+# live in loader_morphism — single source of truth for resolution rules.
 
 
 class _UnionKnown:

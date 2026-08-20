@@ -13,7 +13,7 @@ fix for grammar returning tuples. Should instantiate lang-level rewriters
 
 import logging
 from dataclasses import replace
-from typing import Callable
+from typing import Callable, TypeVar
 
 from ..atoms import SILENCE, WFF, Evidence, Silence, Symbol
 from ..dsl_loader import DslLoader
@@ -60,6 +60,9 @@ from ..quote_verifier import QuoteVerifier
 from ..quote_verifier.evidence_verifiers import DocQuoteEvidenceVerifier, DocumentCorpusVerifier, EvidenceVerifier
 
 log = logging.getLogger("parseltongue")
+
+# Store value types that verify_manual can re-sign in place.
+_SignableT = TypeVar("_SignableT", Fact, Axiom, Theorem, Term)
 
 _TAIL_CALL = object()  # sentinel for iterative eval tail-call signaling
 _MISSING = object()  # sentinel for trail: key didn't exist before
@@ -224,15 +227,18 @@ class Engine(EngineProtocol):
                 signature=signature,
             )
 
-        # Write back to the correct store with narrowed type
-        if name in self.facts:
-            self.facts[name] = replace(self.facts[name], origin=new_origin)
-        elif name in self.axioms:
-            self.axioms[name] = replace(self.axioms[name], origin=new_origin)
-        elif name in self.theorems:
-            self.theorems[name] = replace(self.theorems[name], origin=new_origin)
-        elif name in self.terms:
-            self.terms[name] = replace(self.terms[name], origin=new_origin)
+        # Write back under every key that shares this item. Import aliasing
+        # registers the same (frozen) object under several names; replacing
+        # only the named key would silently split the aliases apart.
+        def _sign_store(store: dict[str, _SignableT]) -> None:
+            for key, value in store.items():
+                if value is item:
+                    store[key] = replace(value, origin=new_origin)
+
+        _sign_store(self.facts)
+        _sign_store(self.axioms)
+        _sign_store(self.theorems)
+        _sign_store(self.terms)
 
         log.info("'%s' manually marked as grounded", name)
 
@@ -1645,9 +1651,35 @@ class Engine(EngineProtocol):
         no_evidence = []
         absence_violated = []
         obligation_violated = []
+        def _alias_target_origin(item, seen: set | None = None):
+            """Origin of the directive an import-alias term ultimately names.
+
+            An alias defterm — a Term whose definition is a bare Symbol
+            naming another directive — introduces no claim of its own, so
+            its epistemic status is its target's. Returns None when the
+            item is not such an alias (or the chain doesn't resolve).
+            """
+            if seen is None:
+                seen = set()
+            if not isinstance(item, Term) or not isinstance(item.definition, Symbol):
+                return None
+            target_name = str(item.definition)
+            if target_name in seen:
+                return None
+            seen.add(target_name)
+            target = self._lookup(target_name)
+            if target is None:
+                return None
+            deeper = _alias_target_origin(target, seen)
+            return deeper if deeper is not None else target.origin
+
         for store in [self.facts, self.axioms, self.theorems, self.terms]:
             for name, item in store.items():  # type: ignore[attr-defined]
                 origin = item.origin
+                if isinstance(origin, str):
+                    inherited = _alias_target_origin(item)
+                    if inherited is not None:
+                        origin = inherited
                 if isinstance(origin, Evidence):
                     if not origin.verified and origin.verify_manual:
                         manually_verified.append(name)
