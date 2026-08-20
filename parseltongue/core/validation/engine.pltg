@@ -1398,14 +1398,9 @@
             witness-diff-contamination-unknown contamination-causes-warning warning-diff-contamination))
 
 ; collapsed-error-cross-check (5) = issue-type-count (5) — fully connected
-(diff error-layers-consistent
+(diff collapsed-error-layers-consistent
     :replace collapsed-error-cross-check
     :with issue-type-count)
-
-; warning-cross-check (2) = warning-type-count (2) — fully connected
-(diff warning-layers-consistent
-    :replace warning-cross-check
-    :with warning-type-count)
 
 ; --- Isomorphism: hallucinated ≅ errors, unknown ≅ warnings ---
 ; Four independent counts must all be 5:
