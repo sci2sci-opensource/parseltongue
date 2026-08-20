@@ -99,6 +99,14 @@ class Store:
     def __init__(self, bench_dir: str | Path | None = None):
         self._dir = Path(bench_dir or BENCH_DIR)
 
+    @property
+    def project_root(self) -> Path:
+        """The directory the bench serves — parent of the bench dir.
+
+        File-index paths (and .pgignore / pg.toml) are relative to it.
+        """
+        return self._dir.resolve().parent
+
     # ── Logbook ──
 
     def log_session(self, entry: dict):

@@ -414,7 +414,12 @@ class Technician:
             if not search.is_loaded():
                 return
             engine = result.system.engine
-            engine.register_evidence_verifier(EVIDENCE_TYPE_CORPUS_QUERY, CorpusEvidenceVerifier(search, path))
+            # The verifier's root is the project root the file index is
+            # relative to — NOT the .pltg path (a file is no corpus root;
+            # closure checks walk root/scope and read root/.pgignore).
+            engine.register_evidence_verifier(
+                EVIDENCE_TYPE_CORPUS_QUERY, CorpusEvidenceVerifier(search, self._store.project_root)
+            )
             n = reverify_evidence(engine, EVIDENCE_TYPE_CORPUS_QUERY)
             if n:
                 log.info("Corpus evidence re-grounded: %d origin(s)", n)
