@@ -419,10 +419,15 @@ class Bench:
         return count
 
     def _on_corpus_moved(self) -> None:
-        """The corpus changed under the current sample — re-observe it."""
+        """The corpus changed under the current sample — refresh its screen.
+
+        No reload: the .pltg sources didn't change. The technician
+        re-grounds corpus claims against the moved index and recomputes
+        the screen in the background (coalesced per path).
+        """
         self._technician.invalidate_screens()
         if self._current_path is not None:
-            self.prepare(self._current_path)
+            self._technician.refresh_screen(self._current_path, self._mem.get(self._current_path))
 
     # ── Access ──
 

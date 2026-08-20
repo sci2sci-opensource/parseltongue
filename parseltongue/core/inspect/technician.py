@@ -63,6 +63,8 @@ class Technician:
         self._file_lists: dict[str, list[str]] = {}
         self._file_hashes: dict[str, dict[str, str]] = {}
         self._bg_reload: dict[str, threading.Thread] = {}
+        self._screen_refresh: dict[str, threading.Thread] = {}
+        self._screen_refresh_again: set[str] = set()
         self._bg_result: tuple[str, Sample] | None = None
         self._lib_paths: list[str] = lib_paths or []
         self._bench_pg = bench_pg
@@ -430,6 +432,38 @@ class Technician:
         """Drop cached screens — call after a corpus reindex changed files."""
         self._screen_mem.clear()
         self._corpus_dirty = True
+
+    def refresh_screen(self, path: str, sample: Sample | None) -> None:
+        """Recompute the live screen in the background — the corpus moved.
+
+        The .pltg sources did not change, so no reload happens: this only
+        re-grounds corpus claims and re-runs consistency against the live
+        result already in memory. Skips when no live result exists yet (the
+        boot live pass will screen against the current corpus anyway).
+        Coalesces: one refresh in flight per path, at most one queued.
+        """
+        if sample is None or sample[3].last_result is None:
+            return
+        t = self._screen_refresh.get(path)
+        if t is not None and t.is_alive():
+            self._screen_refresh_again.add(path)
+            return
+
+        def _run():
+            while True:
+                try:
+                    dx = self._load_screen_live(path, sample)
+                    self._register_scopes(path, sample, screen=dx, live=True)
+                except Exception as e:
+                    log.warning("Screen refresh failed for %s: %s", path, e)
+                if path in self._screen_refresh_again:
+                    self._screen_refresh_again.discard(path)
+                    continue
+                break
+
+        th = threading.Thread(target=_run, daemon=True)
+        self._screen_refresh[path] = th
+        th.start()
 
     @staticmethod
     def _coverage_of(result) -> "list | None":
