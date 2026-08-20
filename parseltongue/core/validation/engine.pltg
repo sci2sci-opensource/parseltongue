@@ -803,6 +803,21 @@
         :quotes ("report = ConsistencyReport(\n            consistent=len(issues) == 0,\n            issues=issues,\n            warnings=warnings,\n        )")
         :explanation "warnings list is stored but consistent depends only on issues; warnings don't break consistency"))
 
+; The two outcome kinds mirror the two channels ConsistencyReport carries.
+(defterm consistency-outcome-channels 2
+    :evidence (evidence "engine.py"
+        :quotes ("issues=issues,\n            warnings=warnings,")
+        :explanation "ConsistencyReport carries exactly two outcome channels: issues and warnings"))
+
+(derive consistency-outcome-kind-count
+    (count-exists consistency-error consistency-warning)
+    :using (count-exists counting.count-exists-base counting.count-exists-step
+            consistency-error consistency-warning))
+
+(diff consistency-outcomes-vs-report-channels
+    :replace consistency-outcome-kind-count
+    :with consistency-outcome-channels)
+
 ; Evidence → epistemic status → consistency outcome
 ; Isomorphism: three independent counts align for errors and warnings.
 ;   errors:   collapsed-error-cross-check = issue-type-count = adjusted-issue-count  (all 5)
@@ -983,6 +998,26 @@
 (derive witness-diff-contamination-unknown
     (epistemics.collapse (strict contamination-status) epistemics.hypothesised)
     :using (epistemics.collapse epistemics.hypothesised contamination-status))
+
+; --- Diff-observation detectors: three partitions of all_diffs in check() ---
+; Each detection fact above records one partition; the code carves all_diffs
+; into exactly three kinds, so the fact count must equal the partition count.
+
+(defterm diff-detection-kind-count 3
+    :evidence (evidence "engine.py"
+        :quotes ("downstream_divergent = [d for d in all_diffs if not d.empty and not d.diff_contamination_only]"
+                 "value_divergent = [d for d in all_diffs if d.values_diverge and d.empty]"
+                 "diff_contamination = [d for d in all_diffs if d.diff_contamination_only]")
+        :explanation "check() partitions all_diffs into three detection kinds: downstream divergence, value divergence, contamination-only"))
+
+(derive diff-detection-count
+    (count-exists diff-divergence-detected diff-value-divergence-detected diff-contamination-detected)
+    :using (count-exists counting.count-exists-base counting.count-exists-step
+            diff-divergence-detected diff-value-divergence-detected diff-contamination-detected))
+
+(diff diff-detections-vs-kinds
+    :replace diff-detection-count
+    :with diff-detection-kind-count)
 
 ; --- Consistency outcome: condition → error or warning ---
 ; Each axiom models one if-branch in consistency(). Facts describe code behavior.
@@ -1551,6 +1586,16 @@
 (diff scope-family-handlers-vs-forms
     :replace scope-family-handler-count
     :with scope-family-forms-count)
+
+; Two helper functions implement the scope resolution walk
+(defterm scope-family-helpers-expected 2
+    :evidence (evidence "engine_stack.py"
+        :quotes ("def _rp(e):" "def _delegate_proposal(delegate_expr):")
+        :explanation "Two scope-family helper functions: the project resolution walk and the delegate proposal builder"))
+
+(diff scope-family-helpers-vs-expected
+    :replace scope-family-helper-count
+    :with scope-family-helpers-expected)
 
 ; =====================================================================
 ; Exports — for core.pltg cross-checks against README

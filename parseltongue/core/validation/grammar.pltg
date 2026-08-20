@@ -145,3 +145,41 @@
 (derive export-parser-stages-count
     (util.export parser-stages-count)
     :using (util.export parser-stages-count))
+
+; =====================================================================
+; Reader doc vs impl — docstring/behavior facts against grammar.py code
+; =====================================================================
+
+(derive reader-doc-count
+    (count-exists tokenize-doc read-tokens-doc atom-doc to-sexp-doc comment-char)
+    :using (count-exists counting.count-exists-base counting.count-exists-step
+            tokenize-doc read-tokens-doc atom-doc to-sexp-doc comment-char))
+
+(defterm reader-impl-count 5
+    :evidence (evidence "grammar.py"
+        :quotes ("def tokenize(" "def read_tokens(" "def atom(" "def to_sexp(" "if char == \";\":")
+        :explanation "5 reader/printer behaviors in grammar.py: tokenize, read_tokens, atom, to_sexp definitions plus the ; comment branch"))
+
+(diff reader-doc-coverage
+    :replace reader-doc-count
+    :with reader-impl-count)
+
+; =====================================================================
+; atom() conversion order — doc facts vs the six conversion branches
+; =====================================================================
+
+(derive atom-conversion-count
+    (count-exists atom-tries-int-first atom-tries-float-second atom-true-token
+                  atom-false-token atom-keyword-prefix atom-fallback-is-symbol)
+    :using (count-exists counting.count-exists-base counting.count-exists-step
+            atom-tries-int-first atom-tries-float-second atom-true-token
+            atom-false-token atom-keyword-prefix atom-fallback-is-symbol))
+
+(defterm atom-conversion-impl-count 6
+    :evidence (evidence "grammar.py"
+        :quotes ("return int(token)" "return float(token)" "if token == \"true\":" "if token == \"false\":" "if token.startswith(\":\"):" "return Symbol(token)")
+        :explanation "6 conversion branches in atom(): int, float, true, false, keyword, Symbol fallback"))
+
+(diff atom-conversion-coverage
+    :replace atom-conversion-count
+    :with atom-conversion-impl-count)

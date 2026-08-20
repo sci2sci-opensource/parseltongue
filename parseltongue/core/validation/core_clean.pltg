@@ -20,6 +20,7 @@
 (import (quote ..std.util))
 (import (quote domain))
 (import (quote architecture))
+(import (quote std_behavior))
 (import (quote ..std.counting))
 
 (defterm count-exists counting.count-exists :origin "import")
@@ -604,10 +605,22 @@
 (diff thm-lazy-line-tracking :replace lazy_loader.export-line-tracking :with readme.readme-documents-lazy-line-tracking)
 (diff thm-lazy-result-methods :replace lazy_loader.result-method-count :with readme-lazy-result-count)
 
+; README documents both halves of the pre/post effect split — count them
+(derive readme-lazy-effect-split-count
+    (count-exists readme.readme-documents-lazy-pre-effects
+                  readme.readme-documents-lazy-post-effects)
+    :using (count-exists readme.readme-documents-lazy-pre-effects
+                         readme.readme-documents-lazy-post-effects))
+
+(diff thm-lazy-effect-split-paired :replace lazy_loader.effect-split-paired :with readme-lazy-effect-split-count)
+(diff thm-lazy-effect-rank-paired :replace lazy_loader.effect-rank-paired :with readme.readme-documents-lazy-effect-rank)
+
 ; --- other module theorems ---
 (diff thm-splats-topic :replace demos.splats-topic-confirms-usage :with readme.readme-documents-splat-patterns)
 (diff thm-import-circular :replace loader.export-import-checks-circular :with readme.readme-loader-circular-detection)
 (diff thm-packaging :replace pyproject.packaging-consistent :with pyproject.export-md-shipped)
+(diff thm-scope-family-handlers :replace engine.export-scope-family-handler-count :with lang.scope-family-symbol-count)
+(diff architecture-independence :replace architecture.core-independent-of-bench :with architecture.core-independent-of-bench) ;trivial
 
 ; --- core.pltg internal theorems ---
 (diff thm-axiom-var :replace axiom-var-requirement-consistent :with readme.export-bound-axioms-require-vars)

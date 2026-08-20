@@ -522,3 +522,30 @@ SPLAT_PREFIX = \"?...\"")
 (derive export-splat-confirmed
     (util.export match-splat-impl)
     :using (util.export match-splat-impl))
+
+; =====================================================================
+; Matcher doc vs impl — docstring facts against lang.py definitions
+; =====================================================================
+
+(derive matcher-doc-count
+    (count-exists match-doc free-vars-doc substitute-doc)
+    :using (count-exists counting.count-exists-base counting.count-exists-step
+            match-doc free-vars-doc substitute-doc))
+
+(defterm matcher-impl-count 3
+    :evidence (evidence "lang.py"
+        :quotes ("def match(pattern: Sentence, expr: Sentence, bindings: dict | None = None) -> dict | None:" "def free_vars(expr: Sentence) -> set[Symbol]:" "def substitute(expr: Sentence, bindings: dict) -> Sentence:")
+        :explanation "3 matcher function definitions in lang.py: match, free_vars, substitute"))
+
+(diff matcher-doc-coverage
+    :replace matcher-doc-count
+    :with matcher-impl-count)
+
+; Splat behavior — documented contract vs implementing code, per function
+(diff match-splat-pair
+    :replace match-splat-doc
+    :with match-splat-impl)
+
+(diff substitute-splat-pair
+    :replace substitute-splat-doc
+    :with substitute-splat-impl)

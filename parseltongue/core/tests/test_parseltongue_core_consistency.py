@@ -11,6 +11,50 @@ from ..loader import LazyLoader, load_pltg
 CORE_PLTG = os.path.join(os.path.dirname(__file__), "..", "validation", "core_clean.pltg")
 
 
+def _drop_alias_shadows(dangling, referenced, engine):
+    """Collapse import-alias shadows out of a dangling set.
+
+    The loader registers an imported module's directives under every alias
+    prefix (LoaderEngine.register_module/register_alias in
+    parseltongue/core/loader/loader_engine.py), so e.g. ``lists.map`` and
+    ``std.lists.map`` are two store keys bound to the *same* frozen directive
+    object.  Likewise an alias defterm — a Term whose definition is a bare
+    Symbol naming another directive — is a name-binding, not content (the
+    consistency checker resolves these the same way via
+    ``_alias_target_origin``).  A directive is therefore dangling only if NO
+    name bound to it is referenced, and an alias defterm is referenced iff
+    its target is.  Returns a new set with such shadow names removed.
+    """
+    from parseltongue.core.atoms import Symbol
+
+    def _lookup(name):
+        for store in (engine.facts, engine.axioms, engine.terms, engine.theorems):
+            if name in store:
+                return store[name]
+        return None
+
+    referenced_ids = {id(obj) for obj in map(_lookup, referenced) if obj is not None}
+
+    def _is_referenced(name):
+        if name in referenced:
+            return True
+        obj = _lookup(name)
+        return obj is not None and id(obj) in referenced_ids
+
+    def _alias_referenced(name, seen):
+        """Follow an alias-defterm chain; True if any link is referenced."""
+        if name in seen:
+            return False  # cycle guard
+        seen.add(name)
+        term = engine.terms[name] if name in engine.terms else None
+        if term is None or not isinstance(term.definition, Symbol):
+            return False
+        target = str(term.definition)
+        return _is_referenced(target) or _alias_referenced(target, seen)
+
+    return {name for name in dangling if not _is_referenced(name) and not _alias_referenced(name, set())}
+
+
 class TestParseltongueCoreConsistency(unittest.TestCase):
 
     @classmethod
@@ -31,7 +75,6 @@ class TestParseltongueCoreConsistency(unittest.TestCase):
             result = engine.evaluate(thm.wff)
             self.assertTrue(result, f"Theorem '{name}' evaluated to {result}, expected True")
 
-    @pytest.mark.xfail(reason="WIP: dangling definitions remain")
     def test_no_dangling_definitions_overall(self):
         engine = self.system.engine
 
@@ -90,6 +133,7 @@ class TestParseltongueCoreConsistency(unittest.TestCase):
         all_definitions = all_facts | all_axioms | all_terms
 
         dangling = all_definitions - referenced
+        dangling = _drop_alias_shadows(dangling, referenced, engine)
 
         dangling_facts = dangling & all_facts
         dangling_axioms = dangling & all_axioms
@@ -133,7 +177,6 @@ class TestParseltongueCoreConsistency(unittest.TestCase):
             dangling, set(), f"Dangling definitions: {len(dangling)} not used in any diff, theorem or term"
         )
 
-    @pytest.mark.xfail(reason="WIP: dangling definitions remain")
     def test_no_dangling_definitions_diffs(self):
         """Every definition must be reachable from a diff via recursive traversal.
 
@@ -215,6 +258,7 @@ class TestParseltongueCoreConsistency(unittest.TestCase):
         all_definitions = all_facts | all_axioms | all_terms | all_theorems
 
         dangling = all_definitions - reachable
+        dangling = _drop_alias_shadows(dangling, reachable, engine)
 
         dangling_facts = dangling & all_facts
         dangling_axioms = dangling & all_axioms
@@ -259,7 +303,6 @@ class TestParseltongueCoreConsistency(unittest.TestCase):
 
         self.assertEqual(dangling, set(), f"Dangling definitions: {len(dangling)} not reachable from any diff")
 
-    @pytest.mark.xfail(reason="WIP: top-level danglings remain")
     def test_top_level_danglings(self):
         """Print definitions that have no parents at all and are not diffs.
 
@@ -319,6 +362,11 @@ class TestParseltongueCoreConsistency(unittest.TestCase):
         diff_names = set(engine.diffs.keys())
         all_names = set(engine.facts) | set(engine.axioms) | set(engine.terms) | set(engine.theorems)
         top_level = {name for name in all_names if not referenced_by.get(name) and name not in diff_names}
+
+        # A name is not top-level-dangling if a sibling name bound to the same
+        # directive object has parents, or its alias-defterm target has parents.
+        referenced = {name for name, parents in referenced_by.items() if parents}
+        top_level = _drop_alias_shadows(top_level, referenced, engine)
 
         top_facts = sorted(top_level & set(engine.facts))
         top_axioms = sorted(top_level & set(engine.axioms))

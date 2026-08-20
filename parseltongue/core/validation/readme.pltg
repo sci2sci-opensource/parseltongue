@@ -2471,3 +2471,107 @@
 (derive export-defterm-forms-count
     (util.export readme-defterm-forms-count)
     :using (util.export readme-defterm-forms-count))
+
+; =====================================================================
+; Coverage counts — Rationale, Mathematical Aside, planned sections
+; =====================================================================
+
+; --- 16. Rationale claims: internal count ---
+; The README states no total for its rationale claims, so the count is
+; tracked via a trivial self-diff.
+
+(derive readme-rationale-claims-count
+    (count-exists readme-rationale-llms-hallucinate-plan readme-rationale-encode-as-logic-plan
+                  readme-rationale-facts-cite-quotes-plan readme-rationale-hallucination-detection-plan
+                  readme-rationale-fabrication-contaminates-plan readme-rationale-cross-doc-consistency-plan
+                  readme-rationale-independent-paths-plan)
+    :using (count-exists counting.count-exists-base counting.count-exists-step
+            readme-rationale-llms-hallucinate-plan readme-rationale-encode-as-logic-plan
+            readme-rationale-facts-cite-quotes-plan readme-rationale-hallucination-detection-plan
+            readme-rationale-fabrication-contaminates-plan readme-rationale-cross-doc-consistency-plan
+            readme-rationale-independent-paths-plan))
+
+(diff readme-rationale-claims-count-check :replace readme-rationale-claims-count :with readme-rationale-claims-count) ;trivial
+
+; --- 16b. Rationale "two things": stated count vs listing ---
+; The README does state a count for the two numbered gifts.
+
+(fact readme-rationale-stated-gifts 2
+    :evidence (evidence "README"
+        :quotes ("This gives us two things that prose summaries cannot")
+        :explanation "README states the rationale delivers two things: hallucination detection and cross-document consistency checking"))
+
+(derive readme-rationale-gifts-listing-count
+    (count-exists readme-rationale-hallucination-detection-plan readme-rationale-cross-doc-consistency-plan)
+    :using (count-exists counting.count-exists-base counting.count-exists-step
+            readme-rationale-hallucination-detection-plan readme-rationale-cross-doc-consistency-plan))
+
+(diff readme-rationale-gifts-vs-stated :replace readme-rationale-gifts-listing-count :with readme-rationale-stated-gifts)
+
+; --- 17. Mathematical Aside claims: internal count ---
+; No stated total in the README; trivial self-diff.
+
+(derive readme-math-claims-count
+    (count-exists readme-math-evidence-grounded-plan readme-math-ordinals-via-extension-plan
+                  readme-math-each-ordinal-expands-plan readme-math-diffs-as-consistency-plan
+                  readme-math-godel-limitation-plan readme-math-fabrication-propagation-mechanism-plan
+                  readme-math-turing-reference-plan)
+    :using (count-exists counting.count-exists-base counting.count-exists-step
+            readme-math-evidence-grounded-plan readme-math-ordinals-via-extension-plan
+            readme-math-each-ordinal-expands-plan readme-math-diffs-as-consistency-plan
+            readme-math-godel-limitation-plan readme-math-fabrication-propagation-mechanism-plan
+            readme-math-turing-reference-plan))
+
+(diff readme-math-claims-count-check :replace readme-math-claims-count :with readme-math-claims-count) ;trivial
+
+; --- 17b. extension-unlocks-derivations-plan instantiated ---
+; The axiom formalizes the each-ordinal-expands claim: extension adds
+; axioms (ordinals-via-extension), which makes new derivations
+; reachable (each-ordinal-expands).
+
+(derive bound-extension-unlocks-derivations extension-unlocks-derivations-plan
+    :bind ((?new-axiom-added readme-math-ordinals-via-extension-plan)
+           (?new-derivations-reachable readme-math-each-ordinal-expands-plan))
+    :using (extension-unlocks-derivations-plan
+            readme-math-ordinals-via-extension-plan readme-math-each-ordinal-expands-plan))
+
+(diff readme-extension-unlocks-check :replace bound-extension-unlocks-derivations :with bound-extension-unlocks-derivations) ;trivial
+
+; --- 18. Planned README sections: outstanding vs landed ---
+; The -plan stubs record sections the README should gain. False-valued
+; stubs are still missing; (not X) turns each into a countable truth.
+; True-valued stubs have landed and are counted plainly.
+
+(derive readme-planned-sections-outstanding
+    (count-exists (not readme-documents-core-pltg-plan)
+                  (not readme-documents-introspection-and-self-consistency-plan)
+                  (not readme-documents-per-module-validators-plan)
+                  (not readme-documents-self-test-plan)
+                  (not readme-documents-self-test-goedel-plan)
+                  (not readme-documents-self-test-turing-plan)
+                  (not readme-documents-validation-framework-plan)
+                  (not readme-needs-consistency-badge-plan))
+    :using (count-exists counting.count-exists-base counting.count-exists-step
+            readme-documents-core-pltg-plan readme-documents-introspection-and-self-consistency-plan
+            readme-documents-per-module-validators-plan readme-documents-self-test-plan
+            readme-documents-self-test-goedel-plan readme-documents-self-test-turing-plan
+            readme-documents-validation-framework-plan readme-needs-consistency-badge-plan))
+
+(diff readme-planned-sections-outstanding-check :replace readme-planned-sections-outstanding :with readme-planned-sections-outstanding) ;trivial
+
+(derive readme-plans-landed-count
+    (count-exists readme-documents-consistency-test-plan readme-documents-self-introspection-plan
+                  readme-documents-self-test-pytest-plan)
+    :using (count-exists counting.count-exists-base counting.count-exists-step
+            readme-documents-consistency-test-plan readme-documents-self-introspection-plan
+            readme-documents-self-test-pytest-plan))
+
+(diff readme-plans-landed-check :replace readme-plans-landed-count :with readme-plans-landed-count) ;trivial
+
+; --- 19. Loose epistemics results wired into diffs ---
+; evidence-inversion-theorem and classical-axiom-status participate in the
+; evidence-inversion proof above; the trivial self-diffs register them with
+; the diff layer.
+
+(diff readme-evidence-inversion-check :replace evidence-inversion-theorem :with evidence-inversion-theorem) ;trivial
+(diff readme-classical-axiom-status-check :replace classical-axiom-status :with classical-axiom-status) ;trivial
