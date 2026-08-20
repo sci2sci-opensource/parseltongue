@@ -84,12 +84,7 @@ class TestSymbolTermEvidence(unittest.TestCase):
     @staticmethod
     def _no_evidence_names(system: System) -> set[str]:
         report = system.consistency()
-        return {
-            name
-            for issue in report.issues
-            if issue.type == IssueType.NO_EVIDENCE
-            for name, _origin in issue.items
-        }
+        return {name for issue in report.issues if issue.type == IssueType.NO_EVIDENCE for name, _origin in issue.items}
 
     def test_user_symbol_term_keeps_its_own_unsupported_origin(self):
         s = _make_system(
@@ -98,6 +93,7 @@ class TestSymbolTermEvidence(unittest.TestCase):
         )
 
         self.assertIn("unsupported", self._no_evidence_names(s))
+
 
 class TestFullChainToScreen(unittest.TestCase):
     """Full pipeline: System → verify_manual → consistency → Screen → summary."""

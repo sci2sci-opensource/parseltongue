@@ -1955,9 +1955,7 @@ def dump_records(all_datasets, contracts, products) -> dict:
 
 def load_records(payload: dict):
     """Inverse of dump_records."""
-    all_datasets = {
-        dept: [DatasetRecord(**r) for r in records] for dept, records in payload["datasets"].items()
-    }
+    all_datasets = {dept: [DatasetRecord(**r) for r in records] for dept, records in payload["datasets"].items()}
     contracts = [ContractRecord(**c) for c in payload["contracts"]]
     products = [BusinessProduct(**p) for p in payload["products"]]
     return all_datasets, contracts, products
@@ -1982,16 +1980,19 @@ def main():
         "--consistent-only", action="store_true", help="Generate only the consistent baseline (no corruptions)"
     )
     parser.add_argument(
-        "--dump-records", metavar="PATH",
+        "--dump-records",
+        metavar="PATH",
         help="Write the generated estate as records JSON (no corruptions applied)",
     )
     parser.add_argument(
-        "--from-records", metavar="PATH",
+        "--from-records",
+        metavar="PATH",
         help="Render documents + .pltg from a records JSON instead of generating; "
         "the records are the estate verbatim (implies no corruptions)",
     )
     parser.add_argument(
-        "--docs-only", action="store_true",
+        "--docs-only",
+        action="store_true",
         help="With --from-records: render only the documents, leaving the "
         "registered .pltg facts as they are — reality drifts under the "
         "claims, which is what evidence verification then reports",
@@ -2020,8 +2021,10 @@ def main():
         else:
             render_estate(all_datasets, contracts, products)
         total = sum(len(v) for v in all_datasets.values())
-        print(f"Rendered {'documents' if args.docs_only else 'estate'} from {args.from_records}: "
-              f"{total} datasets, {len(contracts)} contracts, {len(products)} products.")
+        print(
+            f"Rendered {'documents' if args.docs_only else 'estate'} from {args.from_records}: "
+            f"{total} datasets, {len(contracts)} contracts, {len(products)} products."
+        )
         return
 
     if args.clean:

@@ -483,9 +483,7 @@ class TestSelectiveImports(_TmpDirTestCase):
         self.assertIs(engine.facts["ce"], engine.facts["std.counting.count-exists"])
 
     def test_quote_imports_one_entity_under_its_name_by_default(self):
-        self._write_counting_module(
-            '(import (quote std.counting.count-exists))', imported_name="count-exists"
-        )
+        self._write_counting_module('(import (quote std.counting.count-exists))', imported_name="count-exists")
         self._assert_loaders_agree(self._main(), Outcome.OK)
         self._assert_names_present(self._main(), {"std.counting.count-exists", "count-exists"})
 
