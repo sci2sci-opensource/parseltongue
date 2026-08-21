@@ -608,137 +608,25 @@ patterns for variadic operations: sum-all, count-gt, all-gt.")
 ; =====================================================================
 
 ; ---------------------------------------------------------------------
-; Axiom 1: Local aliasing rule
-; For any module ?m and symbol ?s, (defterm ?alias ?m.?s) makes
-; ?alias resolve to the namespaced value. Proved by apples_pltg.
+; Selective entity import used in practice
+; The demo imports a namespaced entity under a local name and then uses
+; that name in a concrete :bind.  This proves the behavior exercised by
+; the demo; the loader module validates the general import mechanism.
 ; ---------------------------------------------------------------------
 
-(axiom alias-resolves (= ?alias ?m-symbol)
-    :evidence (evidence "apples_demo_pltg"
-        :quotes ("(import (quote src.primitives.zero local-zero))"
-                 "(import (quote src.primitives.succ local-succ))")
-        :explanation "Local alias defterm makes ?alias equal to the namespaced ?m-symbol"))
-
-; Concrete instantiation: local-zero = src.primitives.zero
-(fact alias-local-zero-exists true
+(fact selective-import-local-zero-declared true
     :evidence (evidence "apples_demo_pltg"
         :quotes ("(import (quote src.primitives.zero local-zero))")
-        :explanation "demo.pltg aliases zero"))
+        :explanation "demo.pltg selectively imports src.primitives.zero as local-zero"))
 
-(fact alias-local-zero-used-in-bind true
+(fact selective-import-local-zero-used-in-bind true
     :evidence (evidence "apples_demo_pltg"
         :quotes (":bind ((?n (local-succ (local-succ (local-succ local-zero)))))")
-        :explanation "Local alias used in :bind — proves resolution works"))
+        :explanation "The selectively imported local name is consumed by a concrete theorem binding"))
 
-(derive alias-used-in-practice
-    (and alias-local-zero-exists alias-local-zero-used-in-bind)
-    :using (alias-local-zero-exists alias-local-zero-used-in-bind))
-
-; ---------------------------------------------------------------------
-; Axiom 2: Lazy vs eager aliasing
-; (defterm ?alias (quote ?m.?s)) delays resolution (lazy).
-; (defterm ?alias ?m.?s) resolves immediately (eager).
-; Both patterns coexist in axioms.pltg.
-; ---------------------------------------------------------------------
-
-(axiom defterm-alias-is-lazy (= ?alias ?target)
-    :evidence (evidence "apples_axioms_pltg"
-        :quotes ("(import (quote src.primitives.-))"
-                 "(import (quote src.primitives.>))")
-        :explanation "defterm aliasing is inherently lazy — resolution is deferred regardless of quote"))
-
-; The quote wrapper is redundant: both patterns produce the same result
-(fact no-explicit-lazy-label true
-    :evidence (evidence "apples_axioms_pltg"
-        :quotes ("(import (quote src.primitives.=))"
-                 "(import (quote src.primitives.+))"
-                 "(import (quote src.primitives.-))")
-        :explanation "No alias carries an explicit 'lazy' label — all use plain 'import'"))
-
-; --- Proof chain: quote is redundant in defterm aliasing ---
-
-; Step 1: let rebinds a bare (non-quoted) defterm alias
-(fact let-rebinds-bare-alias true
-    :evidence (evidence "entry_mocks_math_pltg"
-        :quotes ("(import (quote primitives.zero))"
-                 "(let ((primitives.zero 0)" "(primitives.plus +)" "(primitives.equals =))")
-        :explanation "math.pltg aliases primitives.zero without quote, then let rebinds it to 0"))
-
-; Step 2: if let can rebind a bare alias, the symbol was NOT eagerly resolved
-;         (if it had been eagerly resolved, rebinding the original wouldn't propagate)
-(axiom let-rebind-proves-lazy (implies ?let-can-rebind-bare (not ?eagerly-resolved))
-    :evidence (evidence "entry_mocks_math_pltg"
-        :quotes ("(assert-true \"add-identity: 5 + 0 = 5\""
-                 "(primitives.equals (primitives.plus 5 primitives.zero) 5))")
-        :explanation "Assert passes after let rebind — bare alias was not eagerly resolved"))
-
-; Step 3: defterm uses the same resolution mechanism for all aliases
-(fact defterm-same-mechanism true
-    :evidence (evidence "apples_axioms_pltg"
-        :quotes ("(import (quote src.primitives.zero))"
-                 "(import (quote src.primitives.=))")
-        :explanation "All aliases go through the same defterm path — no quote distinction"))
-
-; Step 4: therefore every defterm is lazy — quote adds nothing
-(derive every-defterm-is-lazy
-    (and let-rebinds-bare-alias defterm-same-mechanism)
-    :using (let-rebinds-bare-alias defterm-same-mechanism))
-
-; Step 5: labels say 2, reality says 7
-; Nothing is explicitly lazy, but everything IS lazy (proven by let-rebind chain)
-; → laziness is the default behavior of defterm
-(derive laziness-is-default
-    (and no-explicit-lazy-label every-defterm-is-lazy)
-    :using (no-explicit-lazy-label every-defterm-is-lazy))
-
-(defterm lazy-alias-zero (if every-defterm-is-lazy 1 0)
-    :evidence (evidence "apples_axioms_pltg"
-        :quotes ("(import (quote src.primitives.zero))")
-        :explanation "bare alias — lazy by axiom chain"))
-
-(defterm lazy-alias-succ (if every-defterm-is-lazy 1 0)
-    :evidence (evidence "apples_axioms_pltg"
-        :quotes ("(import (quote src.primitives.succ))")
-        :explanation "bare alias — lazy by axiom chain"))
-
-(defterm lazy-alias-eq (if every-defterm-is-lazy 1 0)
-    :evidence (evidence "apples_axioms_pltg"
-        :quotes ("(import (quote src.primitives.=))")
-        :explanation "alias — lazy by axiom chain"))
-
-(defterm lazy-alias-plus (if every-defterm-is-lazy 1 0)
-    :evidence (evidence "apples_axioms_pltg"
-        :quotes ("(import (quote src.primitives.+))")
-        :explanation "alias — lazy by axiom chain"))
-
-(defterm lazy-alias-minus (if every-defterm-is-lazy 1 0)
-    :evidence (evidence "apples_axioms_pltg"
-        :quotes ("(import (quote src.primitives.-))")
-        :explanation "bare alias — lazy by axiom chain"))
-
-(defterm lazy-alias-gt (if every-defterm-is-lazy 1 0)
-    :evidence (evidence "apples_axioms_pltg"
-        :quotes ("(import (quote src.primitives.>))")
-        :explanation "bare alias — lazy by axiom chain"))
-
-(defterm lazy-alias-mul (if every-defterm-is-lazy 1 0)
-    :evidence (evidence "apples_axioms_pltg"
-        :quotes ("(import (quote src.primitives.*))")
-        :explanation "bare alias — lazy by axiom chain"))
-
-(derive actual-lazy-count
-    (count-exists lazy-alias-zero lazy-alias-succ lazy-alias-eq lazy-alias-plus lazy-alias-minus lazy-alias-gt lazy-alias-mul)
-    :using (count-exists lazy-alias-zero lazy-alias-succ lazy-alias-eq lazy-alias-plus lazy-alias-minus lazy-alias-gt lazy-alias-mul))
-
-; Since laziness is default, labeled count = actual count
-(derive labeled-lazy-count
-    (if laziness-is-default actual-lazy-count 0)
-    :using (laziness-is-default actual-lazy-count))
-
-; Step 6: diff — labeled matches actual after fix
-(diff lazy-label-vs-reality
-    :replace labeled-lazy-count
-    :with actual-lazy-count)
+(derive selective-import-used-in-practice
+    (and selective-import-local-zero-declared selective-import-local-zero-used-in-bind)
+    :using (selective-import-local-zero-declared selective-import-local-zero-used-in-bind))
 
 ; ---------------------------------------------------------------------
 ; Axiom 3: Forward-declared primitives
@@ -1190,25 +1078,6 @@ patterns for variadic operations: sum-all, count-gt, all-gt.")
 
 ; --- 12. Module system axioms --- bound instantiations
 
-(derive bound-alias-resolves alias-resolves
-    :bind ((?alias alias-local-zero-exists) (?m-symbol alias-local-zero-used-in-bind))
-    :using (alias-resolves alias-local-zero-exists alias-local-zero-used-in-bind))
-
-(derive bound-defterm-alias-is-lazy defterm-alias-is-lazy
-    :bind ((?alias no-explicit-lazy-label) (?target let-rebinds-bare-alias))
-    :using (defterm-alias-is-lazy no-explicit-lazy-label let-rebinds-bare-alias))
-
-; let-rebinds-bare-alias is true → symbol was NOT eagerly resolved.
-; Derive the negation so ?eagerly-resolved binds to false.
-(defterm was-eagerly-resolved (not let-rebinds-bare-alias)
-    :evidence (evidence "entry_mocks_math_pltg"
-        :quotes ("(assert-true \"add-identity: 5 + 0 = 5\"")
-        :explanation "Assert passes after let rebind — proves eager resolution did NOT happen"))
-
-(derive bound-let-rebind-proves-lazy let-rebind-proves-lazy
-    :bind ((?let-can-rebind-bare let-rebinds-bare-alias) (?eagerly-resolved was-eagerly-resolved))
-    :using (let-rebind-proves-lazy let-rebinds-bare-alias was-eagerly-resolved))
-
 (derive bound-forward-decl-produces-formal forward-decl-produces-formal
     :bind ((?t primitives-are-forward-declared) (?x afternoon-uses-without-import))
     :using (forward-decl-produces-formal primitives-are-forward-declared afternoon-uses-without-import))
@@ -1234,18 +1103,17 @@ patterns for variadic operations: sum-all, count-gt, all-gt.")
     :using (dot-import-resolves chain-demo-imports-app flat-import-also-works))
 
 (derive module-axioms-doc-count
-    (count-exists alias-local-zero-exists let-rebinds-bare-alias primitives-are-forward-declared lib-has-run-on-entry let-mock-rebinds-zero chain-demo-imports-app cross-bind-mixes-namespaces)
+    (count-exists selective-import-used-in-practice primitives-are-forward-declared lib-has-run-on-entry let-mock-rebinds-zero chain-demo-imports-app cross-bind-mixes-namespaces)
     :using (count-exists counting.count-exists-base counting.count-exists-step
-            alias-local-zero-exists let-rebinds-bare-alias primitives-are-forward-declared
+            selective-import-used-in-practice primitives-are-forward-declared
             lib-has-run-on-entry let-mock-rebinds-zero chain-demo-imports-app cross-bind-mixes-namespaces
-            bound-alias-resolves bound-defterm-alias-is-lazy bound-forward-decl-produces-formal
-            bound-run-on-entry-gate bound-let-rebind-proves-lazy bound-let-rebinds-forward-decl
+            bound-forward-decl-produces-formal bound-run-on-entry-gate bound-let-rebinds-forward-decl
             bound-import-transitive bound-cross-module-bind bound-dot-import-resolves))
 
-(defterm module-axioms-impl-count 7
+(defterm module-axioms-impl-count 6
     :evidence (evidence "apples_demo_pltg"
         :quotes ("(import (quote src.primitives.zero local-zero))")
-        :explanation "7 module system axiom proof facts across demo sources"))
+        :explanation "6 independently exercised module-system behaviors across demo sources"))
 
 (diff module-axioms-coverage
     :replace module-axioms-doc-count

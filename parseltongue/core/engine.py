@@ -82,6 +82,77 @@ class WarningType(StrEnum):
 
     MANUALLY_VERIFIED = "manually_verified"
     DIFF_CONTAMINATION = "diff_contamination"
+    CONFOUNDED_EVIDENCE = "confounded_evidence"
+
+
+def _evidence_quote_provenance(engine, root: str) -> dict[tuple[str, str], set[str]]:
+    """Collect transitive doc-quote evidence reachable from one diff side.
+
+    Keys include the document as well as the quote: identical text in two
+    independent documents is not shared evidence. Values record the entities
+    through which the evidence enters the side's proof graph.
+    """
+    found: dict[tuple[str, str], set[str]] = {}
+    pending = [root]
+    visited: set[str] = set()
+
+    while pending:
+        name = pending.pop()
+        name = engine._entity_aliases.get(name, name)
+        if name in visited:
+            continue
+        visited.add(name)
+
+        item = None
+        expr = None
+        dependencies: list[str] = []
+        for store_name in ("facts", "axioms", "theorems", "terms"):
+            store = getattr(engine, store_name)
+            if name not in store:
+                continue
+            item = store[name]
+            if store_name == "terms":
+                expr = item.definition
+            else:
+                expr = item.wff
+            if store_name == "theorems":
+                dependencies.extend(str(dep) for dep in item.derivation)
+            break
+
+        if item is not None:
+            origin = item.origin
+            if isinstance(origin, Evidence) and origin.type == EVIDENCE_TYPE_DOC_QUOTE:
+                for quote in origin.quotes:
+                    found.setdefault((origin.document, quote), set()).add(name)
+            if expr is not None:
+                dependencies.extend(engine._expr_symbols(expr))
+        elif name in engine.diffs:
+            diff = engine.diffs[name]
+            dependencies.extend((diff["replace"], diff["with"]))
+
+        for dependency in dependencies:
+            canonical = engine._entity_aliases.get(dependency, dependency)
+            if canonical not in visited:
+                pending.append(canonical)
+
+    return found
+
+
+def _confounded_quote_pairs(
+    replace_quotes: dict[tuple[str, str], set[str]],
+    with_quotes: dict[tuple[str, str], set[str]],
+) -> list[tuple[str, str, str]]:
+    """Return same-document quote pairs where either quote contains the other."""
+    pairs = set()
+    for replace_document, replace_quote in replace_quotes:
+        if not replace_quote:
+            continue
+        for with_document, with_quote in with_quotes:
+            if replace_document != with_document or not with_quote:
+                continue
+            if replace_quote in with_quote or with_quote in replace_quote:
+                pairs.add((replace_document, replace_quote, with_quote))
+    return sorted(pairs)
 
 
 def _corpus_counter_examples(origin: Evidence) -> list | None:
@@ -1645,6 +1716,33 @@ class EngineImpl(Engine):
                 contam_details[d.name] = "; ".join(f"{k}: {v[1]}" for k, v in sorted(d.divergences.items()))
             warnings.append(
                 ConsistencyWarning(WarningType.DIFF_CONTAMINATION, [d.name for d in diff_contamination], contam_details)
+            )
+
+        confounded_details = {}
+        for name in sorted(names):
+            params = self.diffs[name]
+            replace_quotes = _evidence_quote_provenance(self, params["replace"])
+            with_quotes = _evidence_quote_provenance(self, params["with"])
+            overlap = _confounded_quote_pairs(replace_quotes, with_quotes)
+            if overlap:
+                entries = []
+                for document, replace_quote, with_quote in overlap:
+                    replace_via = ", ".join(sorted(replace_quotes[(document, replace_quote)]))
+                    with_via = ", ".join(sorted(with_quotes[(document, with_quote)]))
+                    quote_display = (
+                        repr(replace_quote)
+                        if replace_quote == with_quote
+                        else f"{replace_quote!r} overlaps {with_quote!r}"
+                    )
+                    entries.append(f"{document}: {quote_display} (replace via {replace_via}; with via {with_via})")
+                confounded_details[name] = "; ".join(entries)
+        if confounded_details:
+            warnings.append(
+                ConsistencyWarning(
+                    WarningType.CONFOUNDED_EVIDENCE,
+                    sorted(confounded_details),
+                    confounded_details,
+                )
             )
 
         return issues, warnings

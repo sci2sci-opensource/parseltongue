@@ -10,8 +10,6 @@
 (import (quote ..std.util))
 (import (quote counting.count-exists))
 
-(verify-manual (quote count-exists) "V")
-
 ; =====================================================================
 ; Module docstring vs class docstring
 ; =====================================================================
@@ -125,6 +123,26 @@
     :evidence (evidence "engine.py"
         :quotes ("if result is False and head == EQ and any(isinstance(a, (list, tuple)) for a in args):")
         :explanation "EQ comparison has a rewrite fallback path"))
+
+; Computed defterms are lazy across the complete load/evaluation path.
+(fact defterm-loader-preserves-body true
+    :evidence (evidence "dsl_loader.py"
+        :quotes ("else:\n                defn = expr[2]\n            engine.introduce_term(name, defn, self.resolve_origin(expr))")
+        :explanation "The defterm directive passes its parsed body to Engine without evaluating it"))
+
+(fact defterm-engine-stores-definition true
+    :evidence (evidence "engine.py"
+        :quotes ("term = Term(name=name, definition=definition, origin=origin)\n        self.terms[name] = term")
+        :explanation "Term introduction stores the definition object rather than its evaluated value"))
+
+(fact defterm-reference-evaluates-definition true
+    :evidence (evidence "engine.py"
+        :quotes ("if not restricted and name in self.terms:\n                defn = self.terms[name].definition\n                if defn is not None:\n                    return self._eval(defn, env, axiom_scope, restricted)")
+        :explanation "The evaluator enters a computed definition when its term symbol is referenced"))
+
+(derive every-computed-defterm-is-lazy
+    (and defterm-loader-preserves-body defterm-engine-stores-definition defterm-reference-evaluates-definition)
+    :using (defterm-loader-preserves-body defterm-engine-stores-definition defterm-reference-evaluates-definition))
 
 ; =====================================================================
 ; Derivation
@@ -821,7 +839,7 @@
 ; Evidence → epistemic status → consistency outcome
 ; Isomorphism: three independent counts align for errors and warnings.
 ;   errors:   collapsed-error-cross-check = issue-type-count = adjusted-issue-count  (all 5)
-;   warnings: warning-cross-check = warning-type-count = unknown-count-from-witnesses (all 2)
+;   warnings: warning-cross-check = warning-type-count = unknown-count-from-witnesses (all 3)
 ; These are derived at the end of this section after all three layers are built.
 
 ; Evidence → epistemic status axioms
@@ -998,6 +1016,24 @@
 (derive witness-diff-contamination-unknown
     (epistemics.collapse (strict contamination-status) epistemics.hypothesised)
     :using (epistemics.collapse epistemics.hypothesised contamination-status))
+
+; --- CONFOUNDED_EVIDENCE → unknown ---
+; A shared source can support both claims, but it cannot independently
+; corroborate one with the other. The diff result is therefore hypothesised.
+
+(fact confounded-evidence-detected true
+    :evidence (evidence "engine.py"
+        :quotes ("if replace_quote in with_quote or with_quote in replace_quote:")
+        :explanation "the checker detects equal or fully contained quotes in the same document across the two transitive provenance graphs"))
+
+(defterm confounded-evidence-status (epistemics.superpose epistemics.hallucinated epistemics.unknown epistemics.exemplifiable)
+    :evidence (evidence "epistemics.pltg"
+        :quotes ("unknown — the system cannot make a determination")
+        :explanation "without independent corroboration, the diff cannot determine which side is supported"))
+
+(derive witness-confounded-evidence-unknown
+    (epistemics.collapse (strict confounded-evidence-status) epistemics.hypothesised)
+    :using (epistemics.collapse epistemics.hypothesised confounded-evidence-status))
 
 ; --- Diff-observation detectors: three partitions of all_diffs in check() ---
 ; Each detection fact above records one partition; the code carves all_diffs
@@ -1197,6 +1233,17 @@
     :bind ((?is-empty contamination-is-empty) (?all-are-diff-refs contamination-all-are-diff-refs))
     :using (warning-on-contamination contamination-is-empty contamination-all-are-diff-refs))
 
+; CONFOUNDED_EVIDENCE → warning
+(axiom warning-on-confounded-evidence
+    (implies ?has-shared-quote consistency-warning)
+    :evidence (evidence "engine.py"
+        :quotes ("if confounded_details:\n            warnings.append(\n                ConsistencyWarning(\n                    WarningType.CONFOUNDED_EVIDENCE,")
+        :explanation "a diff with shared quote provenance is appended to warnings"))
+
+(derive confounded-evidence-causes-warning warning-on-confounded-evidence
+    :bind ((?has-shared-quote confounded-evidence-detected))
+    :using (warning-on-confounded-evidence confounded-evidence-detected))
+
 ; =====================================================================
 ; Classification enum — every IssueType and WarningType member as a fact
 ; =====================================================================
@@ -1238,11 +1285,16 @@
         :quotes ("DIFF_CONTAMINATION = \"diff_contamination\"")
         :explanation "WarningType enum member"))
 
-; --- Items × Layers: epistemic status of all 8 witnesses ---
+(fact warning-confounded-evidence true
+    :evidence (evidence "engine.py"
+        :quotes ("CONFOUNDED_EVIDENCE = \"confounded_evidence\"")
+        :explanation "WarningType enum member"))
+
+; --- Items × Layers: epistemic status of all 9 witnesses ---
 ;
 ; Each witness evaluates to an epistemic status (hallucinated/unknown/exemplifiable).
 ; We count how many are hallucinated and how many are unknown, then cross-check
-; against the classification enum counts (5 IssueTypes + 2 WarningTypes).
+; against the classification enum counts (5 IssueTypes + 3 WarningTypes).
 ;
 ; Witnesses → status:
 ;   witness-evidence-hallucinated         → hallucinated  (UNVERIFIED_EVIDENCE)
@@ -1253,9 +1305,10 @@
 ;   witness-diff-value-hallucinated       → hallucinated  (DIFF_VALUE_DIVERGENCE)
 ;   witness-evidence-unknown              → unknown       (MANUALLY_VERIFIED)
 ;   witness-diff-contamination-unknown    → unknown       (DIFF_CONTAMINATION)
+;   witness-confounded-evidence-unknown   → unknown       (CONFOUNDED_EVIDENCE)
 ;
 ; Hallucinated count = 6 (not 5) because POTENTIAL_FABRICATION has 2 branches.
-; Unknown count = 2, matching 2 WarningType members.
+; Unknown count = 3, matching 3 WarningType members.
 
 (derive hallucinated-count
     (epistemics.count-hallucinated
@@ -1266,7 +1319,8 @@
         (strict witness-diff-divergence-hallucinated)
         (strict witness-diff-value-hallucinated)
         (strict witness-evidence-unknown)
-        (strict witness-diff-contamination-unknown))
+        (strict witness-diff-contamination-unknown)
+        (strict witness-confounded-evidence-unknown))
     :using (epistemics.count-hallucinated
             witness-evidence-hallucinated
             witness-no-evidence-hallucinated
@@ -1275,7 +1329,8 @@
             witness-diff-divergence-hallucinated
             witness-diff-value-hallucinated
             witness-evidence-unknown
-            witness-diff-contamination-unknown))
+            witness-diff-contamination-unknown
+            witness-confounded-evidence-unknown))
 
 ; Issue types that map to hallucinated witnesses (5 types, 6 witnesses)
 (derive issue-type-count
@@ -1306,21 +1361,24 @@
     :replace hallucinated-count
     :with adjusted-issue-count)
 
-; Warning types that map to unknown witnesses (2 types, 2 witnesses)
+; Warning types that map to unknown witnesses (3 types, 3 witnesses)
 (derive warning-type-count
     (count-exists warning-manually-verified
-                  warning-diff-contamination)
+                  warning-diff-contamination
+                  warning-confounded-evidence)
     :using (count-exists
             warning-manually-verified
-            warning-diff-contamination))
+            warning-diff-contamination
+            warning-confounded-evidence))
 
-; Count unknowns from all 8 witnesses using joint-status trick:
+; Count unknowns from all 9 witnesses using joint-status trick:
 ; unknown if status = unknown, else not-unknown
 ; We use count-exists on (= witness unknown) checks
 (derive unknown-count-from-witnesses
     (count-exists
         (= (strict witness-evidence-unknown) epistemics.unknown)
         (= (strict witness-diff-contamination-unknown) epistemics.unknown)
+        (= (strict witness-confounded-evidence-unknown) epistemics.unknown)
         (= (strict witness-evidence-hallucinated) epistemics.unknown)
         (= (strict witness-no-evidence-hallucinated) epistemics.unknown)
         (= (strict witness-fabrication-does-not-hold) epistemics.unknown)
@@ -1330,6 +1388,7 @@
     :using (count-exists
             witness-evidence-unknown
             witness-diff-contamination-unknown
+            witness-confounded-evidence-unknown
             witness-evidence-hallucinated
             witness-no-evidence-hallucinated
             witness-fabrication-does-not-hold
@@ -1337,7 +1396,7 @@
             witness-diff-divergence-hallucinated
             witness-diff-value-hallucinated))
 
-; Cross-check: unknown-count (2) vs warning-type-count (2)
+; Cross-check: unknown-count (3) vs warning-type-count (3)
 (diff unknown-vs-warnings
     :replace unknown-count-from-witnesses
     :with warning-type-count)
@@ -1349,7 +1408,7 @@
 ;   2. Consequence: the derive proving this causes error/warning
 ;   3. Classification: the enum entry exists as a fact
 ;
-; All 8 witnesses appear in both cross-checks.
+; All 9 witnesses appear in both cross-checks.
 ; Booleans do the filtering: hallucinated witnesses score true in error check,
 ; unknown witnesses score true in warning check.
 
@@ -1371,7 +1430,9 @@
         (and (= (strict witness-evidence-unknown) epistemics.hallucinated)
              manual-causes-warning warning-manually-verified)
         (and (= (strict witness-diff-contamination-unknown) epistemics.hallucinated)
-             contamination-causes-warning warning-diff-contamination))
+             contamination-causes-warning warning-diff-contamination)
+        (and (= (strict witness-confounded-evidence-unknown) epistemics.hallucinated)
+             confounded-evidence-causes-warning warning-confounded-evidence))
     :using (count-exists
             witness-evidence-hallucinated unverified-causes-error issue-unverified-evidence
             witness-no-evidence-hallucinated no-evidence-causes-error issue-no-evidence
@@ -1380,7 +1441,8 @@
             witness-diff-divergence-hallucinated divergence-causes-error issue-diff-divergence
             witness-diff-value-hallucinated value-divergence-causes-error issue-diff-value-divergence
             witness-evidence-unknown manual-causes-warning warning-manually-verified
-            witness-diff-contamination-unknown contamination-causes-warning warning-diff-contamination))
+            witness-diff-contamination-unknown contamination-causes-warning warning-diff-contamination
+            witness-confounded-evidence-unknown confounded-evidence-causes-warning warning-confounded-evidence))
 
 ; Warning cross-check: unknown × causes-warning × warning-type-exists
 (derive warning-cross-check
@@ -1400,7 +1462,9 @@
         (and (= (strict witness-evidence-unknown) epistemics.unknown)
              manual-causes-warning warning-manually-verified)
         (and (= (strict witness-diff-contamination-unknown) epistemics.unknown)
-             contamination-causes-warning warning-diff-contamination))
+             contamination-causes-warning warning-diff-contamination)
+        (and (= (strict witness-confounded-evidence-unknown) epistemics.unknown)
+             confounded-evidence-causes-warning warning-confounded-evidence))
     :using (count-exists
             witness-evidence-hallucinated unverified-causes-error issue-unverified-evidence
             witness-no-evidence-hallucinated no-evidence-causes-error issue-no-evidence
@@ -1409,7 +1473,8 @@
             witness-diff-divergence-hallucinated divergence-causes-error issue-diff-divergence
             witness-diff-value-hallucinated value-divergence-causes-error issue-diff-value-divergence
             witness-evidence-unknown manual-causes-warning warning-manually-verified
-            witness-diff-contamination-unknown contamination-causes-warning warning-diff-contamination))
+            witness-diff-contamination-unknown contamination-causes-warning warning-diff-contamination
+            witness-confounded-evidence-unknown confounded-evidence-causes-warning warning-confounded-evidence))
 
 ; Cross-check diffs
 (diff error-layers-consistent
@@ -1441,7 +1506,9 @@
         (and (= (strict witness-evidence-unknown) epistemics.hallucinated)
              manual-causes-warning warning-manually-verified)
         (and (= (strict witness-diff-contamination-unknown) epistemics.hallucinated)
-             contamination-causes-warning warning-diff-contamination))
+             contamination-causes-warning warning-diff-contamination)
+        (and (= (strict witness-confounded-evidence-unknown) epistemics.hallucinated)
+             confounded-evidence-causes-warning warning-confounded-evidence))
     :using (count-exists epistemics.joint-status
             witness-evidence-hallucinated unverified-causes-error issue-unverified-evidence
             witness-no-evidence-hallucinated no-evidence-causes-error issue-no-evidence
@@ -1450,7 +1517,8 @@
             witness-diff-divergence-hallucinated divergence-causes-error issue-diff-divergence
             witness-diff-value-hallucinated value-divergence-causes-error issue-diff-value-divergence
             witness-evidence-unknown manual-causes-warning warning-manually-verified
-            witness-diff-contamination-unknown contamination-causes-warning warning-diff-contamination))
+            witness-diff-contamination-unknown contamination-causes-warning warning-diff-contamination
+            witness-confounded-evidence-unknown confounded-evidence-causes-warning warning-confounded-evidence))
 
 ; collapsed-error-cross-check (5) = issue-type-count (5) — fully connected
 (diff collapsed-error-layers-consistent
@@ -1474,12 +1542,14 @@
         (strict witness-diff-divergence-hallucinated)
         (strict witness-diff-value-hallucinated)
         (strict witness-evidence-unknown)
-        (strict witness-diff-contamination-unknown))
+        (strict witness-diff-contamination-unknown)
+        (strict witness-confounded-evidence-unknown))
     :using (epistemics.count-hallucinated epistemics.joint-status
             witness-evidence-hallucinated witness-no-evidence-hallucinated
             witness-fabrication-does-not-hold witness-fabrication-ungrounded-source
             witness-diff-divergence-hallucinated witness-diff-value-hallucinated
-            witness-evidence-unknown witness-diff-contamination-unknown))
+            witness-evidence-unknown witness-diff-contamination-unknown
+            witness-confounded-evidence-unknown))
 
 (derive causes-error-count
     (count-exists
@@ -1502,10 +1572,12 @@
 (derive causes-warning-count
     (count-exists
         (and manual-causes-warning warning-manually-verified)
-        (and contamination-causes-warning warning-diff-contamination))
+        (and contamination-causes-warning warning-diff-contamination)
+        (and confounded-evidence-causes-warning warning-confounded-evidence))
     :using (count-exists
             manual-causes-warning warning-manually-verified
-            contamination-causes-warning warning-diff-contamination))
+            contamination-causes-warning warning-diff-contamination
+            confounded-evidence-causes-warning warning-confounded-evidence))
 
 (derive unknown-is-warning
     (= warning-cross-check warning-type-count unknown-count-from-witnesses causes-warning-count)
@@ -1754,4 +1826,3 @@
     :using (util.export expr-references-is-static))
 
 ; suppress_log: bool = True on consistency() is covered by consistency-has-impl above.
-

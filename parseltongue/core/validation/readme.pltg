@@ -502,13 +502,13 @@
 
 (fact readme-documents-manual-verification-modules true
     :evidence (evidence "README"
-        :quotes ("Some definitions have no document source — rewrite axioms with `:origin`, import aliases, and hypothetical values constructed for theorem proving. These are flagged by the consistency checker as `no_evidence`. A **manual verification module** aggregates all such definitions in one place and calls `(verify-manual ...)` for each, so an analyst can review them as a batch rather than hunting through individual modules.")
+        :quotes ("Some definitions have no document source — rewrite axioms with `:origin` and hypothetical values constructed for theorem proving. These are flagged by the consistency checker as `no_evidence`. A **manual verification module** aggregates all such definitions in one place and calls `(verify-manual ...)` for each, so an analyst can review them as a batch rather than hunting through individual modules.")
         :explanation "README documents manual verification modules concept"))
 
-(fact readme-documents-manual-verification-3-categories 3
+(fact readme-documents-manual-verification-2-categories 2
     :evidence (evidence "README"
-        :quotes ("The system's own [`validation/verify_manual.pltg`](validation/verify_manual.pltg) demonstrates three categories of manually verified definitions:")
-        :explanation "README says verify_manual.pltg demonstrates 3 categories"))
+        :quotes ("The system's own [`validation/verify_manual.pltg`](validation/verify_manual.pltg) demonstrates two categories of manually verified definitions:")
+        :explanation "README says verify_manual.pltg demonstrates 2 categories"))
 
 (fact readme-documents-manual-reusables true
     :evidence (evidence "README"
@@ -519,11 +519,6 @@
     :evidence (evidence "README"
         :quotes ("This allows derives to instantiate directly with reusable rewrite axioms instead of defining intermediate `defterm`s that would each require their own evidence — the rewrite fires automatically, so the derive needs only its `:using` symbols, and the consistency checker stays happy because the axioms are manually verified once at the source.")
         :explanation "README documents that reusables avoid intermediate defterms needing evidence"))
-
-(fact readme-documents-manual-import-aliases true
-    :evidence (evidence "README"
-        :quotes ("**Selective imports** — `(import (quote counting.count-exists))` imports one entity under its own name; `(import (quote counting.count-exists ce))` gives it an explicit local name. Both names bind the imported directive itself, preserving its identity and evidence.")
-        :explanation "README documents import aliases as manually verified category"))
 
 (fact readme-documents-manual-hypotheticals true
     :evidence (evidence "README"
@@ -618,7 +613,7 @@
         :quotes ("diff_value_divergence" "The two values in a diff disagree directly")
         :explanation "Issue type with description"))
 
-; --- Warning types (2) ---
+; --- Warning types (3) ---
 
 (fact readme-warning-type-1 "manually_verified"
     :evidence (evidence "README"
@@ -628,6 +623,11 @@
 (fact readme-warning-type-2 "diff_contamination"
     :evidence (evidence "README"
         :quotes ("diff_contamination" "Diff divergence caused by a sibling diff, not a real disagreement")
+        :explanation "Warning type with description"))
+
+(fact readme-warning-type-3 "confounded_evidence"
+    :evidence (evidence "README"
+        :quotes ("confounded_evidence" "Both sides of a diff depend on the same document quote, weakening their independence")
         :explanation "Warning type with description"))
 
 ; =====================================================================
@@ -924,10 +924,10 @@
 ; Module system patterns
 ; =====================================================================
 
-(fact readme-documents-local-aliasing true
+(fact readme-documents-selective-imports true
     :evidence (evidence "README"
-        :quotes ("### Local Aliasing" "Modules can create local aliases for namespaced symbols using defterm")
-        :explanation "README has a Local Aliasing section"))
+        :quotes ("### Selective Entity Imports" "The local and canonical names refer to the imported directive itself")
+        :explanation "README documents selective entity imports and identity preservation"))
 
 ; (deleted: readme-documents-forward-decl — superseded by readme-defterm-forward-decl)
 
@@ -953,8 +953,8 @@
 
 (fact readme-documents-defterm-lazy true
     :evidence (evidence "README"
-        :quotes ("All defterm definitions are lazy" "the body expression is stored unevaluated and resolved only when the term is referenced")
-        :explanation "README documents lazy defterm evaluation"))
+        :quotes ("A `defterm` body is stored unevaluated and is evaluated when the term is referenced")
+        :explanation "README documents lazy evaluation of computed defterms independently of imports"))
 
 (fact readme-documents-relative-imports true
     :evidence (evidence "README"
@@ -1449,7 +1449,7 @@
         :quotes ("The `parseltongue/core/tests` directory is included in pytest `testpaths` so that the consistency test runs in CI.")
         :explanation "README's packaging section documents the consistency test's pytest/CI integration — plan landed"))
 
-; (deleted: readme-documents-verify-manual-pltg — duplicate of readme-documents-manual-verification-3-categories)
+; (deleted: readme-documents-verify-manual-pltg — duplicate of the manual-verification category count)
 
 ; =====================================================================
 ; README presentation
@@ -1769,10 +1769,10 @@
         :quotes ("unverified_evidence" "no_evidence" "potential_fabrication" "diff_divergence" "diff_value_divergence")
         :explanation "README lists 5 issue types in the consistency table"))
 
-(fact readme-documents-engine-warning-count 2
+(fact readme-documents-engine-warning-count 3
     :evidence (evidence "README"
-        :quotes ("manually_verified" "diff_contamination")
-        :explanation "README lists 2 warning types in the consistency table"))
+        :quotes ("manually_verified" "diff_contamination" "confounded_evidence")
+        :explanation "README lists 3 warning types in the consistency table"))
 
 (fact readme-documents-engine-diffs-cross-validation true
     :evidence (evidence "README"
@@ -2187,8 +2187,8 @@
 ; --- 6b. Consistency warning types: stated count vs listing ---
 
 (derive readme-warning-types-listing-count
-    (count-exists readme-warning-type-1 readme-warning-type-2)
-    :using (count-exists readme-warning-type-1 readme-warning-type-2))
+    (count-exists readme-warning-type-1 readme-warning-type-2 readme-warning-type-3)
+    :using (count-exists readme-warning-type-1 readme-warning-type-2 readme-warning-type-3))
 
 (diff readme-warning-types-vs-stated :replace readme-warning-types-listing-count :with readme-documents-engine-warning-count)
 
@@ -2247,13 +2247,11 @@
 
 (derive readme-manual-categories-listing-count
     (count-exists readme-documents-manual-reusables
-                  readme-documents-manual-import-aliases
                   readme-documents-manual-hypotheticals)
     :using (count-exists readme-documents-manual-reusables
-                         readme-documents-manual-import-aliases
                          readme-documents-manual-hypotheticals))
 
-(diff readme-manual-categories-vs-stated :replace readme-manual-categories-listing-count :with readme-documents-manual-verification-3-categories)
+(diff readme-manual-categories-vs-stated :replace readme-manual-categories-listing-count :with readme-documents-manual-verification-2-categories)
 
 ; --- 11. Parser stages: listing count ---
 ; Dangling: 3 stages — for core.pltg cross-check vs parser impl

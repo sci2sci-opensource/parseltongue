@@ -725,6 +725,15 @@ class TestContextEffect(_TmpDirTestCase):
 class TestErrorLocations(_TmpDirTestCase):
     """PltgError contains clickable file:// links with line numbers."""
 
+    def test_pltg_error_renders_location_and_import_stack(self):
+        from parseltongue.core.loader.loader import PltgError
+
+        error = PltgError("boom", file="/tmp/child.pltg", line=7, stack=["/tmp/root.pltg"])
+        message = str(error)
+
+        self.assertIn("file:///tmp/child.pltg:7:1: boom", message)
+        self.assertIn("imported from file:///tmp/root.pltg", message)
+
     def test_error_has_file_link(self):
         """PltgError from strict loader includes file:// URI."""
         from parseltongue.core.loader.loader import PltgError, load_pltg

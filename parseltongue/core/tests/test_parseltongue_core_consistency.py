@@ -39,6 +39,17 @@ class TestParseltongueCoreConsistency(unittest.TestCase):
         print(report.verbose())
         self.assertTrue(report.consistent, f"System inconsistent: {report}")
 
+    @pytest.mark.xfail(strict=True, reason="WIP: validation estate contains confounded diff evidence")
+    def test_no_confounded_evidence(self):
+        """Every validation diff must be independently evidenced on both sides."""
+        report = self.system.consistency()
+        confounded = next((warning for warning in report.warnings if warning.type == "confounded_evidence"), None)
+
+        self.assertIsNone(
+            confounded,
+            "Confounded diff evidence:\n" + (confounded.verbose() if confounded is not None else ""),
+        )
+
     def test_all_theorems_evaluate_true(self):
         engine = self.system.engine
         for name, thm in engine.theorems.items():

@@ -343,9 +343,9 @@ Evidence is a first-class citizen and is directly used by the engine and grammar
 
 #### Special Technique: Manual Verification Modules
 
-Some definitions have no document source — rewrite axioms with `:origin`, import aliases, and hypothetical values constructed for theorem proving. These are flagged by the consistency checker as `no_evidence`. A **manual verification module** aggregates all such definitions in one place and calls `(verify-manual ...)` for each, so an analyst can review them as a batch rather than hunting through individual modules.
+Some definitions have no document source — rewrite axioms with `:origin` and hypothetical values constructed for theorem proving. These are flagged by the consistency checker as `no_evidence`. A **manual verification module** aggregates all such definitions in one place and calls `(verify-manual ...)` for each, so an analyst can review them as a batch rather than hunting through individual modules.
 
-The system's own [`validation/verify_manual.pltg`](validation/verify_manual.pltg) demonstrates three categories of manually verified definitions:
+The system's own [`validation/verify_manual.pltg`](validation/verify_manual.pltg) demonstrates two categories of manually verified definitions:
 
 **Internally constructed reusables** — axioms defined with `:origin` that serve as shared infrastructure. The `counting.pltg` splat axioms (`count-exists-base`, `count-exists-step`, `sum-values-base`, `sum-values-step`) have no document to quote because they *are* the counting mechanism. They're verified once in `verify_manual.pltg` and trusted across all modules that import them. This allows derives to instantiate directly with reusable rewrite axioms instead of defining intermediate `defterm`s that would each require their own evidence — the rewrite fires automatically, so the derive needs only its `:using` symbols, and the consistency checker stays happy because the axioms are manually verified once at the source.
 
@@ -354,15 +354,6 @@ The system's own [`validation/verify_manual.pltg`](validation/verify_manual.pltg
 (verify-manual (quote counting.count-exists))
 (verify-manual (quote counting.count-exists-base))
 (verify-manual (quote counting.count-exists-step))
-```
-
-**Selective imports** — `(import (quote counting.count-exists))` imports one entity under its own name; `(import (quote counting.count-exists ce))` gives it an explicit local name. Both names bind the imported directive itself, preserving its identity and evidence.
-
-```scheme
-(verify-manual (quote atoms.count-exists))
-(verify-manual (quote engine.count-exists))
-(verify-manual (quote lang.count-exists))
-; ... one per importing module ...
 ```
 
 **Hypotheticals for axiom instantiation** — some axioms require concrete values to prove via `:bind`, but those values don't exist in any document. For example, the `empty-quote-rejected` axiom says "if a quote has no content, verification returns false." To instantiate it, you construct hypothetical inputs and outputs:
@@ -475,8 +466,10 @@ The quote verifier is extensible: custom normalizers, fuzzy matchers, and custom
 |---|---|
 | `manually_verified` | Evidence was manually verified by a human, not by the system |
 | `diff_contamination` | Diff divergence caused by a sibling diff, not a real disagreement |
+| `confounded_evidence` | Both sides of a diff depend on the same document quote, weakening their independence |
 
 Diffs are the primary mechanism for cross-validation. Register a diff, and the system automatically checks whether swapping one value for another causes dependent terms to change.
+The consistency check also traces evidence transitively through each side. If both sides reach the same quote in the same document, or one side's quote fully contains the other's, it reports `confounded_evidence`; identical text in different documents remains independent.
 
 ```python
 report = engine.consistency()
@@ -641,20 +634,19 @@ Circular imports are detected and raise an error. Duplicate imports are skipped.
 
 Each loaded file gets an immutable `ModuleContext` following an onion model — inner modules link to the outer loader context. Context keys are namespaced per-module so `(context :file)` in `lib.pltg` resolves to the library's file path, not the main file's.
 
-### Local Aliasing
+### Selective Entity Imports
 
-Modules can create local aliases for namespaced symbols using `defterm`. This avoids repeating the full namespace in expressions:
+An import can bind one exported entity under its own name or an explicit local name. The local and canonical names refer to the imported directive itself, so its definition, identity, and evidence remain attached to one entity:
 
 ```scheme
-(import (quote src.primitives))
-(defterm = src.primitives.= :origin "import")
-(defterm + src.primitives.+ :origin "import")
+(import (quote src.primitives.=))
+(import (quote src.primitives.+ add))
 
-; Now use short names in axioms
-(axiom add-comm (= (+ ?a ?b) (+ ?b ?a)) :origin "commutativity")
+; `=` is imported under its own name; `add` is an explicit local name.
+(axiom add-comm (= (add ?a ?b) (add ?b ?a)) :origin "commutativity")
 ```
 
-All `defterm` definitions are lazy — the body expression is stored unevaluated and resolved only when the term is referenced. This means bare aliases like `(defterm x some-symbol)` work without a `quote` wrapper; the target is resolved at use time, not definition time.
+This import behavior is distinct from ordinary computed `defterm`s. A `defterm` body is stored unevaluated and is evaluated when the term is referenced, so computed terms remain lazy even though imports no longer use `defterm` as an alias mechanism.
 
 ### Import Chains
 

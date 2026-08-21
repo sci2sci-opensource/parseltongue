@@ -25,9 +25,11 @@ from ..engine import (
     Fact,
     IssueType,
     WarningType,
+    _confounded_quote_pairs,
     _corpus_counter_examples,
     _corpus_polarity,
     _corpus_reasons,
+    _evidence_quote_provenance,
     reverify_evidence,
 )
 from ..engine import Engine as EngineProtocol
@@ -1775,6 +1777,33 @@ class Engine(EngineProtocol):
                 contam_details[d.name] = "; ".join(f"{k}: {v[1]}" for k, v in sorted(d.divergences.items()))
             warnings.append(
                 ConsistencyWarning(WarningType.DIFF_CONTAMINATION, [d.name for d in diff_contamination], contam_details)
+            )
+
+        confounded_details = {}
+        for name in sorted(names):
+            params = self.diffs[name]
+            replace_quotes = _evidence_quote_provenance(self, params["replace"])
+            with_quotes = _evidence_quote_provenance(self, params["with"])
+            overlap = _confounded_quote_pairs(replace_quotes, with_quotes)
+            if overlap:
+                entries = []
+                for document, replace_quote, with_quote in overlap:
+                    replace_via = ", ".join(sorted(replace_quotes[(document, replace_quote)]))
+                    with_via = ", ".join(sorted(with_quotes[(document, with_quote)]))
+                    quote_display = (
+                        repr(replace_quote)
+                        if replace_quote == with_quote
+                        else f"{replace_quote!r} overlaps {with_quote!r}"
+                    )
+                    entries.append(f"{document}: {quote_display} (replace via {replace_via}; with via {with_via})")
+                confounded_details[name] = "; ".join(entries)
+        if confounded_details:
+            warnings.append(
+                ConsistencyWarning(
+                    WarningType.CONFOUNDED_EVIDENCE,
+                    sorted(confounded_details),
+                    confounded_details,
+                )
             )
 
         return issues, warnings

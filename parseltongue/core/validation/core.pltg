@@ -25,8 +25,6 @@
 (import (quote ..std.counting))
 
 (import (quote counting.count-exists))
-; verify in-place — core loads after verify_manual, so circular dep if done there
-(verify-manual (quote count-exists))
 
 (import (quote util.stub))
 
@@ -156,7 +154,10 @@
 ; =====================================================================
 
 
-(diff local-aliasing :replace readme.readme-documents-local-aliasing :with demos.alias-used-in-practice)
+(diff selective-import-doc-vs-impl :replace readme.readme-documents-selective-imports :with loader.selective-import-semantics-grounded)
+(diff selective-import-impl-vs-demo :replace loader.selective-import-semantics-grounded :with demos.selective-import-used-in-practice)
+
+(diff defterm-laziness :replace readme.readme-documents-defterm-lazy :with engine.every-computed-defterm-is-lazy)
 
 (diff forward-decl :replace readme.readme-defterm-forward-decl :with demos.forward-decl-proven-by-afternoon)
 
@@ -167,15 +168,6 @@
 (diff import-chains :replace readme.readme-documents-import-chains :with demos.import-chain-proven)
 
 (diff cross-module-bind :replace readme.readme-documents-cross-module-bind :with demos.cross-module-bind-proven)
-
-; =====================================================================
-; Defterm laziness: README coverage vs proof chain
-; =====================================================================
-
-
-(diff defterm-laziness :replace readme.readme-documents-defterm-lazy :with demos.every-defterm-is-lazy)
-
-(diff lazy-count-match :replace demos.labeled-lazy-count :with demos.actual-lazy-count)
 
 ; =====================================================================
 ; Packaging: README coverage vs pyproject.toml
@@ -644,14 +636,10 @@
 (diff thm-serialization :replace system-provides-serialization-engine-lacks :with readme.readme-documents-serialization)
 
 ; --- README internal counts cross-checked against impl ---
-; 3 manual verification categories proven by existence
+; 2 manual verification categories proven by existence
 (derive manual-category-reusables-confirmed
     (= counting.export-counting-module-exists true)
     :using (counting.export-counting-module-exists))
-
-(derive manual-category-aliases-confirmed
-    (= count-exists counting.count-exists)
-    :using (count-exists counting.count-exists))
 
 (derive manual-category-hypotheticals-confirmed
     (= readme.readme-documents-manual-hypotheticals-qv-count quote_verifier.export-hypothetical-axiom-count)
@@ -659,10 +647,8 @@
 
 (derive manual-categories-count
     (count-exists manual-category-reusables-confirmed
-                  manual-category-aliases-confirmed
                   manual-category-hypotheticals-confirmed)
     :using (count-exists manual-category-reusables-confirmed
-                         manual-category-aliases-confirmed
                          manual-category-hypotheticals-confirmed))
 
 (diff thm-readme-ast-fields :replace readme.export-ast-fields-count :with ast_verifier.node-field-count)
@@ -706,5 +692,3 @@
 ; =====================================================================
 ; Full
 ; =====================================================================
-
-

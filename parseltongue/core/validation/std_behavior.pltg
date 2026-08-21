@@ -19,7 +19,6 @@
 (import (quote ..std.counting))
 
 (import (quote counting.count-exists))
-(verify-manual (quote count-exists) "V")
 
 ; =====================================================================
 ; Local helpers — axiom-backed functions and status carriers used as

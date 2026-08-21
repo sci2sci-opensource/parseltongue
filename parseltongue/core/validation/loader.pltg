@@ -2,6 +2,8 @@
 
 (load-document "loader.py" "../loader/loader.py")
 (load-document "loader_engine.py" "../loader/loader_engine.py")
+(load-document "loader_morphism.py" "../loader/loader_morphism.py")
+(load-document "test_module_imports.py" "../tests/test_module_imports.py")
 (import (quote ..std.counting))
 (import (quote ..std.util))
 (import (quote counting.count-exists))
@@ -19,6 +21,40 @@
     :evidence (evidence "loader.py"
         :quotes ("import resolution")
         :explanation "Module docstring lists import resolution"))
+
+; Selective entity imports — resolution, naming, identity, and use-site patching
+(fact selective-import-resolves-longest-module-prefix true
+    :evidence (evidence "loader.py"
+        :quotes ("Resolve the longest module prefix. If the full dotted path is\n            # not a module but its parent is, the last segment is an entity."
+                 "parent_name, candidate_entity = module_name.rsplit(\".\", 1)")
+        :explanation "A dotted import that is not itself a module is split into its module parent and entity"))
+
+(fact selective-import-defaults-to-entity-name true
+    :evidence (evidence "loader.py"
+        :quotes ("entity_alias = str(alias_sym) if alias_sym is not None else entity_name")
+        :explanation "Without an explicit alias, the imported entity is bound under its own name"))
+
+(fact selective-import-preserves-object-identity true
+    :evidence (evidence "loader.py"
+        :quotes ("Bind one imported directive under a local name, preserving identity."
+                 "reg[local] = reg[canonical]")
+        :explanation "The local store key is assigned the canonical directive object, not a copied definition"))
+
+(fact selective-import-patches-references-to-canonical true
+    :evidence (evidence "loader_morphism.py"
+        :quotes ("if local in ctx.entity_aliases:\n        target = ctx.entity_aliases[local]"
+                 "ctx.log_resolution(s, target, \"entity-import\", line)")
+        :explanation "References to the local entity name resolve to the canonical imported name"))
+
+(derive selective-import-semantics-grounded
+    (and selective-import-resolves-longest-module-prefix
+         selective-import-defaults-to-entity-name
+         selective-import-preserves-object-identity
+         selective-import-patches-references-to-canonical)
+    :using (selective-import-resolves-longest-module-prefix
+            selective-import-defaults-to-entity-name
+            selective-import-preserves-object-identity
+            selective-import-patches-references-to-canonical))
 
 (fact loader-provides-run-on-entry true
     :evidence (evidence "loader.py"
@@ -784,28 +820,51 @@
 ; PltgError — source-located loader errors
 ; =====================================================================
 
-(fact pltg-error-class true
+(fact pltg-error-location-doc true
     :evidence (evidence "loader.py"
-        :quotes ("class PltgError(Exception):"
-                 "Error with .pltg source location and import stack.")
-        :explanation "PltgError exception class with its docstring"))
+        :quotes ("Error with .pltg source location")
+        :explanation "PltgError docstring promises source location"))
 
-(fact pltg-error-wraps-location true
+(fact pltg-error-location-impl true
     :evidence (evidence "loader.py"
         :quotes ("self.file = file"
                  "self.line = line"
-                 "self.stack = stack or []"
-                 "loc = format_loc(self.file, self.line)"
-                 "parts.append(f\"  imported from {format_loc(frame)}\")")
-        :explanation "PltgError stores file/line/import stack and renders file:line plus the import chain"))
+                 "loc = format_loc(self.file, self.line)")
+        :explanation "PltgError stores and formats its source file and line"))
 
-(derive pltg-error-fact-count
-    (count-exists pltg-error-class pltg-error-wraps-location)
-    :using (count-exists pltg-error-class pltg-error-wraps-location))
+(fact pltg-error-location-behavior true
+    :evidence (evidence "test_module_imports.py"
+        :quotes ("error = PltgError(\"boom\", file=\"/tmp/child.pltg\", line=7, stack=[\"/tmp/root.pltg\"])"
+                 "self.assertIn(\"file:///tmp/child.pltg:7:1: boom\", message)")
+        :explanation "behavior test observes the rendered source location and message"))
 
-(defterm pltg-error-expected 2
+(fact pltg-error-stack-doc true
     :evidence (evidence "loader.py"
-        :quotes ("class PltgError(Exception):" "loc = format_loc(self.file, self.line)")
-        :explanation "2 grounded PltgError facts: class definition and file:line wrapping"))
+        :quotes ("import stack")
+        :explanation "PltgError docstring promises an import stack"))
 
-(diff pltg-error-coverage :replace pltg-error-fact-count :with pltg-error-expected)
+(fact pltg-error-stack-impl true
+    :evidence (evidence "loader.py"
+        :quotes ("self.stack = stack or []"
+                 "for frame in self.stack:"
+                 "parts.append(f\"  imported from {format_loc(frame)}\")")
+        :explanation "PltgError stores and renders every import-stack frame"))
+
+(fact pltg-error-stack-behavior true
+    :evidence (evidence "test_module_imports.py"
+        :quotes ("self.assertIn(\"imported from file:///tmp/root.pltg\", message)")
+        :explanation "behavior test observes the rendered parent import frame"))
+
+(derive pltg-error-doc-count
+    (count-exists pltg-error-location-doc pltg-error-stack-doc)
+    :using (count-exists pltg-error-location-doc pltg-error-stack-doc))
+
+(derive pltg-error-paired-count
+    (count-exists
+        (and pltg-error-location-doc pltg-error-location-impl pltg-error-location-behavior)
+        (and pltg-error-stack-doc pltg-error-stack-impl pltg-error-stack-behavior))
+    :using (count-exists
+            pltg-error-location-doc pltg-error-location-impl pltg-error-location-behavior
+            pltg-error-stack-doc pltg-error-stack-impl pltg-error-stack-behavior))
+
+(diff pltg-error-coverage :replace pltg-error-doc-count :with pltg-error-paired-count)
