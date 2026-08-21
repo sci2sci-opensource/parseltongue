@@ -28,6 +28,16 @@ _2000+ nodes rendered as an interactive graph — zoom, click any node for full 
 
 [Explore the engine demo live →](https://sci2sci-opensource.github.io/parseltongue/demos/engine_overview_core_overview.html)
 
+## Repository self-validation
+
+The repository validates both its public README claims and the curated `parseltongue.core` proof estate. The top-level `parseltongue.pltg` imports those two independent validation layers and finishes with `(consistency :raise)`, so unverified evidence or a divergent cross-check makes the command fail:
+
+```bash
+python -m parseltongue load_main parseltongue.pltg
+```
+
+The required Consistency workflow runs that self-validation entry point and the whole-estate consistency tests on every pull request and push to `main` or `master`. The tests enforce grounded evidence, true theorems, and no dangling definitions; confounded diff evidence is tracked separately as explicit validation debt until every diff has independent support on both sides.
+
 ## Rationale - Why?
 
 LLMs are increasingly used for code review, security auditing, and documentation validation. The problem: they hallucinate. An LLM reviewing an authentication module might flag a "missing bcrypt implementation" that doesn't exist in the code, or miss the actual vulnerability — MD5 used for session IDs — while confidently producing a detailed critique. You get a fluent, plausible security report where some findings are real, some are fabricated, and you have no way to tell which is which without manually verifying every claim.

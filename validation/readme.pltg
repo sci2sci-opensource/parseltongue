@@ -1,12 +1,20 @@
 ; readme.pltg — Top-level README.md validation
 
 (load-document "README" "../README.md")
+(load-document "self-validation" "../parseltongue.pltg")
 
-(fact readme-documents-self-validation false
-    :origin "stub — README does not yet document the self-validation system")
+(fact readme-documents-self-validation true
+    :evidence (evidence "README"
+        :quotes ("## Repository self-validation"
+                 "The top-level `parseltongue.pltg` imports those two independent validation layers and finishes with `(consistency :raise)`")
+        :explanation "the repository README documents the self-validation composition and failure contract"))
 
 (fact self-validation-implemented true
-    :origin "proven — this .pltg file and parseltongue/core/validation/ exist")
+    :evidence (evidence "self-validation"
+        :quotes ("(import (quote validation.readme))"
+                 "(import (quote parseltongue.core.validation.core_clean))"
+                 "(consistency :raise)")
+        :explanation "the top-level entry imports both validation layers and raises on inconsistency"))
 
 (diff self-validation
     :replace readme-documents-self-validation
