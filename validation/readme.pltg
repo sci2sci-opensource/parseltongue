@@ -3,7 +3,7 @@
 (load-document "README" "../README.md")
 (load-document "self-validation" "../parseltongue.pltg")
 (load-document "pyproject" "../pyproject.toml")
-(load-documents "root-readme" "../README.md")
+(load-document "release-announcement" "../README.md")
 
 (fact readme-announced-version "0.8.0"
     :evidence (evidence "README"
@@ -20,7 +20,7 @@
     :with package-version)
 
 (fact every-release-announcement-links-documentation true
-    :evidence (evidence "root-readme"
+    :evidence (evidence "release-announcement"
         :forall (re "v[0-9]+\\.[0-9]+\\.[0-9]+ +—")
         :satisfies (near 40 (re "\\[documentation\\]\\(https://sci2sci-opensource\\.github\\.io/parseltongue/index\\.html\\)"))
         :explanation "every versioned release announcement keeps the canonical Markdown documentation link nearby"))
