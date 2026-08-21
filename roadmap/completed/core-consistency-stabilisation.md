@@ -70,4 +70,4 @@ shows warnings only.
   danglings, screens invalidating on any corpus mutation.
 - Follow-ups tracked as their own tasks: wire-inspect-validators,
   deepen-core-evidence, coverage-in-consistency-report,
-  pgmd-roadmap-tracker.
+  eliminate-confounded-diff-evidence, pgmd-roadmap-tracker.
