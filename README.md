@@ -14,29 +14,9 @@ A DSL for systems that refuse to speak falsehood.
 [![Python](https://img.shields.io/pypi/pyversions/parseltongue-dsl)](https://pypi.org/project/parseltongue-dsl/)
 [![License](https://img.shields.io/github/license/sci2sci-opensource/parseltongue)](https://github.com/sci2sci-opensource/parseltongue/blob/main/LICENSE)
 
-> **v0.7.0 — Seeing the Sentences.** Interactive visualization, search engine with provenance, stack-based evaluator, pgmd notebooks. Install with `pip install 'parseltongue-dsl'` or start with [documentation](https://sci2sci-opensource.github.io/parseltongue/index.html).
+> **v0.8.0 — Absent Witnesses.** Absence can testify now: corpus-quantified evidence (`:absent` / `:forall`), typed evidence with a public verifier registry, a composable `DslLoader`, and the first self-verifying architectural invariant. [Read the release notes](https://github.com/sci2sci-opensource/parseltongue/releases/tag/v0.8.0) or start with the [documentation](https://sci2sci-opensource.github.io/parseltongue/index.html).
 
-**Notebook example for this repo:**
-
-![Engine self-inspection notebook](https://raw.githubusercontent.com/sci2sci-opensource/parseltongue/HEAD/documentation/resources/engine_self_notebook.png)
-_The engine inspects itself — a pgmd notebook with inline computed values, taint propagation, and derivation paths_
-
-**Materialized knowledge graph of this notebook:**
-
-![Engine graph overview](https://raw.githubusercontent.com/sci2sci-opensource/parseltongue/HEAD/documentation/resources/engine_overview.png)
-_2000+ nodes rendered as an interactive graph — zoom, click any node for full evidence and derivation tree_
-
-[Explore the engine demo live →](https://sci2sci-opensource.github.io/parseltongue/demos/engine_overview_core_overview.html)
-
-## Repository self-validation
-
-The repository validates both its public README claims and the curated `parseltongue.core` proof estate. The top-level `parseltongue.pltg` imports those two independent validation layers and finishes with `(consistency :raise)`, so unverified evidence or a divergent cross-check makes the command fail:
-
-```bash
-python -m parseltongue load_main parseltongue.pltg
-```
-
-The required Consistency workflow runs that self-validation entry point and the whole-estate consistency tests on every pull request and push to `main` or `master`. The tests enforce grounded evidence, true theorems, and no dangling definitions; confounded diff evidence is tracked separately as explicit validation debt until every diff has independent support on both sides.
+P.S. This announcement validates itself: a `:forall` claim with `near` requires every versioned announcement to carry the canonical documentation link, while a cross-document `diff` checks its version against `pyproject.toml`.
 
 ## Rationale - Why?
 
@@ -63,6 +43,27 @@ _Derivation layers — every theorem traces back to source-quoted facts_
 
 See [Discovered Use Cases](https://github.com/sci2sci-opensource/parseltongue/blob/HEAD/documentation/DISCOVERED-USECASES.md) for more real-world applications and experiment with them [in live demos.](https://sci2sci-opensource.github.io/parseltongue/demos.html)
 
+**Notebook example for this repo:**
+
+![Engine self-inspection notebook](https://raw.githubusercontent.com/sci2sci-opensource/parseltongue/HEAD/documentation/resources/engine_self_notebook.png)
+_The engine inspects itself — a pgmd notebook with inline computed values, taint propagation, and derivation paths_
+
+**Materialized knowledge graph of this notebook:**
+
+![Engine graph overview](https://raw.githubusercontent.com/sci2sci-opensource/parseltongue/HEAD/documentation/resources/engine_overview.png)
+_2000+ nodes rendered as an interactive graph — zoom, click any node for full evidence and derivation tree_
+
+[Explore the engine demo live →](https://sci2sci-opensource.github.io/parseltongue/demos/engine_overview_core_overview.html)
+
+## Repository self-validation
+
+The repository validates both its public README claims and the curated `parseltongue.core` proof estate. The top-level `parseltongue.pltg` imports those two independent validation layers and finishes with `(consistency :raise)`, so unverified evidence or a divergent cross-check makes the command fail:
+
+```bash
+python -m parseltongue load_main parseltongue.pltg
+```
+
+The required Consistency workflow runs that self-validation entry point and the whole-estate consistency tests on every pull request and push to `main` or `master`. The tests enforce grounded evidence, true theorems, and no dangling definitions; confounded diff evidence is tracked separately as explicit validation debt until every diff has independent support on both sides.
 
 ## Quick Start
 
