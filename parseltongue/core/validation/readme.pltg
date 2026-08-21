@@ -1460,10 +1460,10 @@
         :quotes ("ourouborous_core.svg" "Ouroboros")
         :explanation "README header displays ouroboros icon — a system that validates itself"))
 
-(fact readme-needs-consistency-badge-plan false
+(fact readme-has-consistency-badge true
     :evidence (evidence "README"
-        :absent (re "badge")
-        :explanation "README should display a self-consistency CI badge showing core validation pass/fail status — none present yet"))
+        :quotes ("[![Consistency](https://github.com/sci2sci-opensource/parseltongue/actions/workflows/consistency.yml/badge.svg)](https://github.com/sci2sci-opensource/parseltongue/actions/workflows/consistency.yml)")
+        :explanation "core README displays the required consistency workflow status"))
 
 ; (deleted: readme-documents-effects-eval-context — duplicate of readme-documents-effects-in-computable)
 
@@ -2547,22 +2547,21 @@
                   (not readme-documents-self-test-plan)
                   (not readme-documents-self-test-goedel-plan)
                   (not readme-documents-self-test-turing-plan)
-                  (not readme-documents-validation-framework-plan)
-                  (not readme-needs-consistency-badge-plan))
+                  (not readme-documents-validation-framework-plan))
     :using (count-exists counting.count-exists-base counting.count-exists-step
             readme-documents-core-pltg-plan readme-documents-introspection-and-self-consistency-plan
             readme-documents-per-module-validators-plan readme-documents-self-test-plan
             readme-documents-self-test-goedel-plan readme-documents-self-test-turing-plan
-            readme-documents-validation-framework-plan readme-needs-consistency-badge-plan))
+            readme-documents-validation-framework-plan))
 
 (diff readme-planned-sections-outstanding-check :replace readme-planned-sections-outstanding :with readme-planned-sections-outstanding) ;trivial
 
 (derive readme-plans-landed-count
     (count-exists readme-documents-consistency-test-plan readme-documents-self-introspection-plan
-                  readme-documents-self-test-pytest-plan)
+                  readme-documents-self-test-pytest-plan readme-has-consistency-badge)
     :using (count-exists counting.count-exists-base counting.count-exists-step
             readme-documents-consistency-test-plan readme-documents-self-introspection-plan
-            readme-documents-self-test-pytest-plan))
+            readme-documents-self-test-pytest-plan readme-has-consistency-badge))
 
 (diff readme-plans-landed-check :replace readme-plans-landed-count :with readme-plans-landed-count) ;trivial
 

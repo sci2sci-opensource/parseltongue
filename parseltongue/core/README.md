@@ -4,6 +4,8 @@
 
 # Parseltongue Core
 
+[![Consistency](https://github.com/sci2sci-opensource/parseltongue/actions/workflows/consistency.yml/badge.svg)](https://github.com/sci2sci-opensource/parseltongue/actions/workflows/consistency.yml)
+
 The formal language engine. No LLM dependency — pure logic, evidence grounding, consistency checking, and self-introspection.
 
 ## Rationale
