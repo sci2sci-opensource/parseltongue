@@ -83,6 +83,7 @@ class PatchContext:
     source_file: str = ""
     known_names: Any = field(default_factory=set)  # set[str] | dict | EngineKnown — anything with __contains__
     aliases: dict[str, str] = field(default_factory=dict)
+    entity_aliases: dict[str, str] = field(default_factory=dict)
     names_to_modules: dict[str, str] = field(default_factory=dict)
     report: MorphismReport | None = None
     engine_name: str = ""
@@ -133,6 +134,10 @@ def patch_context(expr, ctx: PatchContext, line: int = 0) -> None:
 
 def _resolve_dotted(s: str, ctx: PatchContext, line: int) -> str | None:
     """Try to resolve a dotted symbol via aliases. Returns resolved name or None."""
+    if s in ctx.entity_aliases:
+        target = ctx.entity_aliases[s]
+        ctx.log_resolution(s, target, "entity-import", line)
+        return target
     for alias, canonical in ctx.aliases.items():
         prefix = alias + "."
         if s.startswith(prefix):
@@ -145,6 +150,11 @@ def _resolve_dotted(s: str, ctx: PatchContext, line: int) -> str | None:
 
 def _resolve_bare(s: str, ctx: PatchContext, line: int) -> str | None:
     """Try to resolve a bare symbol via module namespace or aliases. Returns resolved name or None."""
+    local = f"{ctx.module_name}.{s}" if ctx.module_name else s
+    if local in ctx.entity_aliases:
+        target = ctx.entity_aliases[local]
+        ctx.log_resolution(s, target, "entity-import", line)
+        return target
     # Direct: module_name.symbol
     candidate = f"{ctx.module_name}.{s}"
     if candidate in ctx.known_names:

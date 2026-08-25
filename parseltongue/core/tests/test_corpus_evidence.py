@@ -234,6 +234,24 @@ class TestVerifierRegistry(unittest.TestCase):
         self.assertTrue(system.engine.facts["no-weak-hash"].origin.is_grounded)
         self.assertNotIn(IssueType.UNVERIFIED_EVIDENCE, self._issues(system))
 
+    def test_reverify_preserves_shared_alias_identity(self):
+        system = System()
+        load_source(system, _ABSENT_FACT)
+        canonical = system.engine.facts["no-weak-hash"]
+        system.engine.facts["security.no-weak-hash"] = canonical
+        stub = _StubVerifier(verified=True)
+        system.engine.register_evidence_verifier(EVIDENCE_TYPE_CORPUS_QUERY, stub)
+
+        changed = reverify_evidence(system.engine, EVIDENCE_TYPE_CORPUS_QUERY)
+
+        self.assertEqual(changed, 2)
+        self.assertEqual(stub.calls, 1)
+        self.assertIs(system.engine.facts["no-weak-hash"], system.engine.facts["security.no-weak-hash"])
+
+        system.verify_manual("no-weak-hash", signature="Alice")
+        self.assertIs(system.engine.facts["no-weak-hash"], system.engine.facts["security.no-weak-hash"])
+        self.assertTrue(system.engine.facts["security.no-weak-hash"].origin.verify_manual)
+
     def test_ungrounded_corpus_fact_taints_derives(self):
         system = System()
         load_source(system, _ABSENT_FACT)

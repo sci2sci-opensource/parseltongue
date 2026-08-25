@@ -16,6 +16,7 @@ Run:
 
 import argparse
 import csv
+import io
 import json
 import random
 import re
@@ -1337,6 +1338,22 @@ def _pltg_escape(s: str) -> str:
     return s.replace("\\", "\\\\").replace('"', '\\"')
 
 
+def _csv_row_prefix(ds: "DatasetRecord", upto: str) -> str:
+    """The dataset's CSV row text from dataset_id through ``upto``, serialized
+    exactly as DictWriter writes it.
+
+    Evidence quotes must pin down *which* row supports a fact — a bare cell
+    value like "internal" occurs in every other row of the catalog, so the
+    verifier matches it everywhere and the evidence panel highlights the
+    whole document. Anchoring the quote at the unique dataset_id makes it
+    match exactly one row, ending at the evidenced field.
+    """
+    idx = CSV_COLUMNS.index(upto) + 1
+    buf = io.StringIO()
+    csv.writer(buf).writerow([getattr(ds, k) for k in CSV_COLUMNS[:idx]])
+    return buf.getvalue().rstrip("\r\n")
+
+
 def write_pltg_load_contracts(contracts: List[ContractRecord]):
     """Generate src/load_contracts.pltg — load-document for each contract."""
     lines = ["; Auto-generated: load contract documents"]
@@ -1377,27 +1394,27 @@ def write_pltg_technical(all_datasets: Dict[str, List[DatasetRecord]]):
                 [
                     f'(fact {safe}-path "{_pltg_escape(ds.storage_path)}"',
                     f'  :evidence (evidence "{doc_name}"',
-                    f'    :quotes ("{_pltg_escape(ds.storage_path)}")',
+                    f'    :quotes ("{_pltg_escape(_csv_row_prefix(ds, "storage_path"))}")',
                     f'    :explanation "Storage path for {_pltg_escape(ds.name)}"))',
                     "",
                     f'(fact {safe}-table "{_pltg_escape(ds.table_name)}"',
                     f'  :evidence (evidence "{doc_name}"',
-                    f'    :quotes ("{_pltg_escape(ds.table_name)}")',
+                    f'    :quotes ("{_pltg_escape(_csv_row_prefix(ds, "table_name"))}")',
                     f'    :explanation "Table name for {_pltg_escape(ds.name)}"))',
                     "",
                     f'(fact {safe}-cadence "{ds.refresh_cadence}"',
                     f'  :evidence (evidence "{doc_name}"',
-                    f'    :quotes ("{ds.refresh_cadence}")',
+                    f'    :quotes ("{_pltg_escape(_csv_row_prefix(ds, "refresh_cadence"))}")',
                     f'    :explanation "Refresh cadence for {_pltg_escape(ds.name)}"))',
                     "",
                     f'(fact {safe}-source-type "{ds.source_type}"',
                     f'  :evidence (evidence "{doc_name}"',
-                    f'    :quotes ("{ds.source_type}")',
+                    f'    :quotes ("{_pltg_escape(_csv_row_prefix(ds, "source_type"))}")',
                     f'    :explanation "Source type for {_pltg_escape(ds.name)}"))',
                     "",
                     f'(fact {safe}-owner "{_pltg_escape(ds.owner)}"',
                     f'  :evidence (evidence "{doc_name}"',
-                    f'    :quotes ("{_pltg_escape(ds.owner)}")',
+                    f'    :quotes ("{_pltg_escape(_csv_row_prefix(ds, "owner"))}")',
                     f'    :explanation "Owner of {_pltg_escape(ds.name)}"))',
                     "",
                 ]
@@ -1419,29 +1436,32 @@ def write_pltg_contracts(contracts: List[ContractRecord]):
         lines.extend(
             [
                 f"\n; --- {ctr.provider} ---",
+                # Quotes anchor to the labeled line — a bare value like
+                # "active" or a date also appears in other lines/rows of
+                # the document; the label makes the match unique.
                 f'(fact ctr-{safe}-sla "{ctr.refresh_sla}"',
                 f'  :evidence (evidence "{doc_name}"',
-                f'    :quotes ("{ctr.refresh_sla}")',
+                f'    :quotes ("**Refresh SLA**: {ctr.refresh_sla}")',
                 f'    :explanation "Refresh SLA for {_pltg_escape(ctr.provider)} contract"))',
                 "",
                 f'(fact ctr-{safe}-retention "{ctr.retention_limit_days} days"',
                 f'  :evidence (evidence "{doc_name}"',
-                f'    :quotes ("{ctr.retention_limit_days} days")',
+                f'    :quotes ("**Retention Limit**: {ctr.retention_limit_days} days")',
                 f'    :explanation "Retention limit for {_pltg_escape(ctr.provider)} contract"))',
                 "",
                 f'(fact ctr-{safe}-classification "{ctr.classification}"',
                 f'  :evidence (evidence "{doc_name}"',
-                f'    :quotes ("{ctr.classification}")',
+                f'    :quotes ("**Data Classification**: {ctr.classification}")',
                 f'    :explanation "Data classification for {_pltg_escape(ctr.provider)} contract"))',
                 "",
                 f'(fact ctr-{safe}-expiry "{ctr.expiry_date}"',
                 f'  :evidence (evidence "{doc_name}"',
-                f'    :quotes ("{ctr.expiry_date}")',
+                f'    :quotes ("**Expiry Date**: {ctr.expiry_date}")',
                 f'    :explanation "Expiry date for {_pltg_escape(ctr.provider)} contract"))',
                 "",
                 f'(fact ctr-{safe}-status "{ctr.status}"',
                 f'  :evidence (evidence "{doc_name}"',
-                f'    :quotes ("{ctr.status}")',
+                f'    :quotes ("**Status**: {ctr.status}")',
                 f'    :explanation "Contract status for {_pltg_escape(ctr.provider)}"))',
                 "",
             ]
@@ -1449,16 +1469,20 @@ def write_pltg_contracts(contracts: List[ContractRecord]):
 
         for ds in ctr.covered_datasets:
             ds_safe = ds["dataset_id"].lower().replace("-", "_")
+            # Both facts quote the dataset's table row — the row is the
+            # evidence for membership AND for the permitted use, and the
+            # dataset_id anchors it uniquely within the document.
+            row_quote = _pltg_escape(f"| {ds['dataset_id']} | {ds['name']} | {ds['permitted_use']} |")
             lines.extend(
                 [
                     f'(fact ctr-{safe}-covers-{ds_safe} true',
                     f'  :evidence (evidence "{doc_name}"',
-                    f'    :quotes ("{_pltg_escape(ds["dataset_id"])}")',
+                    f'    :quotes ("{row_quote}")',
                     f'    :explanation "{_pltg_escape(ctr.provider)} contract covers {_pltg_escape(ds["name"])}"))',
                     "",
                     f'(fact ctr-{safe}-use-{ds_safe} "{ds["permitted_use"]}"',
                     f'  :evidence (evidence "{doc_name}"',
-                    f'    :quotes ("{_pltg_escape(ds["permitted_use"])}")',
+                    f'    :quotes ("{row_quote}")',
                     f'    :explanation "Permitted use for {_pltg_escape(ds["name"])} under {_pltg_escape(ctr.provider)}"))',
                     "",
                 ]
@@ -1480,17 +1504,17 @@ def write_pltg_business(products: List[BusinessProduct]):
                 f"\n; --- {bp.name} ---",
                 f'(fact bp-{safe}-owner "{_pltg_escape(bp.owner)}"',
                 f'  :evidence (evidence "{doc_name}"',
-                f'    :quotes ("{_pltg_escape(bp.owner)}")',
+                f'    :quotes ("**Owner**: {_pltg_escape(bp.owner)}")',
                 f'    :explanation "Owner of {_pltg_escape(bp.name)}"))',
                 "",
                 f'(fact bp-{safe}-classification "{bp.classification}"',
                 f'  :evidence (evidence "{doc_name}"',
-                f'    :quotes ("{bp.classification}")',
+                f'    :quotes ("**Classification**: {bp.classification}")',
                 f'    :explanation "Classification of {_pltg_escape(bp.name)}"))',
                 "",
                 f'(fact bp-{safe}-refresh "{bp.refresh_frequency}"',
                 f'  :evidence (evidence "{doc_name}"',
-                f'    :quotes ("{bp.refresh_frequency}")',
+                f'    :quotes ("**Refresh Frequency**: {bp.refresh_frequency}")',
                 f'    :explanation "Refresh frequency of {_pltg_escape(bp.name)}"))',
                 "",
             ]
@@ -1501,7 +1525,7 @@ def write_pltg_business(products: List[BusinessProduct]):
                 [
                     f'(fact bp-{safe}-retention {bp.retention_days}',
                     f'  :evidence (evidence "{doc_name}"',
-                    f'    :quotes ("{bp.retention_days} days")',
+                    f'    :quotes ("**Data Retention**: {bp.retention_days} days")',
                     f'    :explanation "Data retention for {_pltg_escape(bp.name)}"))',
                     "",
                 ]
@@ -1509,11 +1533,17 @@ def write_pltg_business(products: List[BusinessProduct]):
 
         for src in bp.source_datasets:
             ds_safe = src["dataset_id"].lower().replace("-", "_")
+            # Quote the source table row — membership evidence is the row
+            # itself, anchored by the dataset_id it starts with.
+            row_quote = _pltg_escape(
+                f"| {src['dataset_id']} | {src['name']} | {src['domain']} "
+                f"| {src['source_type']} | {src['storage_path']} | {src['table_name']} |"
+            )
             lines.extend(
                 [
                     f'(fact bp-{safe}-uses-{ds_safe} true',
                     f'  :evidence (evidence "{doc_name}"',
-                    f'    :quotes ("{_pltg_escape(src["dataset_id"])}")',
+                    f'    :quotes ("{row_quote}")',
                     f'    :explanation "{_pltg_escape(bp.name)} uses {_pltg_escape(src["name"])}"))',
                     "",
                 ]
@@ -1914,6 +1944,33 @@ def _add_phantom_source(product_name: str, phantom: dict):
 # ── main ─────────────────────────────────────────────────────────────
 
 
+def dump_records(all_datasets, contracts, products) -> dict:
+    """The full estate as plain JSON-able records."""
+    return {
+        "datasets": {dept: [asdict(r) for r in records] for dept, records in all_datasets.items()},
+        "contracts": [asdict(c) for c in contracts],
+        "products": [asdict(p) for p in products],
+    }
+
+
+def load_records(payload: dict):
+    """Inverse of dump_records."""
+    all_datasets = {dept: [DatasetRecord(**r) for r in records] for dept, records in payload["datasets"].items()}
+    contracts = [ContractRecord(**c) for c in payload["contracts"]]
+    products = [BusinessProduct(**p) for p in payload["products"]]
+    return all_datasets, contracts, products
+
+
+def render_estate(all_datasets, contracts, products):
+    """Write documents + .pltg fact modules from records — the single
+    rendering path, whether records were just generated or replayed
+    from an external system of record (e.g. a catalog)."""
+    write_technical_catalogs(all_datasets)
+    write_contracts(contracts)
+    write_business_products(products)
+    write_all_pltg(all_datasets, contracts, products)
+
+
 def main():
     parser = argparse.ArgumentParser(description="Generate synthetic data governance demo data")
     parser.add_argument("--clean", action="store_true", help="Wipe and regenerate resources/")
@@ -1922,10 +1979,53 @@ def main():
     parser.add_argument(
         "--consistent-only", action="store_true", help="Generate only the consistent baseline (no corruptions)"
     )
+    parser.add_argument(
+        "--dump-records",
+        metavar="PATH",
+        help="Write the generated estate as records JSON (no corruptions applied)",
+    )
+    parser.add_argument(
+        "--from-records",
+        metavar="PATH",
+        help="Render documents + .pltg from a records JSON instead of generating; "
+        "the records are the estate verbatim (implies no corruptions)",
+    )
+    parser.add_argument(
+        "--docs-only",
+        action="store_true",
+        help="With --from-records: render only the documents, leaving the "
+        "registered .pltg facts as they are — reality drifts under the "
+        "claims, which is what evidence verification then reports",
+    )
     args = parser.parse_args()
 
     random.seed(args.seed)
     _seen_ids.clear()
+
+    if args.from_records:
+        payload = json.loads(Path(args.from_records).read_text())
+        all_datasets, contracts, products = load_records(payload)
+        if args.clean:
+            for sub in ["technical_catalog", "contracts", "business_catalog"]:
+                d = RESOURCES / sub
+                if d.exists():
+                    shutil.rmtree(d)
+                d.mkdir(parents=True, exist_ok=True)
+        else:
+            for sub in ["technical_catalog", "contracts", "business_catalog"]:
+                (RESOURCES / sub).mkdir(parents=True, exist_ok=True)
+        if args.docs_only:
+            write_technical_catalogs(all_datasets)
+            write_contracts(contracts)
+            write_business_products(products)
+        else:
+            render_estate(all_datasets, contracts, products)
+        total = sum(len(v) for v in all_datasets.values())
+        print(
+            f"Rendered {'documents' if args.docs_only else 'estate'} from {args.from_records}: "
+            f"{total} datasets, {len(contracts)} contracts, {len(products)} products."
+        )
+        return
 
     if args.clean:
         for sub in ["technical_catalog", "contracts", "business_catalog"]:
@@ -1954,6 +2054,10 @@ def main():
 
     write_all_pltg(all_datasets, contracts, products)
     print("  Generated .pltg modules in src/")
+
+    if args.dump_records:
+        Path(args.dump_records).write_text(json.dumps(dump_records(all_datasets, contracts, products), indent=1))
+        print(f"  Records JSON written to {args.dump_records}")
 
     if args.consistent_only:
         print("\nDone (consistent baseline only, no corruptions).")

@@ -4,6 +4,8 @@
 
 # Parseltongue Core
 
+[![Consistency](https://github.com/sci2sci-opensource/parseltongue/actions/workflows/consistency.yml/badge.svg)](https://github.com/sci2sci-opensource/parseltongue/actions/workflows/consistency.yml)
+
 The formal language engine. No LLM dependency — pure logic, evidence grounding, consistency checking, and self-introspection.
 
 ## Rationale
@@ -343,9 +345,9 @@ Evidence is a first-class citizen and is directly used by the engine and grammar
 
 #### Special Technique: Manual Verification Modules
 
-Some definitions have no document source — rewrite axioms with `:origin`, import aliases, and hypothetical values constructed for theorem proving. These are flagged by the consistency checker as `no_evidence`. A **manual verification module** aggregates all such definitions in one place and calls `(verify-manual ...)` for each, so an analyst can review them as a batch rather than hunting through individual modules.
+Some definitions have no document source — rewrite axioms with `:origin` and hypothetical values constructed for theorem proving. These are flagged by the consistency checker as `no_evidence`. A **manual verification module** aggregates all such definitions in one place and calls `(verify-manual ...)` for each, so an analyst can review them as a batch rather than hunting through individual modules.
 
-The system's own [`validation/verify_manual.pltg`](validation/verify_manual.pltg) demonstrates three categories of manually verified definitions:
+The system's own [`validation/verify_manual.pltg`](validation/verify_manual.pltg) demonstrates two categories of manually verified definitions:
 
 **Internally constructed reusables** — axioms defined with `:origin` that serve as shared infrastructure. The `counting.pltg` splat axioms (`count-exists-base`, `count-exists-step`, `sum-values-base`, `sum-values-step`) have no document to quote because they *are* the counting mechanism. They're verified once in `verify_manual.pltg` and trusted across all modules that import them. This allows derives to instantiate directly with reusable rewrite axioms instead of defining intermediate `defterm`s that would each require their own evidence — the rewrite fires automatically, so the derive needs only its `:using` symbols, and the consistency checker stays happy because the axioms are manually verified once at the source.
 
@@ -354,15 +356,6 @@ The system's own [`validation/verify_manual.pltg`](validation/verify_manual.pltg
 (verify-manual (quote counting.count-exists))
 (verify-manual (quote counting.count-exists-base))
 (verify-manual (quote counting.count-exists-step))
-```
-
-**Import aliases** — `(defterm count-exists counting.count-exists :origin "import")` creates a local shorthand. Every module that imports `counting.pltg` produces one of these. They're mechanical and safe, but the checker flags them because `:origin` is not `:evidence`. The verification module lists them all:
-
-```scheme
-(verify-manual (quote atoms.count-exists))
-(verify-manual (quote engine.count-exists))
-(verify-manual (quote lang.count-exists))
-; ... one per importing module ...
 ```
 
 **Hypotheticals for axiom instantiation** — some axioms require concrete values to prove via `:bind`, but those values don't exist in any document. For example, the `empty-quote-rejected` axiom says "if a quote has no content, verification returns false." To instantiate it, you construct hypothetical inputs and outputs:
@@ -390,7 +383,7 @@ The hypothetical values are manually verified because they represent scenarios i
 
 ## Execution Engine
 
-The engine evaluates s-expressions left-to-right, applying rewrite axioms up to a depth limit of 100, with an `=`-rewrite fallback for structural equality. Four special forms are handled directly by the engine:
+The engine evaluates s-expressions left-to-right, applying rewrite axioms up to a depth limit of 100, with an `=`-rewrite fallback for structural equality. Eight special forms are handled directly by the engine:
 
 | Form | Behavior |
 |---|---|
@@ -398,6 +391,10 @@ The engine evaluates s-expressions left-to-right, applying rewrite axioms up to 
 | `let` | `(let ((x 1) (y 2)) body)` — binds local variables, evaluates body in extended env |
 | `quote` | `(quote expr)` — returns expression unevaluated |
 | `strict` | `(strict expr)` — forces eager evaluation, overriding default lazy strategy |
+| `scope` | `(scope name expr ...)` — evaluates expressions in the named scope; `self` targets the current engine, other names resolve to registered scopes |
+| `self` | `(self expr ...)` — identity scope, evaluates expressions in the current engine |
+| `project` | `(project expr)` or `(project basis expr)` — evaluates in the current or named basis, yields a concrete value across the scope boundary |
+| `delegate` | `(delegate body)` — transport modifier: each scope in the chain posts a proposal to the delegate's `:bind` stack, the handler picks by nesting depth or pattern |
 
 The `Engine` constructor accepts two behavioral flags:
 
@@ -471,8 +468,10 @@ The quote verifier is extensible: custom normalizers, fuzzy matchers, and custom
 |---|---|
 | `manually_verified` | Evidence was manually verified by a human, not by the system |
 | `diff_contamination` | Diff divergence caused by a sibling diff, not a real disagreement |
+| `confounded_evidence` | Both sides of a diff depend on the same document quote, weakening their independence |
 
 Diffs are the primary mechanism for cross-validation. Register a diff, and the system automatically checks whether swapping one value for another causes dependent terms to change.
+The consistency check also traces evidence transitively through each side. If both sides reach the same quote in the same document, or one side's quote fully contains the other's, it reports `confounded_evidence`; identical text in different documents remains independent.
 
 ```python
 report = engine.consistency()
@@ -637,20 +636,19 @@ Circular imports are detected and raise an error. Duplicate imports are skipped.
 
 Each loaded file gets an immutable `ModuleContext` following an onion model — inner modules link to the outer loader context. Context keys are namespaced per-module so `(context :file)` in `lib.pltg` resolves to the library's file path, not the main file's.
 
-### Local Aliasing
+### Selective Entity Imports
 
-Modules can create local aliases for namespaced symbols using `defterm`. This avoids repeating the full namespace in expressions:
+An import can bind one exported entity under its own name or an explicit local name. The local and canonical names refer to the imported directive itself, so its definition, identity, and evidence remain attached to one entity:
 
 ```scheme
-(import (quote src.primitives))
-(defterm = src.primitives.= :origin "import")
-(defterm + src.primitives.+ :origin "import")
+(import (quote src.primitives.=))
+(import (quote src.primitives.+ add))
 
-; Now use short names in axioms
-(axiom add-comm (= (+ ?a ?b) (+ ?b ?a)) :origin "commutativity")
+; `=` is imported under its own name; `add` is an explicit local name.
+(axiom add-comm (= (add ?a ?b) (add ?b ?a)) :origin "commutativity")
 ```
 
-All `defterm` definitions are lazy — the body expression is stored unevaluated and resolved only when the term is referenced. This means bare aliases like `(defterm x some-symbol)` work without a `quote` wrapper; the target is resolved at use time, not definition time.
+This import behavior is distinct from ordinary computed `defterm`s. A `defterm` body is stored unevaluated and is evaluated when the term is referenced, so computed terms remain lazy even though imports no longer use `defterm` as an alias mechanism.
 
 ### Import Chains
 
@@ -729,9 +727,26 @@ result.error_trees()                 # tree view of error cascades
 result.summary()                     # human-readable summary
 ```
 
+Three entry points expose lazy loading: the `lazy_load_pltg()` function, the `LazyLoader.load_main()` method, and the `LazyLoader.ast` property (all parsed `DirectiveNode`s from the most recent load).
+
+Fault tolerance rests on six mechanisms:
+
+1. **Parse errors are caught** — recorded as error nodes instead of crashing the load
+2. **Effect errors are caught** — a failing effect is recorded and the load continues
+3. **Directive errors are caught** — a failing directive is recorded and its name marked failed
+4. **Intra-module dependencies are checked** — graph-linked children must load before a directive executes
+5. **Cross-module dependencies are checked** — directives referencing a failed name are skipped
+6. **Failures are tracked globally** — failed names accumulate across all modules of a load
+
+Effects execute in two ranked groups around the directives: pre-directive effects (`context`, then `load-document`/`load-documents`, then `import`) fire before any directive; post-directive effects (`run-on-entry`, then `verify-manual`, then `print`/`consistency`/`dangerously-eval`) fire after. Within each group an effect-rank lookup orders the effects.
+
+Symbol patching resolves bare references against the names collected in the parse phase — the patch pass exists as its own step and checks membership in the collected name set before rewriting a symbol.
+
+Source lines are tracked end-to-end: each parsed sentence's line number lands in its node's `source_line`, so errors report file:line.
+
 ### AST
 
-The `ast` module provides a dependency graph over parsed directives. `DirectiveNode` is a frozen dataclass with 8 fields:
+The `ast` module provides a dependency graph over parsed directives. `DirectiveNode` is a frozen dataclass with 9 fields:
 
 | Field | Description |
 |---|---|
@@ -741,6 +756,7 @@ The `ast` module provides a dependency graph over parsed directives. `DirectiveN
 | `kind` | One of 6 kinds: `fact`, `axiom`, `defterm`, `derive`, `diff`, `effect` |
 | `source_file` | File path where the directive was defined |
 | `source_order` | Integer position in source |
+| `source_line` | 1-based line number where the directive starts |
 | `children` | Set of nodes this directive depends on (populated by `resolve_graph`) |
 | `dependents` | Set of nodes that depend on this directive (inverse of `children`) |
 

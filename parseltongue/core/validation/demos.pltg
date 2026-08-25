@@ -17,7 +17,7 @@
 (load-document "self_healing" "../demos/self_healing/demo.py")
 (load-document "spec_validation" "../demos/spec_validation/demo.py")
 (import (quote ..std.counting))
-(defterm count-exists counting.count-exists :origin "import")
+(import (quote counting.count-exists))
 
 ; .pltg source files — module system patterns
 (load-document "splats_demo_pltg" "../demos/apples_splats_pltg/demo.pltg")
@@ -51,9 +51,9 @@
         :quotes ("Starts with a completely empty system")
         :explanation "Apples begins from empty env"))
 
-(fact apples-pltg-topic "Peano Arithmetic via .pltg — Empty-Env Module Loading"
+(fact apples-pltg-topic "Apple Arithmetic (.pltg)"
     :evidence (evidence "apples_pltg"
-        :quotes ("Demo: Peano Arithmetic via .pltg — Empty-Env Module Loading.")
+        :quotes ("Demo: Apple Arithmetic (.pltg)")
         :explanation "Proves loader bootstraps DSL from empty env"))
 
 (fact apples-splats-pltg-topic "Apple Arithmetic with Variadic Splats"
@@ -104,7 +104,7 @@ patterns for variadic operations: sum-all, count-gt, all-gt.")
 
 (fact deferred-skips-on-import true
     :evidence (evidence "deferred_pltg"
-        :quotes ("skipped when imported")
+        :quotes ("skipped on import")
         :explanation "run-on-entry skipped on import"))
 
 (fact doc-validation-topic "Documentation Validation"
@@ -117,9 +117,9 @@ patterns for variadic operations: sum-all, count-gt, all-gt.")
         :quotes ("catches every inconsistency")
         :explanation "Catches internal contradictions in docs"))
 
-(fact entry-mocks-topic "run-on-entry as a self-contained unit test"
+(fact entry-mocks-topic "Entry Mocks"
     :evidence (evidence "entry_mocks_pltg"
-        :quotes ("run-on-entry as a self-contained unit test")
+        :quotes ("Demo: Entry Mocks")
         :explanation "Entry mocks demo topic"))
 
 (fact entry-mocks-uses-let true
@@ -127,14 +127,14 @@ patterns for variadic operations: sum-all, count-gt, all-gt.")
         :quotes ("rebinds forward-declared primitives")
         :explanation "Uses let to rebind primitives as mocks"))
 
-(fact extensibility-topic "System Extensibility"
+(fact extensibility-topic "Custom Effects"
     :evidence (evidence "extensibility"
-        :quotes ("System Extensibility")
+        :quotes ("Demo: Custom Effects")
         :explanation "Extensibility demo topic"))
 
 (fact extensibility-uses-effects true
     :evidence (evidence "extensibility"
-        :quotes ("pass a" "load-data" "effect at construction time")
+        :quotes ("User-defined side effects passed at construction time." "load-data")
         :explanation "Demonstrates effects mechanism"))
 
 (fact extensibility-effects-receive-system true
@@ -142,9 +142,9 @@ patterns for variadic operations: sum-all, count-gt, all-gt.")
         :quotes ("Effects are callables that receive (system, *args)")
         :explanation "Effect calling convention documented"))
 
-(fact revenue-topic "Analyzing company performance"
+(fact revenue-topic "Revenue Reports"
     :evidence (evidence "revenue_reports"
-        :quotes ("Analyzing company performance")
+        :quotes ("Demo: Revenue Reports")
         :explanation "Revenue reports demo topic"))
 
 (fact revenue-shows-manual-override true
@@ -152,14 +152,14 @@ patterns for variadic operations: sum-all, count-gt, all-gt.")
         :quotes ("manual override")
         :explanation "Shows verify_manual workflow"))
 
-(fact self-healing-topic "Self-Healing Probes via Effects"
+(fact self-healing-topic "Self-Healing Probes"
     :evidence (evidence "self_healing"
-        :quotes ("Self-Healing Probes via Effects")
+        :quotes ("Demo: Self-Healing Probes")
         :explanation "Self-healing demo topic"))
 
 (fact self-healing-all-dsl true
     :evidence (evidence "self_healing"
-        :quotes ("The entire flow is written in Parseltongue DSL")
+        :quotes ("The entire analysis flow" "Parseltongue DSL. Python only registers primitive effects")
         :explanation "Everything is DSL, Python only provides effects"))
 
 (fact self-healing-has-snapshot true
@@ -223,12 +223,12 @@ patterns for variadic operations: sum-all, count-gt, all-gt.")
 
 (fact apples-count 1
     :evidence (evidence "apples"
-        :quotes ("Demo: Parseltongue DSL")
+        :quotes ("Demo: Apple Arithmetic")
         :explanation "apples demo exists"))
 
 (fact apples-pltg-count 1
     :evidence (evidence "apples_pltg"
-        :quotes ("Demo: Peano Arithmetic via .pltg")
+        :quotes ("Demo: Apple Arithmetic (.pltg)")
         :explanation "apples_pltg demo exists"))
 
 (fact apples-splats-pltg-count 1
@@ -238,7 +238,7 @@ patterns for variadic operations: sum-all, count-gt, all-gt.")
 
 (fact biomarkers-count 1
     :evidence (evidence "biomarkers"
-        :quotes ("Demo: Parseltongue DSL")
+        :quotes ("Demo: Biomarker Evidence Conflict")
         :explanation "biomarkers demo exists"))
 
 (fact code-check-count 1
@@ -248,7 +248,7 @@ patterns for variadic operations: sum-all, count-gt, all-gt.")
 
 (fact deferred-pltg-count 1
     :evidence (evidence "deferred_pltg"
-        :quotes ("Demo: run-on-entry")
+        :quotes ("Demo: Deferred Directives")
         :explanation "deferred_pltg demo exists"))
 
 (fact doc-validation-count 1
@@ -258,22 +258,22 @@ patterns for variadic operations: sum-all, count-gt, all-gt.")
 
 (fact entry-mocks-count 1
     :evidence (evidence "entry_mocks_pltg"
-        :quotes ("Demo: run-on-entry as a self-contained unit test")
+        :quotes ("Demo: Entry Mocks")
         :explanation "entry_mocks_pltg demo exists"))
 
 (fact extensibility-count 1
     :evidence (evidence "extensibility"
-        :quotes ("Demo: System Extensibility")
+        :quotes ("Demo: Custom Effects")
         :explanation "extensibility demo exists"))
 
 (fact revenue-count 1
     :evidence (evidence "revenue_reports"
-        :quotes ("Demo: Parseltongue DSL in action.")
+        :quotes ("Demo: Revenue Reports")
         :explanation "revenue_reports demo exists"))
 
 (fact self-healing-count 1
     :evidence (evidence "self_healing"
-        :quotes ("Demo: Self-Healing Probes via Effects")
+        :quotes ("Demo: Self-Healing Probes")
         :explanation "self_healing demo exists"))
 
 (fact spec-validation-count 1
@@ -460,7 +460,7 @@ patterns for variadic operations: sum-all, count-gt, all-gt.")
 (axiom pltg-demo-proves-loader-bootstrap
     (implies (and ?pltg-topic ?empty-env) (and ?successor ?starts-empty))
     :evidence (evidence "apples_pltg"
-        :quotes ("Demo: Peano Arithmetic via .pltg — Empty-Env Module Loading.\n\nScenario: Same orchard arithmetic as the apples demo, but executed\nentirely through .pltg file loading with an empty initial environment.\nProves that the Loader of modules works correctly to load DSL for\nbootstrapping Peano successor notation, axioms, imports, and derives\nfrom scratch — no Python-side setup.")
+        :quotes ("Demo: Apple Arithmetic (.pltg)\n\nScenario: Same orchard arithmetic, but loaded entirely through .pltg\nfiles with an empty initial environment. Proves the loader bootstraps\nPeano notation, axioms, imports, and derives from scratch — no\nPython-side setup needed.")
         :explanation "If the pltg demo exists and starts empty, then loader bootstrapped successor notation and empty-start invariant"))
 
 (derive pltg-loader-bootstrap-confirmed
@@ -608,137 +608,25 @@ patterns for variadic operations: sum-all, count-gt, all-gt.")
 ; =====================================================================
 
 ; ---------------------------------------------------------------------
-; Axiom 1: Local aliasing rule
-; For any module ?m and symbol ?s, (defterm ?alias ?m.?s) makes
-; ?alias resolve to the namespaced value. Proved by apples_pltg.
+; Selective entity import used in practice
+; The demo imports a namespaced entity under a local name and then uses
+; that name in a concrete :bind.  This proves the behavior exercised by
+; the demo; the loader module validates the general import mechanism.
 ; ---------------------------------------------------------------------
 
-(axiom alias-resolves (= ?alias ?m-symbol)
+(fact selective-import-local-zero-declared true
     :evidence (evidence "apples_demo_pltg"
-        :quotes ("(defterm local-zero src.primitives.zero :origin \"import\")"
-                 "(defterm local-succ src.primitives.succ :origin \"import\")")
-        :explanation "Local alias defterm makes ?alias equal to the namespaced ?m-symbol"))
+        :quotes ("(import (quote src.primitives.zero local-zero))")
+        :explanation "demo.pltg selectively imports src.primitives.zero as local-zero"))
 
-; Concrete instantiation: local-zero = src.primitives.zero
-(fact alias-local-zero-exists true
-    :evidence (evidence "apples_demo_pltg"
-        :quotes ("(defterm local-zero src.primitives.zero :origin \"import\")")
-        :explanation "demo.pltg aliases zero"))
-
-(fact alias-local-zero-used-in-bind true
+(fact selective-import-local-zero-used-in-bind true
     :evidence (evidence "apples_demo_pltg"
         :quotes (":bind ((?n (local-succ (local-succ (local-succ local-zero)))))")
-        :explanation "Local alias used in :bind — proves resolution works"))
+        :explanation "The selectively imported local name is consumed by a concrete theorem binding"))
 
-(derive alias-used-in-practice
-    (and alias-local-zero-exists alias-local-zero-used-in-bind)
-    :using (alias-local-zero-exists alias-local-zero-used-in-bind))
-
-; ---------------------------------------------------------------------
-; Axiom 2: Lazy vs eager aliasing
-; (defterm ?alias (quote ?m.?s)) delays resolution (lazy).
-; (defterm ?alias ?m.?s) resolves immediately (eager).
-; Both patterns coexist in axioms.pltg.
-; ---------------------------------------------------------------------
-
-(axiom defterm-alias-is-lazy (= ?alias ?target)
-    :evidence (evidence "apples_axioms_pltg"
-        :quotes ("(defterm - src.primitives.- :origin \"import\")"
-                 "(defterm > src.primitives.> :origin \"import\")")
-        :explanation "defterm aliasing is inherently lazy — resolution is deferred regardless of quote"))
-
-; The quote wrapper is redundant: both patterns produce the same result
-(fact no-explicit-lazy-label true
-    :evidence (evidence "apples_axioms_pltg"
-        :quotes ("(defterm = src.primitives.= :origin \"import\")"
-                 "(defterm + src.primitives.+ :origin \"import\")"
-                 "(defterm - src.primitives.- :origin \"import\")")
-        :explanation "No alias carries an explicit 'lazy' label — all use plain 'import'"))
-
-; --- Proof chain: quote is redundant in defterm aliasing ---
-
-; Step 1: let rebinds a bare (non-quoted) defterm alias
-(fact let-rebinds-bare-alias true
-    :evidence (evidence "entry_mocks_math_pltg"
-        :quotes ("(defterm zero primitives.zero :origin \"import\")"
-                 "(let ((primitives.zero 0)" "(primitives.plus +)" "(primitives.equals =))")
-        :explanation "math.pltg aliases primitives.zero without quote, then let rebinds it to 0"))
-
-; Step 2: if let can rebind a bare alias, the symbol was NOT eagerly resolved
-;         (if it had been eagerly resolved, rebinding the original wouldn't propagate)
-(axiom let-rebind-proves-lazy (implies ?let-can-rebind-bare (not ?eagerly-resolved))
-    :evidence (evidence "entry_mocks_math_pltg"
-        :quotes ("(assert-true \"add-identity: 5 + 0 = 5\""
-                 "(primitives.equals (primitives.plus 5 primitives.zero) 5))")
-        :explanation "Assert passes after let rebind — bare alias was not eagerly resolved"))
-
-; Step 3: defterm uses the same resolution mechanism for all aliases
-(fact defterm-same-mechanism true
-    :evidence (evidence "apples_axioms_pltg"
-        :quotes ("(defterm zero src.primitives.zero :origin \"import\")"
-                 "(defterm = src.primitives.= :origin \"import\")")
-        :explanation "All aliases go through the same defterm path — no quote distinction"))
-
-; Step 4: therefore every defterm is lazy — quote adds nothing
-(derive every-defterm-is-lazy
-    (and let-rebinds-bare-alias defterm-same-mechanism)
-    :using (let-rebinds-bare-alias defterm-same-mechanism))
-
-; Step 5: labels say 2, reality says 7
-; Nothing is explicitly lazy, but everything IS lazy (proven by let-rebind chain)
-; → laziness is the default behavior of defterm
-(derive laziness-is-default
-    (and no-explicit-lazy-label every-defterm-is-lazy)
-    :using (no-explicit-lazy-label every-defterm-is-lazy))
-
-(defterm lazy-alias-zero (if every-defterm-is-lazy 1 0)
-    :evidence (evidence "apples_axioms_pltg"
-        :quotes ("(defterm zero src.primitives.zero :origin \"import\")")
-        :explanation "bare alias — lazy by axiom chain"))
-
-(defterm lazy-alias-succ (if every-defterm-is-lazy 1 0)
-    :evidence (evidence "apples_axioms_pltg"
-        :quotes ("(defterm succ src.primitives.succ :origin \"import\")")
-        :explanation "bare alias — lazy by axiom chain"))
-
-(defterm lazy-alias-eq (if every-defterm-is-lazy 1 0)
-    :evidence (evidence "apples_axioms_pltg"
-        :quotes ("(defterm = src.primitives.= :origin \"import\")")
-        :explanation "alias — lazy by axiom chain"))
-
-(defterm lazy-alias-plus (if every-defterm-is-lazy 1 0)
-    :evidence (evidence "apples_axioms_pltg"
-        :quotes ("(defterm + src.primitives.+ :origin \"import\")")
-        :explanation "alias — lazy by axiom chain"))
-
-(defterm lazy-alias-minus (if every-defterm-is-lazy 1 0)
-    :evidence (evidence "apples_axioms_pltg"
-        :quotes ("(defterm - src.primitives.- :origin \"import\")")
-        :explanation "bare alias — lazy by axiom chain"))
-
-(defterm lazy-alias-gt (if every-defterm-is-lazy 1 0)
-    :evidence (evidence "apples_axioms_pltg"
-        :quotes ("(defterm > src.primitives.> :origin \"import\")")
-        :explanation "bare alias — lazy by axiom chain"))
-
-(defterm lazy-alias-mul (if every-defterm-is-lazy 1 0)
-    :evidence (evidence "apples_axioms_pltg"
-        :quotes ("(defterm * src.primitives.* :origin \"import\")")
-        :explanation "bare alias — lazy by axiom chain"))
-
-(derive actual-lazy-count
-    (count-exists lazy-alias-zero lazy-alias-succ lazy-alias-eq lazy-alias-plus lazy-alias-minus lazy-alias-gt lazy-alias-mul)
-    :using (count-exists lazy-alias-zero lazy-alias-succ lazy-alias-eq lazy-alias-plus lazy-alias-minus lazy-alias-gt lazy-alias-mul))
-
-; Since laziness is default, labeled count = actual count
-(derive labeled-lazy-count
-    (if laziness-is-default actual-lazy-count 0)
-    :using (laziness-is-default actual-lazy-count))
-
-; Step 6: diff — labeled matches actual after fix
-(diff lazy-label-vs-reality
-    :replace labeled-lazy-count
-    :with actual-lazy-count)
+(derive selective-import-used-in-practice
+    (and selective-import-local-zero-declared selective-import-local-zero-used-in-bind)
+    :using (selective-import-local-zero-declared selective-import-local-zero-used-in-bind))
 
 ; ---------------------------------------------------------------------
 ; Axiom 3: Forward-declared primitives
@@ -1117,7 +1005,7 @@ patterns for variadic operations: sum-all, count-gt, all-gt.")
 
 (defterm entry-mocks-features-impl-count 2
     :evidence (evidence "entry_mocks_pltg"
-        :quotes ("run-on-entry as a self-contained unit test with let + mocks" "rebinds forward-declared primitives")
+        :quotes ("Self-contained unit tests using let + mocks" "rebinds forward-declared primitives")
         :explanation "2 entry mocks demo features in source"))
 
 (diff entry-mocks-features-coverage
@@ -1133,7 +1021,7 @@ patterns for variadic operations: sum-all, count-gt, all-gt.")
 
 (defterm extensibility-features-impl-count 3
     :evidence (evidence "extensibility"
-        :quotes ("System Extensibility" "load-data" "Effects are callables that receive (system, *args)")
+        :quotes ("Custom Effects" "load-data" "Effects are callables that receive (system, *args)")
         :explanation "3 extensibility demo features in source"))
 
 (diff extensibility-features-coverage
@@ -1149,7 +1037,7 @@ patterns for variadic operations: sum-all, count-gt, all-gt.")
 
 (defterm revenue-features-impl-count 2
     :evidence (evidence "revenue_reports"
-        :quotes ("Analyzing company performance" "manual override")
+        :quotes ("Company performance analysis" "manual override")
         :explanation "2 revenue demo features in source"))
 
 (diff revenue-features-coverage
@@ -1165,7 +1053,7 @@ patterns for variadic operations: sum-all, count-gt, all-gt.")
 
 (defterm self-healing-features-impl-count 2
     :evidence (evidence "self_healing"
-        :quotes ("Self-Healing Probes via Effects" "The entire flow is written in Parseltongue DSL")
+        :quotes ("Self-Healing Probes" "Parseltongue DSL. Python only registers primitive effects")
         :explanation "2 self-healing demo features in source"))
 
 (diff self-healing-features-coverage
@@ -1189,25 +1077,6 @@ patterns for variadic operations: sum-all, count-gt, all-gt.")
     :with spec-validation-features-impl-count)
 
 ; --- 12. Module system axioms --- bound instantiations
-
-(derive bound-alias-resolves alias-resolves
-    :bind ((?alias alias-local-zero-exists) (?m-symbol alias-local-zero-used-in-bind))
-    :using (alias-resolves alias-local-zero-exists alias-local-zero-used-in-bind))
-
-(derive bound-defterm-alias-is-lazy defterm-alias-is-lazy
-    :bind ((?alias no-explicit-lazy-label) (?target let-rebinds-bare-alias))
-    :using (defterm-alias-is-lazy no-explicit-lazy-label let-rebinds-bare-alias))
-
-; let-rebinds-bare-alias is true → symbol was NOT eagerly resolved.
-; Derive the negation so ?eagerly-resolved binds to false.
-(defterm was-eagerly-resolved (not let-rebinds-bare-alias)
-    :evidence (evidence "entry_mocks_math_pltg"
-        :quotes ("(assert-true \"add-identity: 5 + 0 = 5\"")
-        :explanation "Assert passes after let rebind — proves eager resolution did NOT happen"))
-
-(derive bound-let-rebind-proves-lazy let-rebind-proves-lazy
-    :bind ((?let-can-rebind-bare let-rebinds-bare-alias) (?eagerly-resolved was-eagerly-resolved))
-    :using (let-rebind-proves-lazy let-rebinds-bare-alias was-eagerly-resolved))
 
 (derive bound-forward-decl-produces-formal forward-decl-produces-formal
     :bind ((?t primitives-are-forward-declared) (?x afternoon-uses-without-import))
@@ -1234,18 +1103,17 @@ patterns for variadic operations: sum-all, count-gt, all-gt.")
     :using (dot-import-resolves chain-demo-imports-app flat-import-also-works))
 
 (derive module-axioms-doc-count
-    (count-exists alias-local-zero-exists let-rebinds-bare-alias primitives-are-forward-declared lib-has-run-on-entry let-mock-rebinds-zero chain-demo-imports-app cross-bind-mixes-namespaces)
+    (count-exists selective-import-used-in-practice primitives-are-forward-declared lib-has-run-on-entry let-mock-rebinds-zero chain-demo-imports-app cross-bind-mixes-namespaces)
     :using (count-exists counting.count-exists-base counting.count-exists-step
-            alias-local-zero-exists let-rebinds-bare-alias primitives-are-forward-declared
+            selective-import-used-in-practice primitives-are-forward-declared
             lib-has-run-on-entry let-mock-rebinds-zero chain-demo-imports-app cross-bind-mixes-namespaces
-            bound-alias-resolves bound-defterm-alias-is-lazy bound-forward-decl-produces-formal
-            bound-run-on-entry-gate bound-let-rebind-proves-lazy bound-let-rebinds-forward-decl
+            bound-forward-decl-produces-formal bound-run-on-entry-gate bound-let-rebinds-forward-decl
             bound-import-transitive bound-cross-module-bind bound-dot-import-resolves))
 
-(defterm module-axioms-impl-count 7
+(defterm module-axioms-impl-count 6
     :evidence (evidence "apples_demo_pltg"
-        :quotes ("(defterm local-zero src.primitives.zero :origin \"import\")")
-        :explanation "7 module system axiom proof facts across demo sources"))
+        :quotes ("(import (quote src.primitives.zero local-zero))")
+        :explanation "6 independently exercised module-system behaviors across demo sources"))
 
 (diff module-axioms-coverage
     :replace module-axioms-doc-count
@@ -1271,12 +1139,12 @@ patterns for variadic operations: sum-all, count-gt, all-gt.")
 ; Exports
 ; =====================================================================
 
-(derive self-healing-exists (= self-healing-topic "Self-Healing Probes via Effects") :using (self-healing-topic))
+(derive self-healing-exists (= self-healing-topic "Self-Healing Probes") :using (self-healing-topic))
 (derive export-self-healing-topic
     (util.export self-healing-exists)
     :using (util.export self-healing-exists))
 
-(derive extensibility-exists (= extensibility-topic "System Extensibility") :using (extensibility-topic))
+(derive extensibility-exists (= extensibility-topic "Custom Effects") :using (extensibility-topic))
 (derive export-extensibility-topic
     (util.export extensibility-exists)
     :using (util.export extensibility-exists))

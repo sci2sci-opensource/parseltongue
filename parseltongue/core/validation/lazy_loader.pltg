@@ -7,7 +7,7 @@
 
 (load-document "lazy_loader.py" "../loader/lazy_loader.py")
 (import (quote ..std.counting))
-(defterm count-exists counting.count-exists :origin "import")
+(import (quote counting.count-exists))
 
 ; =====================================================================
 ; LazyLoadResult — 3 tracking fields + 4 methods
@@ -67,8 +67,8 @@
 
 (fact phase-1a-parses-all true
     :evidence (evidence "lazy_loader.py"
-        :quotes ("# Phase 1a: Parse all expressions, namespace definition names,\n        # but DON'T patch body symbols yet (engine is empty).")
-        :explanation "Phase 1a tokenizes and parses all expressions, collects definition names"))
+        :quotes ("# Phase 1a: Parse via engine — get analyzed directives with\n        # source metadata, definition analysis, and skip indices.")
+        :explanation "Phase 1a parses all expressions via the loader engine, collecting definition analysis"))
 
 (fact phase-1a-collects-names true
     :evidence (evidence "lazy_loader.py"
@@ -82,8 +82,8 @@
 
 (fact phase-1c-patches-from-names true
     :evidence (evidence "lazy_loader.py"
-        :quotes ("# Phase 1c: Now patch body symbols using collected names + aliases,\n        # then build DirectiveNodes.")
-        :explanation "Phase 1c patches symbols using collected names, not engine state"))
+        :quotes ("# Phase 1c: Patch all directives via engine, then build DirectiveNodes." "patch_names = defined_names | set(self._failed_names)")
+        :explanation "Phase 1c patches directives against the collected name set plus failed names"))
 
 (fact phase-2-resolves-graph true
     :evidence (evidence "lazy_loader.py"
@@ -97,7 +97,7 @@
 
 (fact phase-4-topological-exec true
     :evidence (evidence "lazy_loader.py"
-        :quotes ("# Phase 4: Topological execution of named directives")
+        :quotes ("# Phase 4: Topological execution — engine patches + delegates per directive")
         :explanation "Phase 4 executes named directives respecting dependencies"))
 
 (derive phase-count
@@ -110,17 +110,17 @@
 
 (fact catches-parse-errors true
     :evidence (evidence "lazy_loader.py"
-        :quotes ("try:\n                pre_len = len(tokens)\n                expr = read_tokens(tokens)" "except SyntaxError as e:\n                err_node = DirectiveNode(\n                    name=None,\n                    expr=[],\n                    dep_names=set(),\n                    kind=\"error\",\n                    source_file=self._current.current_file,\n                    source_order=order,\n                    source_line=expr_line,\n                )")
+        :quotes ("# Record any parse errors — the morphism recovered what it could\n        if self._result and result.parse_errors:" "for err_line, err in result.parse_errors:\n                node = parse_directive([], order)\n                node.source_file = self._current.current_file\n                node.source_line = err_line\n                self._result.errors[node] = PltgError(")
         :explanation "Parse errors create error nodes with source_line instead of crashing"))
 
 (fact catches-effect-errors true
     :evidence (evidence "lazy_loader.py"
-        :quotes ("for expr, ord_idx, line in pre_effects:\n            try:\n                _execute_directive(system.engine, expr)\n            except Exception as e:")
+        :quotes ("for expr, ord_idx, line in pre_effects:\n            maybe_lad = lad_by_order.get(ord_idx)\n            try:\n                if maybe_lad:\n                    self._engine.patch_one(maybe_lad, ctx)\n                    self._engine.delegate_one(maybe_lad)\n                else:\n                    _execute_directive(system.engine, expr)\n            except Exception as e:")
         :explanation "Pre-directive effect execution errors are caught and recorded"))
 
 (fact catches-directive-errors true
     :evidence (evidence "lazy_loader.py"
-        :quotes ("try:\n                _execute_directive(system.engine, node.expr)\n                executed.add(node.name)\n                if self._result:\n                    self._result.loaded.add(node)\n                return True\n            except Exception as e:\n                self._failed_names[node.name] = node")
+        :quotes ("try:\n                lad = lad_by_node.get(id(node))\n                if lad:\n                    self._engine.delegate_one(lad)\n                else:\n                    _execute_directive(system.engine, node.expr)\n                executed.add(node.name)" "except Exception as e:" "self._failed_names[node.name] = node\n                if self._result:\n                    self._result.errors[node] = e")
         :explanation "Directive execution errors are caught and recorded"))
 
 (fact checks-intra-module-deps true
@@ -177,8 +177,8 @@
 (axiom parse-errors-dont-crash
     (implies ?syntax-error ?error-recorded)
     :evidence (evidence "lazy_loader.py"
-        :quotes ("except SyntaxError as e:\n                err_node = DirectiveNode(\n                    name=None, expr=[], dep_names=set(),\n                    kind=\"error\"")
-        :explanation "Syntax errors produce error nodes, don't crash the loader"))
+        :quotes ("for err_line, err in result.parse_errors:\n                node = parse_directive([], order)\n                node.source_file = self._current.current_file\n                node.source_line = err_line\n                self._result.errors[node] = PltgError(")
+        :explanation "Parse errors produce error nodes recorded in errors, don't crash the loader"))
 
 (axiom root-cause-traces-to-error
     (implies ?node-skipped ?root-in-errors)
@@ -445,8 +445,8 @@
 ; Impl layer: two class attrs define the pre/post split
 (fact has-pre-directive-effects true
     :evidence (evidence "lazy_loader.py"
-        :quotes ("PRE_DIRECTIVE_EFFECTS: list[list[str]] = [\n        [\"context\"],\n        [\"load-document\"],\n        [\"import\"],\n    ]")
-        :explanation "Pre-directive effects ranked: context first, then load-document, then import"))
+        :quotes ("PRE_DIRECTIVE_EFFECTS: list[list[str]] = [\n        [\"context\"],\n        [\"load-document\", \"load-documents\"],\n        [\"import\"],\n    ]")
+        :explanation "Pre-directive effects ranked: context first, then load-document/load-documents, then import"))
 
 (fact has-post-directive-effects true
     :evidence (evidence "lazy_loader.py"
@@ -479,8 +479,8 @@
 
 (fact has-line-tracking true
     :evidence (evidence "lazy_loader.py"
-        :quotes ("tokens, token_lines = tokenize(source, track_lines=True)")
-        :explanation "Tokenizer tracks line numbers for error reporting and DirectiveNode.source_line"))
+        :quotes ("line = ad.sentence.line" "node.source_file = self._current.current_file\n            node.source_line = line")
+        :explanation "Source lines flow from parsed sentences into DirectiveNode.source_line for error reporting"))
 
 ; =====================================================================
 ; Exports for new functionality

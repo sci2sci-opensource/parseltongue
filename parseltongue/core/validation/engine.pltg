@@ -1,14 +1,14 @@
 ; engine.pltg — Ground truth and internal validation for engine.py
 
 (load-document "engine.py" "../engine.py")
+(load-document "dsl_loader.py" "../dsl_loader.py")
+(load-document "engine_stack.py" "../engines/engine_stack.py")
 (import (quote ..std.counting))
 (import (quote ..std.epistemics))
 (import (quote ..std.lists))
 (import (quote lang))
 (import (quote ..std.util))
-(defterm count-exists counting.count-exists :origin "import")
-
-(verify-manual (quote count-exists) "V")
+(import (quote counting.count-exists))
 
 ; =====================================================================
 ; Module docstring vs class docstring
@@ -121,8 +121,28 @@
 ; engine tries rewriting both sides and comparing results
 (fact eq-has-rewrite-fallback true
     :evidence (evidence "engine.py"
-        :quotes ("if result is False and head == EQ and any(isinstance(a, list) for a in args):")
+        :quotes ("if result is False and head == EQ and any(isinstance(a, (list, tuple)) for a in args):")
         :explanation "EQ comparison has a rewrite fallback path"))
+
+; Computed defterms are lazy across the complete load/evaluation path.
+(fact defterm-loader-preserves-body true
+    :evidence (evidence "dsl_loader.py"
+        :quotes ("else:\n                defn = expr[2]\n            engine.introduce_term(name, defn, self.resolve_origin(expr))")
+        :explanation "The defterm directive passes its parsed body to Engine without evaluating it"))
+
+(fact defterm-engine-stores-definition true
+    :evidence (evidence "engine.py"
+        :quotes ("term = Term(name=name, definition=definition, origin=origin)\n        self.terms[name] = term")
+        :explanation "Term introduction stores the definition object rather than its evaluated value"))
+
+(fact defterm-reference-evaluates-definition true
+    :evidence (evidence "engine.py"
+        :quotes ("if not restricted and name in self.terms:\n                defn = self.terms[name].definition\n                if defn is not None:\n                    return self._eval(defn, env, axiom_scope, restricted)")
+        :explanation "The evaluator enters a computed definition when its term symbol is referenced"))
+
+(derive every-computed-defterm-is-lazy
+    (and defterm-loader-preserves-body defterm-engine-stores-definition defterm-reference-evaluates-definition)
+    :using (defterm-loader-preserves-body defterm-engine-stores-definition defterm-reference-evaluates-definition))
 
 ; =====================================================================
 ; Derivation
@@ -282,35 +302,43 @@
 ; =====================================================================
 
 (fact load-source-handles-axiom true
-    :evidence (evidence "engine.py"
+    :evidence (evidence "dsl_loader.py"
         :quotes ("if head == AXIOM:")
         :explanation "Loader handles axiom directive"))
 
 (fact load-source-handles-defterm true
-    :evidence (evidence "engine.py"
+    :evidence (evidence "dsl_loader.py"
         :quotes ("elif head == DEFTERM:")
         :explanation "Loader handles defterm directive"))
 
 (fact load-source-handles-fact true
-    :evidence (evidence "engine.py"
+    :evidence (evidence "dsl_loader.py"
         :quotes ("elif head == FACT:")
         :explanation "Loader handles fact directive"))
 
 (fact load-source-handles-derive true
-    :evidence (evidence "engine.py"
+    :evidence (evidence "dsl_loader.py"
         :quotes ("elif head == DERIVE:")
         :explanation "Loader handles derive directive"))
 
 (fact load-source-handles-diff true
-    :evidence (evidence "engine.py"
+    :evidence (evidence "dsl_loader.py"
         :quotes ("elif head == DIFF:")
         :explanation "Loader handles diff directive"))
 
 ; Fallback: unknown directives are evaluated as expressions
 (fact load-source-fallback-evaluates true
-    :evidence (evidence "engine.py"
+    :evidence (evidence "dsl_loader.py"
         :quotes ("engine.evaluate(expr)")
         :explanation "Unknown directives fall through to evaluate"))
+
+; The computable directive set is exactly the five dispatch branches.
+; Evidence never dispatches — it enters directives only through
+; resolve_origin, as origin data.
+(derive computable-directives-impl-count
+    (count-exists load-source-handles-fact load-source-handles-axiom load-source-handles-defterm load-source-handles-derive load-source-handles-diff)
+    :using (count-exists counting.count-exists-base counting.count-exists-step
+            load-source-handles-fact load-source-handles-axiom load-source-handles-defterm load-source-handles-derive load-source-handles-diff))
 
 ; =====================================================================
 ; Code vs Docs — two-branch-then-diff
@@ -366,7 +394,7 @@
             load-source-handles-axiom load-source-handles-defterm load-source-handles-fact load-source-handles-derive load-source-handles-diff load-source-fallback-evaluates))
 
 (defterm directive-loader-impl-count 6
-    :evidence (evidence "engine.py"
+    :evidence (evidence "dsl_loader.py"
         :quotes ("if head == AXIOM:" "elif head == DEFTERM:" "elif head == FACT:" "elif head == DERIVE:" "elif head == DIFF:" "engine.evaluate(expr)")
         :explanation "6 directive handler branches in source"))
 
@@ -477,37 +505,47 @@
 ; --- evidence-attachable: fact/axiom/defterm call _resolve_origin ---
 
 (fact fact-calls-resolve-origin true
-    :evidence (evidence "engine.py"
-        :quotes ("engine.set_fact(str(expr[1]), expr[2], _resolve_origin(expr))")
-        :explanation "fact directive calls _resolve_origin"))
+    :evidence (evidence "dsl_loader.py"
+        :quotes ("engine.set_fact(str(expr[1]), expr[2], self.resolve_origin(expr))")
+        :explanation "fact directive calls resolve_origin"))
 
 (fact axiom-calls-resolve-origin true
-    :evidence (evidence "engine.py"
-        :quotes ("engine.introduce_axiom(name, wff, _resolve_origin(expr))")
-        :explanation "axiom directive calls _resolve_origin"))
+    :evidence (evidence "dsl_loader.py"
+        :quotes ("engine.introduce_axiom(name, wff, self.resolve_origin(expr))")
+        :explanation "axiom directive calls resolve_origin"))
+
+(fact evidence-not-dispatched true
+    :evidence (evidence "dsl_loader.py"
+        :quotes ("if head == AXIOM:" "elif head == DEFTERM:" "elif head == FACT:" "elif head == DERIVE:" "elif head == DIFF:")
+        :explanation "the directive dispatch has exactly these five branches — no evidence branch; evidence reaches directives via resolve_origin only"))
+
+(derive evidence-excluded-impl
+    (and evidence-not-dispatched fact-calls-resolve-origin)
+    :using (evidence-not-dispatched fact-calls-resolve-origin))
 
 (fact defterm-calls-resolve-origin true
-    :evidence (evidence "engine.py"
-        :quotes ("engine.introduce_term(name, defn, _resolve_origin(expr))")
-        :explanation "defterm directive calls _resolve_origin"))
+    :evidence (evidence "dsl_loader.py"
+        :quotes ("engine.introduce_term(name, defn, self.resolve_origin(expr))")
+        :explanation "defterm directive calls resolve_origin"))
 
-; _resolve_origin checks :evidence keyword
+; resolve_origin checks :evidence keyword
 (fact resolve-origin-checks-evidence true
-    :evidence (evidence "engine.py"
-        :quotes ("evidence_raw = get_keyword(expr, KW_EVIDENCE, None)\n    if evidence_raw is not None:\n        return parse_evidence(evidence_raw)")
-        :explanation "_resolve_origin checks for :evidence keyword"))
+    :evidence (evidence "dsl_loader.py"
+        :quotes ("evidence_raw = get_keyword(expr, KW_EVIDENCE, None)\n        if evidence_raw is not None:\n            return self.parse_evidence(evidence_raw)")
+        :explanation "resolve_origin checks for :evidence keyword"))
 
-; _resolve_origin checks :origin keyword
+; resolve_origin checks :origin keyword
 (fact resolve-origin-checks-origin true
-    :evidence (evidence "engine.py"
+    :evidence (evidence "dsl_loader.py"
         :quotes ("return get_keyword(expr, KW_ORIGIN, \"unknown\")")
-        :explanation "_resolve_origin falls back to :origin keyword"))
+        :explanation "resolve_origin falls back to :origin keyword"))
 
-; _resolve_origin handles both paths
+; resolve_origin handles both paths
 (fact resolve-origin-checks-both true
-    :evidence (evidence "engine.py"
-        :quotes ("def _resolve_origin(expr) -> \"str | Evidence\":\n    evidence_raw = get_keyword(expr, KW_EVIDENCE, None)\n    if evidence_raw is not None:\n        return parse_evidence(evidence_raw)\n    return get_keyword(expr, KW_ORIGIN, \"unknown\")")
-        :explanation "_resolve_origin tries :evidence first, falls back to :origin"))
+    :evidence (evidence "dsl_loader.py"
+        :quotes ("def resolve_origin(self, expr) -> \"str | Evidence\":"
+                 "evidence_raw = get_keyword(expr, KW_EVIDENCE, None)\n        if evidence_raw is not None:\n            return self.parse_evidence(evidence_raw)\n        return get_keyword(expr, KW_ORIGIN, \"unknown\")")
+        :explanation "resolve_origin tries :evidence first, falls back to :origin"))
 
 (derive bound-evidence-attachable lang.evidence-attachable
     :bind ((?is-fact fact-calls-resolve-origin)
@@ -536,13 +574,13 @@
 
 (fact diff-evaluated-structurally true
     :evidence (evidence "engine.py"
-        :quotes ("all_diffs = sorted((self.eval_diff(n) for n in self.diffs), key=lambda d: d.name)" "downstream_divergent = [d for d in all_diffs if not d.empty and not d.diff_contamination_only]" "value_divergent = [d for d in all_diffs if d.values_diverge and d.empty]")
+        :quotes ("all_diffs = sorted((self.eval_diff(n) for n in names), key=lambda d: d.name)" "downstream_divergent = [d for d in all_diffs if not d.empty and not d.diff_contamination_only]" "value_divergent = [d for d in all_diffs if d.values_diverge and d.empty]")
         :explanation "Consistency evaluates diffs structurally — divergence is a system issue"))
 
 (defterm diff-calls-resolve-origin false
-    :evidence (evidence "engine.py"
+    :evidence (evidence "dsl_loader.py"
         :quotes ("engine.register_diff(str(expr[1]), str(get_keyword(expr, KW_REPLACE)), str(get_keyword(expr, KW_WITH)))")
-        :explanation "diff handler calls register_diff directly — no _resolve_origin, no evidence attachment"))
+        :explanation "diff handler calls register_diff directly — no resolve_origin, no evidence attachment"))
 
 (derive bound-diff-no-evidence lang.diff-no-evidence
     :bind ((?is-diff load-source-handles-diff)
@@ -566,8 +604,8 @@
 
 (fact expr-references-recurses-lists true
     :evidence (evidence "engine.py"
-        :quotes ("return any(Engine._expr_references(sub, name) for sub in expr)")
-        :explanation "_expr_references recurses into list expressions via Engine static call"))
+        :quotes ("return any(EngineImpl._expr_references(sub, name) for sub in expr)")
+        :explanation "_expr_references recurses into list expressions via EngineImpl static call"))
 
 ; =====================================================================
 ; _dependents — cross-type dependency tracking (Items × Layers)
@@ -783,10 +821,25 @@
         :quotes ("report = ConsistencyReport(\n            consistent=len(issues) == 0,\n            issues=issues,\n            warnings=warnings,\n        )")
         :explanation "warnings list is stored but consistent depends only on issues; warnings don't break consistency"))
 
+; The two outcome kinds mirror the two channels ConsistencyReport carries.
+(defterm consistency-outcome-channels 2
+    :evidence (evidence "engine.py"
+        :quotes ("issues=issues,\n            warnings=warnings,")
+        :explanation "ConsistencyReport carries exactly two outcome channels: issues and warnings"))
+
+(derive consistency-outcome-kind-count
+    (count-exists consistency-error consistency-warning)
+    :using (count-exists counting.count-exists-base counting.count-exists-step
+            consistency-error consistency-warning))
+
+(diff consistency-outcomes-vs-report-channels
+    :replace consistency-outcome-kind-count
+    :with consistency-outcome-channels)
+
 ; Evidence → epistemic status → consistency outcome
 ; Isomorphism: three independent counts align for errors and warnings.
 ;   errors:   collapsed-error-cross-check = issue-type-count = adjusted-issue-count  (all 5)
-;   warnings: warning-cross-check = warning-type-count = unknown-count-from-witnesses (all 2)
+;   warnings: warning-cross-check = warning-type-count = unknown-count-from-witnesses (all 3)
 ; These are derived at the end of this section after all three layers are built.
 
 ; Evidence → epistemic status axioms
@@ -800,12 +853,12 @@
 
 (fact unverified-is-grounded false
     :evidence (evidence "engine.py"
-        :quotes ("elif not origin.is_grounded:\n                        unverified.append(name)")
+        :quotes ("elif not origin.is_grounded:" "unverified.append((name, origin.quotes + _corpus_reasons(origin)))")
         :explanation "unverified evidence: grounded = false"))
 
 (fact unverified-is-manually-validated false
     :evidence (evidence "engine.py"
-        :quotes ("if not origin.verified and origin.verify_manual:\n                        manually_verified.append(name)\n                    elif not origin.is_grounded:\n                        unverified.append(name)")
+        :quotes ("if not origin.verified and origin.verify_manual:\n                        manually_verified.append(name)\n                    elif not origin.is_grounded:")
         :explanation "unverified path is elif after manual check — manually validated = false"))
 
 (derive witness-evidence-hallucinated ungrounded-is-hallucinated
@@ -964,6 +1017,44 @@
     (epistemics.collapse (strict contamination-status) epistemics.hypothesised)
     :using (epistemics.collapse epistemics.hypothesised contamination-status))
 
+; --- CONFOUNDED_EVIDENCE → unknown ---
+; A shared source can support both claims, but it cannot independently
+; corroborate one with the other. The diff result is therefore hypothesised.
+
+(fact confounded-evidence-detected true
+    :evidence (evidence "engine.py"
+        :quotes ("if replace_quote in with_quote or with_quote in replace_quote:")
+        :explanation "the checker detects equal or fully contained quotes in the same document across the two transitive provenance graphs"))
+
+(defterm confounded-evidence-status (epistemics.superpose epistemics.hallucinated epistemics.unknown epistemics.exemplifiable)
+    :evidence (evidence "epistemics.pltg"
+        :quotes ("unknown — the system cannot make a determination")
+        :explanation "without independent corroboration, the diff cannot determine which side is supported"))
+
+(derive witness-confounded-evidence-unknown
+    (epistemics.collapse (strict confounded-evidence-status) epistemics.hypothesised)
+    :using (epistemics.collapse epistemics.hypothesised confounded-evidence-status))
+
+; --- Diff-observation detectors: three partitions of all_diffs in check() ---
+; Each detection fact above records one partition; the code carves all_diffs
+; into exactly three kinds, so the fact count must equal the partition count.
+
+(defterm diff-detection-kind-count 3
+    :evidence (evidence "engine.py"
+        :quotes ("downstream_divergent = [d for d in all_diffs if not d.empty and not d.diff_contamination_only]"
+                 "value_divergent = [d for d in all_diffs if d.values_diverge and d.empty]"
+                 "diff_contamination = [d for d in all_diffs if d.diff_contamination_only]")
+        :explanation "check() partitions all_diffs into three detection kinds: downstream divergence, value divergence, contamination-only"))
+
+(derive diff-detection-count
+    (count-exists diff-divergence-detected diff-value-divergence-detected diff-contamination-detected)
+    :using (count-exists counting.count-exists-base counting.count-exists-step
+            diff-divergence-detected diff-value-divergence-detected diff-contamination-detected))
+
+(diff diff-detections-vs-kinds
+    :replace diff-detection-count
+    :with diff-detection-kind-count)
+
 ; --- Consistency outcome: condition → error or warning ---
 ; Each axiom models one if-branch in consistency(). Facts describe code behavior.
 
@@ -981,7 +1072,7 @@
 
 (fact unverified-is-unverified true
     :evidence (evidence "engine.py"
-        :quotes ("elif not origin.is_grounded:\n                        unverified.append(name)")
+        :quotes ("elif not origin.is_grounded:" "unverified.append((name, origin.quotes + _corpus_reasons(origin)))")
         :explanation "evidence is not grounded → appended to unverified list"))
 
 (derive unverified-causes-error error-on-unverified
@@ -1142,6 +1233,17 @@
     :bind ((?is-empty contamination-is-empty) (?all-are-diff-refs contamination-all-are-diff-refs))
     :using (warning-on-contamination contamination-is-empty contamination-all-are-diff-refs))
 
+; CONFOUNDED_EVIDENCE → warning
+(axiom warning-on-confounded-evidence
+    (implies ?has-shared-quote consistency-warning)
+    :evidence (evidence "engine.py"
+        :quotes ("if confounded_details:\n            warnings.append(\n                ConsistencyWarning(\n                    WarningType.CONFOUNDED_EVIDENCE,")
+        :explanation "a diff with shared quote provenance is appended to warnings"))
+
+(derive confounded-evidence-causes-warning warning-on-confounded-evidence
+    :bind ((?has-shared-quote confounded-evidence-detected))
+    :using (warning-on-confounded-evidence confounded-evidence-detected))
+
 ; =====================================================================
 ; Classification enum — every IssueType and WarningType member as a fact
 ; =====================================================================
@@ -1183,11 +1285,16 @@
         :quotes ("DIFF_CONTAMINATION = \"diff_contamination\"")
         :explanation "WarningType enum member"))
 
-; --- Items × Layers: epistemic status of all 8 witnesses ---
+(fact warning-confounded-evidence true
+    :evidence (evidence "engine.py"
+        :quotes ("CONFOUNDED_EVIDENCE = \"confounded_evidence\"")
+        :explanation "WarningType enum member"))
+
+; --- Items × Layers: epistemic status of all 9 witnesses ---
 ;
 ; Each witness evaluates to an epistemic status (hallucinated/unknown/exemplifiable).
 ; We count how many are hallucinated and how many are unknown, then cross-check
-; against the classification enum counts (5 IssueTypes + 2 WarningTypes).
+; against the classification enum counts (5 IssueTypes + 3 WarningTypes).
 ;
 ; Witnesses → status:
 ;   witness-evidence-hallucinated         → hallucinated  (UNVERIFIED_EVIDENCE)
@@ -1198,9 +1305,10 @@
 ;   witness-diff-value-hallucinated       → hallucinated  (DIFF_VALUE_DIVERGENCE)
 ;   witness-evidence-unknown              → unknown       (MANUALLY_VERIFIED)
 ;   witness-diff-contamination-unknown    → unknown       (DIFF_CONTAMINATION)
+;   witness-confounded-evidence-unknown   → unknown       (CONFOUNDED_EVIDENCE)
 ;
 ; Hallucinated count = 6 (not 5) because POTENTIAL_FABRICATION has 2 branches.
-; Unknown count = 2, matching 2 WarningType members.
+; Unknown count = 3, matching 3 WarningType members.
 
 (derive hallucinated-count
     (epistemics.count-hallucinated
@@ -1211,7 +1319,8 @@
         (strict witness-diff-divergence-hallucinated)
         (strict witness-diff-value-hallucinated)
         (strict witness-evidence-unknown)
-        (strict witness-diff-contamination-unknown))
+        (strict witness-diff-contamination-unknown)
+        (strict witness-confounded-evidence-unknown))
     :using (epistemics.count-hallucinated
             witness-evidence-hallucinated
             witness-no-evidence-hallucinated
@@ -1220,7 +1329,8 @@
             witness-diff-divergence-hallucinated
             witness-diff-value-hallucinated
             witness-evidence-unknown
-            witness-diff-contamination-unknown))
+            witness-diff-contamination-unknown
+            witness-confounded-evidence-unknown))
 
 ; Issue types that map to hallucinated witnesses (5 types, 6 witnesses)
 (derive issue-type-count
@@ -1251,21 +1361,24 @@
     :replace hallucinated-count
     :with adjusted-issue-count)
 
-; Warning types that map to unknown witnesses (2 types, 2 witnesses)
+; Warning types that map to unknown witnesses (3 types, 3 witnesses)
 (derive warning-type-count
     (count-exists warning-manually-verified
-                  warning-diff-contamination)
+                  warning-diff-contamination
+                  warning-confounded-evidence)
     :using (count-exists
             warning-manually-verified
-            warning-diff-contamination))
+            warning-diff-contamination
+            warning-confounded-evidence))
 
-; Count unknowns from all 8 witnesses using joint-status trick:
+; Count unknowns from all 9 witnesses using joint-status trick:
 ; unknown if status = unknown, else not-unknown
 ; We use count-exists on (= witness unknown) checks
 (derive unknown-count-from-witnesses
     (count-exists
         (= (strict witness-evidence-unknown) epistemics.unknown)
         (= (strict witness-diff-contamination-unknown) epistemics.unknown)
+        (= (strict witness-confounded-evidence-unknown) epistemics.unknown)
         (= (strict witness-evidence-hallucinated) epistemics.unknown)
         (= (strict witness-no-evidence-hallucinated) epistemics.unknown)
         (= (strict witness-fabrication-does-not-hold) epistemics.unknown)
@@ -1275,6 +1388,7 @@
     :using (count-exists
             witness-evidence-unknown
             witness-diff-contamination-unknown
+            witness-confounded-evidence-unknown
             witness-evidence-hallucinated
             witness-no-evidence-hallucinated
             witness-fabrication-does-not-hold
@@ -1282,7 +1396,7 @@
             witness-diff-divergence-hallucinated
             witness-diff-value-hallucinated))
 
-; Cross-check: unknown-count (2) vs warning-type-count (2)
+; Cross-check: unknown-count (3) vs warning-type-count (3)
 (diff unknown-vs-warnings
     :replace unknown-count-from-witnesses
     :with warning-type-count)
@@ -1294,7 +1408,7 @@
 ;   2. Consequence: the derive proving this causes error/warning
 ;   3. Classification: the enum entry exists as a fact
 ;
-; All 8 witnesses appear in both cross-checks.
+; All 9 witnesses appear in both cross-checks.
 ; Booleans do the filtering: hallucinated witnesses score true in error check,
 ; unknown witnesses score true in warning check.
 
@@ -1316,7 +1430,9 @@
         (and (= (strict witness-evidence-unknown) epistemics.hallucinated)
              manual-causes-warning warning-manually-verified)
         (and (= (strict witness-diff-contamination-unknown) epistemics.hallucinated)
-             contamination-causes-warning warning-diff-contamination))
+             contamination-causes-warning warning-diff-contamination)
+        (and (= (strict witness-confounded-evidence-unknown) epistemics.hallucinated)
+             confounded-evidence-causes-warning warning-confounded-evidence))
     :using (count-exists
             witness-evidence-hallucinated unverified-causes-error issue-unverified-evidence
             witness-no-evidence-hallucinated no-evidence-causes-error issue-no-evidence
@@ -1325,7 +1441,8 @@
             witness-diff-divergence-hallucinated divergence-causes-error issue-diff-divergence
             witness-diff-value-hallucinated value-divergence-causes-error issue-diff-value-divergence
             witness-evidence-unknown manual-causes-warning warning-manually-verified
-            witness-diff-contamination-unknown contamination-causes-warning warning-diff-contamination))
+            witness-diff-contamination-unknown contamination-causes-warning warning-diff-contamination
+            witness-confounded-evidence-unknown confounded-evidence-causes-warning warning-confounded-evidence))
 
 ; Warning cross-check: unknown × causes-warning × warning-type-exists
 (derive warning-cross-check
@@ -1345,7 +1462,9 @@
         (and (= (strict witness-evidence-unknown) epistemics.unknown)
              manual-causes-warning warning-manually-verified)
         (and (= (strict witness-diff-contamination-unknown) epistemics.unknown)
-             contamination-causes-warning warning-diff-contamination))
+             contamination-causes-warning warning-diff-contamination)
+        (and (= (strict witness-confounded-evidence-unknown) epistemics.unknown)
+             confounded-evidence-causes-warning warning-confounded-evidence))
     :using (count-exists
             witness-evidence-hallucinated unverified-causes-error issue-unverified-evidence
             witness-no-evidence-hallucinated no-evidence-causes-error issue-no-evidence
@@ -1354,7 +1473,8 @@
             witness-diff-divergence-hallucinated divergence-causes-error issue-diff-divergence
             witness-diff-value-hallucinated value-divergence-causes-error issue-diff-value-divergence
             witness-evidence-unknown manual-causes-warning warning-manually-verified
-            witness-diff-contamination-unknown contamination-causes-warning warning-diff-contamination))
+            witness-diff-contamination-unknown contamination-causes-warning warning-diff-contamination
+            witness-confounded-evidence-unknown confounded-evidence-causes-warning warning-confounded-evidence))
 
 ; Cross-check diffs
 (diff error-layers-consistent
@@ -1386,7 +1506,9 @@
         (and (= (strict witness-evidence-unknown) epistemics.hallucinated)
              manual-causes-warning warning-manually-verified)
         (and (= (strict witness-diff-contamination-unknown) epistemics.hallucinated)
-             contamination-causes-warning warning-diff-contamination))
+             contamination-causes-warning warning-diff-contamination)
+        (and (= (strict witness-confounded-evidence-unknown) epistemics.hallucinated)
+             confounded-evidence-causes-warning warning-confounded-evidence))
     :using (count-exists epistemics.joint-status
             witness-evidence-hallucinated unverified-causes-error issue-unverified-evidence
             witness-no-evidence-hallucinated no-evidence-causes-error issue-no-evidence
@@ -1395,17 +1517,13 @@
             witness-diff-divergence-hallucinated divergence-causes-error issue-diff-divergence
             witness-diff-value-hallucinated value-divergence-causes-error issue-diff-value-divergence
             witness-evidence-unknown manual-causes-warning warning-manually-verified
-            witness-diff-contamination-unknown contamination-causes-warning warning-diff-contamination))
+            witness-diff-contamination-unknown contamination-causes-warning warning-diff-contamination
+            witness-confounded-evidence-unknown confounded-evidence-causes-warning warning-confounded-evidence))
 
 ; collapsed-error-cross-check (5) = issue-type-count (5) — fully connected
-(diff error-layers-consistent
+(diff collapsed-error-layers-consistent
     :replace collapsed-error-cross-check
     :with issue-type-count)
-
-; warning-cross-check (2) = warning-type-count (2) — fully connected
-(diff warning-layers-consistent
-    :replace warning-cross-check
-    :with warning-type-count)
 
 ; --- Isomorphism: hallucinated ≅ errors, unknown ≅ warnings ---
 ; Four independent counts must all be 5:
@@ -1424,12 +1542,14 @@
         (strict witness-diff-divergence-hallucinated)
         (strict witness-diff-value-hallucinated)
         (strict witness-evidence-unknown)
-        (strict witness-diff-contamination-unknown))
+        (strict witness-diff-contamination-unknown)
+        (strict witness-confounded-evidence-unknown))
     :using (epistemics.count-hallucinated epistemics.joint-status
             witness-evidence-hallucinated witness-no-evidence-hallucinated
             witness-fabrication-does-not-hold witness-fabrication-ungrounded-source
             witness-diff-divergence-hallucinated witness-diff-value-hallucinated
-            witness-evidence-unknown witness-diff-contamination-unknown))
+            witness-evidence-unknown witness-diff-contamination-unknown
+            witness-confounded-evidence-unknown))
 
 (derive causes-error-count
     (count-exists
@@ -1452,10 +1572,12 @@
 (derive causes-warning-count
     (count-exists
         (and manual-causes-warning warning-manually-verified)
-        (and contamination-causes-warning warning-diff-contamination))
+        (and contamination-causes-warning warning-diff-contamination)
+        (and confounded-evidence-causes-warning warning-confounded-evidence))
     :using (count-exists
             manual-causes-warning warning-manually-verified
-            contamination-causes-warning warning-diff-contamination))
+            contamination-causes-warning warning-diff-contamination
+            confounded-evidence-causes-warning warning-confounded-evidence))
 
 (derive unknown-is-warning
     (= warning-cross-check warning-type-count unknown-count-from-witnesses causes-warning-count)
@@ -1484,6 +1606,70 @@
     :using (util.export consistency-states-total))
 
 ; =====================================================================
+; Scope special forms (scope/self/project/delegate) — engine_stack.py
+; =====================================================================
+
+(fact scope-handler true
+    :evidence (evidence "engine_stack.py"
+        :quotes ("elif head == SCOPE:\n                    result = self._eval_scope(expr, env, axiom_scope, restricted)" "if scope_name == SELF:" "resolved = [_rp(a) for a in expr[2:]]\n            log.info(\"_rp scope=%r resolved=%r\", scope_name, resolved)\n            return scope_val(scope_name, *resolved)")
+        :explanation "SCOPE dispatches to _eval_scope, which handles the self identity scope or a callable target and resolves project/delegate in the args via _rp"))
+
+(fact self-handler true
+    :evidence (evidence "engine_stack.py"
+        :quotes ("elif head == SELF:\n                    args_list = expr[1:]\n                    if not args_list:\n                        result = []\n                    elif len(args_list) == 1:\n                        expr = args_list[0]")
+        :explanation "SELF evaluates all args in the current engine (identity scope): no args yields [], a single arg is tail-evaluated, multiple args go through the _K_SELF_ARGS frame"))
+
+(fact project-handler true
+    :evidence (evidence "engine_stack.py"
+        :quotes ("elif head == PROJECT:\n                    if len(expr) == 2:\n                        expr = expr[1]\n                        continue\n                    basis = expr[1]" "stack.append((_K_PROJECT_BASIS, basis, expr[2]))")
+        :explanation "PROJECT with 1 arg evaluates in the current engine; with 2 args it evaluates the body against a named basis via the _K_PROJECT_BASIS frame"))
+
+(fact delegate-handler true
+    :evidence (evidence "engine_stack.py"
+        :quotes ("elif head == DELEGATE:\n                    result = self._eval_delegate(expr, env, axiom_scope, restricted)" "while isinstance(e, (list, tuple)) and e and e[0] == DELEGATE:\n            depth += 1" "for proposal in reversed(binds):\n            if proposal != []:\n                found += 1\n                if found == depth:\n                    return proposal")
+        :explanation "DELEGATE counts nesting depth by peeling nested delegate heads, then picks the depth-th non-empty proposal from the :bind proposal stack"))
+
+(fact rp-walk true
+    :evidence (evidence "engine_stack.py"
+        :quotes ("def _rp(e):\n                if not isinstance(e, (list, tuple)) or not e:\n                    return e\n                if e[0] == PROJECT:\n                    return self._eval(e, env, axiom_scope, restricted)" "proposal = _delegate_proposal(e)\n                        new_binds = existing + [proposal]" "return base + [KW_BIND, new_binds]")
+        :explanation "_rp is the project resolution walk inside SCOPE: it eagerly evaluates project subexpressions and posts delegate proposals onto the :bind stack"))
+
+(fact delegate-proposal true
+    :evidence (evidence "engine_stack.py"
+        :quotes ("def _delegate_proposal(delegate_expr):\n                pattern = None\n                e = delegate_expr\n                while isinstance(e, (list, tuple)) and e and e[0] == DELEGATE:" "if vname == \"?_level\":\n                        bindings[var] = level" "bound_body = substitute(body, bindings)\n                bound_body = _resolve_projects(bound_body)" "bound_pattern = substitute(pattern, bindings)")
+        :explanation "_delegate_proposal peels delegate nesting to find pattern and body, binds ?-vars from env plus ?_level, evaluates the body and checks the conditional pattern before accepting the proposal"))
+
+; Four special-form branches in the _eval dispatch
+(defterm scope-family-forms-count 4
+    :evidence (evidence "engine_stack.py"
+        :quotes ("elif head == SELF:" "elif head == PROJECT:" "elif head == DELEGATE:" "elif head == SCOPE:")
+        :explanation "Four scope-family special-form branches in the _eval dispatch loop"))
+
+(derive scope-family-handler-count
+    (count-exists scope-handler self-handler project-handler delegate-handler)
+    :using (count-exists counting.count-exists-base counting.count-exists-step
+            scope-handler self-handler project-handler delegate-handler))
+
+(derive scope-family-helper-count
+    (count-exists rp-walk delegate-proposal)
+    :using (count-exists counting.count-exists-base counting.count-exists-step
+            rp-walk delegate-proposal))
+
+(diff scope-family-handlers-vs-forms
+    :replace scope-family-handler-count
+    :with scope-family-forms-count)
+
+; Two helper functions implement the scope resolution walk
+(defterm scope-family-helpers-expected 2
+    :evidence (evidence "engine_stack.py"
+        :quotes ("def _rp(e):" "def _delegate_proposal(delegate_expr):")
+        :explanation "Two scope-family helper functions: the project resolution walk and the delegate proposal builder"))
+
+(diff scope-family-helpers-vs-expected
+    :replace scope-family-helper-count
+    :with scope-family-helpers-expected)
+
+; =====================================================================
 ; Exports — for core.pltg cross-checks against README
 ; =====================================================================
 
@@ -1498,6 +1684,18 @@
 (derive export-computable-directives
     (util.export load-source-handles-derive)
     :using (util.export load-source-handles-derive))
+
+(derive export-computable-directive-impl-count
+    (util.export computable-directives-impl-count)
+    :using (util.export computable-directives-impl-count))
+
+(derive export-scope-family-handler-count
+    (util.export scope-family-handler-count)
+    :using (util.export scope-family-handler-count))
+
+(derive export-evidence-excluded
+    (util.export evidence-excluded-impl)
+    :using (util.export evidence-excluded-impl))
 
 (derive export-effects-in-computable
     (util.export load-source-fallback-evaluates)
@@ -1574,8 +1772,8 @@
 
 (fact consistency-checks-three-layers true
     :evidence (evidence "engine.py"
-        :quotes ("# 1. Evidence grounding\n        unverified = []\n        manually_verified = []\n        no_evidence = []" "# 2. Fabrication propagation\n        fabrications = sorted(\n            name\n            for name, thm in self.theorems.items()\n            if isinstance(thm.origin, str) and \"potential fabrication\" in thm.origin\n        )" "# 3. Diff divergences — evaluated live\n        all_diffs = sorted((self.eval_diff(n) for n in self.diffs), key=lambda d: d.name)")
-        :explanation "consistency() has 3 implementation sections"))
+        :quotes ("# 1. Evidence grounding\n        unverified = []\n        manually_verified = []\n        no_evidence = []" "# 2. Fabrication propagation\n        fabrications = sorted(\n            name\n            for name, thm in self.theorems.items()\n            if isinstance(thm.origin, str) and \"potential fabrication\" in thm.origin\n        )" "issues, warnings = self._check_evidence()\n        diff_issues, diff_warnings = self._check_diffs()")
+        :explanation "consistency() checks 3 layers: evidence grounding and fabrication propagation via _check_evidence, diff divergences via _check_diffs"))
 
 (derive export-three-layers
     (util.export consistency-checks-three-layers)
@@ -1627,14 +1825,4 @@
     (util.export expr-references-is-static)
     :using (util.export expr-references-is-static))
 
-; --- TODO: new functionality ---
-(defterm stub-suppress-log :origin "TODO: consistency() gained suppress_log: bool = True param — silences log.warning output by default")
-
-; --- Scope special forms in _eval ---
-(defterm stub-scope-handler :origin "TODO: SCOPE handler — dispatches to callable or self, resolves project/delegate in args via _rp")
-(defterm stub-self-handler :origin "TODO: SELF handler — evaluates all args in current engine (identity scope)")
-(defterm stub-project-handler :origin "TODO: PROJECT handler — evaluates in current engine (1 arg) or named basis (2 args)")
-(defterm stub-delegate-handler :origin "TODO: DELEGATE handler — counts nesting depth, picks from :bind proposal stack")
-(defterm stub-rp :origin "TODO: _rp — project resolution walk inside SCOPE, eagerly evaluates project, posts delegate proposals to :bind stack")
-(defterm stub-delegate-proposal :origin "TODO: _delegate_proposal — peels delegate nesting, binds ?-vars from env + ?_level, evaluates conditional pattern then body")
-
+; suppress_log: bool = True on consistency() is covered by consistency-has-impl above.

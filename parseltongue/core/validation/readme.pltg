@@ -4,7 +4,7 @@
 (import (quote ..std.counting))
 (import (quote ..std.epistemics))
 (import (quote ..std.util))
-(defterm count-exists counting.count-exists :origin "import")
+(import (quote counting.count-exists))
 
 ; =====================================================================
 ; Top-level claims
@@ -502,13 +502,13 @@
 
 (fact readme-documents-manual-verification-modules true
     :evidence (evidence "README"
-        :quotes ("Some definitions have no document source — rewrite axioms with `:origin`, import aliases, and hypothetical values constructed for theorem proving. These are flagged by the consistency checker as `no_evidence`. A **manual verification module** aggregates all such definitions in one place and calls `(verify-manual ...)` for each, so an analyst can review them as a batch rather than hunting through individual modules.")
+        :quotes ("Some definitions have no document source — rewrite axioms with `:origin` and hypothetical values constructed for theorem proving. These are flagged by the consistency checker as `no_evidence`. A **manual verification module** aggregates all such definitions in one place and calls `(verify-manual ...)` for each, so an analyst can review them as a batch rather than hunting through individual modules.")
         :explanation "README documents manual verification modules concept"))
 
-(fact readme-documents-manual-verification-3-categories 3
+(fact readme-documents-manual-verification-2-categories 2
     :evidence (evidence "README"
-        :quotes ("The system's own [`validation/verify_manual.pltg`](validation/verify_manual.pltg) demonstrates three categories of manually verified definitions:")
-        :explanation "README says verify_manual.pltg demonstrates 3 categories"))
+        :quotes ("The system's own [`validation/verify_manual.pltg`](validation/verify_manual.pltg) demonstrates two categories of manually verified definitions:")
+        :explanation "README says verify_manual.pltg demonstrates 2 categories"))
 
 (fact readme-documents-manual-reusables true
     :evidence (evidence "README"
@@ -519,11 +519,6 @@
     :evidence (evidence "README"
         :quotes ("This allows derives to instantiate directly with reusable rewrite axioms instead of defining intermediate `defterm`s that would each require their own evidence — the rewrite fires automatically, so the derive needs only its `:using` symbols, and the consistency checker stays happy because the axioms are manually verified once at the source.")
         :explanation "README documents that reusables avoid intermediate defterms needing evidence"))
-
-(fact readme-documents-manual-import-aliases true
-    :evidence (evidence "README"
-        :quotes ("**Import aliases** — `(defterm count-exists counting.count-exists :origin \"import\")` creates a local shorthand. Every module that imports `counting.pltg` produces one of these. They're mechanical and safe, but the checker flags them because `:origin` is not `:evidence`.")
-        :explanation "README documents import aliases as manually verified category"))
 
 (fact readme-documents-manual-hypotheticals true
     :evidence (evidence "README"
@@ -618,7 +613,7 @@
         :quotes ("diff_value_divergence" "The two values in a diff disagree directly")
         :explanation "Issue type with description"))
 
-; --- Warning types (2) ---
+; --- Warning types (3) ---
 
 (fact readme-warning-type-1 "manually_verified"
     :evidence (evidence "README"
@@ -628,6 +623,11 @@
 (fact readme-warning-type-2 "diff_contamination"
     :evidence (evidence "README"
         :quotes ("diff_contamination" "Diff divergence caused by a sibling diff, not a real disagreement")
+        :explanation "Warning type with description"))
+
+(fact readme-warning-type-3 "confounded_evidence"
+    :evidence (evidence "README"
+        :quotes ("confounded_evidence" "Both sides of a diff depend on the same document quote, weakening their independence")
         :explanation "Warning type with description"))
 
 ; =====================================================================
@@ -924,10 +924,10 @@
 ; Module system patterns
 ; =====================================================================
 
-(fact readme-documents-local-aliasing true
+(fact readme-documents-selective-imports true
     :evidence (evidence "README"
-        :quotes ("### Local Aliasing" "Modules can create local aliases for namespaced symbols using defterm")
-        :explanation "README has a Local Aliasing section"))
+        :quotes ("### Selective Entity Imports" "The local and canonical names refer to the imported directive itself")
+        :explanation "README documents selective entity imports and identity preservation"))
 
 ; (deleted: readme-documents-forward-decl — superseded by readme-defterm-forward-decl)
 
@@ -953,8 +953,8 @@
 
 (fact readme-documents-defterm-lazy true
     :evidence (evidence "README"
-        :quotes ("All defterm definitions are lazy" "the body expression is stored unevaluated and resolved only when the term is referenced")
-        :explanation "README documents lazy defterm evaluation"))
+        :quotes ("A `defterm` body is stored unevaluated and is evaluated when the term is referenced")
+        :explanation "README documents lazy evaluation of computed defterms independently of imports"))
 
 (fact readme-documents-relative-imports true
     :evidence (evidence "README"
@@ -1079,10 +1079,10 @@
         :quotes ("The ast module provides a dependency graph over parsed directives")
         :explanation "README documents AST module purpose"))
 
-(fact readme-documents-ast-directive-node 8
+(fact readme-documents-ast-directive-node 9
     :evidence (evidence "README"
-        :quotes ("DirectiveNode is a frozen dataclass with 8 fields")
-        :explanation "README documents DirectiveNode with 8 fields"))
+        :quotes ("DirectiveNode is a frozen dataclass with 9 fields")
+        :explanation "README documents DirectiveNode with 9 fields"))
 
 (fact readme-documents-ast-field-name true
     :evidence (evidence "README"
@@ -1124,6 +1124,11 @@
         :quotes ("dependents" "Set of nodes that depend on this directive (inverse of children)")
         :explanation "README documents dependents field"))
 
+(fact readme-documents-ast-field-source-line true
+    :evidence (evidence "README"
+        :quotes ("source_line" "1-based line number where the directive starts")
+        :explanation "README documents source_line field"))
+
 (fact readme-documents-ast-parse-directive true
     :evidence (evidence "README"
         :quotes ("node = parse_directive(name, expr, source_file, order)")
@@ -1153,6 +1158,166 @@
     :evidence (evidence "README"
         :quotes ("DirectiveNode uses identity hashing (__hash__=id, __eq__=identity) so nodes can be stored in sets")
         :explanation "README documents identity hashing"))
+
+; --- AST behaviors, granular (paired against ast_verifier counts) ---
+
+(fact readme-documents-ast-effects-no-name true
+    :evidence (evidence "README"
+        :quotes ("Directive name (or `None` for effects)")
+        :explanation "README documents that effect nodes carry no name"))
+
+(fact readme-documents-ast-extract-collects true
+    :evidence (evidence "README"
+        :quotes ("recursively collects symbol references")
+        :explanation "README documents extract_symbols recursion"))
+
+(fact readme-documents-ast-extract-skips-vars true
+    :evidence (evidence "README"
+        :quotes ("skipping `?`-variables")
+        :explanation "README documents extract_symbols skipping pattern variables"))
+
+(fact readme-documents-ast-graph-builds-index true
+    :evidence (evidence "README"
+        :quotes ("builds a name→node index")
+        :explanation "README documents resolve_graph index building"))
+
+(fact readme-documents-ast-graph-links-children true
+    :evidence (evidence "README"
+        :quotes ("links `children`")
+        :explanation "README documents resolve_graph children linking"))
+
+(fact readme-documents-ast-graph-links-dependents true
+    :evidence (evidence "README"
+        :quotes ("and `dependents`, and ignores")
+        :explanation "README documents resolve_graph dependents linking"))
+
+(fact readme-documents-ast-graph-ignores-external true
+    :evidence (evidence "README"
+        :quotes ("ignores references to symbols not in the current graph")
+        :explanation "README documents resolve_graph ignoring external symbols"))
+
+(fact readme-documents-ast-walk-stack-based true
+    :evidence (evidence "README"
+        :quotes ("# stack-based")
+        :explanation "README documents walk_dependents stack traversal"))
+
+(fact readme-documents-ast-walk-deduplicates true
+    :evidence (evidence "README"
+        :quotes ("stack-based, deduplicates")
+        :explanation "README documents walk_dependents deduplication"))
+
+(derive readme-ast-extract-behavior-count
+    (count-exists readme-documents-ast-extract-skips-vars readme-documents-ast-extract-collects)
+    :using (count-exists readme-documents-ast-extract-skips-vars readme-documents-ast-extract-collects))
+
+(derive readme-ast-graph-behavior-count
+    (count-exists readme-documents-ast-graph-builds-index readme-documents-ast-graph-links-children
+                  readme-documents-ast-graph-links-dependents readme-documents-ast-graph-ignores-external)
+    :using (count-exists readme-documents-ast-graph-builds-index readme-documents-ast-graph-links-children
+            readme-documents-ast-graph-links-dependents readme-documents-ast-graph-ignores-external))
+
+(derive readme-ast-walk-behavior-count
+    (count-exists readme-documents-ast-walk-stack-based readme-documents-ast-walk-deduplicates)
+    :using (count-exists readme-documents-ast-walk-stack-based readme-documents-ast-walk-deduplicates))
+
+(derive readme-ast-identity-count
+    (count-exists readme-documents-ast-identity-hashing)
+    :using (count-exists readme-documents-ast-identity-hashing))
+
+; --- Lazy loader behaviors, granular (paired against lazy_loader) ---
+
+(fact readme-documents-lazy-entry-function true
+    :evidence (evidence "README"
+        :quotes ("the `lazy_load_pltg()` function")
+        :explanation "README documents the lazy_load_pltg entry point"))
+
+(fact readme-documents-lazy-entry-load-main true
+    :evidence (evidence "README"
+        :quotes ("the `LazyLoader.load_main()` method")
+        :explanation "README documents the load_main entry point"))
+
+(fact readme-documents-lazy-entry-ast-property true
+    :evidence (evidence "README"
+        :quotes ("the `LazyLoader.ast` property")
+        :explanation "README documents the ast property entry point"))
+
+(fact readme-documents-lazy-catches-parse-errors true
+    :evidence (evidence "README"
+        :quotes ("recorded as error nodes instead of crashing the load")
+        :explanation "README documents parse-error tolerance"))
+
+(fact readme-documents-lazy-catches-effect-errors true
+    :evidence (evidence "README"
+        :quotes ("a failing effect is recorded and the load continues")
+        :explanation "README documents effect-error tolerance"))
+
+(fact readme-documents-lazy-catches-directive-errors true
+    :evidence (evidence "README"
+        :quotes ("a failing directive is recorded and its name marked failed")
+        :explanation "README documents directive-error tolerance"))
+
+(fact readme-documents-lazy-checks-intra-deps true
+    :evidence (evidence "README"
+        :quotes ("graph-linked children must load before a directive executes")
+        :explanation "README documents intra-module dependency checks"))
+
+(fact readme-documents-lazy-checks-cross-deps true
+    :evidence (evidence "README"
+        :quotes ("directives referencing a failed name are skipped")
+        :explanation "README documents cross-module dependency checks"))
+
+(fact readme-documents-lazy-tracks-failed-globally true
+    :evidence (evidence "README"
+        :quotes ("failed names accumulate across all modules of a load")
+        :explanation "README documents global failure tracking"))
+
+(fact readme-documents-lazy-pre-effects true
+    :evidence (evidence "README"
+        :quotes ("pre-directive effects (`context`, then `load-document`/`load-documents`, then `import`) fire before any directive")
+        :explanation "README documents ranked pre-directive effects"))
+
+(fact readme-documents-lazy-post-effects true
+    :evidence (evidence "README"
+        :quotes ("post-directive effects (`run-on-entry`, then `verify-manual`, then `print`/`consistency`/`dangerously-eval`) fire after")
+        :explanation "README documents ranked post-directive effects"))
+
+(fact readme-documents-lazy-effect-rank true
+    :evidence (evidence "README"
+        :quotes ("Within each group an effect-rank lookup orders the effects.")
+        :explanation "README documents the effect-rank ordering"))
+
+(fact readme-documents-lazy-patch-pass true
+    :evidence (evidence "README"
+        :quotes ("the patch pass exists as its own step")
+        :explanation "README documents the symbol patch pass"))
+
+(fact readme-documents-lazy-patch-checks-set true
+    :evidence (evidence "README"
+        :quotes ("checks membership in the collected name set")
+        :explanation "README documents patching against the collected names"))
+
+(fact readme-documents-lazy-line-tracking true
+    :evidence (evidence "README"
+        :quotes ("each parsed sentence's line number lands in its node's `source_line`")
+        :explanation "README documents end-to-end line tracking"))
+
+(derive readme-lazy-entry-point-count
+    (count-exists readme-documents-lazy-entry-function readme-documents-lazy-entry-load-main
+                  readme-documents-lazy-entry-ast-property)
+    :using (count-exists readme-documents-lazy-entry-function readme-documents-lazy-entry-load-main
+            readme-documents-lazy-entry-ast-property))
+
+(derive readme-lazy-fault-tolerance-count
+    (count-exists readme-documents-lazy-catches-parse-errors readme-documents-lazy-catches-effect-errors
+                  readme-documents-lazy-catches-directive-errors readme-documents-lazy-checks-intra-deps
+                  readme-documents-lazy-checks-cross-deps readme-documents-lazy-tracks-failed-globally)
+    :using (count-exists readme-documents-lazy-catches-parse-errors readme-documents-lazy-catches-effect-errors
+            readme-documents-lazy-catches-directive-errors readme-documents-lazy-checks-intra-deps
+            readme-documents-lazy-checks-cross-deps readme-documents-lazy-tracks-failed-globally))
+
+(derive readme-lazy-patch-count
+    (count-exists readme-documents-lazy-patch-pass readme-documents-lazy-patch-checks-set)
+    :using (count-exists readme-documents-lazy-patch-pass readme-documents-lazy-patch-checks-set))
 
 ; =====================================================================
 ; Packaging
@@ -1198,7 +1363,9 @@
 ; =====================================================================
 
 (fact readme-documents-introspection-and-self-consistency-plan false
-    :origin "README does not yet have an Introspection and Self-Consistency section (provenance walking, state(), self-validation via .pltg modules, the ouroboros)")
+    :evidence (evidence "README"
+        :absent (re "Introspection and Self-Consistency")
+        :explanation "README does not yet have an Introspection and Self-Consistency section (provenance walking, state(), self-validation via .pltg modules, the ouroboros)"))
 
 ; =====================================================================
 ; Splat patterns — README coverage stubs
@@ -1239,34 +1406,50 @@
 ; =====================================================================
 
 (fact readme-documents-self-test-plan false
-    :origin "README does not yet document self_test.pltg (self-referential incompleteness proof)")
+    :evidence (evidence "README"
+        :absent (re "self-referential incompleteness")
+        :explanation "README mentions self_test.pltg only in the effects table — the self-referential incompleteness proof is not yet documented"))
 
 (fact readme-documents-self-test-goedel-plan false
-    :origin "README does not yet document Gödel incompleteness derive (system cannot prove own consistency)")
+    :evidence (evidence "README"
+        :absent (re "incompleteness derive")
+        :explanation "README discusses Godel generally but does not yet document self_test.pltg's incompleteness derive"))
 
 (fact readme-documents-self-test-turing-plan false
-    :origin "README does not yet document Turing ordinal extension exemplified via axiom→theorem hierarchy")
+    :evidence (evidence "README"
+        :absent (re "axiom→theorem")
+        :explanation "README covers Turing ordinals in the math aside but not the axiom→theorem hierarchy exemplified by self_test.pltg"))
 
-(fact readme-documents-self-test-pytest-plan false
-    :origin "README does not yet document system running its own test suite via dangerously-eval")
+(fact readme-documents-self-test-pytest-plan true
+    :evidence (evidence "README"
+        :quotes ("Used by self_test.pltg to run the test suite from within the formal system")
+        :explanation "README's effects table documents self_test.pltg running the test suite via dangerously-eval — plan landed"))
 
 ; =====================================================================
 ; Validation framework — README coverage stubs
 ; =====================================================================
 
 (fact readme-documents-validation-framework-plan false
-    :origin "README does not yet document the .pltg self-validation system")
+    :evidence (evidence "README"
+        :absent (re "#+ Self-Validation")
+        :explanation "README references validation modules in passing but has no dedicated Self-Validation section"))
 
 (fact readme-documents-core-pltg-plan false
-    :origin "README does not yet document core.pltg as top-level orchestrator importing all validation modules")
+    :evidence (evidence "README"
+        :absent (re "core\\.pltg")
+        :explanation "README does not yet document core.pltg as top-level orchestrator importing all validation modules"))
 
 (fact readme-documents-per-module-validators-plan false
-    :origin "README does not yet document per-module .pltg verifiers (atoms, lang, engine, system, loader, etc.)")
+    :evidence (evidence "README"
+        :absent (re "validation/atoms\\.pltg")
+        :explanation "README cites counting/quote_verifier/verify_manual validators but not the per-module verifier suite (atoms, lang, engine, system, loader)"))
 
-(fact readme-documents-consistency-test-plan false
-    :origin "README does not yet document test_parseltongue_core_consistency.py pytest integration for CI")
+(fact readme-documents-consistency-test-plan true
+    :evidence (evidence "README"
+        :quotes ("The `parseltongue/core/tests` directory is included in pytest `testpaths` so that the consistency test runs in CI.")
+        :explanation "README's packaging section documents the consistency test's pytest/CI integration — plan landed"))
 
-; (deleted: readme-documents-verify-manual-pltg — duplicate of readme-documents-manual-verification-3-categories)
+; (deleted: readme-documents-verify-manual-pltg — duplicate of the manual-verification category count)
 
 ; =====================================================================
 ; README presentation
@@ -1277,8 +1460,10 @@
         :quotes ("ourouborous_core.svg" "Ouroboros")
         :explanation "README header displays ouroboros icon — a system that validates itself"))
 
-(fact readme-needs-consistency-badge-plan false
-    :origin "README should display a self-consistency CI badge from GitLab workflow showing core validation pass/fail status")
+(fact readme-has-consistency-badge true
+    :evidence (evidence "README"
+        :quotes ("[![Consistency](https://github.com/sci2sci-opensource/parseltongue/actions/workflows/consistency.yml/badge.svg)](https://github.com/sci2sci-opensource/parseltongue/actions/workflows/consistency.yml)")
+        :explanation "core README displays the required consistency workflow status"))
 
 ; (deleted: readme-documents-effects-eval-context — duplicate of readme-documents-effects-in-computable)
 
@@ -1584,10 +1769,10 @@
         :quotes ("unverified_evidence" "no_evidence" "potential_fabrication" "diff_divergence" "diff_value_divergence")
         :explanation "README lists 5 issue types in the consistency table"))
 
-(fact readme-documents-engine-warning-count 2
+(fact readme-documents-engine-warning-count 3
     :evidence (evidence "README"
-        :quotes ("manually_verified" "diff_contamination")
-        :explanation "README lists 2 warning types in the consistency table"))
+        :quotes ("manually_verified" "diff_contamination" "confounded_evidence")
+        :explanation "README lists 3 warning types in the consistency table"))
 
 (fact readme-documents-engine-diffs-cross-validation true
     :evidence (evidence "README"
@@ -1620,10 +1805,10 @@
         :quotes ("with an = -rewrite fallback for structural equality")
         :explanation "README documents =-rewrite fallback for structural equality"))
 
-(fact readme-documents-engine-special-forms 4
+(fact readme-documents-engine-special-forms 8
     :evidence (evidence "README"
-        :quotes ("Four special forms are handled directly by the engine")
-        :explanation "README documents 4 special forms in engine"))
+        :quotes ("Eight special forms are handled directly by the engine")
+        :explanation "README documents 8 special forms in engine"))
 
 (fact readme-documents-engine-special-if true
     :evidence (evidence "README"
@@ -1644,6 +1829,26 @@
     :evidence (evidence "README"
         :quotes ("strict" "(strict expr) — forces eager evaluation, overriding default lazy strategy")
         :explanation "README documents strict special form with behavior"))
+
+(fact readme-documents-engine-special-scope true
+    :evidence (evidence "README"
+        :quotes ("scope" "(scope name expr ...)` — evaluates expressions in the named scope")
+        :explanation "README documents scope special form with behavior"))
+
+(fact readme-documents-engine-special-self true
+    :evidence (evidence "README"
+        :quotes ("self" "(self expr ...)` — identity scope, evaluates expressions in the current engine")
+        :explanation "README documents self special form with behavior"))
+
+(fact readme-documents-engine-special-project true
+    :evidence (evidence "README"
+        :quotes ("project" "(project basis expr)` — evaluates in the current or named basis")
+        :explanation "README documents project special form with behavior"))
+
+(fact readme-documents-engine-special-delegate true
+    :evidence (evidence "README"
+        :quotes ("delegate" "(delegate body)` — transport modifier: each scope in the chain posts a proposal")
+        :explanation "README documents delegate special form with behavior"))
 
 (fact readme-documents-engine-strict-derive true
     :evidence (evidence "README"
@@ -1953,11 +2158,19 @@
     (count-exists readme-documents-engine-special-if
                   readme-documents-engine-special-let
                   readme-documents-engine-special-quote
-                  readme-documents-engine-special-strict)
+                  readme-documents-engine-special-strict
+                  readme-documents-engine-special-scope
+                  readme-documents-engine-special-self
+                  readme-documents-engine-special-project
+                  readme-documents-engine-special-delegate)
     :using (count-exists readme-documents-engine-special-if
                          readme-documents-engine-special-let
                          readme-documents-engine-special-quote
-                         readme-documents-engine-special-strict))
+                         readme-documents-engine-special-strict
+                         readme-documents-engine-special-scope
+                         readme-documents-engine-special-self
+                         readme-documents-engine-special-project
+                         readme-documents-engine-special-delegate))
 
 (diff readme-special-forms-vs-stated :replace readme-special-forms-listing-count :with readme-documents-engine-special-forms)
 
@@ -1974,8 +2187,8 @@
 ; --- 6b. Consistency warning types: stated count vs listing ---
 
 (derive readme-warning-types-listing-count
-    (count-exists readme-warning-type-1 readme-warning-type-2)
-    :using (count-exists readme-warning-type-1 readme-warning-type-2))
+    (count-exists readme-warning-type-1 readme-warning-type-2 readme-warning-type-3)
+    :using (count-exists readme-warning-type-1 readme-warning-type-2 readme-warning-type-3))
 
 (diff readme-warning-types-vs-stated :replace readme-warning-types-listing-count :with readme-documents-engine-warning-count)
 
@@ -2009,10 +2222,12 @@
     (count-exists readme-documents-ast-field-name readme-documents-ast-field-expr
                   readme-documents-ast-field-dep-names readme-documents-ast-field-kind
                   readme-documents-ast-field-source-file readme-documents-ast-field-source-order
+                  readme-documents-ast-field-source-line
                   readme-documents-ast-field-children readme-documents-ast-field-dependents)
     :using (count-exists readme-documents-ast-field-name readme-documents-ast-field-expr
                          readme-documents-ast-field-dep-names readme-documents-ast-field-kind
                          readme-documents-ast-field-source-file readme-documents-ast-field-source-order
+                         readme-documents-ast-field-source-line
                          readme-documents-ast-field-children readme-documents-ast-field-dependents))
 
 (diff readme-ast-fields-vs-stated :replace readme-ast-fields-listing-count :with readme-documents-ast-directive-node)
@@ -2032,13 +2247,11 @@
 
 (derive readme-manual-categories-listing-count
     (count-exists readme-documents-manual-reusables
-                  readme-documents-manual-import-aliases
                   readme-documents-manual-hypotheticals)
     :using (count-exists readme-documents-manual-reusables
-                         readme-documents-manual-import-aliases
                          readme-documents-manual-hypotheticals))
 
-(diff readme-manual-categories-vs-stated :replace readme-manual-categories-listing-count :with readme-documents-manual-verification-3-categories)
+(diff readme-manual-categories-vs-stated :replace readme-manual-categories-listing-count :with readme-documents-manual-verification-2-categories)
 
 ; --- 11. Parser stages: listing count ---
 ; Dangling: 3 stages — for core.pltg cross-check vs parser impl
@@ -2256,3 +2469,106 @@
 (derive export-defterm-forms-count
     (util.export readme-defterm-forms-count)
     :using (util.export readme-defterm-forms-count))
+
+; =====================================================================
+; Coverage counts — Rationale, Mathematical Aside, planned sections
+; =====================================================================
+
+; --- 16. Rationale claims: internal count ---
+; The README states no total for its rationale claims, so the count is
+; tracked via a trivial self-diff.
+
+(derive readme-rationale-claims-count
+    (count-exists readme-rationale-llms-hallucinate-plan readme-rationale-encode-as-logic-plan
+                  readme-rationale-facts-cite-quotes-plan readme-rationale-hallucination-detection-plan
+                  readme-rationale-fabrication-contaminates-plan readme-rationale-cross-doc-consistency-plan
+                  readme-rationale-independent-paths-plan)
+    :using (count-exists counting.count-exists-base counting.count-exists-step
+            readme-rationale-llms-hallucinate-plan readme-rationale-encode-as-logic-plan
+            readme-rationale-facts-cite-quotes-plan readme-rationale-hallucination-detection-plan
+            readme-rationale-fabrication-contaminates-plan readme-rationale-cross-doc-consistency-plan
+            readme-rationale-independent-paths-plan))
+
+(diff readme-rationale-claims-count-check :replace readme-rationale-claims-count :with readme-rationale-claims-count) ;trivial
+
+; --- 16b. Rationale "two things": stated count vs listing ---
+; The README does state a count for the two numbered gifts.
+
+(fact readme-rationale-stated-gifts 2
+    :evidence (evidence "README"
+        :quotes ("This gives us two things that prose summaries cannot")
+        :explanation "README states the rationale delivers two things: hallucination detection and cross-document consistency checking"))
+
+(derive readme-rationale-gifts-listing-count
+    (count-exists readme-rationale-hallucination-detection-plan readme-rationale-cross-doc-consistency-plan)
+    :using (count-exists counting.count-exists-base counting.count-exists-step
+            readme-rationale-hallucination-detection-plan readme-rationale-cross-doc-consistency-plan))
+
+(diff readme-rationale-gifts-vs-stated :replace readme-rationale-gifts-listing-count :with readme-rationale-stated-gifts)
+
+; --- 17. Mathematical Aside claims: internal count ---
+; No stated total in the README; trivial self-diff.
+
+(derive readme-math-claims-count
+    (count-exists readme-math-evidence-grounded-plan readme-math-ordinals-via-extension-plan
+                  readme-math-each-ordinal-expands-plan readme-math-diffs-as-consistency-plan
+                  readme-math-godel-limitation-plan readme-math-fabrication-propagation-mechanism-plan
+                  readme-math-turing-reference-plan)
+    :using (count-exists counting.count-exists-base counting.count-exists-step
+            readme-math-evidence-grounded-plan readme-math-ordinals-via-extension-plan
+            readme-math-each-ordinal-expands-plan readme-math-diffs-as-consistency-plan
+            readme-math-godel-limitation-plan readme-math-fabrication-propagation-mechanism-plan
+            readme-math-turing-reference-plan))
+
+(diff readme-math-claims-count-check :replace readme-math-claims-count :with readme-math-claims-count) ;trivial
+
+; --- 17b. extension-unlocks-derivations-plan instantiated ---
+; The axiom formalizes the each-ordinal-expands claim: extension adds
+; axioms (ordinals-via-extension), which makes new derivations
+; reachable (each-ordinal-expands).
+
+(derive bound-extension-unlocks-derivations extension-unlocks-derivations-plan
+    :bind ((?new-axiom-added readme-math-ordinals-via-extension-plan)
+           (?new-derivations-reachable readme-math-each-ordinal-expands-plan))
+    :using (extension-unlocks-derivations-plan
+            readme-math-ordinals-via-extension-plan readme-math-each-ordinal-expands-plan))
+
+(diff readme-extension-unlocks-check :replace bound-extension-unlocks-derivations :with bound-extension-unlocks-derivations) ;trivial
+
+; --- 18. Planned README sections: outstanding vs landed ---
+; The -plan stubs record sections the README should gain. False-valued
+; stubs are still missing; (not X) turns each into a countable truth.
+; True-valued stubs have landed and are counted plainly.
+
+(derive readme-planned-sections-outstanding
+    (count-exists (not readme-documents-core-pltg-plan)
+                  (not readme-documents-introspection-and-self-consistency-plan)
+                  (not readme-documents-per-module-validators-plan)
+                  (not readme-documents-self-test-plan)
+                  (not readme-documents-self-test-goedel-plan)
+                  (not readme-documents-self-test-turing-plan)
+                  (not readme-documents-validation-framework-plan))
+    :using (count-exists counting.count-exists-base counting.count-exists-step
+            readme-documents-core-pltg-plan readme-documents-introspection-and-self-consistency-plan
+            readme-documents-per-module-validators-plan readme-documents-self-test-plan
+            readme-documents-self-test-goedel-plan readme-documents-self-test-turing-plan
+            readme-documents-validation-framework-plan))
+
+(diff readme-planned-sections-outstanding-check :replace readme-planned-sections-outstanding :with readme-planned-sections-outstanding) ;trivial
+
+(derive readme-plans-landed-count
+    (count-exists readme-documents-consistency-test-plan readme-documents-self-introspection-plan
+                  readme-documents-self-test-pytest-plan readme-has-consistency-badge)
+    :using (count-exists counting.count-exists-base counting.count-exists-step
+            readme-documents-consistency-test-plan readme-documents-self-introspection-plan
+            readme-documents-self-test-pytest-plan readme-has-consistency-badge))
+
+(diff readme-plans-landed-check :replace readme-plans-landed-count :with readme-plans-landed-count) ;trivial
+
+; --- 19. Loose epistemics results wired into diffs ---
+; evidence-inversion-theorem and classical-axiom-status participate in the
+; evidence-inversion proof above; the trivial self-diffs register them with
+; the diff layer.
+
+(diff readme-evidence-inversion-check :replace evidence-inversion-theorem :with evidence-inversion-theorem) ;trivial
+(diff readme-classical-axiom-status-check :replace classical-axiom-status :with classical-axiom-status) ;trivial

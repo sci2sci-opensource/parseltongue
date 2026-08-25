@@ -1153,6 +1153,76 @@ class TestConsistency(unittest.TestCase):
         issue_types = [i.type for i in report.issues]
         self.assertIn("diff_divergence", issue_types)
 
+    def test_diff_shared_evidence_quote_is_confounded_warning(self):
+        s = make_system()
+        quiet(s.register_document, "Doc", "Shared ground truth")
+        quiet(s.set_fact, "left", 1, Evidence(document="Doc", quotes=["Shared ground truth"]))
+        quiet(s.set_fact, "right", 1, Evidence(document="Doc", quotes=["Shared ground truth"]))
+        quiet(s.register_diff, "comparison", "left", "right")
+
+        report = quiet(s.consistency)
+
+        warning = next(w for w in report.warnings if w.type == "confounded_evidence")
+        self.assertEqual(warning.items, ["comparison"])
+        self.assertIn("Doc", warning.details["comparison"])
+        self.assertIn("Shared ground truth", warning.details["comparison"])
+        self.assertIn("left", warning.details["comparison"])
+        self.assertIn("right", warning.details["comparison"])
+
+    def test_diff_shared_transitive_evidence_is_confounded_warning(self):
+        s = make_system()
+        quiet(s.register_document, "Doc", "Shared ground truth")
+        quiet(s.set_fact, "source", True, Evidence(document="Doc", quotes=["Shared ground truth"]))
+        quiet(s.derive, "left", Symbol("source"), ["source"])
+        quiet(s.set_fact, "right", True, Evidence(document="Doc", quotes=["Shared ground truth"]))
+        quiet(s.register_diff, "comparison", "left", "right")
+
+        report = quiet(s.consistency)
+
+        warning = next(w for w in report.warnings if w.type == "confounded_evidence")
+        self.assertIn("source", warning.details["comparison"])
+
+    def test_diff_contained_evidence_quote_is_confounded_in_either_direction(self):
+        longer = "The independent review found Shared ground truth in the source"
+        shorter = "Shared ground truth"
+
+        for left_quote, right_quote in ((longer, shorter), (shorter, longer)):
+            with self.subTest(left_quote=left_quote, right_quote=right_quote):
+                s = make_system()
+                quiet(s.register_document, "Doc", longer)
+                quiet(s.set_fact, "left", 1, Evidence(document="Doc", quotes=[left_quote]))
+                quiet(s.set_fact, "right", 1, Evidence(document="Doc", quotes=[right_quote]))
+                quiet(s.register_diff, "comparison", "left", "right")
+
+                report = quiet(s.consistency)
+
+                warning = next(w for w in report.warnings if w.type == "confounded_evidence")
+                self.assertIn(repr(left_quote), warning.details["comparison"])
+                self.assertIn(repr(right_quote), warning.details["comparison"])
+
+    def test_distinct_quotes_in_same_document_are_not_confounded(self):
+        s = make_system()
+        quiet(s.register_document, "Doc", "Left evidence. Right evidence.")
+        quiet(s.set_fact, "left", 1, Evidence(document="Doc", quotes=["Left evidence"]))
+        quiet(s.set_fact, "right", 1, Evidence(document="Doc", quotes=["Right evidence"]))
+        quiet(s.register_diff, "comparison", "left", "right")
+
+        report = quiet(s.consistency)
+
+        self.assertNotIn("confounded_evidence", [w.type for w in report.warnings])
+
+    def test_same_quote_text_in_different_documents_is_not_confounded(self):
+        s = make_system()
+        quiet(s.register_document, "LeftDoc", "Same words")
+        quiet(s.register_document, "RightDoc", "Same words")
+        quiet(s.set_fact, "left", 1, Evidence(document="LeftDoc", quotes=["Same words"]))
+        quiet(s.set_fact, "right", 1, Evidence(document="RightDoc", quotes=["Same words"]))
+        quiet(s.register_diff, "comparison", "left", "right")
+
+        report = quiet(s.consistency)
+
+        self.assertNotIn("confounded_evidence", [w.type for w in report.warnings])
+
     def test_warning_verbose_with_details(self):
         """ConsistencyWarning.verbose() shows per-item details."""
         from parseltongue.core.engine import ConsistencyWarning

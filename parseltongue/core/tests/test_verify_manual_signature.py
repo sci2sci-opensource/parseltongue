@@ -15,7 +15,7 @@ from __future__ import annotations
 import unittest
 
 from parseltongue.core.atoms import Evidence, Symbol
-from parseltongue.core.engine import ConsistencyWarning, WarningType
+from parseltongue.core.engine import ConsistencyWarning, IssueType, WarningType
 from parseltongue.core.system import System
 
 
@@ -76,6 +76,23 @@ class TestSignatureOnEvidence(unittest.TestCase):
         s = _make_system(terms=[("t1", None, "primitive")])
         s.verify_manual("t1", signature="Alice")
         self.assertEqual(s.engine.terms["t1"].origin.signature, "Alice")
+
+
+class TestSymbolTermEvidence(unittest.TestCase):
+    """A defterm remains an independently evidenced declaration."""
+
+    @staticmethod
+    def _no_evidence_names(system: System) -> set[str]:
+        report = system.consistency()
+        return {name for issue in report.issues if issue.type == IssueType.NO_EVIDENCE for name, _origin in issue.items}
+
+    def test_user_symbol_term_keeps_its_own_unsupported_origin(self):
+        s = _make_system(
+            ("grounded", True, Evidence(document="manual", quotes=[], verify_manual=True)),
+            terms=[("unsupported", Symbol("grounded"), "user assertion without evidence")],
+        )
+
+        self.assertIn("unsupported", self._no_evidence_names(s))
 
 
 class TestFullChainToScreen(unittest.TestCase):

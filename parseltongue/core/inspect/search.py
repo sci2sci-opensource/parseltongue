@@ -99,6 +99,27 @@ class Search:
         """True once the cached index has been fully deserialized."""
         return self._loaded
 
+    def corpus_root(self) -> str:
+        """Stable fingerprint of the indexed corpus — for cache keys.
+
+        Hashes the per-file content hashes the store already tracks, so
+        anything whose result depends on the corpus (screen verdicts for
+        absence/obligation claims) can key on corpus state, not just the
+        .pltg Merkle root. Empty string when nothing is indexed.
+        """
+        import hashlib
+
+        entries = []
+        for dir_hashes in (getattr(self._store, "_dir_hashes", None) or {}).values():
+            entries.extend(dir_hashes.items())
+        if not entries:
+            return ""
+        h = hashlib.sha256()
+        for rel, digest in sorted(entries):
+            h.update(rel.encode())
+            h.update(digest.encode())
+        return h.hexdigest()[:16]
+
     def reindex_busy(self) -> bool:
         """True while a reindex/index pass holds the lock (advisory — for
         pollers that would rather skip a tick than queue behind a pass)."""

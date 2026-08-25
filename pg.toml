@@ -5,3 +5,9 @@ languages = ["css", "html", "javascript", "json", "parseltongue", "python", "she
 
 [index]
 extensions = [".bash", ".cjs", ".css", ".htm", ".html", ".js", ".json", ".jsx", ".md", ".mjs", ".pg", ".pg.md", ".pgmd", ".pltg", ".py", ".pyi", ".sh", ".toml", ".txt", ".zsh"]
+
+# Size guardrail: files over this size are skipped during indexing
+# and reported at error-level. Every oversized file must be either
+# .pgignore'd or explicitly allowed via allow_large below.
+max_file_size_bytes = 1048576
+allow_large = []

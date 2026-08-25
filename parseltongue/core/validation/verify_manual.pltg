@@ -6,21 +6,6 @@
 ;
 ; All *-doc-count entries are now self-verifying derives via count-exists.
 
-; --- count-exists aliases (defterm :origin "import") ---
-(verify-manual (quote atoms.count-exists) "V")
-(verify-manual (quote engine.count-exists) "V")
-(verify-manual (quote lang.count-exists) "V")
-(verify-manual (quote system.count-exists) "V")
-(verify-manual (quote quote_verifier.count-exists) "V")
-(verify-manual (quote quote_verifier.sum-values) "V")
-(verify-manual (quote loader.count-exists) "V")
-(verify-manual (quote default_system_settings.count-exists) "V")
-(verify-manual (quote demos.count-exists) "V")
-(verify-manual (quote readme.count-exists) "V")
-(verify-manual (quote pyproject.count-exists) "V")
-(verify-manual (quote ast_verifier.count-exists) "V")
-(verify-manual (quote lazy_loader.count-exists) "V")
-
 ; --- (deleted: readme.readme-documents-splat-patterns — now has :evidence) ---
 
 ; --- quote_verifier hypothetical bind scenarios ---
@@ -50,3 +35,6 @@
 
 ; axiom 14 (config-flag-gates-step): hypothetical disabled-step return
 (verify-manual (quote quote_verifier.no-transformations) "V")
+
+; --- readme negation fact (evidence doesn't compute -> false) ---
+(verify-manual (quote readme.evidence-computes) "V")

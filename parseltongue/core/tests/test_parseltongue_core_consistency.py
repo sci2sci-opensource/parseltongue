@@ -11,6 +11,20 @@ from ..loader import LazyLoader, load_pltg
 CORE_PLTG = os.path.join(os.path.dirname(__file__), "..", "validation", "core_clean.pltg")
 
 
+def _drop_alias_shadows(dangling, referenced, engine):
+    """Collapse import-alias shadows out of a dangling set.
+
+    Thin wrapper over the production measure — see
+    ``parseltongue.core.loader.lazy_loader.collapse_alias_shadows`` for
+    the alias semantics (several store keys bound to one frozen directive
+    object; alias defterms follow their target). Kept as a named seam so
+    the three dangling tests share one call site.
+    """
+    from parseltongue.core.loader.lazy_loader import collapse_alias_shadows
+
+    return collapse_alias_shadows(dangling, referenced, engine)
+
+
 class TestParseltongueCoreConsistency(unittest.TestCase):
 
     @classmethod
@@ -20,11 +34,21 @@ class TestParseltongueCoreConsistency(unittest.TestCase):
         cls.system = loader.load_main(CORE_PLTG, strict=True)
         cls.module_files = {name: ctx.current_file for name, ctx in loader.modules_contexts.items()}
 
-    @pytest.mark.xfail(reason="WIP: 2 consistency issues remain")
     def test_core_consistency(self):
         report = self.system.consistency()
         print(report.verbose())
         self.assertTrue(report.consistent, f"System inconsistent: {report}")
+
+    @pytest.mark.xfail(strict=True, reason="WIP: validation estate contains confounded diff evidence")
+    def test_no_confounded_evidence(self):
+        """Every validation diff must be independently evidenced on both sides."""
+        report = self.system.consistency()
+        confounded = next((warning for warning in report.warnings if warning.type == "confounded_evidence"), None)
+
+        self.assertIsNone(
+            confounded,
+            "Confounded diff evidence:\n" + (confounded.verbose() if confounded is not None else ""),
+        )
 
     def test_all_theorems_evaluate_true(self):
         engine = self.system.engine
@@ -32,7 +56,6 @@ class TestParseltongueCoreConsistency(unittest.TestCase):
             result = engine.evaluate(thm.wff)
             self.assertTrue(result, f"Theorem '{name}' evaluated to {result}, expected True")
 
-    @pytest.mark.xfail(reason="WIP: dangling definitions remain")
     def test_no_dangling_definitions_overall(self):
         engine = self.system.engine
 
@@ -91,6 +114,7 @@ class TestParseltongueCoreConsistency(unittest.TestCase):
         all_definitions = all_facts | all_axioms | all_terms
 
         dangling = all_definitions - referenced
+        dangling = _drop_alias_shadows(dangling, referenced, engine)
 
         dangling_facts = dangling & all_facts
         dangling_axioms = dangling & all_axioms
@@ -134,7 +158,6 @@ class TestParseltongueCoreConsistency(unittest.TestCase):
             dangling, set(), f"Dangling definitions: {len(dangling)} not used in any diff, theorem or term"
         )
 
-    @pytest.mark.xfail(reason="WIP: dangling definitions remain")
     def test_no_dangling_definitions_diffs(self):
         """Every definition must be reachable from a diff via recursive traversal.
 
@@ -216,6 +239,7 @@ class TestParseltongueCoreConsistency(unittest.TestCase):
         all_definitions = all_facts | all_axioms | all_terms | all_theorems
 
         dangling = all_definitions - reachable
+        dangling = _drop_alias_shadows(dangling, reachable, engine)
 
         dangling_facts = dangling & all_facts
         dangling_axioms = dangling & all_axioms
@@ -260,7 +284,6 @@ class TestParseltongueCoreConsistency(unittest.TestCase):
 
         self.assertEqual(dangling, set(), f"Dangling definitions: {len(dangling)} not reachable from any diff")
 
-    @pytest.mark.xfail(reason="WIP: top-level danglings remain")
     def test_top_level_danglings(self):
         """Print definitions that have no parents at all and are not diffs.
 
@@ -320,6 +343,11 @@ class TestParseltongueCoreConsistency(unittest.TestCase):
         diff_names = set(engine.diffs.keys())
         all_names = set(engine.facts) | set(engine.axioms) | set(engine.terms) | set(engine.theorems)
         top_level = {name for name in all_names if not referenced_by.get(name) and name not in diff_names}
+
+        # A name is not top-level-dangling if a sibling name bound to the same
+        # directive object has parents, or its alias-defterm target has parents.
+        referenced = {name for name, parents in referenced_by.items() if parents}
+        top_level = _drop_alias_shadows(top_level, referenced, engine)
 
         top_facts = sorted(top_level & set(engine.facts))
         top_axioms = sorted(top_level & set(engine.axioms))
@@ -432,7 +460,6 @@ class TestParseltongueCoreConsistency(unittest.TestCase):
 
         self.assertEqual(dangling_before, dangling_after, "evaluate() changed dangling set:\n" + "\n".join(msg))
 
-    @pytest.mark.xfail(reason="WIP: 2 consistency issues remain")
     def test_provenance_and_synthetic_diffs(self):
         """Traverse every diff to ground and assert none are fully synthetic.
 

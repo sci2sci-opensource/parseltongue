@@ -387,6 +387,48 @@ class Bench:
         path = self._require_current()
         return self._technician.search_engine(path)
 
+    def index_dir(
+        self,
+        directory: str,
+        extensions: list[str] | None = None,
+        exclude: list[str] | None = None,
+        on_progress=None,
+        force: bool = False,
+    ) -> int:
+        """Index a directory — the bench-level corpus mutation.
+
+        When files actually land, cached screens hold verdicts for a corpus
+        that no longer exists: they are invalidated (their cache key embeds
+        the corpus fingerprint, so they can never resurrect) and the sample
+        is re-observed so the live pass re-grounds corpus claims.
+        """
+        count = self.index.index_dir(directory, extensions, exclude=exclude, on_progress=on_progress, force=force)
+        if count:
+            self._on_corpus_moved()
+        return count
+
+    def reindex(self, on_progress=None, force: bool = False, defer_save: bool = False) -> int:
+        """Re-walk tracked directories — the bench-level corpus refresh.
+
+        Same contract as index_dir: a pass that picked up changes drops
+        cached screens and re-observes so verdicts follow the corpus.
+        """
+        count = self.index.reindex(on_progress=on_progress, force=force, defer_save=defer_save)
+        if count:
+            self._on_corpus_moved()
+        return count
+
+    def _on_corpus_moved(self) -> None:
+        """The corpus changed under the current sample — refresh its screen.
+
+        No reload: the .pltg sources didn't change. The technician
+        re-grounds corpus claims against the moved index and recomputes
+        the screen in the background (coalesced per path).
+        """
+        self._technician.invalidate_screens()
+        if self._current_path is not None:
+            self._technician.refresh_screen(self._current_path, self._mem.get(self._current_path))
+
     # ── Access ──
 
     def result(self, path: str | None = None) -> LazyLoadResult:

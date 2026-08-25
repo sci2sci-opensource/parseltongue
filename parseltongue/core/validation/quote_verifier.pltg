@@ -4,8 +4,8 @@
 (load-document "normalizer.py" "../quote_verifier/normalizer.py")
 (load-document "config.py" "../quote_verifier/config.py")
 (import (quote ..std.counting))
-(defterm count-exists counting.count-exists :origin "import")
-(defterm sum-values counting.sum-values :origin "import")
+(import (quote counting.count-exists))
+(import (quote counting.sum-values))
 
 ; =====================================================================
 ; Normalizer pipeline — 6 steps
@@ -1405,7 +1405,28 @@
     (util.export hypothetical-axiom-count)
     :using (util.export hypothetical-axiom-count))
 
-; --- TODO: new functionality ---
+; =====================================================================
+; Result dict — original_line (1-based line number)
+; =====================================================================
 
-(defterm stub-original-line
-    :origin "TODO: original_line added to verification result dict — 1-based line number computed from char offset")
+(fact result-has-original-line true
+    :evidence (evidence "verifier.py"
+        :quotes ("\"original_line\": original_line,")
+        :explanation "Result dict includes the original_line key"))
+
+(fact original-line-computed-from-offset true
+    :evidence (evidence "verifier.py"
+        :quotes ("original_line = doc.original_text[:original_position].count(\"\\n\") + 1 if original_position != -1 else -1")
+        :explanation "1-based line number computed from char offset by counting newlines; -1 when no match"))
+
+(derive original-line-fact-count
+    (count-exists result-has-original-line original-line-computed-from-offset)
+    :using (count-exists result-has-original-line original-line-computed-from-offset))
+
+(defterm original-line-expected 2
+    :evidence (evidence "verifier.py"
+        :quotes ("\"original_line\": original_line,"
+                 "\"original_line\": line,")
+        :explanation "2 grounded original_line facts: the result key and its offset-based computation (all_matches entries carry it too)"))
+
+(diff original-line-coverage :replace original-line-fact-count :with original-line-expected)

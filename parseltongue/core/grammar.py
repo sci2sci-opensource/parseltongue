@@ -57,6 +57,10 @@ def tokenize(source: str, *, track_lines: Literal[True]) -> tuple[list[str], lis
 def tokenize(source: str, *, track_lines: bool = False) -> list[str] | tuple[list[str], list[int]]:
     """Tokenize s-expression source into atoms and parens.
 
+    Parentheses are emitted as individual tokens, quoted strings remain
+    single tokens, whitespace separates atoms, and ``;`` comments are
+    discarded through the end of the line.
+
     If *track_lines* is True, returns ``(tokens, token_lines)`` where
     ``token_lines[i]`` is the 1-based line number of ``tokens[i]``.
     """
@@ -140,7 +144,12 @@ def tokenize(source: str, *, track_lines: bool = False) -> list[str] | tuple[lis
 
 
 def read_tokens(tokens: list[str]) -> WFF:
-    """Recursively parse token list into nested Python structures."""
+    """Recursively parse tokens into tuples, delegating leaves to ``atom``.
+
+    An opening parenthesis starts a nested tuple. Unexpected EOF, a missing
+    closing parenthesis, or an unexpected closing parenthesis raises
+    ``SyntaxError``.
+    """
     if not tokens:
         raise SyntaxError("Unexpected EOF")
 
@@ -178,7 +187,12 @@ def _unescape(s: str) -> str:
 
 
 def atom(token: str):
-    """Convert a token string to a typed value."""
+    """Convert one token to its typed value in a fixed precedence order.
+
+    Integer conversion is attempted before float conversion, followed by
+    boolean literals, quoted strings, ``:``-prefixed keyword strings, and
+    finally ``Symbol`` as the fallback.
+    """
     try:
         return int(token)
     except ValueError:
@@ -204,7 +218,12 @@ def atom(token: str):
 
 
 def to_sexp(obj) -> str:
-    """Pretty-print a Python object back to s-expression string."""
+    """Serialize Python values to s-expression syntax.
+
+    Lists and tuples become parenthesized forms, booleans become ``true`` or
+    ``false``, ordinary strings are quoted and escaped, and symbols and
+    numeric values use their textual representation.
+    """
     if isinstance(obj, (list, tuple)):
         return "(" + " ".join(to_sexp(x) for x in obj) + ")"
     elif isinstance(obj, bool):

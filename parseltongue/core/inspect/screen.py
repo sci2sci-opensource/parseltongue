@@ -392,7 +392,15 @@ class Screen:
         Fresh items come from the partial LocatedConsistencyReport.
         Loader items (errors, skips, warnings) are kept from self.
         """
-        kept = [i for i in self._items if i.name not in diffs_to_patch and i.type not in self._EVIDENCE_TYPES]
+        # Danglings are dropped from the kept set: the fresh report
+        # recomputes them wholesale (they are cheap and depend on wiring
+        # that any .pltg change can alter — keeping old ones both goes
+        # stale and duplicates the fresh entries).
+        kept = [
+            i
+            for i in self._items
+            if i.name not in diffs_to_patch and i.type not in self._EVIDENCE_TYPES and i.category != "dangling"
+        ]
         fresh = Screen.from_report(lc)
         merged = kept + fresh._items
         has_issues = any(i.category == "issue" for i in merged)

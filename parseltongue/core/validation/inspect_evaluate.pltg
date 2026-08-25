@@ -4,7 +4,7 @@
 (load-document "evaluation.py" "../inspect/evaluation.py")
 (load-document "diagnosis.py" "../inspect/diagnosis.py")
 (import (quote ..std.util))
-(defterm stub util.stub :origin "import")
+(import (quote util.stub))
 
 ; ── Evaluation API ──
 (derive stub-evaluation-from-report stub :using (stub))

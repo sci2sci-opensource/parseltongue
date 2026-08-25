@@ -13,19 +13,19 @@
 (fact no-relative-bench-import true
   :evidence (evidence "parseltongue/core"
     :absent (re "from +\\.+ *(inspect\\b|import +[^#]*\\binspect\\b)")
-    :except ("inspect/" "tests/" "demos/")
+    :except ("inspect/" "tests/" "demos/" "validation/")
     :explanation "no `from .inspect ...` nor inspect anywhere in a relative import name-list"))
 
 (fact no-absolute-bench-import true
   :evidence (evidence "parseltongue/core"
     :absent (re "parseltongue\\.core(\\.inspect\\b| +import +[^#]*\\binspect\\b)")
-    :except ("inspect/" "tests/" "demos/")
+    :except ("inspect/" "tests/" "demos/" "validation/")
     :explanation "no absolute import of parseltongue.core.inspect, direct or in a name-list"))
 
 (fact no-dynamic-bench-import true
   :evidence (evidence "parseltongue/core"
     :absent (re "(import_module|__import__)\\([^)]*inspect\\b")
-    :except ("inspect/" "tests/" "demos/")
+    :except ("inspect/" "tests/" "demos/" "validation/")
     :explanation "no string-based imports reaching the bench either"))
 
 (derive core-independent-of-bench

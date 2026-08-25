@@ -66,3 +66,6 @@ coverage/
 *.pyo
 .venv/
 .tox/
+
+# Binary/vector assets — not searchable content
+*.svg

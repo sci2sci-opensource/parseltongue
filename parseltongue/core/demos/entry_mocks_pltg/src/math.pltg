@@ -11,10 +11,10 @@
 (import (quote axioms))
 
 ; Aliases
-(defterm zero primitives.zero :origin "import")
-(defterm succ primitives.succ :origin "import")
-(defterm equals primitives.equals :origin "import")
-(defterm plus primitives.plus :origin "import")
+(import (quote primitives.zero))
+(import (quote primitives.succ))
+(import (quote primitives.equals))
+(import (quote primitives.plus))
 
 ; Theorem: 3 + 0 = 3
 (derive three-plus-zero axioms.add-identity

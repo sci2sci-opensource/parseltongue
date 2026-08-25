@@ -15,7 +15,6 @@ is pure: reuses or creates a translator, translates, returns frozen analysis
 
 import logging
 import os
-from typing import Any
 
 from ..ast import AnnotatedDirective, NavList
 from ..atoms import SILENCE, Silence, Symbol
@@ -27,6 +26,9 @@ from .loader_morphism import (
     MorphismReport,
     PatchContext,
     _lm_v2,
+    _patch_in_parent,
+    _resolve_bare,
+    _resolve_dotted,
 )
 from .loader_translator import (
     EngineKnown,
@@ -37,47 +39,8 @@ from .loader_translator import (
 log = logging.getLogger("parseltongue.loader")
 
 
-# ============================================================
-# Patching helpers (pure, no engine state needed)
-# ============================================================
-
-
-def _patch_in_parent(expr: Any, index: int, value: Any) -> None:
-    """Replace expr[index] with value. If expr is a tuple, rebuild and replace in parent."""
-    if isinstance(expr, list):
-        expr[index] = value
-    elif isinstance(expr, tuple):
-        parent = getattr(expr, 'parent', None)
-        if parent is not None:
-            pos = getattr(expr, 'pos', None)
-            new = expr[:index] + (value,) + expr[index + 1 :]
-            parent[pos] = new
-
-
-def _resolve_dotted(s: str, ctx: PatchContext, line: int) -> str | None:
-    """Try to resolve a dotted symbol via aliases. Returns resolved name or None."""
-    for alias, canonical in ctx.aliases.items():
-        prefix = alias + "."
-        if s.startswith(prefix):
-            target = canonical + s[len(alias) :]
-            if target in ctx.known_names:
-                ctx.log_resolution(s, target, f"alias:{alias}->{canonical}", line)
-                return target
-    return None
-
-
-def _resolve_bare(s: str, ctx: PatchContext, line: int) -> str | None:
-    """Try to resolve a bare symbol via module namespace or aliases. Returns resolved name or None."""
-    candidate = f"{ctx.module_name}.{s}"
-    if candidate in ctx.known_names:
-        ctx.log_resolution(s, candidate, "module", line)
-        return candidate
-    for alias, canonical in ctx.aliases.items():
-        target = f"{canonical}.{s}"
-        if target in ctx.known_names:
-            ctx.log_resolution(s, target, f"alias:{alias}->{canonical}", line)
-            return target
-    return None
+# Patching helpers (_patch_in_parent, _resolve_bare, _resolve_dotted)
+# live in loader_morphism — single source of truth for resolution rules.
 
 
 class _UnionKnown:
@@ -175,6 +138,7 @@ class LoaderEngine(Executor[LoaderTranslationResult]):
         self.names_to_modules: dict[str, str] = {}
         self.names_to_lines: dict[str, int] = {}
         self.module_aliases: dict[str, str] = {}
+        self.entity_aliases: dict[str, str] = {}
         self._imported: set[str] = set()
         self._lib_modules: set[str] = set(lib_modules or [])
         self._report = MorphismReport()
@@ -243,6 +207,10 @@ class LoaderEngine(Executor[LoaderTranslationResult]):
         if alias not in self.module_aliases:
             self.module_aliases[alias] = canonical
 
+    def register_entity_alias(self, alias: str, canonical: str) -> None:
+        """Register a local imported-entity name for canonical rewriting."""
+        self.entity_aliases[alias] = canonical
+
     def is_lib_module(self, module_name: str) -> bool:
         """Check if a module is a lib-level (standard library) module."""
         return module_name in self._lib_modules
@@ -263,6 +231,7 @@ class LoaderEngine(Executor[LoaderTranslationResult]):
                 ms=ms,
                 env=EngineKnown(self._inner),
                 aliases=self.module_aliases,
+                entity_aliases=self.entity_aliases,
                 names_to_modules=self.names_to_modules,
                 report=self._report,
                 morphism=self._morphism,
@@ -397,6 +366,7 @@ class LoaderEngine(Executor[LoaderTranslationResult]):
 
         # Sync context with current engine state (imports grow aliases mid-loop)
         ctx.aliases = self.module_aliases
+        ctx.entity_aliases = self.entity_aliases
         ctx.names_to_modules = self.names_to_modules
         if extra_names is not None:
             ctx.known_names = _UnionKnown(ctx.known_names, extra_names)
@@ -415,7 +385,7 @@ class LoaderEngine(Executor[LoaderTranslationResult]):
         # Patch symbols against live engine state
         if not lad.is_main:
             self.patch_symbols(expr, ctx, line, skip_index=lad.skip_index)
-        elif ctx.aliases:
+        elif ctx.aliases or ctx.entity_aliases:
             self.patch_symbols(expr, ctx, line, skip_index=lad.skip_index)
 
     def delegate_one(self, lad: LoaderAnnotatedDirective) -> None:

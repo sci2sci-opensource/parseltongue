@@ -1,9 +1,12 @@
 ; loader.pltg — Ground truth from loader.py
 
 (load-document "loader.py" "../loader/loader.py")
+(load-document "loader_engine.py" "../loader/loader_engine.py")
+(load-document "loader_morphism.py" "../loader/loader_morphism.py")
+(load-document "test_module_imports.py" "../tests/test_module_imports.py")
 (import (quote ..std.counting))
 (import (quote ..std.util))
-(defterm count-exists counting.count-exists :origin "import")
+(import (quote counting.count-exists))
 
 ; =====================================================================
 ; Module contract
@@ -18,6 +21,40 @@
     :evidence (evidence "loader.py"
         :quotes ("import resolution")
         :explanation "Module docstring lists import resolution"))
+
+; Selective entity imports — resolution, naming, identity, and use-site patching
+(fact selective-import-resolves-longest-module-prefix true
+    :evidence (evidence "loader.py"
+        :quotes ("Resolve the longest module prefix. If the full dotted path is\n            # not a module but its parent is, the last segment is an entity."
+                 "parent_name, candidate_entity = module_name.rsplit(\".\", 1)")
+        :explanation "A dotted import that is not itself a module is split into its module parent and entity"))
+
+(fact selective-import-defaults-to-entity-name true
+    :evidence (evidence "loader.py"
+        :quotes ("entity_alias = str(alias_sym) if alias_sym is not None else entity_name")
+        :explanation "Without an explicit alias, the imported entity is bound under its own name"))
+
+(fact selective-import-preserves-object-identity true
+    :evidence (evidence "loader.py"
+        :quotes ("Bind one imported directive under a local name, preserving identity."
+                 "reg[local] = reg[canonical]")
+        :explanation "The local store key is assigned the canonical directive object, not a copied definition"))
+
+(fact selective-import-patches-references-to-canonical true
+    :evidence (evidence "loader_morphism.py"
+        :quotes ("if local in ctx.entity_aliases:\n        target = ctx.entity_aliases[local]"
+                 "ctx.log_resolution(s, target, \"entity-import\", line)")
+        :explanation "References to the local entity name resolve to the canonical imported name"))
+
+(derive selective-import-semantics-grounded
+    (and selective-import-resolves-longest-module-prefix
+         selective-import-defaults-to-entity-name
+         selective-import-preserves-object-identity
+         selective-import-patches-references-to-canonical)
+    :using (selective-import-resolves-longest-module-prefix
+            selective-import-defaults-to-entity-name
+            selective-import-preserves-object-identity
+            selective-import-patches-references-to-canonical))
 
 (fact loader-provides-run-on-entry true
     :evidence (evidence "loader.py"
@@ -107,21 +144,21 @@
 ; =====================================================================
 
 (fact loader-namespaces-definitions true
-    :evidence (evidence "loader.py"
-        :quotes ("Namespace definition names for non-main modules"
-                 "expr[1] = f\"{self._current.module_name}.{expr[1]}\"")
+    :evidence (evidence "loader_engine.py"
+        :quotes ("Namespace the definition name at index.name for non-main modules."
+                 "new_name = f\"{ctx.module_name}.{old_name}\"")
         :explanation "Non-main definitions get module prefix"))
 
 (fact loader-patches-symbols true
     :evidence (evidence "loader.py"
         :quotes ("Recursively namespace bare symbols in expression bodies."
-                 "candidate = f\"{self._current.module_name}.{s}\"")
+                 "self._engine.patch_expr(expr, module_name=self._current.module_name)")
         :explanation "Symbol references are patched to namespaced versions"))
 
 (fact loader-patches-context true
     :evidence (evidence "loader.py"
         :quotes ("Recursively patch (context :key)"
-                 "patched = f\"{self._current.module_name}.{expr[1]}\"")
+                 "self._engine.patch_context_expr(expr, module_name=self._current.module_name)")
         :explanation "Context keys are patched with module name"))
 
 ; =====================================================================
@@ -162,7 +199,7 @@
 
 (fact effect-verify-manual-doc true
     :evidence (evidence "loader.py"
-        :quotes ("Effect: (verify-manual name) — manually verify a fact/term/axiom.")
+        :quotes ("Effect: (verify-manual name [signature]) — manually verify a fact/term/axiom.")
         :explanation "verify-manual effect docstring"))
 
 (fact effect-dangerously-eval-doc true
@@ -301,7 +338,7 @@
 
 (fact effect-import-deduplicates true
     :evidence (evidence "loader.py"
-        :quotes ("if abs_path in self._imported:" "return True")
+        :quotes ("if abs_path in self._path_to_module:" "return True")
         :explanation "import effect skips already-imported modules"))
 
 (fact effect-load-document-resolves-path true
@@ -331,21 +368,21 @@
 (axiom import-deduplication
     (implies ?already-imported ?skips-load)
     :evidence (evidence "loader.py"
-        :quotes ("if abs_path in self._imported:" "log.debug(\"Module '%s' already imported, skipping\", module_name)" "return True")
+        :quotes ("if abs_path in self._path_to_module:" "log.debug(\"Module '%s' already imported, skipping\", module_name)" "return True")
         :explanation "Already-imported files are skipped"))
 
 ; Axiom 4: namespacing only for non-main — main definitions stay bare
 (axiom namespacing-only-non-main
     (implies ?is-main (not ?namespace-applied))
-    :evidence (evidence "loader.py"
-        :quotes ("if head in DSL_KEYWORDS or head in SPECIAL_FORMS:" "if not self._current.is_main:" "expr[1] = f\"{self._current.module_name}.{expr[1]}\"")
+    :evidence (evidence "loader_engine.py"
+        :quotes ("Namespace the definition name at index.name for non-main modules." "if lad.needs_namespace:" "self.patch_definition_name(ad, ctx)")
         :explanation "Only non-main module definitions get namespaced"))
 
 ; Axiom 5: context resolves via registry — names_to_modules lookup
 (axiom context-resolves-via-registry
     (implies ?module-known ?uses-registry-ctx)
     :evidence (evidence "loader.py"
-        :quotes ("module = self.names_to_modules.get(key_str)" "if module is not None:" "ctx = self.modules_contexts[module]")
+        :quotes ("module = self._engine.names_to_modules.get(key_str)" "if module is not None:" "ctx = self.modules_contexts[module]")
         :explanation "Context keys resolve to correct module context via registry"))
 
 ; Axiom 6: consistency default prints — no args means print and return True
@@ -462,7 +499,7 @@
 ; =====================================================================
 
 (fact import-resolves-dots-to-sep true
-    :evidence (evidence "loader.py"
+    :evidence (evidence "loader_engine.py"
         :quotes ("module_name.replace(\".\", os.sep) + \".pltg\"")
         :explanation "Dots become path separators, .pltg appended"))
 
@@ -680,7 +717,7 @@
 (defterm effect-behavior-expected 6
     :evidence (evidence "loader.py"
         :quotes ("def print_effect" "if prop == \":file\":" "if not self._current.is_main:"
-                 "if abs_path in self._file_stack:" "if abs_path in self._imported:"
+                 "if abs_path in self._file_stack:" "if abs_path in self._path_to_module:"
                  "resolved = os.path.normpath")
         :explanation "6 behavioral facts across all effects"))
 
@@ -779,7 +816,55 @@
     (util.export effect-import-deduplicates)
     :using (util.export effect-import-deduplicates))
 
-; --- TODO: new functionality ---
+; =====================================================================
+; PltgError — source-located loader errors
+; =====================================================================
 
-(defterm stub-pltg-error
-    :origin "TODO: PltgError exception class added — wraps errors with file:line and import stack trace")
+(fact pltg-error-location-doc true
+    :evidence (evidence "loader.py"
+        :quotes ("Error with .pltg source location")
+        :explanation "PltgError docstring promises source location"))
+
+(fact pltg-error-location-impl true
+    :evidence (evidence "loader.py"
+        :quotes ("self.file = file"
+                 "self.line = line"
+                 "loc = format_loc(self.file, self.line)")
+        :explanation "PltgError stores and formats its source file and line"))
+
+(fact pltg-error-location-behavior true
+    :evidence (evidence "test_module_imports.py"
+        :quotes ("error = PltgError(\"boom\", file=\"/tmp/child.pltg\", line=7, stack=[\"/tmp/root.pltg\"])"
+                 "self.assertIn(\"file:///tmp/child.pltg:7:1: boom\", message)")
+        :explanation "behavior test observes the rendered source location and message"))
+
+(fact pltg-error-stack-doc true
+    :evidence (evidence "loader.py"
+        :quotes ("import stack")
+        :explanation "PltgError docstring promises an import stack"))
+
+(fact pltg-error-stack-impl true
+    :evidence (evidence "loader.py"
+        :quotes ("self.stack = stack or []"
+                 "for frame in self.stack:"
+                 "parts.append(f\"  imported from {format_loc(frame)}\")")
+        :explanation "PltgError stores and renders every import-stack frame"))
+
+(fact pltg-error-stack-behavior true
+    :evidence (evidence "test_module_imports.py"
+        :quotes ("self.assertIn(\"imported from file:///tmp/root.pltg\", message)")
+        :explanation "behavior test observes the rendered parent import frame"))
+
+(derive pltg-error-doc-count
+    (count-exists pltg-error-location-doc pltg-error-stack-doc)
+    :using (count-exists pltg-error-location-doc pltg-error-stack-doc))
+
+(derive pltg-error-paired-count
+    (count-exists
+        (and pltg-error-location-doc pltg-error-location-impl pltg-error-location-behavior)
+        (and pltg-error-stack-doc pltg-error-stack-impl pltg-error-stack-behavior))
+    :using (count-exists
+            pltg-error-location-doc pltg-error-location-impl pltg-error-location-behavior
+            pltg-error-stack-doc pltg-error-stack-impl pltg-error-stack-behavior))
+
+(diff pltg-error-coverage :replace pltg-error-doc-count :with pltg-error-paired-count)

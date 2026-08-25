@@ -1,0 +1,294 @@
+; grammar.pltg — Ground truth and internal validation for grammar.py
+; (the s-expression reader/printer, moved out of atoms.py; the public
+; parse()/parse_all() API is re-exported from core/__init__.py)
+
+(load-document "grammar.py" "../grammar.py")
+(load-document "core_init.py" "../__init__.py")
+(load-document "test_atoms.py" "../tests/test_atoms.py")
+(import (quote ..std.counting))
+(import (quote ..std.util))
+(import (quote counting.count-exists))
+
+; =====================================================================
+; Reader pipeline — tokenize / read_tokens / atom
+; =====================================================================
+
+(fact tokenize-doc "Tokenize s-expression source into atoms and parens."
+    :evidence (evidence "grammar.py"
+        :quotes ("Tokenize s-expression source into atoms and parens.")
+        :explanation "tokenize() docstring"))
+
+(fact comment-char true
+    :evidence (evidence "grammar.py"
+        :quotes ("if char == \";\":" "in_comment = True")
+        :explanation "; starts a comment in the tokenizer"))
+
+(fact comments-doc true
+    :evidence (evidence "grammar.py"
+        :quotes ("``;`` comments are\n    discarded through the end of the line.")
+        :explanation "tokenize() docstring specifies comment stripping"))
+
+(fact comments-behavior true
+    :evidence (evidence "test_atoms.py"
+        :quotes ("tokens = tokenize(\";; this is a comment\\n(+ 1 2)\")"
+                 "self.assertEqual(tokens, [\"(\", \"+\", \"1\", \"2\", \")\"])")
+        :explanation "behavior test proves comment text is absent from the token stream"))
+
+(fact read-tokens-doc "Recursively parse tokens into tuples, delegating leaves to atom."
+    :evidence (evidence "grammar.py"
+        :quotes ("Recursively parse tokens into tuples, delegating leaves to ``atom``.")
+        :explanation "read_tokens() docstring"))
+
+(fact atom-doc "Convert one token to its typed value in a fixed precedence order."
+    :evidence (evidence "grammar.py"
+        :quotes ("Convert one token to its typed value in a fixed precedence order.")
+        :explanation "atom() docstring"))
+
+(fact atom-tries-int-first true
+    :evidence (evidence "grammar.py"
+        :quotes ("return int(token)")
+        :explanation "atom() tries int conversion first"))
+
+(fact atom-tries-float-second true
+    :evidence (evidence "grammar.py"
+        :quotes ("return float(token)")
+        :explanation "atom() tries float conversion second"))
+
+(fact atom-true-token true
+    :evidence (evidence "grammar.py"
+        :quotes ("if token == \"true\":")
+        :explanation "true token converts to boolean True"))
+
+(fact atom-false-token true
+    :evidence (evidence "grammar.py"
+        :quotes ("if token == \"false\":")
+        :explanation "false token converts to boolean False"))
+
+(fact atom-keyword-prefix true
+    :evidence (evidence "grammar.py"
+        :quotes ("if token.startswith(\":\"):")
+        :explanation "colon prefix marks keyword tokens"))
+
+(fact atom-fallback-is-symbol true
+    :evidence (evidence "grammar.py"
+        :quotes ("return Symbol(token)")
+        :explanation "unconverted tokens fall back to Symbol"))
+
+; =====================================================================
+; Printer — to_sexp
+; =====================================================================
+
+(fact to-sexp-doc "Serialize Python values to s-expression syntax."
+    :evidence (evidence "grammar.py"
+        :quotes ("Serialize Python values to s-expression syntax.")
+        :explanation "to_sexp() docstring"))
+
+(fact to-sexp-bool-roundtrip true
+    :evidence (evidence "grammar.py"
+        :quotes ("return \"true\" if obj else \"false\"")
+        :explanation "booleans print back as true/false tokens"))
+
+; =====================================================================
+; Public parse API — re-exported from core/__init__.py
+; =====================================================================
+
+(fact parse-api-alias true
+    :evidence (evidence "core_init.py"
+        :quotes ("parse = PGStringParser.translate")
+        :explanation "parse is the back-compat alias of PGStringParser.translate"))
+
+(fact parse-all-api true
+    :evidence (evidence "core_init.py"
+        :quotes ("def parse_all(source: str) -> list:" "Parse source into a list of top-level expressions.")
+        :explanation "parse_all() combines tokenizing and reading over full sources"))
+
+; =====================================================================
+; Parser stages — tokenizer, reader, public parse API
+; =====================================================================
+
+(fact tokenize-stage true
+    :evidence (evidence "grammar.py"
+        :quotes ("def tokenize(source: str, *, track_lines: bool = False)")
+        :explanation "stage 1: tokenizer"))
+
+(fact read-tokens-stage true
+    :evidence (evidence "grammar.py"
+        :quotes ("def read_tokens(tokens: list[str]) -> WFF:")
+        :explanation "stage 2: reader"))
+
+(derive parse-api-stage
+    (and parse-api-alias parse-all-api)
+    :using (parse-api-alias parse-all-api))
+
+(derive parser-stages-count
+    (count-exists tokenize-stage read-tokens-stage parse-api-stage)
+    :using (count-exists counting.count-exists-base counting.count-exists-step
+            tokenize-stage read-tokens-stage parse-api-stage))
+
+; =====================================================================
+; tokenize track_lines — doc vs impl (graduated TODO stub from atoms.pltg)
+; =====================================================================
+
+(fact tokenize-track-lines true
+    :evidence (evidence "grammar.py"
+        :quotes ("def tokenize(source: str, *, track_lines: bool = False) -> list[str] | tuple[list[str], list[int]]:"
+                 "If *track_lines* is True, returns ``(tokens, token_lines)`` where\n    ``token_lines[i]`` is the 1-based line number of ``tokens[i]``.")
+        :explanation "tokenize() gained track_lines — docstring documents the (tokens, token_lines) return shape"))
+
+(fact tokenize-track-lines-impl true
+    :evidence (evidence "grammar.py"
+        :quotes ("def tokenize(source: str, *, track_lines: Literal[True]) -> tuple[list[str], list[int]]: ..."
+                 "token_lines.append(current_start_line)")
+        :explanation "overload: track_lines=True returns (tokens, token_lines); tokenizer records 1-based start lines"))
+
+(diff tokenize-track-lines-pair
+    :replace tokenize-track-lines
+    :with tokenize-track-lines-impl)
+
+; =====================================================================
+; Exports — for core_clean.pltg cross-checks against README
+; =====================================================================
+
+(derive export-to-sexp
+    (util.export to-sexp-bool-roundtrip)
+    :using (util.export to-sexp-bool-roundtrip))
+
+(derive export-parser-stages-count
+    (util.export parser-stages-count)
+    :using (util.export parser-stages-count))
+
+; =====================================================================
+; Reader pipeline — documentation × implementation × behavior
+; =====================================================================
+
+(derive reader-doc-count
+    (count-exists tokenize-doc read-tokens-doc atom-doc to-sexp-doc comments-doc)
+    :using (count-exists counting.count-exists-base counting.count-exists-step
+            tokenize-doc read-tokens-doc atom-doc to-sexp-doc comments-doc))
+
+(fact tokenize-impl true
+    :evidence (evidence "grammar.py"
+        :quotes ("def tokenize(source: str, *, track_lines: bool = False)" "tokens.append(char)")
+        :explanation "tokenize() implementation emits structural tokens"))
+
+(fact tokenize-behavior true
+    :evidence (evidence "test_atoms.py"
+        :quotes ("tokens = tokenize(\"(+ 2 3)\")" "self.assertEqual(tokens, [\"(\", \"+\", \"2\", \"3\", \")\"])")
+        :explanation "behavior test checks the concrete token stream"))
+
+(fact read-tokens-impl true
+    :evidence (evidence "grammar.py"
+        :quotes ("def read_tokens(tokens: list[str]) -> WFF:" "expr.append(read_tokens(tokens))" "return atom(token)")
+        :explanation "read_tokens() recursively constructs nested forms and delegates leaves to atom()"))
+
+(fact read-tokens-behavior true
+    :evidence (evidence "test_atoms.py"
+        :quotes ("result = parse(\"(+ (* 2 3) (- 10 4))\")"
+                 "self.assertEqual(result, [Symbol(\"+\"), [Symbol(\"*\"), 2, 3], [Symbol(\"-\"), 10, 4]])")
+        :explanation "public parser behavior test checks the nested structure produced through read_tokens()"))
+
+(fact atom-impl true
+    :evidence (evidence "grammar.py"
+        :quotes ("def atom(token: str):" "return int(token)" "return Symbol(token)")
+        :explanation "atom() implements typed conversion with a Symbol fallback"))
+
+(fact atom-behavior true
+    :evidence (evidence "test_atoms.py"
+        :quotes ("self.assertIsInstance(atom(\"42\"), int)" "self.assertIsInstance(result, Symbol)")
+        :explanation "behavior tests observe both a typed conversion and the fallback"))
+
+(fact to-sexp-impl true
+    :evidence (evidence "grammar.py"
+        :quotes ("def to_sexp(obj) -> str:" "return \"(\" + \" \".join(to_sexp(x) for x in obj) + \")\"")
+        :explanation "to_sexp() recursively serializes compound forms"))
+
+(fact to-sexp-behavior true
+    :evidence (evidence "test_atoms.py"
+        :quotes ("self.assertEqual(to_sexp([Symbol(\"+\"), 2, 3]), \"(+ 2 3)\")")
+        :explanation "behavior test checks a concrete serialized expression"))
+
+(derive reader-paired-count
+    (count-exists
+        (and tokenize-doc tokenize-impl tokenize-behavior)
+        (and read-tokens-doc read-tokens-impl read-tokens-behavior)
+        (and atom-doc atom-impl atom-behavior)
+        (and to-sexp-doc to-sexp-impl to-sexp-behavior)
+        (and comments-doc comment-char comments-behavior))
+    :using (count-exists
+            tokenize-doc tokenize-impl tokenize-behavior
+            read-tokens-doc read-tokens-impl read-tokens-behavior
+            atom-doc atom-impl atom-behavior
+            to-sexp-doc to-sexp-impl to-sexp-behavior
+            comments-doc comment-char comments-behavior))
+
+(diff reader-doc-coverage
+    :replace reader-doc-count
+    :with reader-paired-count)
+
+; =====================================================================
+; atom() conversion order — documentation × branch × behavior
+; =====================================================================
+
+(fact atom-doc-int true
+    :evidence (evidence "grammar.py" :quotes ("Integer conversion is attempted before float conversion") :explanation "atom() documents integer precedence"))
+(fact atom-doc-float true
+    :evidence (evidence "grammar.py" :quotes ("float conversion, followed by") :explanation "atom() documents float conversion"))
+(fact atom-doc-true true
+    :evidence (evidence "grammar.py" :quotes ("boolean literals") :explanation "atom() documents boolean literals"))
+(fact atom-doc-false true
+    :evidence (evidence "grammar.py" :quotes ("boolean literals") :explanation "atom() documents both Boolean tokens"))
+(fact atom-doc-string true
+    :evidence (evidence "grammar.py" :quotes ("quoted strings") :explanation "atom() documents quoted strings"))
+(fact atom-doc-keyword true
+    :evidence (evidence "grammar.py" :quotes ("``:``-prefixed keyword strings") :explanation "atom() documents keyword strings"))
+(fact atom-doc-symbol true
+    :evidence (evidence "grammar.py" :quotes ("``Symbol`` as the fallback") :explanation "atom() documents Symbol fallback"))
+
+(fact atom-string-token true
+    :evidence (evidence "grammar.py"
+        :quotes ("if token.startswith('\"') and token.endswith('\"'):" "return _unescape(token[1:-1])")
+        :explanation "quoted tokens are unescaped into ordinary strings"))
+
+(fact atom-int-behavior true
+    :evidence (evidence "test_atoms.py" :quotes ("self.assertIsInstance(atom(\"42\"), int)") :explanation "integer behavior"))
+(fact atom-float-behavior true
+    :evidence (evidence "test_atoms.py" :quotes ("self.assertIsInstance(atom(\"3.14\"), float)") :explanation "float behavior"))
+(fact atom-true-behavior true
+    :evidence (evidence "test_atoms.py" :quotes ("self.assertIs(atom(\"true\"), True)") :explanation "true behavior"))
+(fact atom-false-behavior true
+    :evidence (evidence "test_atoms.py" :quotes ("self.assertIs(atom(\"false\"), False)") :explanation "false behavior"))
+(fact atom-string-behavior true
+    :evidence (evidence "test_atoms.py" :quotes ("result = atom('\"hello\"')" "self.assertNotIsInstance(result, Symbol)") :explanation "string behavior"))
+(fact atom-keyword-behavior true
+    :evidence (evidence "test_atoms.py" :quotes ("result = atom(\":origin\")" "self.assertEqual(result, \":origin\")") :explanation "keyword behavior"))
+(fact atom-symbol-behavior true
+    :evidence (evidence "test_atoms.py" :quotes ("result = atom(\"foo\")" "self.assertIsInstance(result, Symbol)") :explanation "Symbol fallback behavior"))
+
+(derive atom-conversion-doc-count
+    (count-exists atom-doc-int atom-doc-float atom-doc-true atom-doc-false
+                  atom-doc-string atom-doc-keyword atom-doc-symbol)
+    :using (count-exists counting.count-exists-base counting.count-exists-step
+            atom-doc-int atom-doc-float atom-doc-true atom-doc-false
+            atom-doc-string atom-doc-keyword atom-doc-symbol))
+
+(derive atom-conversion-paired-count
+    (count-exists
+        (and atom-doc-int atom-tries-int-first atom-int-behavior)
+        (and atom-doc-float atom-tries-float-second atom-float-behavior)
+        (and atom-doc-true atom-true-token atom-true-behavior)
+        (and atom-doc-false atom-false-token atom-false-behavior)
+        (and atom-doc-string atom-string-token atom-string-behavior)
+        (and atom-doc-keyword atom-keyword-prefix atom-keyword-behavior)
+        (and atom-doc-symbol atom-fallback-is-symbol atom-symbol-behavior))
+    :using (count-exists counting.count-exists-base counting.count-exists-step
+            atom-doc-int atom-tries-int-first atom-int-behavior
+            atom-doc-float atom-tries-float-second atom-float-behavior
+            atom-doc-true atom-true-token atom-true-behavior
+            atom-doc-false atom-false-token atom-false-behavior
+            atom-doc-string atom-string-token atom-string-behavior
+            atom-doc-keyword atom-keyword-prefix atom-keyword-behavior
+            atom-doc-symbol atom-fallback-is-symbol atom-symbol-behavior))
+
+(diff atom-conversion-coverage
+    :replace atom-conversion-doc-count
+    :with atom-conversion-paired-count)

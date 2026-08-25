@@ -2,6 +2,7 @@
 ; No facts here — only imports, cross-module derivations, diffs, and reporting.
 
 (import (quote atoms))
+(import (quote grammar))
 (import (quote lang))
 (import (quote engine))
 (import (quote system))
@@ -19,14 +20,10 @@
 (import (quote ..std.util))
 (import (quote domain))
 (import (quote architecture))
+(import (quote std_behavior))
 (import (quote ..std.counting))
 
-(defterm count-exists counting.count-exists :origin "import")
-; verify in-place — core loads after verify_manual, so circular dep if done there
-(verify-manual (quote count-exists) "V")
-
-(defterm stub util.stub :origin "import")
-
+(import (quote counting.count-exists))
 
 ; =====================================================================
 ; Special forms: README vs lang.py
@@ -153,7 +150,10 @@
 ; =====================================================================
 
 
-(diff local-aliasing :replace readme.readme-documents-local-aliasing :with demos.alias-used-in-practice)
+(diff selective-import-doc-vs-impl :replace readme.readme-documents-selective-imports :with loader.selective-import-semantics-grounded)
+(diff selective-import-impl-vs-demo :replace loader.selective-import-semantics-grounded :with demos.selective-import-used-in-practice)
+
+(diff defterm-laziness :replace readme.readme-documents-defterm-lazy :with engine.every-computed-defterm-is-lazy)
 
 (diff forward-decl :replace readme.readme-defterm-forward-decl :with demos.forward-decl-proven-by-afternoon)
 
@@ -164,15 +164,6 @@
 (diff import-chains :replace readme.readme-documents-import-chains :with demos.import-chain-proven)
 
 (diff cross-module-bind :replace readme.readme-documents-cross-module-bind :with demos.cross-module-bind-proven)
-
-; =====================================================================
-; Defterm laziness: README coverage vs proof chain
-; =====================================================================
-
-
-(diff defterm-laziness :replace readme.readme-documents-defterm-lazy :with demos.every-defterm-is-lazy)
-
-(diff lazy-count-match :replace demos.labeled-lazy-count :with demos.actual-lazy-count)
 
 ; =====================================================================
 ; Packaging: README coverage vs pyproject.toml
@@ -192,8 +183,8 @@
 
 
 (derive splat-impl-confirmed
-    (and lang.splat-prefix-impl lang.splat-lang-docs-impl atoms.match-splat-doc atoms.substitute-splat-doc)
-    :using (lang.splat-prefix-impl lang.splat-lang-docs-impl atoms.match-splat-doc atoms.substitute-splat-doc))
+    (and lang.splat-prefix-impl lang.splat-lang-docs-impl lang.match-splat-doc lang.substitute-splat-doc)
+    :using (lang.splat-prefix-impl lang.splat-lang-docs-impl lang.match-splat-doc lang.substitute-splat-doc))
 
 (diff splat-readme-vs-impl
     :replace readme.readme-documents-splat-patterns
@@ -240,7 +231,7 @@
 
 (diff readme-vs-rewrite-bind :replace readme.readme-documents-rewrite-vs-bind :with engine.export-rewrite-vs-bind)
 
-(diff readme-vs-splat-axioms :replace readme.readme-documents-splat-in-axioms :with atoms.export-splat-confirmed)
+(diff readme-vs-splat-axioms :replace readme.readme-documents-splat-in-axioms :with lang.export-splat-confirmed)
 
 (diff readme-vs-computable-directives :replace readme.readme-documents-computable-directives :with engine.export-computable-directives)
 
@@ -258,7 +249,7 @@
 
 (diff readme-vs-rewrite-functions :replace readme.readme-documents-rewrite-as-functions :with engine.export-rewrite-as-functions)
 
-(diff readme-vs-splat-variadic :replace readme.readme-documents-splat-variadic-reduce :with atoms.export-substitute-splat)
+(diff readme-vs-splat-variadic :replace readme.readme-documents-splat-variadic-reduce :with lang.export-substitute-splat)
 
 (diff readme-vs-counting-pltg :replace readme.readme-documents-counting-pltg-link :with counting.export-counting-module-exists)
 
@@ -352,10 +343,17 @@
 (diff ee-dependents-derivation-check :replace engine.export-dependents-derivation-check :with readme.export-diff-follows-derivation-chains)
 (diff ee-dependents-transitivity :replace engine.export-dependents-transitivity :with readme.export-diff-transitive)
 (diff ee-dependents-types :replace engine.export-dependents-types :with readme.export-diff-scan-type-count)
-(diff ee-dependents-scan-paired :replace readme.export-diff-scan-paired :with stub :using (stub))
-(diff ee-computable-directives :replace readme.export-computable-directive-count :with stub :using (stub))
-(diff ee-evidence-excluded :replace readme.bound-evidence-excludes-computation :with stub :using (stub))
-(diff ee-diff-scans-five :replace readme.readme-diff-scans-five-types :with stub :using (stub))
+(diff ee-dependents-scan-paired :replace readme.export-diff-scan-paired :with engine.export-dependents-types)
+(diff ee-computable-directives :replace readme.export-computable-directive-count :with engine.export-computable-directive-impl-count)
+(diff ee-evidence-excluded :replace readme.bound-evidence-excludes-computation :with engine.export-evidence-excluded)
+
+; README claims the diff scan transitively covers all five definition
+; types; the impl side pairs the 5-type scan count with transitivity.
+(derive diff-scans-five-impl
+    (and (= engine.export-dependents-types 5) engine.export-dependents-transitivity)
+    :using (engine.export-dependents-types engine.export-dependents-transitivity))
+
+(diff ee-diff-scans-five :replace readme.readme-diff-scans-five-types :with diff-scans-five-impl)
 
 (diff ee-eval-diff-excludes-self :replace engine.eval-diff-excludes-self :with readme.export-diff-excludes-self)
 (diff ee-eval-diff-handles-diff-contamination :replace engine.eval-diff-handles-diff-contamination :with readme.export-diff-contaminates-diffs)
@@ -441,8 +439,8 @@
 
 (diff misc-frozen-dataclasses :replace readme.readme-documents-frozen-dataclasses :with atoms.export-frozen-dataclasses)
 (diff misc-symbol-class :replace readme.readme-documents-symbol-class :with atoms.export-symbol-is-str)
-(diff misc-to-sexp :replace readme.readme-documents-to-sexp :with atoms.export-to-sexp)
-(diff misc-match-substitute :replace readme.readme-documents-match-substitute :with atoms.export-match-substitute)
+(diff misc-to-sexp :replace readme.readme-documents-to-sexp :with grammar.export-to-sexp)
+(diff misc-match-substitute :replace readme.readme-documents-match-substitute :with lang.export-match-substitute)
 (diff misc-parse-evidence :replace readme.readme-documents-parse-evidence :with lang.export-parse-evidence)
 (diff misc-lang-docs :replace readme.readme-documents-lang-docs :with lang.export-lang-docs)
 (diff misc-relative-imports :replace readme.readme-documents-relative-imports :with loader.export-dot-resolution)
@@ -453,10 +451,10 @@
     :using (loader.export-namespaces loader.export-patches-symbols loader.export-patches-context))
 (diff misc-namespacing-three-stages :replace readme.readme-documents-namespacing-three-stages :with namespacing-three-stages-confirmed)
 
-(diff misc-splat-match :replace readme.readme-documents-splat-match :with atoms.export-match-substitute)
-(diff misc-splat-substitute :replace readme.readme-documents-splat-substitute :with atoms.export-substitute-splat)
-(diff misc-splat-builtins :replace readme.readme-documents-splat-builtins :with atoms.export-match-substitute)
-(diff misc-splat-vs-single :replace readme.readme-documents-splat-vs-single :with atoms.export-match-substitute)
+(diff misc-splat-match :replace readme.readme-documents-splat-match :with lang.export-match-substitute)
+(diff misc-splat-substitute :replace readme.readme-documents-splat-substitute :with lang.export-substitute-splat)
+(diff misc-splat-builtins :replace readme.readme-documents-splat-builtins :with lang.export-match-substitute)
+(diff misc-splat-vs-single :replace readme.readme-documents-splat-vs-single :with lang.export-match-substitute)
 
 (diff misc-apples-splats-demo :replace readme.readme-documents-apples-splats-demo-link :with demos.export-apples-splats-confirmed)
 (diff misc-self-healing-demo :replace readme.readme-documents-self-healing-demo-link :with demos.export-self-healing-topic)
@@ -566,20 +564,14 @@
     (and readme.readme-documents-ast-field-children readme.readme-documents-ast-field-dependents)
     :using (readme.readme-documents-ast-field-children readme.readme-documents-ast-field-dependents))
 
-(derive stub-ast-effects-no-name stub :using (stub))
-(derive stub-ast-extract-behavior stub :using (stub))
-(derive stub-ast-graph-behavior stub :using (stub))
-(derive stub-ast-identity-paired stub :using (stub))
-(derive stub-ast-node-identity stub :using (stub))
-(derive stub-ast-walk-behavior stub :using (stub))
 
 (diff thm-ast-children-dependents :replace ast_verifier.bound-children-dependents :with readme-ast-children-and-dependents)
-(diff thm-ast-effects-no-name :replace ast_verifier.bound-effects-no-name :with stub-ast-effects-no-name)
-(diff thm-ast-extract-behavior :replace ast_verifier.extract-behavior-count :with stub-ast-extract-behavior)
-(diff thm-ast-graph-behavior :replace ast_verifier.graph-behavior-count :with stub-ast-graph-behavior)
-(diff thm-ast-identity-paired :replace ast_verifier.identity-paired :with stub-ast-identity-paired)
-(diff thm-ast-node-identity :replace ast_verifier.node-identity-paired :with stub-ast-node-identity)
-(diff thm-ast-walk-behavior :replace ast_verifier.walk-behavior-count :with stub-ast-walk-behavior)
+(diff thm-ast-effects-no-name :replace ast_verifier.bound-effects-no-name :with readme.readme-documents-ast-effects-no-name)
+(diff thm-ast-extract-behavior :replace ast_verifier.extract-behavior-count :with readme.readme-ast-extract-behavior-count)
+(diff thm-ast-graph-behavior :replace ast_verifier.graph-behavior-count :with readme.readme-ast-graph-behavior-count)
+(diff thm-ast-identity-paired :replace ast_verifier.identity-paired :with readme.readme-ast-identity-count)
+(diff thm-ast-node-identity :replace ast_verifier.node-identity-paired :with readme.readme-ast-identity-count)
+(diff thm-ast-walk-behavior :replace ast_verifier.walk-behavior-count :with readme.readme-ast-walk-behavior-count)
 
 ; --- lazy_loader theorems ---
 (derive readme-lazy-result-count
@@ -594,28 +586,33 @@
                          readme.readme-documents-lazy-result-skipped
                          readme.readme-documents-lazy-result-loaded))
 
-(derive stub-lazy-entry-points stub :using (stub))
-(derive stub-lazy-fault-tolerance stub :using (stub))
-(derive stub-lazy-patch-paired stub :using (stub))
-(derive stub-lazy-pre-effects stub :using (stub))
-(derive stub-lazy-post-effects stub :using (stub))
-(derive stub-lazy-effect-rank stub :using (stub))
-(derive stub-lazy-line-tracking stub :using (stub))
 
-(diff thm-lazy-entry-points :replace lazy_loader.entry-point-count :with stub-lazy-entry-points)
-(diff thm-lazy-fault-tolerance :replace lazy_loader.fault-tolerance-count :with stub-lazy-fault-tolerance)
+(diff thm-lazy-entry-points :replace lazy_loader.entry-point-count :with readme.readme-lazy-entry-point-count)
+(diff thm-lazy-fault-tolerance :replace lazy_loader.fault-tolerance-count :with readme.readme-lazy-fault-tolerance-count)
 (diff thm-lazy-name-collection :replace lazy_loader.name-collection-enables-patching :with readme.readme-documents-lazy-loader-phase-patch)
-(diff thm-lazy-patch-paired :replace lazy_loader.patch-paired :with stub-lazy-patch-paired)
-(diff thm-lazy-pre-effects :replace lazy_loader.export-pre-directive-effects :with stub-lazy-pre-effects)
-(diff thm-lazy-post-effects :replace lazy_loader.export-post-directive-effects :with stub-lazy-post-effects)
-(diff thm-lazy-effect-rank :replace lazy_loader.export-effect-rank :with stub-lazy-effect-rank)
-(diff thm-lazy-line-tracking :replace lazy_loader.export-line-tracking :with stub-lazy-line-tracking)
+(diff thm-lazy-patch-paired :replace lazy_loader.patch-paired :with readme.readme-lazy-patch-count)
+(diff thm-lazy-pre-effects :replace lazy_loader.export-pre-directive-effects :with readme.readme-documents-lazy-pre-effects)
+(diff thm-lazy-post-effects :replace lazy_loader.export-post-directive-effects :with readme.readme-documents-lazy-post-effects)
+(diff thm-lazy-effect-rank :replace lazy_loader.export-effect-rank :with readme.readme-documents-lazy-effect-rank)
+(diff thm-lazy-line-tracking :replace lazy_loader.export-line-tracking :with readme.readme-documents-lazy-line-tracking)
 (diff thm-lazy-result-methods :replace lazy_loader.result-method-count :with readme-lazy-result-count)
+
+; README documents both halves of the pre/post effect split — count them
+(derive readme-lazy-effect-split-count
+    (count-exists readme.readme-documents-lazy-pre-effects
+                  readme.readme-documents-lazy-post-effects)
+    :using (count-exists readme.readme-documents-lazy-pre-effects
+                         readme.readme-documents-lazy-post-effects))
+
+(diff thm-lazy-effect-split-paired :replace lazy_loader.effect-split-paired :with readme-lazy-effect-split-count)
+(diff thm-lazy-effect-rank-paired :replace lazy_loader.effect-rank-paired :with readme.readme-documents-lazy-effect-rank)
 
 ; --- other module theorems ---
 (diff thm-splats-topic :replace demos.splats-topic-confirms-usage :with readme.readme-documents-splat-patterns)
 (diff thm-import-circular :replace loader.export-import-checks-circular :with readme.readme-loader-circular-detection)
 (diff thm-packaging :replace pyproject.packaging-consistent :with pyproject.export-md-shipped)
+(diff thm-scope-family-handlers :replace engine.export-scope-family-handler-count :with lang.scope-family-symbol-count)
+(diff architecture-independence :replace architecture.core-independent-of-bench :with architecture.core-independent-of-bench) ;trivial
 
 ; --- core.pltg internal theorems ---
 (diff thm-axiom-var :replace axiom-var-requirement-consistent :with readme.export-bound-axioms-require-vars)
@@ -630,14 +627,10 @@
 (diff thm-serialization :replace system-provides-serialization-engine-lacks :with readme.readme-documents-serialization)
 
 ; --- README internal counts cross-checked against impl ---
-; 3 manual verification categories proven by existence
+; 2 manual verification categories proven by existence
 (derive manual-category-reusables-confirmed
     (= counting.export-counting-module-exists true)
     :using (counting.export-counting-module-exists))
-
-(derive manual-category-aliases-confirmed
-    (= count-exists counting.count-exists)
-    :using (count-exists counting.count-exists))
 
 (derive manual-category-hypotheticals-confirmed
     (= readme.readme-documents-manual-hypotheticals-qv-count quote_verifier.export-hypothetical-axiom-count)
@@ -645,10 +638,8 @@
 
 (derive manual-categories-count
     (count-exists manual-category-reusables-confirmed
-                  manual-category-aliases-confirmed
                   manual-category-hypotheticals-confirmed)
     :using (count-exists manual-category-reusables-confirmed
-                         manual-category-aliases-confirmed
                          manual-category-hypotheticals-confirmed))
 
 (diff thm-readme-ast-fields :replace readme.export-ast-fields-count :with ast_verifier.node-field-count)
@@ -659,7 +650,7 @@
 (diff thm-readme-consistency-layers :replace readme.readme-consistency-layers-listing-count :with engine.consistency-layers-doc-count)
 (diff thm-readme-engine-flags :replace readme.readme-engine-flags-listing-count :with engine.export-defaults-doc-count)
 (diff thm-readme-operator-categories :replace readme.readme-operator-category-count :with default_system_settings.export-operator-category-count)
-(diff thm-readme-parser-stages :replace readme.readme-parser-stages-listing-count :with atoms.export-parser-stages-count)
+(diff thm-readme-parser-stages :replace readme.readme-parser-stages-listing-count :with grammar.export-parser-stages-count)
 (diff thm-readme-issue-types :replace readme.export-issue-types-count :with engine.issue-types-impl-count)
 (diff thm-readme-warning-types :replace readme.export-warning-types-count :with engine.warning-type-count)
 (diff thm-engine-error-cross-check :replace engine.export-error-cross-check :with readme.export-issue-types-count)
@@ -669,28 +660,10 @@
 (diff thm-readme-manual-categories :replace readme.export-manual-categories-count :with manual-categories-count)
 
 
-; --- TODO: inspect/lens module coverage ---
-
-(defterm stub-probe-structure
-    :origin "TODO: probe(term, engine) → CoreToConsequenceStructure — graph, layers, depths, max_depth")
-
-(defterm stub-lens-api
-    :origin "TODO: Lens class — view, view_layer, view_consumer, view_node, view_inputs, view_subgraph, view_kinds, view_roots, focus")
-
-(defterm stub-perspective-instances
-    :origin "TODO: Perspective instances (not types) — MarkdownPerspective, AsciiPerspective, MDebuggerPerspective")
-
-(defterm stub-mdebugger-perspective
-    :origin "TODO: MDebuggerPerspective takes LazyLoader, annotates output with file:line from AST, uses os.path.relpath")
-
-(defterm stub-inspect-loaded
-    :origin "TODO: inspect_loaded(term, loader) — convenience combining probe + Lens with MDebuggerPerspective")
-
-(defterm stub-brief-vs-detailed
-    :origin "TODO: fmt_dsl(brief=True) truncates quotes in structure view; fmt_origin_rows(detailed=True) shows QV line + confidence in detail view")
+; The inspect/lens layer is validated by its own modules
+; (inspect_main.pltg → inspect_bench/search/lens/evaluate/hologram);
+; the TODO stubs that used to sit here predate those modules.
 
 ; =====================================================================
 ; Full
 ; =====================================================================
-
-

@@ -63,6 +63,8 @@ class Technician:
         self._file_lists: dict[str, list[str]] = {}
         self._file_hashes: dict[str, dict[str, str]] = {}
         self._bg_reload: dict[str, threading.Thread] = {}
+        self._screen_refresh: dict[str, threading.Thread] = {}
+        self._screen_refresh_again: set[str] = set()
         self._bg_result: tuple[str, Sample] | None = None
         self._lib_paths: list[str] = lib_paths or []
         self._bench_pg = bench_pg
@@ -286,6 +288,24 @@ class Technician:
 
     # ── Screen ──
 
+    def _screen_key(self, path: str, sample: Sample | None) -> str:
+        """Cache key for a screen: .pltg Merkle root + corpus fingerprint.
+
+        Screen verdicts for absence/obligation claims depend on the search
+        index, so a screen computed against one corpus must never be served
+        as current for another. The corpus part is included whenever the
+        path's Search is already constructed (the live pass always has it);
+        before that, the merkle-only key simply misses and the frozen path
+        falls back to its stale-cache semantics.
+        """
+        merkle_root = sample[1].hash if sample else ""
+        search = self._search_mem.get(path)
+        if search is not None and search.is_loaded():
+            corpus = search.corpus_root()
+            if corpus:
+                return f"{merkle_root}+corpus:{corpus}"
+        return merkle_root
+
     def _load_screen(self, path: str, sample: Sample | None):
         """Screen for frozen path — never blocks.
 
@@ -298,10 +318,9 @@ class Technician:
         if path in self._screen_mem:
             return self._screen_mem[path]
 
-        # Disk cache — exact Merkle match
+        # Disk cache — exact Merkle + corpus match
         if sample:
-            merkle_root = sample[1].hash
-            disk_dx = self._store.load_diagnosis(path, merkle_root)
+            disk_dx = self._store.load_diagnosis(path, self._screen_key(path, sample))
             if disk_dx is not None:
                 self._screen_mem[path] = disk_dx
                 return disk_dx
@@ -336,11 +355,10 @@ class Technician:
         """
         from .screen import Screen
 
-        # Already fresh in memory with matching merkle — unless the corpus
-        # moved underneath (absence claims re-verify against the index)
+        # Already fresh in memory with matching merkle+corpus — unless the
+        # corpus moved underneath (absence claims re-verify against the index)
         if path in self._screen_mem and sample and not getattr(self, "_corpus_dirty", False):
-            merkle_root = sample[1].hash
-            disk_dx = self._store.load_diagnosis(path, merkle_root)
+            disk_dx = self._store.load_diagnosis(path, self._screen_key(path, sample))
             if disk_dx is not None:
                 return disk_dx
 
@@ -398,7 +416,12 @@ class Technician:
             if not search.is_loaded():
                 return
             engine = result.system.engine
-            engine.register_evidence_verifier(EVIDENCE_TYPE_CORPUS_QUERY, CorpusEvidenceVerifier(search, path))
+            # The verifier's root is the project root the file index is
+            # relative to — NOT the .pltg path (a file is no corpus root;
+            # closure checks walk root/scope and read root/.pgignore).
+            engine.register_evidence_verifier(
+                EVIDENCE_TYPE_CORPUS_QUERY, CorpusEvidenceVerifier(search, self._store.project_root)
+            )
             n = reverify_evidence(engine, EVIDENCE_TYPE_CORPUS_QUERY)
             if n:
                 log.info("Corpus evidence re-grounded: %d origin(s)", n)
@@ -409,6 +432,38 @@ class Technician:
         """Drop cached screens — call after a corpus reindex changed files."""
         self._screen_mem.clear()
         self._corpus_dirty = True
+
+    def refresh_screen(self, path: str, sample: Sample | None) -> None:
+        """Recompute the live screen in the background — the corpus moved.
+
+        The .pltg sources did not change, so no reload happens: this only
+        re-grounds corpus claims and re-runs consistency against the live
+        result already in memory. Skips when no live result exists yet (the
+        boot live pass will screen against the current corpus anyway).
+        Coalesces: one refresh in flight per path, at most one queued.
+        """
+        if sample is None or sample[3].last_result is None:
+            return
+        t = self._screen_refresh.get(path)
+        if t is not None and t.is_alive():
+            self._screen_refresh_again.add(path)
+            return
+
+        def _run():
+            while True:
+                try:
+                    dx = self._load_screen_live(path, sample)
+                    self._register_scopes(path, sample, screen=dx, live=True)
+                except Exception as e:
+                    log.warning("Screen refresh failed for %s: %s", path, e)
+                if path in self._screen_refresh_again:
+                    self._screen_refresh_again.discard(path)
+                    continue
+                break
+
+        th = threading.Thread(target=_run, daemon=True)
+        self._screen_refresh[path] = th
+        th.start()
 
     @staticmethod
     def _coverage_of(result) -> "list | None":
@@ -424,8 +479,7 @@ class Technician:
     _load_evaluate = _load_screen
 
     def _save_screen(self, path: str, dx, sample: Sample | None):
-        merkle_root = sample[1].hash if sample else ""
-        self._store.save_diagnosis(path, merkle_root, dx)
+        self._store.save_diagnosis(path, self._screen_key(path, sample), dx)
 
     # ── Prepare ──
 
@@ -562,11 +616,16 @@ class Technician:
         return sorted(files)
 
     def invalidate(self, path: str | None = None):
-        """Clear technician-side caches for a path, or all."""
+        """Clear technician-side caches for a path, or all.
+
+        The indexed corpus is preserved — invalidation re-observes the
+        .pltg, it does not forget the files the bench has indexed. Corpus
+        wipes go through the store's full remove (purge).
+        """
         if path is None:
             self._file_lists.clear()
             self._file_hashes.clear()
-            self._store.remove_all()
+            self._store.remove_all(preserve_corpus=True)
             self._screen_mem.clear()
             self._affected.clear()
             self._search_mem.clear()
@@ -574,7 +633,7 @@ class Technician:
         else:
             self._file_lists.pop(path, None)
             self._file_hashes.pop(path, None)
-            self._store.remove(path)
+            self._store.remove(path, preserve_corpus=True)
             self._screen_mem.pop(path, None)
             self._affected.pop(path, None)
             self._search_mem.pop(path, None)

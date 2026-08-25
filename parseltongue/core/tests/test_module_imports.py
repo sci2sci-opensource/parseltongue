@@ -460,6 +460,34 @@ class TestNamespacing(_TmpDirTestCase):
         self._assert_loaders_agree(self._main(), Outcome.OK)
 
 
+class TestSelectiveImports(_TmpDirTestCase):
+    def _write_counting_module(self, import_form: str, imported_name: str = "ce"):
+        _write_tree(
+            self.tmpdir,
+            {
+                "main.pltg": f"{import_form}\n(diff imported-value :replace {imported_name} :with expected)",
+                "std/counting.pltg": '(fact count-exists 7 :origin "source")',
+            },
+        )
+        with open(self._main(), "a") as f:
+            f.write('\n(fact expected 7 :origin "test")\n')
+
+    def test_quote_imports_one_entity_under_alias(self):
+        self._write_counting_module('(import (quote std.counting.count-exists ce))')
+        self._assert_loaders_agree(self._main(), Outcome.OK)
+        self._assert_names_present(self._main(), {"std.counting.count-exists", "ce"})
+
+        from parseltongue.core.loader.loader import load_pltg
+
+        engine = load_pltg(self._main()).engine
+        self.assertIs(engine.facts["ce"], engine.facts["std.counting.count-exists"])
+
+    def test_quote_imports_one_entity_under_its_name_by_default(self):
+        self._write_counting_module('(import (quote std.counting.count-exists))', imported_name="count-exists")
+        self._assert_loaders_agree(self._main(), Outcome.OK)
+        self._assert_names_present(self._main(), {"std.counting.count-exists", "count-exists"})
+
+
 class TestConsistency(_TmpDirTestCase):
     """Consistency: diffs that diverge vs converge."""
 
@@ -696,6 +724,15 @@ class TestContextEffect(_TmpDirTestCase):
 
 class TestErrorLocations(_TmpDirTestCase):
     """PltgError contains clickable file:// links with line numbers."""
+
+    def test_pltg_error_renders_location_and_import_stack(self):
+        from parseltongue.core.loader.loader import PltgError
+
+        error = PltgError("boom", file="/tmp/child.pltg", line=7, stack=["/tmp/root.pltg"])
+        message = str(error)
+
+        self.assertIn("file:///tmp/child.pltg:7:1: boom", message)
+        self.assertIn("imported from file:///tmp/root.pltg", message)
 
     def test_error_has_file_link(self):
         """PltgError from strict loader includes file:// URI."""

@@ -1,7 +1,7 @@
 ; parseltongue.pltg — Top-level self-validation entry point
 
 (import (quote validation.readme))
-(import (quote parseltongue.core.validation.core))
+(import (quote parseltongue.core.validation.core_clean))
 
 (print "")
 (print "========================================")

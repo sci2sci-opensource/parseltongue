@@ -199,6 +199,20 @@ class Loader:
                     engine.env[Symbol(alias + ks[len(canonical) :])] = engine.env[key]
             log.info("Aliased '%s' → '%s'", alias, canonical)
 
+        def _register_entity_alias(engine, alias: str, canonical: str):
+            """Bind one imported directive under a local name, preserving identity."""
+            local = alias if self._current.is_main else f"{self._current.module_name}.{alias}"
+            for reg in (engine.facts, engine.terms, engine.axioms, engine.theorems):
+                if canonical in reg:
+                    reg[local] = reg[canonical]
+                    self._engine.register_entity_alias(local, canonical)
+                    engine.register_entity_alias(local, canonical)
+                    self._engine.names_to_modules[local] = self._current.module_name
+                    if Symbol(canonical) in engine.env:
+                        engine.env[Symbol(local)] = engine.env[Symbol(canonical)]
+                    return
+            raise ImportError(f"Entity '{canonical}' not found in imported module")
+
         def import_effect(system: System, module_sym) -> bool:
             """Effect: (import (quote some.module [alias]))
 
@@ -208,14 +222,22 @@ class Loader:
               (import (quote ...pkg.mod))     →  ../../pkg/mod.pltg
             Without leading dots, resolves relative to current directory.
 
-            Optional alias (second element in quote) registers a short name:
+            A path ending in an entity imports that entity under its own name:
+              (import (quote std.counting.count-exists))
+
+            Optional alias (second element in quote) aliases either a module
+            or a single entity, depending on what the dotted path resolves to:
               (import (quote ..facts.ai2ai_facts ai2ai_facts))
             makes ai2ai_facts.X resolve to facts.ai2ai_facts.X.
+              (import (quote std.counting.count-exists ce))
+            binds the count-exists entity as ce.
             """
             from .loader_engine import module_to_path, parse_module_name
 
             # Support (import (quote module alias)) — module_sym is a list
             alias_sym = None
+            entity_name = None
+            entity_alias = None
             if isinstance(module_sym, (list, tuple)) and len(module_sym) == 2:
                 alias_sym = module_sym[1]
                 module_sym = module_sym[0]
@@ -223,6 +245,44 @@ class Loader:
             raw_name = str(module_sym)
             module_name, dots = parse_module_name(raw_name)
             abs_path = module_to_path(module_name, dots, self._current.current_dir)
+
+            # Resolve the longest module prefix. If the full dotted path is
+            # not a module but its parent is, the last segment is an entity.
+            lib_dirs = [
+                os.path.dirname(os.path.abspath(lp)) if os.path.isfile(lp) else os.path.abspath(lp)
+                for lp in self._lib_paths
+            ]
+
+            def _module_exists(name: str, candidate: str) -> bool:
+                return os.path.isfile(candidate) or any(
+                    os.path.isfile(os.path.join(root, name.replace(".", os.sep) + ".pltg")) for root in lib_dirs
+                )
+
+            if not _module_exists(module_name, abs_path) and "." in module_name:
+                parent_name, candidate_entity = module_name.rsplit(".", 1)
+                canonical_parent = self._engine.module_aliases.get(parent_name, parent_name)
+                if canonical_parent != parent_name:
+                    parent_name = canonical_parent
+                parent_path = module_to_path(parent_name, dots, self._current.current_dir)
+                if not _module_exists(parent_name, parent_path):
+                    for known_path, known_module in self._path_to_module.items():
+                        if known_module == parent_name:
+                            parent_path = known_path
+                            break
+                if _module_exists(parent_name, parent_path):
+                    module_name = parent_name
+                    entity_name = candidate_entity
+                    entity_alias = str(alias_sym) if alias_sym is not None else entity_name
+                    alias_sym = None
+                    abs_path = parent_path
+
+            def _bind_requested(canonical_module: str):
+                if entity_name is not None:
+                    _register_entity_alias(
+                        system.engine, entity_alias or entity_name, f"{canonical_module}.{entity_name}"
+                    )
+                elif alias_sym is not None:
+                    _register_alias(system.engine, str(alias_sym), canonical_module)
 
             # Circular check MUST come before _path_to_module check:
             # a module currently being loaded is in _path_to_module
@@ -243,8 +303,7 @@ class Loader:
                         _register_alias(system.engine, module_name, original)
                     else:
                         log.debug("Module '%s' already imported, skipping", module_name)
-                if alias_sym is not None:
-                    _register_alias(system.engine, str(alias_sym), original)
+                _bind_requested(original)
                 return True
 
             from .loader_engine import resolve_module_path
@@ -272,8 +331,7 @@ class Loader:
                         _register_alias(system.engine, module_name, original)
                     else:
                         log.debug("Module '%s' already imported, skipping (post-resolve)", module_name)
-                if alias_sym is not None:
-                    _register_alias(system.engine, str(alias_sym), original)
+                _bind_requested(original)
                 return True
 
             # Mark as lib if resolved from a lib path
@@ -305,8 +363,7 @@ class Loader:
 
             log.info("Imported module '%s' from %s", module_name, abs_path)
 
-            if alias_sym is not None:
-                _register_alias(system.engine, str(alias_sym), module_name)
+            _bind_requested(module_name)
 
             return True
 

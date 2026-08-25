@@ -113,7 +113,6 @@ class TestQuoteVerifier(unittest.TestCase):
         self.assertTrue(result_with_number["verified"])
         self.assertFalse(result_without_number["verified"])
 
-    @pytest.mark.xfail(reason="WIP: list normalization doesn't handle indented markers")
     def test_list_normalization_complex(self):
         """Test normalization of numbered lists."""
         # Create a document with numbered list items
@@ -336,7 +335,6 @@ class TestQuoteVerifier2(unittest.TestCase):
         self.assertFalse(result["verified"])
         self.assertEqual(result["reason"], "Empty quote")
 
-    @pytest.mark.xfail(reason="WIP: list normalization doesn't handle indented markers")
     def test_list_normalization(self):
         """Test normalization of numbered lists."""
         # Create a document with numbered list items

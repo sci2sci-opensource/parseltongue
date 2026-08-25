@@ -1,12 +1,42 @@
 ; readme.pltg — Top-level README.md validation
 
 (load-document "README" "../README.md")
+(load-document "self-validation" "../parseltongue.pltg")
+(load-document "pyproject" "../pyproject.toml")
+(load-document "release-announcement" "../README.md")
 
-(fact readme-documents-self-validation false
-    :origin "stub — README does not yet document the self-validation system")
+(fact readme-announced-version "0.8.0"
+    :evidence (evidence "README"
+        :quotes ("v0.8.0")
+        :explanation "the leading README announcement states the current release version"))
+
+(fact package-version "0.8.0"
+    :evidence (evidence "pyproject"
+        :quotes ("version = \"0.8.0\"")
+        :explanation "project metadata declares the package version"))
+
+(diff announced-version-matches-package
+    :replace readme-announced-version
+    :with package-version)
+
+(fact every-release-announcement-links-documentation true
+    :evidence (evidence "release-announcement"
+        :forall (re "v[0-9]+\\.[0-9]+\\.[0-9]+ +—")
+        :satisfies (near 40 (re "\\[documentation\\]\\(https://sci2sci-opensource\\.github\\.io/parseltongue/index\\.html\\)"))
+        :explanation "every versioned release announcement keeps the canonical Markdown documentation link nearby"))
+
+(fact readme-documents-self-validation true
+    :evidence (evidence "README"
+        :quotes ("## Repository self-validation"
+                 "The top-level `parseltongue.pltg` imports those two independent validation layers and finishes with `(consistency :raise)`")
+        :explanation "the repository README documents the self-validation composition and failure contract"))
 
 (fact self-validation-implemented true
-    :origin "proven — this .pltg file and parseltongue/core/validation/ exist")
+    :evidence (evidence "self-validation"
+        :quotes ("(import (quote validation.readme))"
+                 "(import (quote parseltongue.core.validation.core_clean))"
+                 "(consistency :raise)")
+        :explanation "the top-level entry imports both validation layers and raises on inconsistency"))
 
 (diff self-validation
     :replace readme-documents-self-validation

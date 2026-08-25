@@ -3,7 +3,7 @@
 (load-document "atoms.py" "../atoms.py")
 (import (quote ..std.counting))
 (import (quote ..std.util))
-(defterm count-exists counting.count-exists :origin "import")
+(import (quote counting.count-exists))
 
 ; =====================================================================
 ; Module contract — what the docstring promises
@@ -11,7 +11,7 @@
 
 (fact module-claims-pure-types true
     :evidence (evidence "atoms.py"
-        :quotes ("Pure types, s-expression reader/printer.")
+        :quotes ("Pure types. No grammar, no domain knowledge, no state.")
         :explanation "Module docstring claims pure types"))
 
 (fact module-claims-no-domain true
@@ -23,8 +23,7 @@
 (axiom purity-implies-immutable
     (implies ?pure (not ?mutable))
     :evidence (evidence "atoms.py"
-        :quotes ("Pure types, s-expression reader/printer.
-No domain knowledge, no state.")
+        :quotes ("Pure types. No grammar, no domain knowledge, no state.")
         :explanation "Module docstring claims both purity and statelessness — pure types with no state should be immutable"))
 
 ; Code facts: frozen/immutable status of each atom type
@@ -35,7 +34,7 @@ No domain knowledge, no state.")
 
 (fact evidence-is-frozen true
     :evidence (evidence "atoms.py"
-        :quotes ("@dataclass(frozen=True)\nclass Evidence:")
+        :quotes ("@dataclass(frozen=True, init=False)\nclass Evidence:")
         :explanation "Evidence is a frozen dataclass"))
 
 (fact axiom-class-is-frozen true
@@ -71,9 +70,9 @@ No domain knowledge, no state.")
 ; Evidence — the grounding mechanism
 ; =====================================================================
 
-(fact evidence-docstring "Structured evidence with verifiable quotes from a source document."
+(fact evidence-docstring "Structured evidence: typed claims about a typed source."
     :evidence (evidence "atoms.py"
-        :quotes ("Structured evidence with verifiable quotes from a source document.")
+        :quotes ("Structured evidence: typed claims about a typed source.")
         :explanation "Evidence's documented purpose"))
 
 (fact evidence-verified-default false
@@ -179,126 +178,12 @@ No domain knowledge, no state.")
         :explanation "Forward-declared terms display as (primitive)"))
 
 ; =====================================================================
-; Reader pipeline: tokenize -> read_tokens -> atom
+; Moved ground truth
 ; =====================================================================
-
-(fact tokenize-doc "Tokenize s-expression source into atoms and parens."
-    :evidence (evidence "atoms.py"
-        :quotes ("Tokenize s-expression source into atoms and parens.")
-        :explanation "tokenize docstring"))
-
-(fact comment-char ";"
-    :evidence (evidence "atoms.py"
-        :quotes ("if char == \";\":")
-        :explanation "Semicolon starts comments"))
-
-(fact read-tokens-doc "Recursively parse token list into nested Python structures."
-    :evidence (evidence "atoms.py"
-        :quotes ("Recursively parse token list into nested Python structures.")
-        :explanation "read_tokens docstring"))
-
-(fact atom-doc "Convert a token string to a typed value."
-    :evidence (evidence "atoms.py"
-        :quotes ("Convert a token string to a typed value.")
-        :explanation "atom docstring"))
-
-; atom() conversion chain: int -> float -> bool -> string -> keyword -> Symbol
-(fact atom-tries-int-first true
-    :evidence (evidence "atoms.py"
-        :quotes ("return int(token)")
-        :explanation "First tries int conversion"))
-
-(fact atom-tries-float-second true
-    :evidence (evidence "atoms.py"
-        :quotes ("return float(token)")
-        :explanation "Then tries float"))
-
-(fact atom-keyword-prefix ":"
-    :evidence (evidence "atoms.py"
-        :quotes ("if token.startswith(\":\"):")
-        :explanation "Colon-prefixed tokens stay as strings"))
-
-(fact atom-fallback-is-symbol true
-    :evidence (evidence "atoms.py"
-        :quotes ("return Symbol(token)")
-        :explanation "Everything else becomes a Symbol"))
-
-; =====================================================================
-; parse / parse_all contract
-; =====================================================================
-
-(fact parse-doc "Parse a source string into an s-expression."
-    :evidence (evidence "atoms.py"
-        :quotes ("Parse a source string into an s-expression.")
-        :explanation "parse docstring"))
-
-(fact parse-all-doc "Parse all top-level s-expressions from source."
-    :evidence (evidence "atoms.py"
-        :quotes ("Parse all top-level s-expressions from source.")
-        :explanation "parse_all docstring"))
-
-; parse is tokenize + single read_tokens
-; parse_all is tokenize + loop of read_tokens
-; Theorem: parse_all on single-expression input returns [parse(input)]
-
-; =====================================================================
-; to_sexp — roundtrip printer
-; =====================================================================
-
-(fact to-sexp-doc "Pretty-print a Python object back to s-expression string."
-    :evidence (evidence "atoms.py"
-        :quotes ("Pretty-print a Python object back to s-expression string.")
-        :explanation "to_sexp docstring"))
-
-(fact to-sexp-bool-true "true"
-    :evidence (evidence "atoms.py"
-        :quotes ("return \"true\" if obj else \"false\"")
-        :explanation "Booleans print as true/false"))
-
-(fact to-sexp-bool-false "false"
-    :evidence (evidence "atoms.py"
-        :quotes ("return \"true\" if obj else \"false\"")
-        :explanation "to_sexp prints False as 'false'"))
-
-; =====================================================================
-; DSL helpers — match, free_vars, substitute
-; =====================================================================
-
-(fact match-doc "Match pattern against expr. ?-prefixed symbols are pattern variables."
-    :evidence (evidence "atoms.py"
-        :quotes ("Match pattern against expr. ?-prefixed symbols are pattern variables.")
-        :explanation "match docstring"))
-
-(fact free-vars-doc "Extract all ?-prefixed symbols from an expression."
-    :evidence (evidence "atoms.py"
-        :quotes ("Extract all ?-prefixed symbols from an expression.")
-        :explanation "free_vars docstring"))
-
-(fact substitute-doc "Replace symbols with their bound values in an expression tree."
-    :evidence (evidence "atoms.py"
-        :quotes ("Replace symbols with their bound values in an expression tree.")
-        :explanation "substitute docstring"))
-
-; Splat pattern support — docstring ground truth
-(fact match-splat-doc true
-    :evidence (evidence "atoms.py"
-        :quotes ("A ``?...name`` symbol as the last element of a list pattern matches
-    zero or more remaining elements, bound as a list.")
-        :explanation "match docstring documents ?... splat pattern support"))
-
-(fact substitute-splat-doc true
-    :evidence (evidence "atoms.py"
-        :quotes ("``?...name`` bindings are spliced into the parent list rather than
-    inserted as a nested list.")
-        :explanation "substitute docstring documents ?... splicing behavior"))
-
-; Axiom: match produces bindings that substitute can consume
-(axiom match-substitute-roundtrip
-    (= (implies (?bindings ?pattern ?expr) (= ?expr (?substitute ?pattern ?bindings))) true)
-    :evidence (evidence "atoms.py"
-        :quotes ("Match pattern against expr. ?-prefixed symbols are pattern variables."
-                 "Replace symbols with their bound values in an expression tree.")
-        :explanation "match and substitute are inverses — match extracts bindings, substitute applies them"))
+; The reader/printer pipeline (tokenize, read_tokens, atom, parse,
+; parse_all, to_sexp) now lives in grammar.py — its ground truth is in
+; grammar.pltg. The matcher (match, free_vars, substitute, and the ?...
+; splat facts) now lives in lang.py — its ground truth is in lang.pltg.
 
 ; =====================================================================
 ; Internal consistency: module contract vs content
@@ -310,23 +195,6 @@ No domain knowledge, no state.")
 (derive module-is-stateless
     (and module-claims-pure-types module-claims-no-domain)
     :using (module-claims-pure-types module-claims-no-domain))
-
-; atom() true/false token values
-(fact atom-true-token "true"
-    :evidence (evidence "atoms.py"
-        :quotes ("if token == \"true\":")
-        :explanation "true token"))
-
-(fact atom-false-token "false"
-    :evidence (evidence "atoms.py"
-        :quotes ("if token == \"false\":")
-        :explanation "false token"))
-
-; Derive: atom() and to_sexp are roundtrip-compatible for booleans
-; atom("true") -> True, to_sexp(True) -> "true"
-(derive bool-roundtrip-consistent
-    (= atom-true-token to-sexp-bool-true)
-    :using (atom-true-token to-sexp-bool-true))
 
 ; Evidence str format uses is_grounded to decide status label
 (defterm evidence-unverified-status "UNVERIFIED"
@@ -340,10 +208,10 @@ No domain knowledge, no state.")
         :explanation "Grounded evidence displays grounded"))
 
 ; Term display logic: primitive vs computed
-(fact term-has-body-display "to_sexp"
+(fact term-has-body-display "ParseltongueGrammar.enc"
     :evidence (evidence "atoms.py"
-        :quotes ("to_sexp(self.definition)")
-        :explanation "Terms with a body display via to_sexp"))
+        :quotes ("ParseltongueGrammar.enc(self.definition)")
+        :explanation "Terms with a body display via ParseltongueGrammar.enc"))
 
 (fact term-definition-check "self.definition is not None"
     :evidence (evidence "atoms.py"
@@ -353,7 +221,7 @@ No domain knowledge, no state.")
 (axiom term-display-rule
     (if ?has-definition ?to-sexp ?primitive)
     :evidence (evidence "atoms.py"
-        :quotes ("to_sexp(self.definition) if self.definition is not None else \"(primitive)\"")
+        :quotes ("ParseltongueGrammar.enc(self.definition) if self.definition is not None else \"(primitive)\"")
         :explanation "If has definition show sexp, else show (primitive)"))
 
 ; Display says "primitive" — does the docstring agree?
@@ -379,39 +247,7 @@ No domain knowledge, no state.")
 ; Code vs Docs — two-branch-then-diff
 ; =====================================================================
 
-; --- 1. Reader pipeline function count ---
-
-(derive reader-doc-count
-    (count-exists tokenize-doc read-tokens-doc atom-doc parse-doc parse-all-doc comment-char)
-    :using (count-exists counting.count-exists-base counting.count-exists-step
-            tokenize-doc read-tokens-doc atom-doc parse-doc parse-all-doc comment-char))
-
-(defterm reader-impl-count 6
-    :evidence (evidence "atoms.py"
-        :quotes ("def tokenize(" "def read_tokens(" "def atom(" "def parse(" "def parse_all(" "if char == \";\":")
-        :explanation "6 reader pipeline features in source"))
-
-(diff reader-pipeline-coverage
-    :replace reader-doc-count
-    :with reader-impl-count)
-
-; --- 2. Atom conversion chain ---
-
-(derive atom-conv-doc-count
-    (count-exists atom-tries-int-first atom-tries-float-second atom-keyword-prefix atom-false-token atom-fallback-is-symbol)
-    :using (count-exists counting.count-exists-base counting.count-exists-step
-            atom-tries-int-first atom-tries-float-second atom-keyword-prefix atom-false-token atom-fallback-is-symbol))
-
-(defterm atom-conv-impl-count 5
-    :evidence (evidence "atoms.py"
-        :quotes ("return int(token)" "return float(token)" "if token.startswith(\":\"):" "if token == \"false\":" "return Symbol(token)")
-        :explanation "5 conversion branches in atom()"))
-
-(diff atom-conversion-coverage
-    :replace atom-conv-doc-count
-    :with atom-conv-impl-count)
-
-; --- 3. Core type documentation ---
+; --- 1. Core type documentation ---
 
 (derive core-types-doc-count
     (count-exists symbol-docstring symbol-base-class evidence-docstring axiom-docstring theorem-docstring term-docstring)
@@ -420,14 +256,14 @@ No domain knowledge, no state.")
 
 (defterm core-types-impl-count 6
     :evidence (evidence "atoms.py"
-        :quotes ("class Symbol(str):" "Just a string with a distinct type" "Structured evidence with verifiable quotes" "An axiom: a foundational WFF" "A theorem: a WFF derived from" "A term/concept/primitive")
+        :quotes ("class Symbol(str):" "Just a string with a distinct type" "Structured evidence: typed claims about a typed source" "An axiom: a foundational WFF" "A theorem: a WFF derived from" "A term/concept/primitive")
         :explanation "6 core type properties in source"))
 
 (diff core-types-coverage
     :replace core-types-doc-count
     :with core-types-impl-count)
 
-; --- 4. Evidence/provenance mechanism ---
+; --- 2. Evidence/provenance mechanism ---
 
 (derive origin-provenance-bound origin-is-provenance
     :bind ((?origin axiom-has-origin) (?provenance theorem-has-derivation))
@@ -448,7 +284,7 @@ No domain knowledge, no state.")
     :replace evidence-mechanism-doc-count
     :with evidence-mechanism-impl-count)
 
-; --- 5. Evidence status labels ---
+; --- 3. Evidence status labels ---
 ; String-valued defterms — diff each against its code-branch counterpart
 
 (defterm evidence-unverified-code "UNVERIFIED"
@@ -469,23 +305,7 @@ No domain knowledge, no state.")
     :replace evidence-grounded-status
     :with evidence-grounded-code)
 
-; --- 6. DSL helpers ---
-
-(derive dsl-helpers-doc-count
-    (count-exists match-doc free-vars-doc substitute-doc to-sexp-doc)
-    :using (count-exists counting.count-exists-base counting.count-exists-step
-            match-doc free-vars-doc substitute-doc to-sexp-doc match-substitute-roundtrip))
-
-(defterm dsl-helpers-impl-count 4
-    :evidence (evidence "atoms.py"
-        :quotes ("def match(" "def free_vars(" "def substitute(" "def to_sexp(")
-        :explanation "4 DSL helper functions in source"))
-
-(diff dsl-helpers-coverage
-    :replace dsl-helpers-doc-count
-    :with dsl-helpers-impl-count)
-
-; --- 7. Term display paths ---
+; --- 4. Term display paths ---
 
 (derive term-display-doc-count
     (count-exists term-forward-decl-display term-has-body-display)
@@ -498,7 +318,7 @@ No domain knowledge, no state.")
 
 (defterm term-display-impl-count 2
     :evidence (evidence "atoms.py"
-        :quotes ("(primitive)" "to_sexp(self.definition)")
+        :quotes ("(primitive)" "ParseltongueGrammar.enc(self.definition)")
         :explanation "2 display paths in Term.__str__"))
 
 (derive term-display-full-doc-count
@@ -511,60 +331,13 @@ No domain knowledge, no state.")
     :replace term-display-full-doc-count
     :with term-display-impl-count)
 
-; --- 8. Splat pattern support ---
-
-(fact match-splat-impl true
-    :evidence (evidence "atoms.py"
-        :quotes ("# Splat: ?...name as last element matches remaining items
-        if (pattern and isinstance(pattern[-1], Symbol)
-                and str(pattern[-1]).startswith(\"?...\")):")
-        :explanation "match() implements ?... splat matching"))
-
-(fact substitute-splat-impl true
-    :evidence (evidence "atoms.py"
-        :quotes ("if (isinstance(sub, Symbol) and str(sub).startswith(\"?...\")
-                    and sub in bindings):
-                val = bindings[sub]
-                if isinstance(val, list):
-                    result.extend(val)")
-        :explanation "substitute() implements ?... splicing"))
-
-(derive splat-doc-count
-    (count-exists match-splat-doc substitute-splat-doc)
-    :using (count-exists match-splat-doc substitute-splat-doc))
-
-(derive splat-impl-count
-    (count-exists match-splat-impl substitute-splat-impl)
-    :using (count-exists match-splat-impl substitute-splat-impl))
-
-(derive splat-paired-count
-    (count-exists (and match-splat-doc match-splat-impl)
-                  (and substitute-splat-doc substitute-splat-impl))
-    :using (count-exists match-splat-doc match-splat-impl substitute-splat-doc substitute-splat-impl))
-
-(diff splat-paired-vs-doc
-    :replace splat-doc-count
-    :with splat-paired-count)
-
-(diff splat-paired-vs-impl
-    :replace splat-impl-count
-    :with splat-paired-count)
-
-(diff match-splat-pair
-    :replace match-splat-doc
-    :with match-splat-impl)
-
-(diff substitute-splat-pair
-    :replace substitute-splat-doc
-    :with substitute-splat-impl)
-
-; --- 9. Module contract (purity vs mutability) ---
+; --- 5. Module contract (purity vs mutability) ---
 ; Docstring claims purity. Axiom: purity implies immutability.
 ; Code: all types are now frozen — diff confirms purity contract holds.
 
 (defterm evidence-is-mutable (not evidence-is-frozen)
     :evidence (evidence "atoms.py"
-        :quotes ("@dataclass(frozen=True)\nclass Evidence:")
+        :quotes ("@dataclass(frozen=True, init=False)\nclass Evidence:")
         :explanation "Frozen dataclass is not mutable"))
 
 (derive purity-immutable-bound purity-implies-immutable
@@ -581,7 +354,7 @@ No domain knowledge, no state.")
          theorem-class-is-frozen term-class-is-frozen)
     :evidence (evidence "atoms.py"
         :quotes ("class Symbol(str):\n    \"\"\"A symbol in Parseltongue. Just a string with a distinct type.\"\"\""
-                 "@dataclass(frozen=True)\nclass Evidence:"
+                 "@dataclass(frozen=True, init=False)\nclass Evidence:"
                  "@dataclass(frozen=True)\nclass Axiom:"
                  "@dataclass(frozen=True)\nclass Theorem:"
                  "@dataclass(frozen=True)\nclass Term:")
@@ -591,7 +364,7 @@ No domain knowledge, no state.")
     :replace module-purity-contract
     :with all-types-immutable)
 
-; --- 9. Evidence default grounding ---
+; --- 6. Evidence default grounding ---
 ; Docstring says grounding requires verified or manual.
 ; Code defaults both to False.
 ; Both paths independently prove: defaults don't satisfy grounding.
@@ -624,24 +397,7 @@ No domain knowledge, no state.")
     :replace bound-grounding-doc
     :with bound-grounding-impl)
 
-; --- 10. Bool roundtrip consistency ---
-; Parser: atom("true")→True, atom("false")→False
-; Printer: to_sexp(True)→"true", to_sexp(False)→"false"
-; Diff confirms roundtrip works for both values.
-
-(derive bool-true-roundtrip
-    (= atom-true-token to-sexp-bool-true)
-    :using (atom-true-token to-sexp-bool-true bool-roundtrip-consistent))
-
-(derive bool-false-roundtrip
-    (= atom-false-token to-sexp-bool-false)
-    :using (atom-false-token to-sexp-bool-false))
-
-(diff bool-roundtrip-coverage
-    :replace bool-true-roundtrip
-    :with bool-false-roundtrip)
-
-; --- 11. WFF/definition invariants across atom types ---
+; --- 7. WFF/definition invariants across atom types ---
 ; Axiom and Theorem always carry a WFF (never None).
 ; Term has two modes: primitive (definition is None) or computed (definition is not None).
 ; Docstrings document these invariants; code enforces them structurally.
@@ -695,12 +451,12 @@ No domain knowledge, no state.")
 
 (fact axiom-impl-wff true
     :evidence (evidence "atoms.py"
-        :quotes ("class Axiom:\n    \"\"\"An axiom: a foundational WFF assumed true, with evidence.\n\n    Every axiom carries a wff (never None).\n    \"\"\"\n\n    name: str\n    wff: Any")
+        :quotes ("class Axiom:\n    \"\"\"An axiom: a foundational WFF assumed true, with evidence.\n\n    Every axiom carries a wff (never None).\n    \"\"\"\n\n    name: str\n    wff: WFF")
         :explanation "Axiom class: wff is required field, no default"))
 
 (fact theorem-impl-wff true
     :evidence (evidence "atoms.py"
-        :quotes ("class Theorem:\n    \"\"\"A theorem: a WFF derived from facts, axioms, terms, or other theorems.\n\n    Every theorem carries a wff (never None).\n    \"\"\"\n\n    name: str\n    wff: Any")
+        :quotes ("class Theorem:\n    \"\"\"A theorem: a WFF derived from facts, axioms, terms, or other theorems.\n\n    Every theorem carries a wff (never None).\n    \"\"\"\n\n    name: str\n    wff: WFF")
         :explanation "Theorem class: wff is required field, no default"))
 
 (fact term-impl-primitive true
@@ -710,8 +466,8 @@ No domain knowledge, no state.")
 
 (fact term-impl-computed true
     :evidence (evidence "atoms.py"
-        :quotes ("to_sexp(self.definition) if self.definition is not None")
-        :explanation "Non-None definition displays via to_sexp"))
+        :quotes ("ParseltongueGrammar.enc(self.definition) if self.definition is not None")
+        :explanation "Non-None definition displays via ParseltongueGrammar.enc"))
 
 ; --- Doc-side binds ---
 
@@ -790,14 +546,13 @@ No domain knowledge, no state.")
 ; =====================================================================
 ; Exports — for core.pltg cross-checks against README
 ; =====================================================================
+; Reader/printer exports (export-to-sexp, export-parser-stages-count)
+; live in grammar.pltg; matcher/splat exports (export-match-substitute,
+; export-substitute-splat, export-splat-confirmed) live in lang.pltg.
 
 (derive export-core-types-confirmed
     (util.export module-claims-pure-types)
     :using (util.export module-claims-pure-types))
-
-(derive export-splat-confirmed
-    (util.export match-splat-impl)
-    :using (util.export match-splat-impl))
 
 (derive export-frozen-dataclasses
     (util.export evidence-is-frozen)
@@ -807,40 +562,46 @@ No domain knowledge, no state.")
     (util.export symbol-is-immutable)
     :using (util.export symbol-is-immutable))
 
-(derive to-sexp-exists (= to-sexp-doc "Pretty-print a Python object back to s-expression string.") :using (to-sexp-doc))
-(derive export-to-sexp
-    (util.export to-sexp-exists)
-    :using (util.export to-sexp-exists))
+; =====================================================================
+; Evidence typed interior — document / verification (graduated TODO stubs)
+; =====================================================================
+; tokenize's track_lines stub also graduated — tokenize lives in
+; grammar.py now, so its grounded fact moved to grammar.pltg.
 
-(derive export-match-substitute
-    (util.export match-splat-doc)
-    :using (util.export match-splat-doc))
+; Evidence.document: str — names the registered source document
+(fact evidence-document-field "source.display"
+    :evidence (evidence "atoms.py"
+        :quotes ("def document(self) -> str:\n        \"\"\"Interface-preserving view: the source's display string.\"\"\"\n        return self.source.display"
+                 "Evidence source: a single registered document.")
+        :explanation "Evidence.document is a str view over the typed interior — the registered source document's display name"))
 
-(derive export-substitute-splat
-    (util.export substitute-splat-doc)
-    :using (util.export substitute-splat-doc))
+; Evidence.verification: list — filled by verifier
+(fact evidence-verification-field "filled-by-verifier"
+    :evidence (evidence "atoms.py"
+        :quotes ("verification: list = field(default_factory=list)  # filled by verifier")
+        :explanation "Evidence.verification is a list, empty by default, filled by the verifier"))
 
-; Parser pipeline stages: tokenize, read_tokens, parse/parse_all
-(derive parser-stages-count
-    (count-exists tokenize-doc read-tokens-doc parse-doc)
-    :using (count-exists tokenize-doc read-tokens-doc parse-doc))
+; The shape of each verification entry is owned by the verifying layer —
+; atoms.py deliberately does not prescribe it. (The former stub's per-key
+; result schema lives in the verifier, outside this module's registered
+; document, so the fact is restated to what atoms.py itself declares.)
+(fact evidence-verification-result-schema "verifier-defined"
+    :evidence (evidence "atoms.py"
+        :quotes ("The language does not prescribe the\n    verification algorithm; whichever layer can ground a given type fills\n    ``verification`` and flips ``verified``.")
+        :explanation "atoms.py leaves the structure of verification entries to whichever layer grounds the evidence type"))
 
-(derive export-parser-stages-count
-    (util.export parser-stages-count)
-    :using (util.export parser-stages-count))
+(derive evidence-interior-doc-count
+    (count-exists evidence-document-field evidence-verification-field evidence-verification-result-schema)
+    :using (count-exists counting.count-exists-base counting.count-exists-step
+            evidence-document-field evidence-verification-field evidence-verification-result-schema))
 
-; --- TODO: new functionality ---
+(defterm evidence-interior-impl-count 3
+    :evidence (evidence "atoms.py"
+        :quotes ("def document(self) -> str:"
+                 "verification: list = field(default_factory=list)"
+                 "whichever layer can ground a given type fills")
+        :explanation "3 typed-interior features in Evidence: document view, verification list, verifier-owned entry structure"))
 
-(defterm stub-track-lines
-    :origin "TODO: tokenize() gained track_lines=True param — returns (tokens, token_lines) tuple for source line tracking")
-
-; --- TODO: Evidence class poorly documented ---
-
-(defterm stub-evidence-verification-field
-    :origin "TODO: Evidence.verification: list — filled by verifier, list of result dicts with keys: verified, quote, reason, confidence")
-
-(defterm stub-evidence-verification-result-schema
-    :origin "TODO: Each verification result is a dict with 'verified' (bool), 'quote' (str), 'reason' (str), 'confidence' (dict with 'score', 'level')")
-
-(defterm stub-evidence-document-field
-    :origin "TODO: Evidence.document: str — name of registered source document to verify quotes against")
+(diff evidence-interior-coverage
+    :replace evidence-interior-doc-count
+    :with evidence-interior-impl-count)

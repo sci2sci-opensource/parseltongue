@@ -3,15 +3,15 @@
 (load-document "system.py" "../system.py")
 (import (quote ..std.counting))
 (import (quote ..std.util))
-(defterm count-exists counting.count-exists :origin "import")
+(import (quote counting.count-exists))
 
 ; =====================================================================
 ; System class — documented contract
 ; =====================================================================
 
-(fact system-docstring "Composes Engine with default operators, serialization, and introspection."
+(fact system-docstring "Parseltongue System — composes Engine with defaults, serialization, and introspection."
     :evidence (evidence "system.py"
-        :quotes ("Composes Engine with default operators, serialization, and introspection.")
+        :quotes ("Parseltongue System — composes Engine with defaults, serialization, and introspection.")
         :explanation "System's self-description"))
 
 ; =====================================================================
@@ -220,7 +220,7 @@
 ; load_source is a module-level function, not a method
 (fact load-source-is-module-fn true
     :evidence (evidence "system.py"
-        :quotes ("def load_source(system: System, source: str):")
+        :quotes ("def load_source(system: AbstractSystem, source: str):")
         :explanation "load_source is a standalone function"))
 
 ; =====================================================================
@@ -236,7 +236,7 @@
 
 (defterm constructor-params-impl-count 6
     :evidence (evidence "system.py"
-        :quotes ("Composes Engine with default operators" "overridable: bool = False" "strict_derive: bool = True" "effects: dict[str, Callable] | None = None" "initial_env: dict | None = None" "docs: dict | None = None")
+        :quotes ("composes Engine with defaults, serialization, and introspection" "overridable: bool = False" "strict_derive: bool = True" "effects: dict[str, Callable] | None = None" "initial_env: dict | None = None" "docs: dict | None = None")
         :explanation "6 constructor features in source"))
 
 (diff constructor-params-coverage
@@ -300,7 +300,7 @@
 
 (defterm effects-impl-count 2
     :evidence (evidence "system.py"
-        :quotes ("self.engine.env[Symbol(name)] = lambda *args, _fn=fn: _fn(self, *args)" "def load_source(system: System, source: str):")
+        :quotes ("self.engine.env[Symbol(name)] = lambda *args, _fn=fn: _fn(self, *args)" "def load_source(system: AbstractSystem, source: str):")
         :explanation "2 effects features in source"))
 
 (diff effects-coverage
@@ -362,7 +362,7 @@
     :using (util.export system-effects-param))
 
 (derive docstring-confirms-composition
-    (= system-docstring "Composes Engine with default operators, serialization, and introspection.")
+    (= system-docstring "Parseltongue System — composes Engine with defaults, serialization, and introspection.")
     :using (system-docstring))
 (derive export-docstring
     (util.export docstring-confirms-composition)

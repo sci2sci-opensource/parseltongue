@@ -716,7 +716,7 @@ class BenchServer:
                     _send(conn, {"progress": True, "count": count, "total": total, "file": rel})
 
                 exclude = cmd.get("exclude")
-                count = self.bench.index.index_dir(
+                count = self.bench.index_dir(
                     directory,
                     extensions,
                     exclude=exclude,
@@ -733,7 +733,7 @@ class BenchServer:
                 def _progress(count, total, rel):
                     _send(conn, {"progress": True, "count": count, "total": total, "file": rel})
 
-                count = self.bench.index.reindex(on_progress=_progress, force=force)
+                count = self.bench.reindex(on_progress=_progress, force=force)
                 _send(conn, {"ok": True, "done": True, "text": f"Reindexed {count} files"})
         except Exception:
             _send(conn, {"ok": False, "done": True, "error": traceback.format_exc()})
@@ -1271,16 +1271,13 @@ def _run_server(
                     continue
                 try:
                     t0 = time.monotonic()
-                    count = idx.reindex(defer_save=True)
+                    count = server.bench.reindex(defer_save=True)
                     duration = time.monotonic() - t0
                     if count:
                         log.info("Background reindex: %d files in %.2fs", count, duration)
                         quiet_passes = 0
                         if dirty_since is None:
                             dirty_since = time.monotonic()
-                        # Corpus moved — cached screens may hold stale
-                        # absence/obligation verdicts; recompute on next ask.
-                        server.bench._technician.invalidate_screens()
                     else:
                         quiet_passes += 1
                     overdue = dirty_since is not None and time.monotonic() - dirty_since > MAX_UNSAVED_S

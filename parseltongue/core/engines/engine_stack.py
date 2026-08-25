@@ -13,7 +13,7 @@ fix for grammar returning tuples. Should instantiate lang-level rewriters
 
 import logging
 from dataclasses import replace
-from typing import Callable
+from typing import Callable, TypeVar
 
 from ..atoms import SILENCE, WFF, Evidence, Silence, Symbol
 from ..dsl_loader import DslLoader
@@ -25,9 +25,11 @@ from ..engine import (
     Fact,
     IssueType,
     WarningType,
+    _confounded_quote_pairs,
     _corpus_counter_examples,
     _corpus_polarity,
     _corpus_reasons,
+    _evidence_quote_provenance,
     reverify_evidence,
 )
 from ..engine import Engine as EngineProtocol
@@ -60,6 +62,9 @@ from ..quote_verifier import QuoteVerifier
 from ..quote_verifier.evidence_verifiers import DocQuoteEvidenceVerifier, DocumentCorpusVerifier, EvidenceVerifier
 
 log = logging.getLogger("parseltongue")
+
+# Store value types that verify_manual can re-sign in place.
+_SignableT = TypeVar("_SignableT", Fact, Axiom, Theorem, Term)
 
 _TAIL_CALL = object()  # sentinel for iterative eval tail-call signaling
 _MISSING = object()  # sentinel for trail: key didn't exist before
@@ -111,6 +116,7 @@ class Engine(EngineProtocol):
         self.diffs: dict[str, dict] = {}
         self.diff_refs: dict[str, set[str]] = {}  # name → diff names that reference it
         self.documents: dict[str, str] = {}
+        self._entity_aliases: dict[str, str] = {}
         self._verifier = verifier or QuoteVerifier()
         self._evidence_verifiers: dict[str, EvidenceVerifier] = {
             EVIDENCE_TYPE_DOC_QUOTE: DocQuoteEvidenceVerifier(self._verifier, self.documents),
@@ -191,6 +197,18 @@ class Engine(EngineProtocol):
         """Register (or replace) the verifier grounding one evidence type."""
         self._evidence_verifiers[evidence_type] = verifier
 
+    def register_entity_alias(self, alias: str, canonical: str) -> None:
+        self._entity_aliases[alias] = canonical
+
+    def _canonicalize_entity_aliases(self, expr):
+        if not self._entity_aliases:
+            return expr
+        if isinstance(expr, Symbol):
+            return Symbol(self._entity_aliases.get(str(expr), str(expr)))
+        if isinstance(expr, (list, tuple)):
+            return [self._canonicalize_entity_aliases(item) for item in expr]
+        return expr
+
     def _lookup(self, name: str) -> Axiom | Theorem | Term | None:
         """Find a named item across all stores."""
         if name in self.facts:
@@ -224,15 +242,23 @@ class Engine(EngineProtocol):
                 signature=signature,
             )
 
-        # Write back to the correct store with narrowed type
-        if name in self.facts:
-            self.facts[name] = replace(self.facts[name], origin=new_origin)
-        elif name in self.axioms:
-            self.axioms[name] = replace(self.axioms[name], origin=new_origin)
-        elif name in self.theorems:
-            self.theorems[name] = replace(self.theorems[name], origin=new_origin)
-        elif name in self.terms:
-            self.terms[name] = replace(self.terms[name], origin=new_origin)
+        # Write back under every key that shares this item. Import aliasing
+        # registers the same (frozen) object under several names; replacing
+        # only the named key would silently split the aliases apart — and
+        # all sharing keys must receive the SAME new object, so identity
+        # keeps expressing that they are one directive.
+        def _sign_store(store: dict[str, _SignableT]) -> None:
+            new_item: _SignableT | None = None
+            for key, value in store.items():
+                if value is item:
+                    if new_item is None:
+                        new_item = replace(value, origin=new_origin)
+                    store[key] = new_item
+
+        _sign_store(self.facts)
+        _sign_store(self.axioms)
+        _sign_store(self.theorems)
+        _sign_store(self.terms)
 
         log.info("'%s' manually marked as grounded", name)
 
@@ -336,6 +362,7 @@ class Engine(EngineProtocol):
         When *axiom_scope* is provided, only those rules are tried;
         otherwise all axioms and theorems in the system are used.
         """
+        expr = self._canonicalize_entity_aliases(expr)
         log.info("_rewrite depth=%d expr=%r", depth, expr)
         if depth > 100:
             return expr
@@ -353,6 +380,9 @@ class Engine(EngineProtocol):
         # as head mean this expression is data — skip immediately.
         heads, var_arities = self._axiom_heads(axiom_scope)
         head = expr[0] if expr else None
+        if isinstance(head, Symbol) and str(head) in self._entity_aliases:
+            expr = [Symbol(self._entity_aliases[str(head)]), *expr[1:]]
+            head = expr[0]
         if not isinstance(head, Symbol):
             return list(expr) if isinstance(expr, tuple) else expr
         if head not in heads:
@@ -369,7 +399,7 @@ class Engine(EngineProtocol):
             wff = rule.wff
             if not (isinstance(wff, (list, tuple)) and len(wff) == 3 and wff[0] == EQ):
                 continue
-            lhs, rhs = wff[1], wff[2]
+            lhs, rhs = self._canonicalize_entity_aliases(wff[1]), wff[2]
             if not isinstance(lhs, (list, tuple)):
                 continue
             bindings = match(lhs, expr)
@@ -445,6 +475,10 @@ class Engine(EngineProtocol):
             # ATOM: Symbol
             # ==============================================================
             if isinstance(expr, Symbol):
+                canonical = self._entity_aliases.get(str(expr))
+                if canonical is not None:
+                    expr = Symbol(canonical)
+                    continue
                 if expr in env:
                     result = env[expr]
                     log.info("_eval symbol %r -> %r", expr, result)
@@ -1645,6 +1679,7 @@ class Engine(EngineProtocol):
         no_evidence = []
         absence_violated = []
         obligation_violated = []
+
         for store in [self.facts, self.axioms, self.theorems, self.terms]:
             for name, item in store.items():  # type: ignore[attr-defined]
                 origin = item.origin
@@ -1742,6 +1777,33 @@ class Engine(EngineProtocol):
                 contam_details[d.name] = "; ".join(f"{k}: {v[1]}" for k, v in sorted(d.divergences.items()))
             warnings.append(
                 ConsistencyWarning(WarningType.DIFF_CONTAMINATION, [d.name for d in diff_contamination], contam_details)
+            )
+
+        confounded_details = {}
+        for name in sorted(names):
+            params = self.diffs[name]
+            replace_quotes = _evidence_quote_provenance(self, params["replace"])
+            with_quotes = _evidence_quote_provenance(self, params["with"])
+            overlap = _confounded_quote_pairs(replace_quotes, with_quotes)
+            if overlap:
+                entries = []
+                for document, replace_quote, with_quote in overlap:
+                    replace_via = ", ".join(sorted(replace_quotes[(document, replace_quote)]))
+                    with_via = ", ".join(sorted(with_quotes[(document, with_quote)]))
+                    quote_display = (
+                        repr(replace_quote)
+                        if replace_quote == with_quote
+                        else f"{replace_quote!r} overlaps {with_quote!r}"
+                    )
+                    entries.append(f"{document}: {quote_display} (replace via {replace_via}; with via {with_via})")
+                confounded_details[name] = "; ".join(entries)
+        if confounded_details:
+            warnings.append(
+                ConsistencyWarning(
+                    WarningType.CONFOUNDED_EVIDENCE,
+                    sorted(confounded_details),
+                    confounded_details,
+                )
             )
 
         return issues, warnings

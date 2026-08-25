@@ -11,7 +11,7 @@
 (import (quote inspect_lens))
 (import (quote inspect_evaluate))
 (import (quote inspect_hologram))
-(defterm stub util.stub :origin "import")
+(import (quote util.stub))
 
 ; ── __init__.py exports ──
 (derive stub-exports-probe stub :using (stub))

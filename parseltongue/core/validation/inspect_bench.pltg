@@ -6,7 +6,7 @@
 (load-document "technician.py" "../inspect/technician.py")
 (load-document "serialization.py" "../inspect/serialization.py")
 (import (quote ..std.util))
-(defterm stub util.stub :origin "import")
+(import (quote util.stub))
 
 ; ── Bench lifecycle ──
 (derive stub-bench-prepare stub :using (stub))
