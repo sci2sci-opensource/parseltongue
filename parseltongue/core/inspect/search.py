@@ -54,6 +54,7 @@ define a defterm in the SearchSystem. ``(scope name expr)`` evaluates
 
 from __future__ import annotations
 
+import gc
 import logging
 import threading
 from typing import Callable
@@ -87,17 +88,98 @@ class Search:
         self._save_dirty = False
         self._index = store.load_index()
         self._store = store
-        # Try to restore cached search index (stems, ngrams, meta, corpus)
+        # Try to restore cached search index (stems, phrases, meta, corpus)
         cached_search = store.load_search_index(self._index)
         if cached_search is not None:
             self._system = SearchSystem(cached_search, self._collect)
         else:
             self._system = SearchSystem(self._index, self._collect)
+        # The corpus is now the bulk of the heap and it is long-lived. Move
+        # it to the permanent generation so the cyclic collector stops
+        # re-walking it on every gen-2 pass for the daemon's lifetime.
+        gc.freeze()
         self._loaded = True
 
     def is_loaded(self) -> bool:
         """True once the cached index has been fully deserialized."""
         return self._loaded
+
+    # ── Legacy (v1) cache decision ──
+
+    @property
+    def legacy_cache(self):
+        """The untouched v1 cache found at load, or None. While set, the
+        corpus is empty by design — the operator has not chosen yet."""
+        return self._store.legacy
+
+    def cache_choice(self, choice: str, on_progress=None) -> str:
+        """Apply the operator's decision about a v1 cache. Returns a summary.
+
+        The v1 cache is already loaded and served (streamed at start). The
+        choice is about the files on disk:
+
+        convert — move the v1 files aside as *.v1.pgz and write the loaded
+                  corpus in the current layout. No re-walk.
+        migrate — convert, then delete the v1 files.
+        rebuild — move the v1 files aside as *.v1.pgz and re-walk the
+                  recorded directory with this version.
+        keep    — leave everything exactly as it is; every start streams
+                  the v1 files again and saves stay held.
+        """
+        from .legacy import discard, set_aside
+
+        legacy = self._store.legacy
+        if legacy is None:
+            if choice == "migrate":
+                # After a convert/rebuild the v1 files live on as *.v1.pgz
+                # backups; migrate is the operator's explicit call to remove them.
+                backups = self._store._store.legacy_backups(self._store._path) if self._store._store else []
+                if not backups:
+                    return "No legacy cache pending and no *.v1.pgz backups to remove."
+                for p in backups:
+                    p.unlink()
+                return "Migrated: removed " + ", ".join(p.name for p in backups)
+            return "No legacy cache pending."
+        if choice == "keep":
+            return "Kept: v1 files left untouched; loaded in place, cache saves held."
+        if choice not in ("convert", "migrate", "rebuild"):
+            return f"Unknown choice {choice!r}: expected convert | migrate | rebuild | keep."
+        with self._reindex_lock:
+            # Set aside first: the current layout is written under the same
+            # names, so the v1 files are never overwritten, only renamed.
+            moved = set_aside(legacy)
+            self._store.legacy = None
+        directory = legacy.directory or next(iter(self._store._indexed_dirs), ".")
+        if choice == "rebuild":
+            # index_dir takes the reindex lock itself.
+            count = self.index_dir(directory, on_progress=on_progress, force=True)
+            with self._reindex_lock:
+                self._store.flush_pending_save()
+                self._store.save_search_index(self._system._search_index)
+            return f"Rebuilt: {count} files re-read from {directory}; v1 files kept as " + ", ".join(
+                p.name for p in moved
+            )
+        with self._reindex_lock:
+            # convert / migrate: persist what is loaded, in the current layout.
+            self._store._pending_save = self._store._pending_save or {
+                "directory": directory,
+                "file_hashes": self._store._dir_hashes.get(self._store._path, {}),
+                "index": self._index,
+                "changed_texts": {},
+                "deleted_keys": set(),
+            }
+            self._store.flush_pending_save()
+            self._store.save_search_index(self._system._search_index)
+            n = len(self._index.documents)
+            if choice == "migrate":
+                # Only after the new files exist: remove the set-aside v1 copies.
+                from .legacy import LegacyCache
+
+                gone = discard(LegacyCache(key=legacy.key, idx_path=moved[0] if moved else None, six_path=moved[1] if len(moved) > 1 else None))
+                return f"Migrated: {n} documents saved in the current layout; deleted " + ", ".join(p.name for p in gone)
+            return f"Converted: {n} documents saved in the current layout; v1 files kept as " + ", ".join(
+                p.name for p in moved
+            )
 
     def corpus_root(self) -> str:
         """Stable fingerprint of the indexed corpus — for cache keys.

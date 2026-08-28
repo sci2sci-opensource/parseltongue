@@ -67,6 +67,15 @@ class SynonymIndex:
                 if other.term != entry.term:
                     self._lookup[entry.term].append(other)
 
+    def has_expansion(self, term: str) -> bool:
+        """True if :meth:`expand` would return anything beyond the term itself.
+
+        Cheap membership test for bulk callers (corpus build over millions of
+        stems) — the same lookup ``expand`` performs, without allocating.
+        """
+        term_lower = term.lower()
+        return bool(self._lookup.get(term_lower)) or bool(self._lookup.get(stem(term_lower)))
+
     def expand(
         self,
         term: str,

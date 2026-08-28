@@ -418,6 +418,15 @@ class Bench:
             self._on_corpus_moved()
         return count
 
+    def cache_choice(self, choice: str, on_progress=None) -> str:
+        """Settle a v1 (legacy layout) corpus cache found at start — the
+        operator's explicit decision; see Search.cache_choice. A rebuild
+        re-reads the corpus, so cached screens are dropped as for index_dir."""
+        text = self.index.cache_choice(choice, on_progress=on_progress)
+        if choice == "rebuild":
+            self._on_corpus_moved()
+        return text
+
     def _on_corpus_moved(self) -> None:
         """The corpus changed under the current sample — refresh its screen.
 

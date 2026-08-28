@@ -105,7 +105,11 @@ def search_stemmed(index: "DocumentSearchIndex", query: str) -> dict:
 
 
 def search_ngram(index: "DocumentSearchIndex", query: str) -> dict:
-    """N-gram match — bigram/trigram candidate lines, verify substring."""
+    """Phrase match — lines where the query's stems occur consecutively.
+
+    Derived from each document's per-line stem sequence (the positional
+    data), not from a stored bigram/trigram table.
+    """
     tokens = _tokenize_query(query)
     if not tokens:
         return {}
@@ -114,7 +118,7 @@ def search_ngram(index: "DocumentSearchIndex", query: str) -> dict:
     result = {}
 
     for doc_name, sdoc in index.documents.items():
-        candidates = sdoc.ngram_index.query(stemmed_tokens)
+        candidates = sdoc.lines_with_phrase(stemmed_tokens)
         if not candidates and len(tokens) == 1:
             candidates = sdoc.lines_with_stem(tokens[0])
 

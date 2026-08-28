@@ -338,12 +338,22 @@ class BenchServer:
         action = cmd.get("action", "")
 
         if action == "ping":
-            return {
+            reply = {
                 "ok": True,
                 "text": "pong" if self._is_ready() else "loading",
                 "pid": os.getpid(),
                 "pltg": self.pltg_path,
             }
+            # A v1 corpus cache on disk is something the operator must hear
+            # about at the first contact, not only when they ask for status.
+            if self._is_ready():
+                try:
+                    legacy = self.bench.index.legacy_cache
+                except Exception:
+                    legacy = None
+                if legacy is not None:
+                    reply["notice"] = "\n".join(legacy.describe())
+            return reply
 
         if action == "shutdown":
             # Answer first, then signal ourselves — the client sees the ack
@@ -358,6 +368,14 @@ class BenchServer:
                 f"status={self.bench.status!r}",
                 f"integrity={self.bench.integrity!r}",
             ]
+            # A v1 corpus cache on disk: say so, and what the operator can do.
+            try:
+                legacy = self.bench.index.legacy_cache if self._is_ready() else None
+            except Exception:
+                legacy = None
+            if legacy is not None:
+                lines.append("")
+                lines.extend(legacy.describe())
             # Elaborate on corrupted integrity
             path = self.bench._current_path
             if path and self.bench.integrity[path] == "corrupted":
@@ -735,6 +753,15 @@ class BenchServer:
 
                 count = self.bench.reindex(on_progress=_progress, force=force)
                 _send(conn, {"ok": True, "done": True, "text": f"Reindexed {count} files"})
+
+            elif action == "cache":
+                choice = cmd.get("choice", "")
+
+                def _progress(count, total, rel):
+                    _send(conn, {"progress": True, "count": count, "total": total, "file": rel})
+
+                text = self.bench.cache_choice(choice, on_progress=_progress)
+                _send(conn, {"ok": True, "done": True, "text": text})
         except Exception:
             _send(conn, {"ok": False, "done": True, "error": traceback.format_exc()})
 
@@ -1153,7 +1180,7 @@ def _format_eval_raw(result) -> str:
     return to_sexp(result)
 
 
-_STREAM_ACTIONS = {"index", "reindex"}
+_STREAM_ACTIONS = {"index", "reindex", "cache"}
 
 
 def _handle_client(server: BenchServer, conn: socket.socket):
@@ -2585,6 +2612,30 @@ def purge(yes: bool):
     _print_result(_query({"action": "purge"}))
 
 
+@cli.command("cache")
+@click.argument("choice", type=click.Choice(["convert", "migrate", "rebuild", "keep"]))
+@click.option("--yes", is_flag=True, help="Skip confirmation (migrate deletes the v1 files).")
+@click.option(
+    "--progress-every", type=int, default=25, show_default=True, help="Print progress every N files (0 = every file)."
+)
+def cache_choice(choice: str, yes: bool, progress_every: int):
+    """Settle a corpus cache found in the previous (v1, JSON) layout.
+
+    \b
+    At start the daemon reads a v1 cache in place and serves it; the files
+    stay untouched and cache saves are held until you choose:
+      convert  write the loaded corpus in the current layout; v1 files kept as *.v1.pgz
+      migrate  convert, then delete the v1 files — or, after a convert/rebuild,
+               delete the *.v1.pgz backups it left
+      rebuild  re-walk the directory with this version; v1 files kept as *.v1.pgz
+      keep     leave everything as is
+    `pg status` shows what was found.
+    """
+    if choice == "migrate" and not yes:
+        click.confirm("migrate deletes the v1 cache files after writing the current layout. Continue?", abort=True)
+    _stream_index_progress({"action": "cache", "choice": choice}, progress_every)
+
+
 @cli.command()
 @click.option("--socket", "sock", default=str(SOCK_PATH), help="Unix socket path.")
 def stop(sock: str):
@@ -2665,6 +2716,8 @@ def wait(timeout_s: int):
             result = _query({"action": "ping"})
             if result.get("text") == "pong":
                 click.echo("Ready.")
+                if result.get("notice"):
+                    click.echo(result["notice"], err=True)
                 return
         except (ConnectionError, FileNotFoundError, OSError):
             pass

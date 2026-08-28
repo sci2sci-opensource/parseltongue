@@ -165,7 +165,7 @@ def bm25_score(
         candidates: dict[str, list[tuple[str, float]]] = {}
         for t, syn_weight in term_group:
             # Content hits via inverted index
-            for name in corpus_stems.get(t, {}):
+            for name in corpus_stems.doc_names_for(t):
                 if name not in candidates:
                     candidates[name] = []
                 candidates[name].append((t, syn_weight))

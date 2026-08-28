@@ -17,11 +17,17 @@ from __future__ import annotations
 
 import logging
 import re as _re
+from array import array
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
+from parseltongue.core.quote_verifier.posmap import U32
+from parseltongue.core.quote_verifier.vocab import Vocab
+
 from .annotators import DEFAULT_ANNOTATORS, AnnotationStrategy
 from .document import SearchDocument
+from .postings import CSR, EMPTY, LineSet, TermCounts
 
 log = logging.getLogger("parseltongue.search_index")
 
@@ -31,63 +37,180 @@ if TYPE_CHECKING:
     from .synonyms import SynonymIndex
 
 
+class CorpusPostings:
+    """``term → documents`` inverted index over the whole snapshot.
+
+    A CSR of term id → sorted doc ids, plus the doc-id ↔ name tables.
+    Line-level detail stays in each SearchDocument; this only answers
+    "which documents", which is all the corpus level ever needed.
+
+    ``syn_sources`` maps a synonym stem id to the base stem ids that fed it,
+    so a synonym hit can be expanded back to real lines in a document.
+    """
+
+    __slots__ = ("csr", "doc_names", "doc_ids", "vocab", "syn_sources")
+
+    def __init__(
+        self,
+        csr: CSR,
+        doc_names: list[str],
+        vocab: Vocab,
+        syn_sources: dict[int, list[int]] | None = None,
+    ):
+        self.csr = csr
+        self.doc_names = doc_names
+        self.doc_ids = {n: i for i, n in enumerate(doc_names)}
+        self.vocab = vocab
+        self.syn_sources = syn_sources or {}
+
+    def docs_by_id(self, tid: int) -> array | None:
+        return self.csr.get(tid)
+
+    def doc_names_for(self, term: str) -> list[str]:
+        """Names of documents containing *term* (already stemmed/normalized)."""
+        tid = self.vocab.lookup(term)
+        if tid is None:
+            return []
+        run = self.csr.get(tid)
+        if run is None:
+            return []
+        names = self.doc_names
+        return [names[d] for d in run]
+
+    def get(self, term: str, default=None):
+        """dict-compat: ``corpus.get(term, {})`` → mapping of doc name → True."""
+        names = self.doc_names_for(term)
+        if not names:
+            return default
+        return dict.fromkeys(names, True)
+
+    def __contains__(self, term: object) -> bool:
+        return isinstance(term, str) and bool(self.doc_names_for(term))
+
+    def __len__(self) -> int:
+        return len(self.csr)
+
+    def lines_in(self, sdoc: SearchDocument, tid: int, *, stemmed: bool) -> LineSet:
+        """Lines of *sdoc* for term id *tid*, folding synonym sources in."""
+        table = sdoc.stem_to_lines if stemmed else sdoc.word_to_lines
+        ls = table.by_id(tid)
+        if stemmed:
+            for base in self.syn_sources.get(tid, ()):
+                extra = table.by_id(base)
+                if extra is not None:
+                    ls = extra if ls is None else ls | extra
+        return ls if ls is not None else EMPTY
+
+
 @dataclass(slots=True)
 class _Snapshot:
     """Immutable query-time state — one reference swap replaces everything."""
 
     documents: dict[str, SearchDocument] = field(default_factory=dict)
-    corpus_words: dict[str, dict[str, set[int]]] = field(default_factory=dict)
-    corpus_stems: dict[str, dict[str, set[int]]] = field(default_factory=dict)
-    stem_df: dict[str, int] = field(default_factory=dict)
+    corpus_words: CorpusPostings = field(default_factory=lambda: CorpusPostings(CSR.empty(), [], Vocab()))
+    corpus_stems: CorpusPostings = field(default_factory=lambda: CorpusPostings(CSR.empty(), [], Vocab()))
+    stem_df: TermCounts = field(default_factory=lambda: TermCounts(array(U32), Vocab()))
     name_stems: dict[str, set[str]] = field(default_factory=dict)
     doc_lengths: dict[str, int] = field(default_factory=dict)
     avgdl: float = 1.0
 
 
+def _name_stems_of(doc_name: str) -> set[str]:
+    from .stemmer import stem as _stem
+
+    return {_stem(t) for t in _re.split(r"[.\-_/: ]+", doc_name.lower()) if t}
+
+
 def _build_snapshot(
     docs: dict[str, SearchDocument],
     synonyms: "SynonymIndex",
+    vocab: Vocab,
 ) -> _Snapshot:
-    """Build a complete snapshot from a set of SearchDocuments."""
+    """Build a complete snapshot from a set of SearchDocuments.
+
+    One pass over each document's term-id arrays; the corpus tables are
+    CSR over doc ids. Synonym expansion adds the synonym stem's id to the
+    doc list of every document holding a base stem and records the base
+    in ``syn_sources`` so line lookups can follow it back.
+    """
     from .stemmer import stem as _stem
     from .synonyms import ExpansionScope
 
-    corpus_words: dict[str, dict[str, set[int]]] = {}
-    corpus_stems: dict[str, dict[str, set[int]]] = {}
-    df: dict[str, int] = {}
+    doc_names = list(docs)
+    # (term id, doc id) pairs, appended in doc-id order → counting sort
+    # yields sorted runs. Two flat u32 arrays instead of a dict of lists.
+    word_keys = array(U32)
+    word_vals = array(U32)
+    stem_keys = array(U32)
+    stem_vals = array(U32)
+    syn_sources: dict[int, set[int]] = {}
     name_stems: dict[str, set[str]] = {}
-
-    for doc_name, sdoc in docs.items():
-        for word, lines in sdoc.word_to_lines.items():
-            if word not in corpus_words:
-                corpus_words[word] = {}
-            corpus_words[word][doc_name] = lines
-
-        for s, lines in sdoc.stem_to_lines.items():
-            if s not in corpus_stems:
-                corpus_stems[s] = {}
-            corpus_stems[s][doc_name] = lines
-
-            for syn_entry in synonyms.expand(s, scope=ExpansionScope.DOCUMENTS):
-                syn_stem = _stem(syn_entry.term)
-                if syn_stem == s:
-                    continue
-                if syn_stem not in corpus_stems:
-                    corpus_stems[syn_stem] = {}
-                if doc_name not in corpus_stems[syn_stem]:
-                    corpus_stems[syn_stem][doc_name] = set(lines)
-                else:
-                    corpus_stems[syn_stem][doc_name] |= lines
-
-        ns = {_stem(t) for t in _re.split(r"[.\-_/: ]+", doc_name.lower()) if t}
-        name_stems[doc_name] = ns
-
     doc_lengths: dict[str, int] = {}
-    for doc_name, sdoc in docs.items():
-        doc_lengths[doc_name] = sum(len(lines) for lines in sdoc.word_to_lines.values())
-        seen = set(sdoc.stem_to_lines.keys()) | name_stems[doc_name]
-        for s in seen:
-            df[s] = df.get(s, 0) + 1
+    # Synonym targets per stem id. Nearly every stem has none: a byte flag
+    # per id remembers "checked, nothing there" so the dict only holds hits.
+    syn_state = bytearray(len(vocab))  # 0 unknown, 1 none, 2 in syn_hits
+    syn_hits: dict[int, list[int]] = {}
+    has_expansion = synonyms.has_expansion
+
+    def _syn_targets(tid: int) -> list[int]:
+        if tid >= len(syn_state):
+            syn_state.extend(bytes(len(vocab) - len(syn_state)))
+        state = syn_state[tid]
+        if state == 1:
+            return ()  # type: ignore[return-value]
+        if state == 2:
+            return syn_hits[tid]
+        s = vocab.term(tid)
+        if not has_expansion(s):
+            syn_state[tid] = 1
+            return ()  # type: ignore[return-value]
+        hit: list[int] = []
+        for syn_entry in synonyms.expand(s, scope=ExpansionScope.DOCUMENTS):
+            syn_stem = _stem(syn_entry.term)
+            if syn_stem == s:
+                continue
+            syn_id = vocab.id(syn_stem)
+            hit.append(syn_id)
+            syn_sources.setdefault(syn_id, set()).add(tid)
+        if hit:
+            syn_hits[tid] = hit
+            syn_state[tid] = 2
+        else:
+            syn_state[tid] = 1
+        return hit
+
+    df_keys = array(U32)  # one entry per (stem or name-stem id, doc) — document frequency
+
+    for doc_id, (doc_name, sdoc) in enumerate(docs.items()):
+        wterms = sdoc._words.terms
+        word_keys.extend(wterms)
+        word_vals.extend(array(U32, [doc_id]) * len(wterms))
+        doc_lengths[doc_name] = len(sdoc._words.values)
+
+        stems = sdoc._stems.terms
+        stem_keys.extend(stems)
+        stem_vals.extend(array(U32, [doc_id]) * len(stems))
+        stem_set = set(stems)
+
+        # Synonym targets get this doc too — once per target, and not when
+        # the target is already a real stem of the doc (its run has it).
+        syn_ids: set[int] = set()
+        for tid in stems:
+            syn_ids.update(_syn_targets(tid))
+        for syn_id in sorted(syn_ids - stem_set):
+            stem_keys.append(syn_id)
+            stem_vals.append(doc_id)
+
+        # df counts real stems plus filename stems, each once per doc.
+        ns = _name_stems_of(doc_name)
+        name_stems[doc_name] = ns
+        df_keys.extend(stems)
+        df_keys.extend(array(U32, sorted({vocab.id(s) for s in ns} - stem_set)))
+
+    key_space = len(vocab)
+    df = array(U32, bytes(4 * key_space))
+    for tid in df_keys:
+        df[tid] += 1
 
     N = len(docs)
     total = sum(doc_lengths.values())
@@ -97,13 +220,30 @@ def _build_snapshot(
 
     return _Snapshot(
         documents=docs,
-        corpus_words=corpus_words,
-        corpus_stems=corpus_stems,
-        stem_df=df,
+        corpus_words=CorpusPostings(CSR.from_pairs(word_keys, word_vals, key_space), doc_names, vocab),
+        corpus_stems=CorpusPostings(
+            CSR.from_pairs(stem_keys, stem_vals, key_space),
+            doc_names,
+            vocab,
+            {k: sorted(v) for k, v in syn_sources.items()},
+        ),
+        stem_df=TermCounts(df, vocab),
         name_stems=name_stems,
         doc_lengths=doc_lengths,
         avgdl=avgdl,
     )
+
+
+def _intersect_sorted(runs: Iterable[array]) -> array:
+    from .postings import _merge_and
+
+    it = iter(runs)
+    acc = next(it)
+    for r in it:
+        acc = _merge_and(acc, r)
+        if not acc:
+            break
+    return acc
 
 
 class DocumentSearchIndex:
@@ -126,6 +266,7 @@ class DocumentSearchIndex:
         "_verifier_documents",
         "_line_callers_cache",
         "_line_callers_qr_id",
+        "_vocab",
     )
 
     def __init__(
@@ -137,6 +278,7 @@ class DocumentSearchIndex:
         from .synonyms import DEFAULT_SYNONYMS
 
         self._doc_index = doc_index
+        self._vocab: Vocab = doc_index.vocab
         self._annotators = annotators if annotators is not None else list(DEFAULT_ANNOTATORS)
         self._synonyms: SynonymIndex = synonyms if synonyms is not None else DEFAULT_SYNONYMS
         self._snap = _Snapshot()  # empty until _build
@@ -160,15 +302,15 @@ class DocumentSearchIndex:
         self._snap.documents = value
 
     @property
-    def _corpus_words(self) -> dict[str, dict[str, set[int]]]:
+    def _corpus_words(self) -> CorpusPostings:
         return self._snap.corpus_words
 
     @property
-    def _corpus_stems(self) -> dict[str, dict[str, set[int]]]:
+    def _corpus_stems(self) -> CorpusPostings:
         return self._snap.corpus_stems
 
     @property
-    def _stem_df(self) -> dict[str, int]:
+    def _stem_df(self) -> TermCounts:
         return self._snap.stem_df
 
     @property
@@ -197,15 +339,15 @@ class DocumentSearchIndex:
         log.debug("build: %d docs", len(self._doc_index.documents))
         docs: dict[str, SearchDocument] = {}
         for name, doc in self._doc_index.documents.items():
-            sdoc = SearchDocument(doc)
+            sdoc = SearchDocument(doc, self._vocab)
             for ann in self._annotators:
                 ann.annotate(sdoc)
             docs[name] = sdoc
-        self._snap = _build_snapshot(docs, self._synonyms)
+        self._snap = _build_snapshot(docs, self._synonyms, self._vocab)
 
     def _rebuild_corpus(self):
         """Rebuild corpus from current documents — full snapshot swap."""
-        self._snap = _build_snapshot(self._snap.documents, self._synonyms)
+        self._snap = _build_snapshot(self._snap.documents, self._synonyms, self._vocab)
 
     # Back-compat alias
     _rebuild_df = _rebuild_corpus
@@ -243,13 +385,13 @@ class DocumentSearchIndex:
         # Start from current snapshot docs, add/update from doc_index
         new_docs = dict(snap.documents)
         for name in added_or_updated:
-            sdoc = SearchDocument(self._doc_index.documents[name])
+            sdoc = SearchDocument(self._doc_index.documents[name], self._vocab)
             for ann in self._annotators:
                 ann.annotate(sdoc)
             new_docs[name] = sdoc
 
         # Single reference swap — atomic under CPython GIL.
-        self._snap = _build_snapshot(new_docs, self._synonyms)
+        self._snap = _build_snapshot(new_docs, self._synonyms, self._vocab)
 
     def remove_docs(self, names: set[str]):
         """Explicitly remove docs from the snapshot (e.g. file indexer detected deletion)."""
@@ -257,7 +399,7 @@ class DocumentSearchIndex:
         remaining = {n: s for n, s in snap.documents.items() if n not in names}
         if len(remaining) < len(snap.documents):
             log.info("remove_docs: %d → %d docs", len(snap.documents), len(remaining))
-            self._snap = _build_snapshot(remaining, self._synonyms)
+            self._snap = _build_snapshot(remaining, self._synonyms, self._vocab)
 
     # ── Query ──
 
@@ -296,30 +438,39 @@ class DocumentSearchIndex:
         if not tokens:
             return {}
 
-        def _get(token: str) -> dict[str, set[int]]:
-            key = _stem(token) if stemmed else token
-            return corpus.get(key, {})
-
-        per_token = [_get(t) for t in tokens]
-
-        doc_sets = [set(p.keys()) for p in per_token]
-        common_docs = doc_sets[0]
-        for ds in doc_sets[1:]:
-            common_docs &= ds
-            if not common_docs:
+        vocab = corpus.vocab
+        ids: list[int] = []
+        for t in tokens:
+            tid = vocab.lookup(_stem(t) if stemmed else t)
+            if tid is None:
                 return {}
+            ids.append(tid)
+
+        doc_runs = []
+        for tid in ids:
+            run = corpus.docs_by_id(tid)
+            if run is None:
+                return {}
+            doc_runs.append(run)
+        common_docs = _intersect_sorted(doc_runs)
+        if not common_docs:
+            return {}
 
         result: dict = {}
-        for doc_name in common_docs:
+        names = corpus.doc_names
+        for doc_id in common_docs:
+            doc_name = names[doc_id]
             sdoc = snap.documents.get(doc_name)
             if sdoc is None:
                 continue
-            line_sets = [p[doc_name] for p in per_token]
-            common_lines = line_sets[0]
-            for ls in line_sets[1:]:
-                common_lines = common_lines & ls
+            common_lines = corpus.lines_in(sdoc, ids[0], stemmed=stemmed)
+            for tid in ids[1:]:
+                if not common_lines:
+                    break
+                common_lines = common_lines & corpus.lines_in(sdoc, tid, stemmed=stemmed)
+            n_lines = len(sdoc.lines)
             for line_num in common_lines:
-                if line_num <= len(sdoc.lines):
+                if line_num <= n_lines:
                     result[(doc_name, line_num)] = _make_posting(doc_name, line_num, sdoc.lines)
 
         return result

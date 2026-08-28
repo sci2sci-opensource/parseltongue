@@ -4,20 +4,27 @@ Adds what IndexedDocument doesn't have:
 - Pre-split lines (computed once)
 - word → line numbers mapping (from existing word_positions + position_map)
 - Stemmed word → line numbers mapping
-- N-gram index (bigrams, trigrams)
+- Per-line stem sequences (phrase / n-gram verification)
 - Metadata index (token, word, line, doc level marks with boost)
 
 All built from IndexedDocument's already-normalized text. No re-normalization.
+
+Every posting table is an ``array('I')`` CSR keyed by term id (see
+``postings``); the term dictionary is the index-wide ``Vocab``.
 """
 
 from __future__ import annotations
 
 import re as _re
+from array import array
 from collections import defaultdict
 from typing import TYPE_CHECKING
 
+from parseltongue.core.quote_verifier.posmap import U32
+from parseltongue.core.quote_verifier.vocab import Vocab
+
 from .meta import MetaIndex, index_doc_name
-from .ngrams import NGramIndex
+from .postings import CSR, EMPTY, LineSet, TermLines
 from .stemmer import stem
 
 _COMPOUND_SPLIT = _re.compile(r"[._\-]+")
@@ -31,32 +38,30 @@ class SearchDocument:
     """Line-level search index for a single document.
 
     Wraps an IndexedDocument and adds line-oriented indices
-    for fast lookup by word, stemmed word, n-gram, and metadata.
+    for fast lookup by word, stemmed word, phrase, and metadata.
     """
 
     __slots__ = (
         "name",
         "doc",
+        "vocab",
         "lines",
-        "line_ranges",
-        "word_to_lines",
-        "stem_to_lines",
-        "ngram_index",
         "meta",
-        "_line_tokens",
         "_content_hash",
+        "_line_starts",
+        "_words",
+        "_stems",
+        "_line_stems",
     )
 
     doc: "IndexedDocument"
 
-    def __init__(self, doc: "IndexedDocument"):
+    def __init__(self, doc: "IndexedDocument", vocab: Vocab | None = None):
         self.name = doc.name
         self.doc = doc
+        self.vocab = vocab if vocab is not None else doc.vocab
         self._content_hash = doc.content_hash
         self.lines: list[str] = doc.original_text.splitlines()
-        self.word_to_lines: dict[str, set[int]] = defaultdict(set)
-        self.stem_to_lines: dict[str, set[int]] = defaultdict(set)
-        self._line_tokens: list[tuple[int, list[str]]] = []
 
         # Metadata index — token/word/line/doc level marks
         self.meta = MetaIndex()
@@ -64,34 +69,57 @@ class SearchDocument:
 
         self._build_line_indices()
 
-        self.ngram_index = NGramIndex()
-        self.ngram_index.build(self._line_tokens)
+    # ── construction ──
+
+    @classmethod
+    def restore(
+        cls,
+        name: str,
+        content_hash: str,
+        lines: list[str],
+        vocab: Vocab,
+        line_starts: array,
+        words: CSR,
+        stems: CSR,
+        line_stems: CSR,
+        meta: MetaIndex,
+        doc: "IndexedDocument | None",
+    ) -> "SearchDocument":
+        """Assemble from persisted parts — no indexing work."""
+        sdoc = object.__new__(cls)
+        sdoc.name = name
+        sdoc.doc = doc  # type: ignore[assignment]
+        sdoc.vocab = vocab
+        sdoc._content_hash = content_hash
+        sdoc.lines = lines
+        sdoc.meta = meta
+        sdoc._line_starts = line_starts
+        sdoc._words = words
+        sdoc._stems = stems
+        sdoc._line_stems = line_stems
+        return sdoc
 
     def _build_line_indices(self):
-        """Build word→lines and stem→lines from normalized text + position_map."""
+        """Build word→lines, stem→lines and per-line stem sequences from
+        normalized text + position_map."""
         doc = self.doc
         norm_text = doc.normalized_text
         pos_map = doc.position_map
         orig_text = doc.original_text
+        vocab_id = self.vocab.id
 
-        # Pre-compute line start offsets in original text.
-        line_starts = [0]
-        for i, ch in enumerate(orig_text):
-            if ch == "\n":
-                line_starts.append(i + 1)
-
-        # Cache (start_char, end_char) per line — used by enrich for quote overlap.
-        # line_ranges[0] = line 1's range (0-indexed list, 1-based lines).
-        text_len = len(orig_text)
-        self.line_ranges: list[tuple[int, int]] = []
-        for idx in range(len(line_starts)):
-            start = line_starts[idx]
-            end = (line_starts[idx + 1] - 2) if idx + 1 < len(line_starts) else text_len - 1
-            self.line_ranges.append((start, max(start, end)))
+        # Line start offsets in original text.
+        line_starts = array(U32, [0])
+        pos = orig_text.find("\n")
+        while pos != -1:
+            line_starts.append(pos + 1)
+            pos = orig_text.find("\n", pos + 1)
+        self._line_starts = line_starts
+        n_lines = len(line_starts)
 
         def _char_to_line(orig_pos: int) -> int:
             # Binary search for line number
-            lo, hi = 0, len(line_starts) - 1
+            lo, hi = 0, n_lines - 1
             while lo < hi:
                 mid = (lo + hi + 1) // 2
                 if line_starts[mid] <= orig_pos:
@@ -100,8 +128,12 @@ class SearchDocument:
                     hi = mid - 1
             return lo + 1  # 1-based
 
+        word_lines: dict[int, list[int]] = defaultdict(list)
+        stem_lines: dict[int, list[int]] = defaultdict(list)
+        per_line_stems: dict[int, list[int]] = defaultdict(list)
+        pm_len = len(pos_map)
+
         # Walk normalized text, extract words, map each to original line
-        per_line_tokens: dict[int, list[str]] = defaultdict(list)
         i = 0
         n = len(norm_text)
         while i < n:
@@ -117,13 +149,12 @@ class SearchDocument:
                 continue
 
             # Map back to original position → line number
-            orig_pos = pos_map[start] if start < len(pos_map) else 0
+            orig_pos = pos_map[start] if start < pm_len else 0
             line_num = _char_to_line(orig_pos)
 
-            self.word_to_lines[word].add(line_num)
-
-            stemmed = stem(word)
-            self.stem_to_lines[stemmed].add(line_num)
+            word_lines[vocab_id(word)].append(line_num)
+            stemmed_id = vocab_id(stem(word))
+            stem_lines[stemmed_id].append(line_num)
 
             # Split compound tokens (dots, underscores, hyphens) into sub-parts
             # "systems.operations_v2" → ["systems", "operations", "v2"]
@@ -131,26 +162,58 @@ class SearchDocument:
             if len(parts) > 1:
                 for part in parts:
                     if part:
-                        self.word_to_lines[part].add(line_num)
-                        self.stem_to_lines[stem(part)].add(line_num)
+                        word_lines[vocab_id(part)].append(line_num)
+                        stem_lines[vocab_id(stem(part))].append(line_num)
 
-            per_line_tokens[line_num].append(word)
+            per_line_stems[line_num].append(stemmed_id)
 
-        # Build line_tokens for n-gram index
-        self._line_tokens = [(ln, tokens) for ln, tokens in sorted(per_line_tokens.items())]
+        self._words = CSR.build(word_lines)
+        self._stems = CSR.build(stem_lines)
+        # Line → stem sequence, in token order (not deduped, not sorted).
+        lt_lines = array(U32, sorted(per_line_stems))
+        lt_offsets = array(U32, [0])
+        lt_values = array(U32)
+        for ln in lt_lines:
+            lt_values.extend(per_line_stems[ln])
+            lt_offsets.append(len(lt_values))
+        self._line_stems = CSR(lt_lines, lt_offsets, lt_values)
 
-    def lines_with_word(self, word: str) -> set[int]:
+    # ── mapping views (dict[str, set[int]] compatible) ──
+
+    @property
+    def word_to_lines(self) -> TermLines:
+        return TermLines(self._words, self.vocab)
+
+    @property
+    def stem_to_lines(self) -> TermLines:
+        return TermLines(self._stems, self.vocab)
+
+    @property
+    def line_ranges(self) -> list[tuple[int, int]]:
+        """(start_char, end_char) per line in the original text; index 0 = line 1."""
+        starts = self._line_starts
+        text_len = len(self.doc.original_text) if self.doc is not None else (starts[-1] if starts else 0)
+        out = []
+        for idx in range(len(starts)):
+            start = starts[idx]
+            end = (starts[idx + 1] - 2) if idx + 1 < len(starts) else text_len - 1
+            out.append((start, max(start, end)))
+        return out
+
+    # ── queries ──
+
+    def lines_with_word(self, word: str) -> LineSet:
         """Line numbers (1-based) containing this normalized word."""
-        return self.word_to_lines.get(word, set())
+        return self.word_to_lines.get(word, EMPTY)
 
-    def lines_with_stem(self, word: str) -> set[int]:
+    def lines_with_stem(self, word: str) -> LineSet:
         """Line numbers containing any word that stems to the same root."""
-        return self.stem_to_lines.get(stem(word), set())
+        return self.stem_to_lines.get(stem(word), EMPTY)
 
-    def lines_with_all_words(self, words: list[str]) -> set[int]:
+    def lines_with_all_words(self, words: list[str]) -> LineSet:
         """Line numbers containing ALL given words (intersection)."""
         if not words:
-            return set()
+            return EMPTY
         result = self.lines_with_word(words[0])
         for w in words[1:]:
             result = result & self.lines_with_word(w)
@@ -158,13 +221,113 @@ class SearchDocument:
                 break
         return result
 
-    def lines_with_all_stems(self, words: list[str]) -> set[int]:
+    def lines_with_all_stems(self, words: list[str]) -> LineSet:
         """Line numbers containing stems of ALL given words."""
         if not words:
-            return set()
+            return EMPTY
         result = self.lines_with_stem(words[0])
         for w in words[1:]:
             result = result & self.lines_with_stem(w)
             if not result:
                 break
         return result
+
+    def lines_with_phrase(self, stems: list[str]) -> LineSet:
+        """Lines where the given stems occur consecutively, in order.
+
+        Candidate lines come from intersecting the per-stem postings; each
+        candidate's stem sequence is then scanned for the exact run. This is
+        what the bigram/trigram tables used to approximate — derived from
+        positions instead of stored.
+        """
+        if len(stems) < 2:
+            return EMPTY
+        ids = []
+        for s in stems:
+            tid = self.vocab.lookup(s)
+            if tid is None:
+                return EMPTY
+            ids.append(tid)
+        cand: LineSet | None = None
+        for tid in ids:
+            ls = self.stem_to_lines.by_id(tid)
+            if ls is None:
+                return EMPTY
+            cand = ls if cand is None else cand & ls
+            if not cand:
+                return EMPTY
+        assert cand is not None
+        first = ids[0]
+        k = len(ids)
+        hits = array(U32)
+        seq_tab = self._line_stems
+        for ln in cand:
+            slot = seq_tab.slot(ln)
+            if slot < 0:
+                continue
+            seq = seq_tab.run(slot)
+            n = len(seq)
+            for j in range(n - k + 1):
+                if seq[j] == first and list(seq[j : j + k]) == ids:
+                    hits.append(ln)
+                    break
+        return LineSet(hits)
+
+    # ── persistence ──
+
+    def to_record(self) -> tuple[dict, dict[str, bytes]]:
+        from .serialization import serialize_meta
+
+        meta = {
+            "name": self.name,
+            "content_hash": self._content_hash,
+            "meta": serialize_meta(self.meta),
+        }
+        blobs = {
+            "tx": "\n".join(self.lines).encode("utf-8"),
+            "ls": self._line_starts.tobytes(),
+        }
+        blobs.update(self._words.to_blobs("wl"))
+        blobs.update(self._stems.to_blobs("sl"))
+        blobs.update(self._line_stems.to_blobs("lt"))
+        return meta, blobs
+
+    BLOB_KEYS = ("tx", "ls", "wl.t", "wl.o", "wl.v", "sl.t", "sl.o", "sl.v", "lt.t", "lt.o", "lt.v")
+
+    @classmethod
+    def from_record(
+        cls,
+        meta: dict,
+        blobs,
+        vocab: Vocab,
+        doc: "IndexedDocument | None",
+        id_remap: array | None = None,
+    ) -> "SearchDocument":
+        from .serialization import deserialize_meta
+
+        line_starts = array(U32)
+        line_starts.frombytes(blobs["ls"])
+        words = CSR.from_blobs(blobs, "wl")
+        stems = CSR.from_blobs(blobs, "sl")
+        line_stems = CSR.from_blobs(blobs, "lt")
+        if id_remap is not None:
+            words = words.remapped(id_remap)
+            stems = stems.remapped(id_remap)
+            # line_stems is keyed by line number; only its values are term ids.
+            line_stems = CSR(line_stems.terms, line_stems.offsets, array(U32, (id_remap[t] for t in line_stems.values)))
+        if doc is not None:
+            lines = doc.original_text.splitlines()
+        else:
+            lines = bytes(blobs["tx"]).decode("utf-8").split("\n")
+        return cls.restore(
+            name=meta["name"],
+            content_hash=meta["content_hash"],
+            lines=lines,
+            vocab=vocab,
+            line_starts=line_starts,
+            words=words,
+            stems=stems,
+            line_stems=line_stems,
+            meta=deserialize_meta(meta.get("meta", {})),
+            doc=doc,
+        )

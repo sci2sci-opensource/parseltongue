@@ -1,23 +1,30 @@
 """Serialize / deserialize SearchDocument and DocumentSearchIndex.
 
 Saves the expensive-to-build line-level indices (word→lines, stem→lines,
-n-grams, metadata, corpus indices) so they survive cache round-trips
+per-line stem sequences, metadata) so they survive cache round-trips
 without rebuilding from text.
 
-Format is JSON-friendly dicts with sets → sorted lists for determinism.
+Format is a BlobPGZ record: a JSON head (document names, hashes,
+metadata marks, the term list the ids refer to) plus raw ``array('I')``
+blobs. Corpus-level tables are not persisted — they are one linear pass
+over the per-document id arrays and rebuild in well under the time it
+takes to read them.
 """
 
 from __future__ import annotations
 
+from array import array
+from collections.abc import Mapping
 from typing import TYPE_CHECKING
 
+from parseltongue.core.quote_verifier.vocab import Vocab
+
 if TYPE_CHECKING:
-    from parseltongue.core.quote_verifier.index import DocumentIndex, IndexedDocument
+    from parseltongue.core.quote_verifier.index import DocumentIndex
 
     from .document import SearchDocument
     from .index import DocumentSearchIndex
     from .meta import MetaIndex, MetaMark
-    from .ngrams import NGramIndex
 
 
 # ── MetaMark ──
@@ -74,113 +81,74 @@ def deserialize_meta(d: dict) -> "MetaIndex":
     return meta
 
 
-# ── NGramIndex ──
-
-
-def serialize_ngrams(ng: "NGramIndex") -> dict:
-    return {
-        "bigrams": {f"{a}\x00{b}": sorted(lines) for (a, b), lines in ng.bigrams.items()},
-        "trigrams": {f"{a}\x00{b}\x00{c}": sorted(lines) for (a, b, c), lines in ng.trigrams.items()},
-    }
-
-
-def deserialize_ngrams(d: dict) -> "NGramIndex":
-    from .ngrams import NGramIndex
-
-    ng = NGramIndex()
-    for key, lines in d.get("bigrams", {}).items():
-        parts = key.split("\x00")
-        ng.bigrams[(parts[0], parts[1])] = set(lines)
-    for key, lines in d.get("trigrams", {}).items():
-        parts = key.split("\x00")
-        ng.trigrams[(parts[0], parts[1], parts[2])] = set(lines)
-    return ng
-
-
 # ── SearchDocument ──
 
 
-def _set_to_list(s: set) -> list:
-    return sorted(s)
+def serialize_search_document(sdoc: "SearchDocument") -> tuple[dict, dict[str, bytes]]:
+    return sdoc.to_record()
 
 
-def _lines_dict_to_json(d: dict[str, set[int]]) -> dict[str, list[int]]:
-    return {k: sorted(v) for k, v in d.items()}
-
-
-def _lines_dict_from_json(d: dict[str, list[int]]) -> dict[str, set[int]]:
-    return {k: set(v) for k, v in d.items()}
-
-
-def serialize_search_document(sdoc: "SearchDocument") -> dict:
-    return {
-        "name": sdoc.name,
-        "content_hash": sdoc._content_hash,
-        "lines": sdoc.lines,
-        "line_ranges": sdoc.line_ranges,
-        "word_to_lines": _lines_dict_to_json(sdoc.word_to_lines),
-        "stem_to_lines": _lines_dict_to_json(sdoc.stem_to_lines),
-        "line_tokens": [[ln, tokens] for ln, tokens in sdoc._line_tokens],
-        "ngram_index": serialize_ngrams(sdoc.ngram_index),
-        "meta": serialize_meta(sdoc.meta),
-    }
-
-
-def deserialize_search_document(d: dict, indexed_doc: "IndexedDocument | None" = None) -> "SearchDocument":
-    """Restore a SearchDocument from serialized data.
-
-    If indexed_doc is provided, it's used as the backing doc reference.
-    Otherwise a stub is created with just the name.
-    """
+def deserialize_search_document(
+    meta: dict,
+    blobs: Mapping[str, bytes | memoryview],
+    vocab: Vocab,
+    indexed_doc=None,
+    id_remap=None,
+) -> "SearchDocument":
     from .document import SearchDocument
 
-    # Create without calling __init__ — we'll set everything manually
-    sdoc = object.__new__(SearchDocument)
-    sdoc.name = d["name"]
-    sdoc._content_hash = d["content_hash"]
-    sdoc.lines = d["lines"]
-    sdoc.line_ranges = [tuple(r) for r in d["line_ranges"]]
-    sdoc.word_to_lines = _lines_dict_from_json(d["word_to_lines"])
-    sdoc.stem_to_lines = _lines_dict_from_json(d["stem_to_lines"])
-    sdoc._line_tokens = [(ln, tokens) for ln, tokens in d["line_tokens"]]
-    sdoc.ngram_index = deserialize_ngrams(d["ngram_index"])
-    sdoc.meta = deserialize_meta(d["meta"])
-    sdoc.doc = indexed_doc  # type: ignore[assignment]  # object.__new__ bypass
-    return sdoc
+    return SearchDocument.from_record(meta, blobs, vocab, indexed_doc, id_remap)
 
 
 # ── DocumentSearchIndex ──
 
 
-def _corpus_to_json(corpus: dict[str, dict[str, set[int]]]) -> dict[str, dict[str, list[int]]]:
-    return {stem: {doc: sorted(lines) for doc, lines in docs.items()} for stem, docs in corpus.items()}
-
-
-def _corpus_from_json(d: dict[str, dict[str, list[int]]]) -> dict[str, dict[str, set[int]]]:
-    return {stem: {doc: set(lines) for doc, lines in docs.items()} for stem, docs in d.items()}
-
-
-def serialize_search_index(idx: "DocumentSearchIndex") -> dict:
+def serialize_search_index(idx: "DocumentSearchIndex") -> tuple[dict, dict[str, bytes]]:
+    """(meta, blobs) for the whole index. Ids are relative to ``idx._vocab``,
+    whose term list travels in the head so a later load can re-base them."""
     snap = idx._snap
+    docs_meta = []
+    blobs: dict[str, bytes] = {}
+    for i, (name, sdoc) in enumerate(snap.documents.items()):
+        meta, doc_blobs = sdoc.to_record()
+        docs_meta.append(meta)
+        for key, blob in doc_blobs.items():
+            blobs[f"{i}.{key}"] = blob
     return {
-        "documents": {name: serialize_search_document(sdoc) for name, sdoc in snap.documents.items()},
-        "corpus_stems": _corpus_to_json(snap.corpus_stems),
-        "corpus_words": _corpus_to_json(snap.corpus_words),
-        "stem_df": snap.stem_df,
-        "name_stems": {k: sorted(v) for k, v in snap.name_stems.items()},
+        "vocab": list(idx._vocab.terms),
+        "documents": docs_meta,
         "doc_lengths": snap.doc_lengths,
         "avgdl": snap.avgdl,
-    }
+    }, blobs
 
 
-def deserialize_search_index(d: dict, doc_index: "DocumentIndex") -> "DocumentSearchIndex":
-    """Restore a DocumentSearchIndex from serialized data + backing DocumentIndex."""
+def deserialize_search_index(
+    meta: dict,
+    blobs: Mapping[str, bytes | memoryview],
+    doc_index: "DocumentIndex",
+) -> "DocumentSearchIndex":
+    """Restore a DocumentSearchIndex from :func:`serialize_search_index`
+    output + the backing DocumentIndex.
+
+    The cache's term ids are translated onto ``doc_index.vocab`` (the
+    live term dictionary), then the corpus tables are rebuilt from the
+    per-document arrays.
+    """
     from .annotators import DEFAULT_ANNOTATORS
-    from .index import DocumentSearchIndex, _Snapshot
+    from .document import SearchDocument
+    from .index import DocumentSearchIndex, _build_snapshot
     from .synonyms import DEFAULT_SYNONYMS
+
+    vocab = doc_index.vocab
+    cache_terms = meta.get("vocab", [])
+    id_remap: array | None = vocab.remap_from(cache_terms)
+    # Identity remap → skip the per-document translation entirely.
+    if id_remap is not None and all(i == t for i, t in enumerate(id_remap)):
+        id_remap = None
 
     idx = object.__new__(DocumentSearchIndex)
     idx._doc_index = doc_index
+    idx._vocab = vocab
     idx._annotators = list(DEFAULT_ANNOTATORS)
     idx._synonyms = DEFAULT_SYNONYMS
     idx._quote_ranges = []
@@ -188,34 +156,12 @@ def deserialize_search_index(d: dict, doc_index: "DocumentIndex") -> "DocumentSe
     idx._line_callers_cache = None
     idx._line_callers_qr_id = -1
 
-    # Restore documents
     documents: dict = {}
-    for name, sdoc_data in d.get("documents", {}).items():
-        backing_doc = doc_index.documents.get(name) if hasattr(doc_index, 'documents') else None
-        documents[name] = deserialize_search_document(sdoc_data, backing_doc)
+    backing = doc_index.documents if hasattr(doc_index, "documents") else {}
+    for i, doc_meta in enumerate(meta.get("documents", [])):
+        name = doc_meta["name"]
+        doc_blobs = {key: blobs[f"{i}.{key}"] for key in SearchDocument.BLOB_KEYS}
+        documents[name] = SearchDocument.from_record(doc_meta, doc_blobs, vocab, backing.get(name), id_remap)
 
-    # Restore doc_lengths / avgdl (compute if missing from old cache)
-    doc_lengths = d.get("doc_lengths")
-    avgdl = d.get("avgdl", 1.0)
-    if doc_lengths is None:
-        doc_lengths = {}
-        for name, sdoc in documents.items():
-            doc_lengths[name] = sum(len(lines) for lines in sdoc.word_to_lines.values())
-        N = len(documents)
-        total = sum(doc_lengths.values())
-        avgdl = total / N if N else 1.0
-        if avgdl == 0:
-            avgdl = 1.0
-
-    # Build snapshot — single atomic state object
-    idx._snap = _Snapshot(
-        documents=documents,
-        corpus_stems=_corpus_from_json(d.get("corpus_stems", {})),
-        corpus_words=_corpus_from_json(d.get("corpus_words", {})),
-        stem_df=d.get("stem_df", {}),
-        name_stems={k: set(v) for k, v in d.get("name_stems", {}).items()},
-        doc_lengths=doc_lengths,
-        avgdl=avgdl,
-    )
-
+    idx._snap = _build_snapshot(documents, DEFAULT_SYNONYMS, vocab)
     return idx
