@@ -49,6 +49,10 @@ A cache in the pre-blob JSON layout (v1) is never dropped, rewritten, or re-inde
 
 `pg wait` prints the notice right after "Ready.", `pg status` repeats it, and the daemon logs it at the level its default configuration writes. After a convert or rebuild, `pg cache migrate` removes the `*.v1.pgz` backups they left. An unreadable cache (neither layout) is reported and left in place as well. `test_legacy_cache.py` pins all of it: byte-identical cache files after load, queries, a reindex pass and a forced flush; v1 answers equal to a fresh index; documents whose text the history lacks are read from disk, empty files included; each choice's exact effect on disk.
 
+### What may enter a cache that travels
+
+The caches embed every indexed file's full text, so selection is a sharing decision. Two rules were missing: `.pgignore` patterns with a leading `/` are now anchored at the root as in gitignore (`/tmp` previously matched nothing, so a root-level scratch directory was indexed despite being listed), and a file that its own git repository ignores is never indexed — judged by the nearest repository above it (one `git check-ignore --stdin` per repository per walk), so a workspace that ignores its child checkouts at the top level says nothing about the files inside them. Local settings files with credentials were found in a shared cache this way. `test_select_ignore.py` pins both rules, including eviction on the next pass after a rule is added.
+
 Measured on the same workspace, v1 caches of 421 MB + 333 MB: start on v1 (streamed) 88–92 s, 1.7 GB; `pg cache convert` 43 s, all 3,232 v1 documents carried over (plus the 2 files that had appeared on disk meanwhile), backups byte-identical to the originals; restart on the converted 96 MB + 112 MB caches 17 s, 1.67 GB, probe queries identical to the v1-served answers.
 
 ## Result

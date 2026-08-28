@@ -16,15 +16,26 @@ DEFAULT_IGNORE = [".git", ".hg", ".svn", "node_modules", ".*"]
 
 
 def is_ignored(rel_path: str, patterns: "list[str] | tuple") -> bool:
-    """Check if a relative path matches any pattern (gitignore-style)."""
+    """Check if a relative path matches any pattern (gitignore-style).
+
+    A leading ``/`` anchors the pattern at the root (gitignore semantics):
+    ``/tmp`` matches ``tmp`` and ``tmp/...`` at the top level only, not
+    ``a/tmp``. Unanchored patterns match at any depth.
+    """
     parts = Path(rel_path).parts
     for pat in patterns:
         pat = str(pat)
         dir_only = pat.endswith("/")
-        p = pat.rstrip("/")
+        anchored = pat.startswith("/")
+        p = pat.strip("/")
+        if not p:
+            continue
         # Full path match
         if fnmatch.fnmatch(rel_path, p) or fnmatch.fnmatch(rel_path, p + "/*"):
             return True
+        if anchored:
+            # Root-relative only — no suffix or component matching.
+            continue
         # Any suffix of the path (gitignore matches at any level)
         for i in range(len(parts)):
             sub = str(Path(*parts[i:]))

@@ -1165,7 +1165,77 @@ class SearchStore:
                     if verdict != "ok":
                         continue
                     paths.append((fpath, rel))
-        return paths
+        return self._drop_gitignored(paths)
+
+    def _drop_gitignored(self, paths: list[tuple[Path, str]]) -> list[tuple[Path, str]]:
+        """Remove every path its own git repository ignores.
+
+        A file gitignored by the repository that contains it — local
+        settings, credentials, scratch notes — is never corpus material:
+        the index caches embed full text and travel with the workspace.
+        Each path is judged by the *nearest* repository above it (a
+        workspace of nested repos ignores its children at the top level,
+        which says nothing about the files inside them). One
+        ``git check-ignore --stdin`` per repository per walk.
+        """
+        import subprocess
+
+        root_cache: dict[Path, Path | None] = {}
+
+        def repo_of(p: Path) -> Path | None:
+            d = p.parent
+            chain = []
+            while True:
+                if d in root_cache:
+                    found = root_cache[d]
+                    break
+                chain.append(d)
+                if (d / ".git").exists():
+                    found = d
+                    break
+                if d.parent == d:
+                    found = None
+                    break
+                d = d.parent
+            for c in chain:
+                root_cache[c] = found
+            return found
+
+        by_repo: dict[Path, list[int]] = {}
+        for i, (fpath, _rel) in enumerate(paths):
+            repo = repo_of(fpath)
+            if repo is not None:
+                by_repo.setdefault(repo, []).append(i)
+
+        dropped: set[int] = set()
+        for repo, idxs in by_repo.items():
+            rels = [str(paths[i][0].relative_to(repo)) for i in idxs]
+            try:
+                out = subprocess.run(
+                    ["git", "-C", str(repo), "check-ignore", "--stdin", "-z"],
+                    input="\0".join(rels) + "\0",
+                    capture_output=True,
+                    text=True,
+                    timeout=60,
+                )
+            except (OSError, subprocess.SubprocessError) as e:
+                log.warning("git check-ignore unavailable for %s (%s); gitignore not applied there", repo, e)
+                continue
+            # exit 0: some ignored; 1: none; 128: not a repo / error
+            if out.returncode not in (0, 1):
+                log.warning("git check-ignore failed for %s: %s", repo, out.stderr.strip())
+                continue
+            ignored = set(filter(None, out.stdout.split("\0")))
+            for i, rel in zip(idxs, rels):
+                if rel in ignored:
+                    dropped.add(i)
+        if dropped:
+            log.info(
+                "%d file(s) skipped: gitignored by their own repository (e.g. %s)",
+                len(dropped),
+                paths[next(iter(dropped))][1],
+            )
+        return [p for i, p in enumerate(paths) if i not in dropped]
 
     def index_incremental(
         self,
