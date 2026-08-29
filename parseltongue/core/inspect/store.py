@@ -616,6 +616,9 @@ class SearchStore:
         # layout. Nothing is loaded, moved, or deleted until the operator
         # picks a `pg cache` choice.
         self.legacy = None
+        # Tokenizer version the loaded .six was built with, when it differs
+        # from this version's (None otherwise). Reported, never auto-fixed.
+        self.tokenizer_built_with: int | None = None
 
     def _history(self) -> History | None:
         """Get the History instance for this search store."""
@@ -785,10 +788,13 @@ class SearchStore:
         if self.legacy is not None:
             if self.legacy.six_path is None:
                 return None
+            from ..search_engine.document import TOKENIZER_VERSION
             from .legacy import convert_six
 
             t0 = time.perf_counter()
             result = convert_six(self.legacy.six_path, doc_index)
+            # A v1 cache was tokenized by v1; say so like any other version gap.
+            self.tokenizer_built_with = 1 if TOKENIZER_VERSION != 1 else None
             log.info(
                 "SearchStore.load_search_index [v1]: %d docs streamed from %s in %.1fs",
                 len(result.documents),
@@ -804,6 +810,17 @@ class SearchStore:
         meta, blobs = record
         t_read = time.perf_counter() - t0
         n_docs = len(meta.get("documents", []))
+        from ..search_engine.document import TOKENIZER_VERSION
+
+        built_with = meta.get("tokenizer", 1)
+        self.tokenizer_built_with = built_with if built_with != TOKENIZER_VERSION else None
+        if self.tokenizer_built_with is not None:
+            log.error(
+                "search index was built with tokenizer v%d; this version is v%d — "
+                "sub-token queries (paths, camelCase) miss until `pg reindex --force`",
+                built_with,
+                TOKENIZER_VERSION,
+            )
         log.info("SearchStore.load_search_index: cache read %.2fs (docs=%d, blobs=%d)", t_read, n_docs, len(blobs))
         try:
             t0 = time.perf_counter()

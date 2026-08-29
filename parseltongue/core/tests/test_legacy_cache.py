@@ -271,14 +271,26 @@ class TestStartIsReadOnly(LegacyCacheBase):
 
 class TestServedEqualsFresh(LegacyCacheBase):
     def test_v1_answers_match_a_fresh_index(self):
+        """Served-from-v1 answers equal a fresh index on plain-word queries
+        and never exceed it: a v1 cache lacks the sub-tokens the current
+        tokenizer emits (the start-up notice says so), so identifier
+        queries may find more in the fresh index, never less."""
         served = self._search()
+        self.assertTrue(any("tokenizer v1" in n for n in served.notices()))
         fresh_dir = os.path.join(TEST_DIR, ".bench-fresh")
         fresh = Search(SearchStore(store=Store(fresh_dir), path=TEST_DIR))
         fresh.index_dir(TEST_DIR)
-        for q in ("ALPHA_VALUE", "neural networks", "gamma doubles", "alpha"):
+        for q in ("neural networks", "gamma doubles", "alpha"):
             a = {(r["document"], r["line"]) for r in served.query(q)["lines"]}
             b = {(r["document"], r["line"]) for r in fresh.query(q)["lines"]}
             self.assertEqual(a, b, q)
+        # Identifier query: v1 has the underscore parts, so both answer; the
+        # fresh index may add lines reachable only through v2 units. (Queries
+        # that v1 cannot answer at all fall through to the meta strategy and
+        # yield doc-level hits instead — a different set, not a subset.)
+        a = {(r["document"], r["line"]) for r in served.query("ALPHA_VALUE")["lines"]}
+        b = {(r["document"], r["line"]) for r in fresh.query("ALPHA_VALUE")["lines"]}
+        self.assertTrue(a and a <= b)
 
 
 class TestTextsTrailingTheIndex(LegacyCacheBase):

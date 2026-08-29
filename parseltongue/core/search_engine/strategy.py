@@ -62,15 +62,27 @@ def _tokenize_query(query: str) -> tuple[str, ...]:
     "sys.ops_v2 raise"     → ("sys.ops_v2", "sys", "ops", "v2", "raise")
     "xyzzy_not_here_42"    → ("xyzzy_not_here_42", "xyzzy", "not", "here", "42")
     """
-    from .document import _COMPOUND_SPLIT
+    from .document import split_compound
 
+    # Sub-tokens come from the raw query (the camel split needs case);
+    # they are normalized alongside the whole so both sides of the index
+    # see the same pipeline.
+    raw_parts: list[str] = []
+    for raw in query.split():
+        raw_parts.extend(split_compound(raw))
     normalized, _, _ = normalize_with_mapping(query, _QUERY_CONFIG)
-    result = []
+    result: list[str] = []
+    seen: set[str] = set()
     for t in normalized.split():
-        result.append(t)
-        parts = _COMPOUND_SPLIT.split(t)
-        if len(parts) > 1:
-            result.extend(p for p in parts if p)
+        if t not in seen:
+            seen.add(t)
+            result.append(t)
+    for p in raw_parts:
+        n, _, _ = normalize_with_mapping(p, _QUERY_CONFIG)
+        for t in n.split():
+            if t not in seen:
+                seen.add(t)
+                result.append(t)
     return tuple(result)
 
 

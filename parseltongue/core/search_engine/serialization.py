@@ -114,8 +114,11 @@ def serialize_search_index(idx: "DocumentSearchIndex") -> tuple[dict, dict[str, 
         docs_meta.append(meta)
         for key, blob in doc_blobs.items():
             blobs[f"{i}.{key}"] = blob
+    from .document import TOKENIZER_VERSION
+
     return {
         "vocab": list(idx._vocab.terms),
+        "tokenizer": TOKENIZER_VERSION,
         "documents": docs_meta,
         "doc_lengths": snap.doc_lengths,
         "avgdl": snap.avgdl,

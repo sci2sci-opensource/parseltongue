@@ -348,11 +348,11 @@ class BenchServer:
             # about at the first contact, not only when they ask for status.
             if self._is_ready():
                 try:
-                    legacy = self.bench.index.legacy_cache
+                    notices = self.bench.index.notices()
                 except Exception:
-                    legacy = None
-                if legacy is not None:
-                    reply["notice"] = "\n".join(legacy.describe())
+                    notices = []
+                if notices:
+                    reply["notice"] = "\n".join(notices)
             return reply
 
         if action == "shutdown":
@@ -368,14 +368,15 @@ class BenchServer:
                 f"status={self.bench.status!r}",
                 f"integrity={self.bench.integrity!r}",
             ]
-            # A v1 corpus cache on disk: say so, and what the operator can do.
+            # Operator notices: a v1 corpus cache awaiting a decision, a
+            # search index built by another tokenizer version.
             try:
-                legacy = self.bench.index.legacy_cache if self._is_ready() else None
+                notices = self.bench.index.notices() if self._is_ready() else []
             except Exception:
-                legacy = None
-            if legacy is not None:
+                notices = []
+            if notices:
                 lines.append("")
-                lines.extend(legacy.describe())
+                lines.extend(notices)
             # Elaborate on corrupted integrity
             path = self.bench._current_path
             if path and self.bench.integrity[path] == "corrupted":
@@ -655,42 +656,32 @@ class BenchServer:
                     )
                 self._last_search = {"query": query, "limit": limit, "offset": offset}
 
-                # Group results by document, preserving first-seen order
-                from collections import OrderedDict
+                # Structured reply; the CLI renders (grouped / grep / json).
+                # "results" keeps the grouped text lines for the TUI client.
+                import json as _json
 
-                by_doc: OrderedDict[str, list[dict]] = OrderedDict()
-                for r in search_result.get("lines", []):
-                    by_doc.setdefault(r["document"], []).append(r)
-
-                out_lines: list[str] = []
-                for doc, entries in by_doc.items():
-                    if out_lines:
-                        out_lines.append("")
-                    out_lines.append(doc)
-                    prev_line = None
-                    for r in entries:
-                        line_no = r["line"]
-                        if prev_line and line_no - prev_line > 1:
-                            out_lines.append("")
-                        callers = ", ".join(c["name"] for c in r.get("callers", []))
-                        prefix = f"[{callers}] " if callers else ""
-                        out_lines.append(f"  {line_no:<6} {prefix}{r['context']}")
-                        prev_line = line_no
-                total = search_result.get("total_lines", 0)
-                shown = sum(len(v) for v in by_doc.values())
-                page = offset // limit + 1 if limit else 1
-                pages = (total + limit - 1) // limit if limit else 1
-                out_lines.append("")
-                if total > limit:
-                    out_lines.append(f"({offset + 1}-{offset + shown}/{total} results, page {page}/{pages})")
-                else:
-                    out_lines.append(f"({total} results)")
-                if sexp_warn:
-                    out_lines.insert(0, f"⚠ {sexp_warn}")
-                if search_warn:
-                    out_lines.insert(0, f"⚠ {search_warn}")
-                    out_lines.insert(1, "")
-                return {"ok": True, "results": out_lines}
+                search_warnings: list[str] = [w for w in (search_warn, sexp_warn) if w]
+                search_reply: dict[str, object] = {
+                    "ok": True,
+                    "lines": [
+                        {
+                            "document": r["document"],
+                            "line": r["line"],
+                            "context": r.get("context", ""),
+                            "callers": [c["name"] for c in r.get("callers", [])],
+                        }
+                        for r in search_result.get("lines", [])
+                    ],
+                    "total": search_result.get("total_lines", 0),
+                    "offset": offset,
+                    "limit": limit,
+                    "warnings": search_warnings,
+                }
+                grouped: list[str] = _render_search(search_reply, "grouped", _json).rstrip("\n").split("\n")
+                for w in reversed(search_warnings):
+                    grouped.insert(0, f"⚠ {w}")
+                search_reply["results"] = grouped
+                return search_reply
 
             elif action == "index":
                 # Handled separately via dispatch_stream
@@ -2350,14 +2341,39 @@ def stain(names: tuple[str, ...], bias: str):
 
 @cli.command()
 @click.argument("query", default="")
-@click.option("-n", "--limit", default=20, help="Results per page.")
+@click.option("-f", "--file", "query_file", default=None, help="Read the query from a file ('-' = stdin).")
+@click.option("-n", "--limit", default=0, help="Cap the number of result lines (0 = all).")
 @click.option("--offset", default=0, help="Skip first N results.")
-@click.option("--page", default=0, type=int, help="Jump to page (1-based). Overrides offset.")
-@click.option("--next", "go_next", is_flag=True, help="Next page of last search.")
-@click.option("--prev", "go_prev", is_flag=True, help="Previous page of last search.")
+@click.option("--page", default=0, type=int, help="Jump to page (1-based, needs -n). Overrides offset.")
+@click.option("--next", "go_next", is_flag=True, help="Next page of last search (needs -n).")
+@click.option("--prev", "go_prev", is_flag=True, help="Previous page of last search (needs -n).")
+@click.option(
+    "-o",
+    "--output",
+    "output",
+    type=click.Choice(["grouped", "grep", "json"]),
+    default=None,
+    help="grouped (default on a terminal), grep = path:line:text (default when piped), json = one object per line.",
+)
 @click.option("--profile", is_flag=True, help="Profile search and save to .parseltongue-bench/profiles/.")
-def search(query: str, limit: int, offset: int, page: int, go_next: bool, go_prev: bool, profile: bool):
+def search(
+    query: str,
+    query_file: str | None,
+    limit: int,
+    offset: int,
+    page: int,
+    go_next: bool,
+    go_prev: bool,
+    output: str | None,
+    profile: bool,
+):
     """Full-text search across indexed documents with pltg provenance.
+
+    \b
+    Pipes: the query can come from stdin or a file, and results print as
+    path:line:text when stdout is not a terminal (or with -o grep):
+      echo '(near 2 "celery" "beat")' | pg search -f - | cut -d: -f1 | sort -u
+      pg search '(in "OSS/xen" "cascade")' -o json | jq .document
 
     \b
     Plain strings are literal phrase searches:
@@ -2412,22 +2428,76 @@ def search(query: str, limit: int, offset: int, page: int, go_next: bool, go_pre
 
     Results include pltg provenance: [node.name] matching line
     """
+    import json as _json
+    import sys as _sys
+
+    if query_file:
+        query = (_sys.stdin.read() if query_file == "-" else Path(query_file).read_text()).strip()
+    elif not query and not go_next and not go_prev and not _sys.stdin.isatty():
+        query = _sys.stdin.read().strip()
     cmd: dict = {"action": "search", "limit": limit}
     if profile:
         cmd["profile"] = True
     if query:
         cmd["query"] = query
     if page > 0:
+        if not limit:
+            raise click.UsageError("--page needs -n/--limit.")
         offset = (page - 1) * limit
     if offset:
         cmd["offset"] = offset
+    if (go_next or go_prev) and not limit:
+        raise click.UsageError("--next/--prev need -n/--limit.")
     if go_next:
         cmd["next"] = True
     if go_prev:
         cmd["prev"] = True
     if not query and not go_next and not go_prev:
-        raise click.UsageError("Provide a query or use --next/--prev.")
-    _print_result(_query(cmd))
+        raise click.UsageError("Provide a query (argument, -f FILE, or stdin) or use --next/--prev.")
+    result = _query(cmd)
+    if not result.get("ok"):
+        click.echo(result.get("error", "Unknown error"), err=True)
+        raise SystemExit(1)
+    fmt = output or ("grouped" if _sys.stdout.isatty() else "grep")
+    for w in result.get("warnings", []):
+        click.echo(f"⚠ {w}", err=True)
+    click.echo(_render_search(result, fmt, _json), nl=False)
+
+
+def _render_search(result: dict, fmt: str, _json) -> str:
+    """Render a structured search reply. grep = path:line:text (pipe-safe,
+    one hit per line, no footer); json = one object per line; grouped =
+    by document with a result-count footer."""
+    lines = result.get("lines", [])
+    if fmt == "grep":
+        return "".join(f"{r['document']}:{r['line']}:{r['context']}\n" for r in lines)
+    if fmt == "json":
+        return "".join(_json.dumps(r, ensure_ascii=False) + "\n" for r in lines)
+    out: list[str] = []
+    prev_doc = None
+    prev_line = None
+    for r in lines:
+        if r["document"] != prev_doc:
+            if out:
+                out.append("")
+            out.append(r["document"])
+            prev_doc = r["document"]
+            prev_line = None
+        if prev_line and r["line"] - prev_line > 1:
+            out.append("")
+        callers = ", ".join(r.get("callers", []))
+        prefix = f"[{callers}] " if callers else ""
+        out.append(f"  {r['line']:<6} {prefix}{r['context']}")
+        prev_line = r["line"]
+    total, offset, limit = result.get("total", 0), result.get("offset", 0), result.get("limit", 0)
+    out.append("")
+    if limit and total > limit:
+        page = offset // limit + 1
+        pages = (total + limit - 1) // limit
+        out.append(f"({offset + 1}-{offset + len(lines)}/{total} results, page {page}/{pages})")
+    else:
+        out.append(f"({total} results)")
+    return "\n".join(out) + "\n"
 
 
 def _stream_index_progress(cmd: dict, every: int) -> None:

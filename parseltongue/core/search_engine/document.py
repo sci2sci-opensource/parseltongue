@@ -27,7 +27,54 @@ from .meta import MetaIndex, index_doc_name
 from .postings import CSR, EMPTY, LineSet, TermLines
 from .stemmer import stem
 
-_COMPOUND_SPLIT = _re.compile(r"[._\-]+")
+_COMPOUND_SPLIT = _re.compile(r"[._\-/]+")
+_UNIT_SPLIT = _re.compile(r"[./]+")  # path / module segments
+_PART_SPLIT = _re.compile(r"[_\-]+")  # snake / kebab parts within a segment
+_CAMEL_SPLIT = _re.compile(r"(?<=[a-z0-9])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])")
+_SIGILS = "@#$%&*()[]{}<>!?,;:'\"`~|\\^=+"
+
+#: Bump when split_compound changes what an index stores per word. A .six
+#: cache built by another version still loads, and `pg status` says it
+#: was tokenized differently — queries for parts only this version emits
+#: will miss until `pg reindex --force`.
+TOKENIZER_VERSION = 2
+
+
+def split_compound(word: str) -> list[str]:
+    """Sub-tokens of an identifier-like word, or [] if it has none.
+
+    Two levels, both emitted: the *units* between ``/`` and ``.`` (path and
+    module segments — ``widgets_v2``, ``inference_service``), and within
+    each unit the snake/kebab/camelCase *parts*. So
+    ``src/widgets_v2/AssetEntry.tsx`` → ``src``, ``widgets_v2``,
+    ``widgets``, ``v2``, ``assetentry``, ``asset``, ``entry``, ``tsx``;
+    ``app.services.inference_service`` → ``app``, ``services``,
+    ``inference_service``, ``inference``, ``service``. Leading/trailing
+    sigils (``@scope``, ``(foo``) are dropped. Everything is lowercased;
+    *word* may carry original case for the camel split.
+    """
+    lowered = word.lower()
+    seen: set[str] = set()
+    out: list[str] = []
+
+    def _emit(token: str) -> None:
+        token = token.strip(_SIGILS).lower()
+        if token and token != lowered and token not in seen:
+            seen.add(token)
+            out.append(token)
+
+    for unit in _UNIT_SPLIT.split(word):
+        if not unit:
+            continue
+        _emit(unit)
+        parts = [p for p in _PART_SPLIT.split(unit) if p]
+        camel_any = any(len(_CAMEL_SPLIT.split(p)) > 1 for p in parts)
+        if len(parts) > 1 or camel_any:
+            for p in parts:
+                _emit(p)
+                for c in _CAMEL_SPLIT.split(p):
+                    _emit(c)
+    return out
 
 
 if TYPE_CHECKING:
@@ -156,14 +203,21 @@ class SearchDocument:
             stemmed_id = vocab_id(stem(word))
             stem_lines[stemmed_id].append(line_num)
 
-            # Split compound tokens (dots, underscores, hyphens) into sub-parts
-            # "systems.operations_v2" → ["systems", "operations", "v2"]
-            parts = _COMPOUND_SPLIT.split(word)
-            if len(parts) > 1:
-                for part in parts:
-                    if part:
-                        word_lines[vocab_id(part)].append(line_num)
-                        stem_lines[vocab_id(stem(part))].append(line_num)
+            # Sub-tokens of identifier-like words: "systems.operations_v2" →
+            # systems, operations, v2; "src/widgets_v2/AssetEntry" → src,
+            # widgets_v2, widgets, v2, asset, entry. The camel split needs
+            # the original casing, which normalization dropped — take the
+            # word's span in the original text through the position map.
+            end = i - 1
+            if end < pm_len and len(word) > 1:
+                cased = orig_text[orig_pos : pos_map[end] + 1]
+                if len(cased) != len(word):
+                    cased = word
+            else:
+                cased = word
+            for part in split_compound(cased):
+                word_lines[vocab_id(part)].append(line_num)
+                stem_lines[vocab_id(stem(part))].append(line_num)
 
             per_line_stems[line_num].append(stemmed_id)
 

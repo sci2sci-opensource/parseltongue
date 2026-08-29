@@ -108,9 +108,25 @@ class Search:
 
     @property
     def legacy_cache(self):
-        """The untouched v1 cache found at load, or None. While set, the
-        corpus is empty by design — the operator has not chosen yet."""
+        """The untouched v1 cache found at load, or None."""
         return self._store.legacy
+
+    def notices(self) -> list[str]:
+        """Operator-facing state worth announcing at contact time: a v1
+        cache awaiting a decision, a search index built by another
+        tokenizer version. Empty when there is nothing to say."""
+        out: list[str] = []
+        if self._store.legacy is not None:
+            out.extend(self._store.legacy.describe())
+        built = getattr(self._store, "tokenizer_built_with", None)
+        if built is not None:
+            from parseltongue.core.search_engine.document import TOKENIZER_VERSION
+
+            out.append(
+                f"search index: built with tokenizer v{built}, this version is v{TOKENIZER_VERSION} — "
+                "queries for path segments / camelCase parts miss until `pg reindex --force`"
+            )
+        return out
 
     def cache_choice(self, choice: str, on_progress=None) -> str:
         """Apply the operator's decision about a v1 cache. Returns a summary.
@@ -175,8 +191,16 @@ class Search:
                 # Only after the new files exist: remove the set-aside v1 copies.
                 from .legacy import LegacyCache
 
-                gone = discard(LegacyCache(key=legacy.key, idx_path=moved[0] if moved else None, six_path=moved[1] if len(moved) > 1 else None))
-                return f"Migrated: {n} documents saved in the current layout; deleted " + ", ".join(p.name for p in gone)
+                gone = discard(
+                    LegacyCache(
+                        key=legacy.key,
+                        idx_path=moved[0] if moved else None,
+                        six_path=moved[1] if len(moved) > 1 else None,
+                    )
+                )
+                return f"Migrated: {n} documents saved in the current layout; deleted " + ", ".join(
+                    p.name for p in gone
+                )
             return f"Converted: {n} documents saved in the current layout; v1 files kept as " + ", ".join(
                 p.name for p in moved
             )
@@ -300,12 +324,25 @@ class Search:
             # Sync first — changes become searchable before the (slow) disk
             # writes below run.
             self._sync(updated, deleted)
+            if force:
+                # A forced pass re-reads files, but DocumentIndex.add keeps
+                # documents whose content hash is unchanged — so the search
+                # documents (tokenizer-dependent) must be rebuilt explicitly,
+                # or `pg reindex --force` after a tokenizer bump changes nothing.
+                self._rebuild_search_documents()
+                self._save_dirty = True
             if count > 0:
                 self._save_dirty = True
             if defer_save:
                 return count
             self._flush_saves_locked()
             return count
+
+    def _rebuild_search_documents(self) -> None:
+        """Re-derive every SearchDocument from the DocumentIndex with the
+        current tokenizer; clears the 'built with another tokenizer' notice."""
+        self._system._search_index._build()
+        self._store.tokenizer_built_with = None
 
     def flush_saves(self):
         """Write queued cache updates from defer_save passes to disk."""
@@ -358,7 +395,7 @@ class Search:
         # surrounding lines grouped with their matches.
         import re as _re_mod
 
-        if _re_mod.search(r'\(\s*(context|before|after)\b', text):
+        if _re_mod.search(r"\(\s*(context|before|after)\b", text):
             rank = "line"
 
         # Rank via the search system operator
@@ -367,9 +404,9 @@ class Search:
         rank_fn = self._system._pltg_system.engine.env[Symbol("rank")]
         ranked = rank_fn(rank, posting)
 
-        # Paginate
+        # Paginate; max_lines=0 means everything from offset on.
         all_values = list(ranked.values())
-        page = all_values[offset : offset + max_lines]
+        page = all_values[offset : offset + max_lines] if max_lines else all_values[offset:]
 
         all_callers: set[str] = set()
         for ln in all_values:
