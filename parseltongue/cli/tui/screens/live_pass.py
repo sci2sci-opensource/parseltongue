@@ -18,7 +18,6 @@ from textual.widgets import (
     Static,
     TabbedContent,
     TabPane,
-    Tree,
 )
 
 from ..widgets import FocusedTree
@@ -208,14 +207,14 @@ class LivePassScreen(ResizableSplitMixin, Screen):
     def _refresh_state_tree(self) -> None:
         from ..widgets.tree_builders import populate_system_tree
 
-        tree = self.query_one("#state-tree", Tree)
+        tree = self.query_one("#state-tree", FocusedTree)
         tree.clear()
         tree.root.expand()
         populate_system_tree(tree.root, self._pipeline.system)
 
     def action_ref_clicked(self, ref_type: str, ref_name: str) -> None:
         """Handle @click from PassViewer refs — highlight in state tree."""
-        tree = self.query_one("#state-tree", Tree)
+        tree = self.query_one("#state-tree", FocusedTree)
         tree.root.expand()
         for node in tree.root.children:
             node.expand()
