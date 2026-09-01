@@ -80,6 +80,15 @@ def run_pipeline(
                 config.ingest_errors[name] = str(exc)
                 progress(f"Skipping {name}: {exc}")
 
+        # Pipeline exposes no public accessor for its documents; _documents is
+        # the only way to check whether anything actually made it through ingest.
+        if not pipeline._documents:
+            failed = "; ".join(f"{name} ({reason})" for name, reason in config.ingest_errors.items())
+            raise ValueError(
+                f"No documents could be ingested. Failed: {failed}. "
+                "Check the paths passed via -d NAME:PATH."
+            )
+
         progress("Running pipeline (4 passes: extract → derive → factcheck → answer)...")
         result = pipeline.run(config.query)
         progress("Done.")
