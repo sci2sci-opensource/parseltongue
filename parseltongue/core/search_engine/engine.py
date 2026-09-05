@@ -48,6 +48,8 @@ class QueryEngine:
             self._search_index = DocumentSearchIndex(index)
         self._form_to_posting: Callable = form_to_posting or (lambda v: {})
 
+        from .highlight import merge_matches
+
         eng = self  # capture
 
         def _resolve(x: str | Posting | Sentence) -> Posting | Sentence:
@@ -68,14 +70,15 @@ class QueryEngine:
             sets = [_as_posting(a) for a in args]
             result = sets[0]
             for s in sets[1:]:
-                result = {k: v for k, v in result.items() if k in s}
+                result = {k: merge_matches(v, s[k]) for k, v in result.items() if k in s}
             return result
 
         def _or(*args: str | Posting | Sentence) -> Posting:
             sets = [_as_posting(a) for a in args]
             result = dict(sets[0])
             for s in sets[1:]:
-                result.update(s)
+                for k, v in s.items():
+                    result[k] = merge_matches(result[k], v) if k in result else v
             return result
 
         def _not(*args: str | Posting | Sentence) -> Posting:
@@ -150,7 +153,7 @@ class QueryEngine:
                 doc, line = k
                 b_lines = b_by_doc.get(doc, set())
                 if any(abs(line - bl) <= n for bl in b_lines):
-                    result[k] = v
+                    result[k] = merge_matches(v, sb[k]) if k in sb else v
             return result
 
         def _seq(a: str | Posting | Sentence, b: str | Posting | Sentence) -> Posting:
@@ -182,6 +185,7 @@ class QueryEngine:
                             "line": i,
                             "column": 1,
                             "context": line_text,
+                            "_match_regex": (pattern,),
                             "callers": [],
                             "total_callers": 0,
                         }

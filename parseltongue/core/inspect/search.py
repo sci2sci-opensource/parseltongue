@@ -116,6 +116,8 @@ class Search:
         cache awaiting a decision, a search index built by another
         tokenizer version. Empty when there is nothing to say."""
         out: list[str] = []
+        if not self._system._engine._search_index._snap.has_match_positions:
+            out.append("search index lacks highlight positions — run `pg reindex --force` to build them")
         if self._store.legacy is not None:
             out.extend(self._store.legacy.describe())
         built = getattr(self._store, "tokenizer_built_with", None)
@@ -373,6 +375,7 @@ class Search:
         max_callers: int = 5,
         offset: int = 0,
         rank: str = "callers",
+        highlights: bool = False,
     ) -> dict:
         """Search and format results for display.
 
@@ -388,7 +391,7 @@ class Search:
         Each line: {document, line, column, context, callers, total_callers}.
         """
         # All queries go through SearchSystem2 — RRF + BM25 pipeline
-        result = self._system.evaluate(text.strip())
+        result = self._system.evaluate(text.strip(), preserve_postings=True)
         posting = self._to_display_posting(result)
 
         # Context/before/after queries need line-order ranking to keep
@@ -408,6 +411,12 @@ class Search:
         all_values = list(ranked.values())
         page = all_values[offset : offset + max_lines] if max_lines else all_values[offset:]
 
+        from parseltongue.core.search_engine.highlight import highlight_entry
+
+        if highlights:
+            page = [highlight_entry(self._system._engine._search_index, entry) for entry in page]
+        else:
+            page = [{k: v for k, v in entry.items() if not k.startswith("_match_")} for entry in page]
         all_callers: set[str] = set()
         for ln in all_values:
             for c in ln.get("callers", []):

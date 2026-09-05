@@ -99,9 +99,15 @@ class SearchDocument:
         "_words",
         "_stems",
         "_line_stems",
+        "_match_starts",
+        "_match_ends",
+        "_nonbmp",
     )
 
     doc: "IndexedDocument"
+    _match_starts: CSR | None
+    _match_ends: array | None
+    _nonbmp: array | None
 
     def __init__(self, doc: "IndexedDocument", vocab: Vocab | None = None):
         self.name = doc.name
@@ -131,6 +137,9 @@ class SearchDocument:
         line_stems: CSR,
         meta: MetaIndex,
         doc: "IndexedDocument | None",
+        match_starts: CSR | None = None,
+        match_ends: array | None = None,
+        nonbmp: array | None = None,
     ) -> "SearchDocument":
         """Assemble from persisted parts — no indexing work."""
         sdoc = object.__new__(cls)
@@ -144,6 +153,9 @@ class SearchDocument:
         sdoc._words = words
         sdoc._stems = stems
         sdoc._line_stems = line_stems
+        sdoc._match_starts = match_starts
+        sdoc._match_ends = match_ends
+        sdoc._nonbmp = nonbmp
         return sdoc
 
     def _build_line_indices(self):
@@ -178,6 +190,8 @@ class SearchDocument:
         word_lines: dict[int, list[int]] = defaultdict(list)
         stem_lines: dict[int, list[int]] = defaultdict(list)
         per_line_stems: dict[int, list[int]] = defaultdict(list)
+        match_spans: dict[int, list[tuple[int, int]]] = defaultdict(list)
+        self._nonbmp = array(U32, (m.start() for m in _re.finditer(r"[\U00010000-\U0010ffff]", orig_text)))
         pm_len = len(pos_map)
 
         # Walk normalized text, extract words, map each to original line
@@ -202,6 +216,8 @@ class SearchDocument:
             word_lines[vocab_id(word)].append(line_num)
             stemmed_id = vocab_id(stem(word))
             stem_lines[stemmed_id].append(line_num)
+            orig_end = pos_map[i - 1] + 1
+            match_spans[stemmed_id].append((orig_pos, orig_end))
 
             # Sub-tokens of identifier-like words: "systems.operations_v2" →
             # systems, operations, v2; "src/widgets_v2/AssetEntry" → src,
@@ -217,10 +233,24 @@ class SearchDocument:
                 cased = word
             for part in split_compound(cased):
                 word_lines[vocab_id(part)].append(line_num)
-                stem_lines[vocab_id(stem(part))].append(line_num)
+                part_id = vocab_id(stem(part))
+                stem_lines[part_id].append(line_num)
+                # Resolve compound ranges once, while building the index.
+                original = orig_text[orig_pos:orig_end]
+                for match in _re.finditer(_re.escape(part), original, _re.I):
+                    match_spans[part_id].append((orig_pos + match.start(), orig_pos + match.end()))
 
             per_line_stems[line_num].append(stemmed_id)
 
+        terms = array(U32, sorted(match_spans))
+        offsets, starts, ends = array(U32, [0]), array(U32), array(U32)
+        for tid in terms:
+            for a, b in sorted(set(match_spans[tid])):
+                starts.append(a)
+                ends.append(b)
+            offsets.append(len(starts))
+        self._match_starts = CSR(terms, offsets, starts)
+        self._match_ends = ends
         self._words = CSR.build(word_lines)
         self._stems = CSR.build(stem_lines)
         # Line → stem sequence, in token order (not deduped, not sorted).
@@ -344,9 +374,16 @@ class SearchDocument:
         blobs.update(self._words.to_blobs("wl"))
         blobs.update(self._stems.to_blobs("sl"))
         blobs.update(self._line_stems.to_blobs("lt"))
+        if self._match_starts is not None:
+            assert self._match_ends is not None and self._nonbmp is not None
+            blobs.update(self._match_starts.to_blobs("hp"))
+            blobs["he"] = self._match_ends.tobytes()
+            blobs["nb"] = self._nonbmp.tobytes()
         return meta, blobs
 
     BLOB_KEYS = ("tx", "ls", "wl.t", "wl.o", "wl.v", "sl.t", "sl.o", "sl.v", "lt.t", "lt.o", "lt.v")
+
+    POSITION_BLOB_KEYS = ("hp.t", "hp.o", "hp.v", "he", "nb")
 
     @classmethod
     def from_record(
@@ -364,6 +401,18 @@ class SearchDocument:
         words = CSR.from_blobs(blobs, "wl")
         stems = CSR.from_blobs(blobs, "sl")
         line_stems = CSR.from_blobs(blobs, "lt")
+        match_starts = None
+        match_ends = nonbmp = None
+        if "hp.t" in blobs:
+            match_starts = CSR.from_blobs(blobs, "hp")
+            match_ends, nonbmp = array(U32), array(U32)
+            match_ends.frombytes(blobs["he"])
+            nonbmp.frombytes(blobs["nb"])
+            if id_remap is not None:
+                # Reorder both parallel arrays by the same term permutation.
+                end_table = CSR(match_starts.terms, match_starts.offsets, match_ends).remapped(id_remap)
+                match_starts = match_starts.remapped(id_remap)
+                match_ends = end_table.values
         if id_remap is not None:
             words = words.remapped(id_remap)
             stems = stems.remapped(id_remap)
@@ -384,4 +433,7 @@ class SearchDocument:
             line_stems=line_stems,
             meta=deserialize_meta(meta.get("meta", {})),
             doc=doc,
+            match_starts=match_starts,
+            match_ends=match_ends,
+            nonbmp=nonbmp,
         )

@@ -164,6 +164,9 @@ def deserialize_search_index(
     for i, doc_meta in enumerate(meta.get("documents", [])):
         name = doc_meta["name"]
         doc_blobs = {key: blobs[f"{i}.{key}"] for key in SearchDocument.BLOB_KEYS}
+        doc_blobs.update(
+            {key: blobs[f"{i}.{key}"] for key in SearchDocument.POSITION_BLOB_KEYS if f"{i}.{key}" in blobs}
+        )
         documents[name] = SearchDocument.from_record(doc_meta, doc_blobs, vocab, backing.get(name), id_remap)
 
     idx._snap = _build_snapshot(documents, DEFAULT_SYNONYMS, vocab)

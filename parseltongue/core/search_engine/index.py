@@ -113,6 +113,7 @@ class _Snapshot:
     name_stems: dict[str, set[str]] = field(default_factory=dict)
     doc_lengths: dict[str, int] = field(default_factory=dict)
     avgdl: float = 1.0
+    has_match_positions: bool = True
 
 
 def _name_stems_of(doc_name: str) -> set[str]:
@@ -220,6 +221,7 @@ def _build_snapshot(
 
     return _Snapshot(
         documents=docs,
+        has_match_positions=all(doc._match_starts is not None for doc in docs.values()),
         corpus_words=CorpusPostings(CSR.from_pairs(word_keys, word_vals, key_space), doc_names, vocab),
         corpus_stems=CorpusPostings(
             CSR.from_pairs(stem_keys, stem_vals, key_space),
@@ -494,7 +496,10 @@ class DocumentSearchIndex:
 
         Returns a posting set with callers and overlap filled in.
         """
-        return self.enrich(self.lookup(query, strategy))
+        posting = self.enrich(self.lookup(query, strategy))
+        for entry in posting.values():
+            entry["_match_queries"] = (query,)
+        return posting
 
     # ── Quote provenance enrichment ──
 

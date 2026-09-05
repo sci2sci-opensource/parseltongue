@@ -314,14 +314,20 @@ class Bench:
     # ── Search ──
 
     def search(
-        self, query: str, max_lines: int = 20, max_callers: int = 5, offset: int = 0, rank: str = "callers"
+        self,
+        query: str,
+        max_lines: int = 20,
+        max_callers: int = 5,
+        offset: int = 0,
+        rank: str = "callers",
+        highlights: bool = False,
     ) -> dict:
         """Full-text search across all loaded documents with pltg provenance."""
         path = self._require_current()
         if path not in self._mem:
             self.prepare(path)
         return self._technician.search_engine(path).query(
-            query, max_lines=max_lines, max_callers=max_callers, offset=offset, rank=rank
+            query, max_lines=max_lines, max_callers=max_callers, offset=offset, rank=rank, highlights=highlights
         )
 
     def eval(self, query: str):

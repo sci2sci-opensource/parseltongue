@@ -632,6 +632,7 @@ class BenchServer:
                         max_lines=limit,
                         max_callers=5,
                         offset=offset,
+                        highlights=bool(cmd.get("highlights", False)),
                     )
                     prof.disable()
                     prof_dir = BENCH_DIR / "profiles"
@@ -653,6 +654,7 @@ class BenchServer:
                         max_lines=limit,
                         max_callers=5,
                         offset=offset,
+                        highlights=bool(cmd.get("highlights", False)),
                     )
                 self._last_search = {"query": query, "limit": limit, "offset": offset}
 
@@ -668,6 +670,11 @@ class BenchServer:
                             "document": r["document"],
                             "line": r["line"],
                             "context": r.get("context", ""),
+                            **(
+                                {"highlights": r.get("highlights", []), "matched_terms": r.get("matched_terms", [])}
+                                if cmd.get("highlights", False)
+                                else {}
+                            ),
                             "callers": [c["name"] for c in r.get("callers", [])],
                         }
                         for r in search_result.get("lines", [])
@@ -2355,6 +2362,11 @@ def stain(names: tuple[str, ...], bias: str):
     default=None,
     help="grouped (default on a terminal), grep = path:line:text (default when piped), json = one object per line.",
 )
+@click.option(
+    "--highlights/--no-highlights",
+    default=False,
+    help="Include highlight ranges and matched terms in JSON output (off by default).",
+)
 @click.option("--no-pager", is_flag=True, help="Print directly instead of paging terminal output.")
 @click.option("--profile", is_flag=True, help="Profile search and save to .parseltongue-bench/profiles/.")
 def search(
@@ -2368,6 +2380,7 @@ def search(
     output: str | None,
     profile: bool,
     no_pager: bool,
+    highlights: bool,
 ):
     """Full-text search across indexed documents with pltg provenance.
 
@@ -2443,6 +2456,8 @@ def search(
     elif not query and not go_next and not go_prev and not _sys.stdin.isatty():
         query = _sys.stdin.read().strip()
     cmd: dict = {"action": "search", "limit": limit}
+    if highlights:
+        cmd["highlights"] = True
     if profile:
         cmd["profile"] = True
     if query:

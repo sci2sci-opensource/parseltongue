@@ -69,3 +69,19 @@ def test_pager_can_stop_rendering_early(monkeypatch):
     result = CliRunner().invoke(bench_cli.cli, ["search", "first", "-o", "grep"])
     assert result.exit_code == 0, result.output
     assert os.environ["LESS"] == "-S"
+
+
+@pytest.mark.parametrize(
+    'flags,enabled', [([], False), (['--highlights'], True), (['--highlights', '--no-highlights'], False)]
+)
+def test_highlights_are_explicit(monkeypatch, flags, enabled):
+    calls = []
+
+    def query(cmd):
+        calls.append(cmd)
+        return {'ok': True, 'lines': []}
+
+    monkeypatch.setattr(bench_cli, '_query', query)
+    result = CliRunner().invoke(bench_cli.cli, ['search', 'azure', '-o', 'json', *flags])
+    assert result.exit_code == 0, result.output
+    assert calls[0].get('highlights', False) is enabled
