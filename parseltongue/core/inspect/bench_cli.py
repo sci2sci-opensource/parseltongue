@@ -2355,6 +2355,7 @@ def stain(names: tuple[str, ...], bias: str):
     default=None,
     help="grouped (default on a terminal), grep = path:line:text (default when piped), json = one object per line.",
 )
+@click.option("--no-pager", is_flag=True, help="Print directly instead of paging terminal output.")
 @click.option("--profile", is_flag=True, help="Profile search and save to .parseltongue-bench/profiles/.")
 def search(
     query: str,
@@ -2366,8 +2367,14 @@ def search(
     go_prev: bool,
     output: str | None,
     profile: bool,
+    no_pager: bool,
 ):
     """Full-text search across indexed documents with pltg provenance.
+
+    \b
+    Terminal results open in a pager: arrows/Space to scroll, q to quit.
+    Short replies exit automatically with the default less pager.
+    Use --no-pager for direct output; PAGER and LESS customize paging.
 
     \b
     Pipes: the query can come from stdin or a file, and results print as
@@ -2461,43 +2468,62 @@ def search(
     fmt = output or ("grouped" if _sys.stdout.isatty() else "grep")
     for w in result.get("warnings", []):
         click.echo(f"⚠ {w}", err=True)
-    click.echo(_render_search(result, fmt, _json), nl=False)
+    chunks = _iter_search(result, fmt, _json)
+    if not no_pager and _sys.stdout.isatty() and _sys.stdin.isatty():
+        # Let Click handle pager selection, streaming writes, and early quit.
+        # Preserve user options; -F leaves short replies directly on screen.
+        old_less = os.environ.get("LESS")
+        if old_less is None:
+            os.environ["LESS"] = "-FRX"
+        try:
+            click.echo_via_pager(chunks)
+        finally:
+            if old_less is None:
+                os.environ.pop("LESS", None)
+    else:
+        for chunk in chunks:
+            click.echo(chunk, nl=False)
 
 
 def _render_search(result: dict, fmt: str, _json) -> str:
-    """Render a structured search reply. grep = path:line:text (pipe-safe,
-    one hit per line, no footer); json = one object per line; grouped =
-    by document with a result-count footer."""
+    """Materialize search output for clients that need a single string."""
+    return "".join(_iter_search(result, fmt, _json))
+
+
+def _iter_search(result: dict, fmt: str, _json):
+    """Yield formatted lines without building another copy of the full reply."""
     lines = result.get("lines", [])
     if fmt == "grep":
-        return "".join(f"{r['document']}:{r['line']}:{r['context']}\n" for r in lines)
+        for r in lines:
+            yield f"{r['document']}:{r['line']}:{r['context']}\n"
+        return
     if fmt == "json":
-        return "".join(_json.dumps(r, ensure_ascii=False) + "\n" for r in lines)
-    out: list[str] = []
+        for r in lines:
+            yield _json.dumps(r, ensure_ascii=False) + "\n"
+        return
     prev_doc = None
     prev_line = None
     for r in lines:
         if r["document"] != prev_doc:
-            if out:
-                out.append("")
-            out.append(r["document"])
+            if prev_doc is not None:
+                yield "\n"
+            yield r["document"] + "\n"
             prev_doc = r["document"]
             prev_line = None
         if prev_line and r["line"] - prev_line > 1:
-            out.append("")
+            yield "\n"
         callers = ", ".join(r.get("callers", []))
         prefix = f"[{callers}] " if callers else ""
-        out.append(f"  {r['line']:<6} {prefix}{r['context']}")
+        yield f"  {r['line']:<6} {prefix}{r['context']}\n"
         prev_line = r["line"]
     total, offset, limit = result.get("total", 0), result.get("offset", 0), result.get("limit", 0)
-    out.append("")
+    yield "\n"
     if limit and total > limit:
         page = offset // limit + 1
         pages = (total + limit - 1) // limit
-        out.append(f"({offset + 1}-{offset + len(lines)}/{total} results, page {page}/{pages})")
+        yield f"({offset + 1}-{offset + len(lines)}/{total} results, page {page}/{pages})\n"
     else:
-        out.append(f"({total} results)")
-    return "\n".join(out) + "\n"
+        yield f"({total} results)\n"
 
 
 def _stream_index_progress(cmd: dict, every: int) -> None:
