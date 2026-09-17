@@ -15,17 +15,94 @@ default treats foreign forms as empty postings.
 
 from __future__ import annotations
 
+import re as _re_mod
+from array import array
+from bisect import bisect_right
+from itertools import accumulate
 from typing import TYPE_CHECKING, Callable
 
 from parseltongue.core.atoms import Symbol
 from parseltongue.core.lang import Sentence, is_sentence_list
+from parseltongue.core.quote_verifier.posmap import U32
 
 if TYPE_CHECKING:
     from parseltongue.core.quote_verifier import DocumentIndex
+    from parseltongue.core.quote_verifier.vocab import Vocab
 
     from .index import DocumentSearchIndex
 
 Posting = dict
+
+# ── regex → vocabulary: the term-dictionary route for (re …) ──
+#
+# A regex over the corpus is a full scan unless something narrows the
+# documents first. The narrowing is Lucene's: every match of a pattern
+# contains the pattern's required literals, so a document without a term
+# containing such a literal cannot match. What makes this exact here is
+# the indexer's normalisation (quote_verifier.normalizer with the default
+# config): text is lowercased, prose punctuation and newlines become
+# spaces, a hyphen at a line break is dropped, a numbered-list marker at a
+# line start is dropped, and nothing else changes. A run of ASCII letters,
+# digits and underscores is therefore never split, never altered beyond
+# case, and lands inside one stored token — unless it is all digits, which
+# a list marker can eat. Such a run is a *safe run*; the longest safe run
+# of a required literal is a substring of some vocabulary term of every
+# matching document.
+
+_SAFE_RUN = _re_mod.compile(r"[a-z0-9_]+")
+_MIN_RUN = 3
+
+
+def _required_literals(parsed) -> list[str]:
+    """Literal strings every match of a parsed pattern must contain.
+
+    Walks the top-level sequence: adjacent LITERAL nodes join into one
+    string; a group or a repeat with a minimum of one contributes its own
+    required literals as separate strings; anything else breaks the run.
+    Conservative on purpose: a shorter literal is still a valid narrowing.
+    """
+    from re import _constants as C  # type: ignore[attr-defined]
+
+    out: list[str] = []
+    cur: list[str] = []
+
+    def flush() -> None:
+        if cur:
+            out.append("".join(cur))
+            cur.clear()
+
+    for op, av in parsed:
+        if op is C.LITERAL:
+            cur.append(chr(av))
+        elif op is C.SUBPATTERN:
+            flush()
+            out.extend(_required_literals(av[3]))
+        elif op in (C.MAX_REPEAT, C.MIN_REPEAT, getattr(C, "POSSESSIVE_REPEAT", C.MAX_REPEAT)) and av[0] >= 1:
+            flush()
+            out.extend(_required_literals(av[2]))
+        else:
+            flush()
+    flush()
+    return out
+
+
+def narrowing_run(pattern: str) -> str | None:
+    """The longest safe run of the pattern's required literals, lowercased,
+    or None when the pattern gives no narrowing (then scan everything)."""
+    try:
+        from re import _parser  # type: ignore[attr-defined]
+
+        parsed = _parser.parse(pattern)
+    except Exception:
+        return None
+    best: str | None = None
+    for literal in _required_literals(parsed):
+        for run in _SAFE_RUN.findall(literal.lower()):
+            if len(run) < _MIN_RUN or run.isdigit():
+                continue
+            if best is None or len(run) > len(best):
+                best = run
+    return best
 
 
 class QueryEngine:
@@ -47,6 +124,8 @@ class QueryEngine:
             self._index = index
             self._search_index = DocumentSearchIndex(index)
         self._form_to_posting: Callable = form_to_posting or (lambda v: {})
+        # Joined term dictionary for substring scans: (vocab size, text, term start offsets).
+        self._term_scan: tuple[int, str, array] | None = None
 
         from .highlight import merge_matches
 
@@ -183,15 +262,34 @@ class QueryEngine:
                     b_by_doc[doc] = line
             return {k: v for k, v in sa.items() if k[0] in b_by_doc and k[1] < b_by_doc[k[0]]}
 
-        def _re(pattern: str, source: str | Posting | Sentence | None = None) -> Posting:
-            import re as _re_mod
+        def _candidate_docs(pattern: str) -> set[str] | None:
+            """Documents that can match *pattern*, via the vocabulary; None
+            when the pattern or the index configuration gives no narrowing."""
+            config = getattr(eng._index, "config", None)
+            if config is None or config.case_sensitive or config.remove_stopwords:
+                return None
+            run = narrowing_run(pattern)
+            if run is None:
+                return None
+            corpus = eng._search_index._snap.corpus_words
+            names = corpus.doc_names
+            docs: set[str] = set()
+            for tid in eng._terms_containing(corpus.vocab, run):
+                ids = corpus.docs_by_id(tid)
+                if ids is not None:
+                    docs.update(names[d] for d in ids)
+            return docs
 
+        def _re(pattern: str, source: str | Posting | Sentence | None = None) -> Posting:
             rx = _re_mod.compile(pattern)
             if source is not None:
                 posting = _as_posting(source)
-                doc_names = {k[0] for k in posting}
+                doc_names: set[str] | None = {k[0] for k in posting}
             else:
                 doc_names = None
+            candidates = _candidate_docs(pattern)
+            if candidates is not None:
+                doc_names = candidates if doc_names is None else doc_names & candidates
             result: Posting = {}
             for doc_name, sdoc in eng._search_index.documents.items():
                 if doc_names is not None and doc_name not in doc_names:
@@ -334,6 +432,38 @@ class QueryEngine:
     def _to_posting(self, text: str) -> Posting:
         """Default lookup: cascade strategy + quote enrichment."""
         return self._search_index.search(text)
+
+    def _terms_containing(self, vocab: "Vocab", run: str) -> list[int]:
+        """Ids of vocabulary terms that contain *run* as a substring.
+
+        The term dictionary is scanned as one newline-joined string with
+        ``str.find`` and each hit mapped back to its term by bisect over the
+        term start offsets — the Lucene move of intersecting the pattern
+        with the dictionary instead of walking the corpus. The joined text
+        is rebuilt only when the vocabulary has grown (it is append-only),
+        so a query pays one C-level scan of a few megabytes. *run* never
+        contains a newline, so a hit never spans two terms.
+        """
+        terms = vocab.terms
+        n = len(terms)
+        cache = self._term_scan
+        if cache is None or cache[0] != n:
+            text = "\n".join(terms)
+            starts = array(U32, [0])
+            starts.extend(accumulate(len(t) + 1 for t in terms))
+            cache = self._term_scan = (n, text, starts)
+        _, text, starts = cache
+        end = len(text)
+        ids: list[int] = []
+        pos = text.find(run)
+        while pos != -1:
+            tid = bisect_right(starts, pos) - 1
+            ids.append(tid)
+            nxt = starts[tid + 1]
+            if nxt >= end:
+                break
+            pos = text.find(run, nxt)
+        return ids
 
     def refresh(self):
         """Sync the search index with the underlying DocumentIndex."""
