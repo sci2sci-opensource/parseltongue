@@ -101,6 +101,25 @@ class QueryEngine:
             # Auto-glob: wrap with * so "atoms.py" matches "parseltongue/core/atoms.py"
             return fnmatch.fnmatch(d, f"*{p}*")
 
+        def _filter_docs(posting: Posting, pred) -> Posting:
+            """Keep postings whose document satisfies ``pred``.
+
+            The predicate is evaluated once per distinct document, not once
+            per posting: a corpus-wide posting set has hundreds of thousands
+            of lines over a few thousand documents, and ``pred`` is a glob
+            match per call.
+            """
+            verdict: dict[str, bool] = {}
+            out: Posting = {}
+            for k, v in posting.items():
+                d = k[0]
+                ok = verdict.get(d)
+                if ok is None:
+                    ok = verdict[d] = bool(pred(d))
+                if ok:
+                    out[k] = v
+            return out
+
         def _in(source: str | Posting | Sentence, query: str | Posting | Sentence | None = None) -> Posting:
             def pred(d):
                 return _match_doc(d, source)
@@ -108,7 +127,7 @@ class QueryEngine:
             if query is None:
                 return eng._search_index.match_docs(pred)
             posting = _as_posting(query)
-            filtered = {k: v for k, v in posting.items() if pred(k[0])}
+            filtered = _filter_docs(posting, pred)
             if filtered or not posting:
                 return filtered
             # Global search found results but none in the target docs.
@@ -132,7 +151,7 @@ class QueryEngine:
             if query is None:
                 return eng._search_index.match_docs(pred)
             posting = _as_posting(query)
-            return {k: v for k, v in posting.items() if pred(k[0])}
+            return _filter_docs(posting, pred)
 
         def _count(*args: str | Posting | Sentence) -> int:
             v = _resolve(args[0])
