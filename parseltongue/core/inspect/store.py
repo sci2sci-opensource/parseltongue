@@ -356,7 +356,9 @@ class Store:
         prefix = self._cache_key(key)
         if not self._dir.exists():
             return []
-        return sorted(p for p in self._dir.iterdir() if p.name.startswith(prefix) and ".v1" in p.name and p.suffix == ".pgz")
+        return sorted(
+            p for p in self._dir.iterdir() if p.name.startswith(prefix) and ".v1" in p.name and p.suffix == ".pgz"
+        )
 
     def history(self, key: str, max_layers: int = 42) -> History:
         """Get a History instance for a given cache key.
