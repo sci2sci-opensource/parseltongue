@@ -1248,6 +1248,7 @@ def _run_server(
     effects: dict | None = None,
     user: str | None = None,
     assistant: str | None = None,
+    fs: "LoaderFS | None" = None,
 ):
     _setup_file_logging(log_level)
     sock_path.parent.mkdir(parents=True, exist_ok=True)
@@ -1266,7 +1267,7 @@ def _run_server(
     sock.listen(4)
     _registry_add(str(sock_path), os.getpid(), str(Path(pltg_path).resolve()))
 
-    server = BenchServer(pltg_path, background=True, effects=effects, user=user, assistant=assistant)
+    server = BenchServer(pltg_path, background=True, effects=effects, user=user, assistant=assistant, fs=fs)
     click.echo(f"Listening on {sock_path}")
     click.echo(f"Loading {pltg_path} ...")
     server.start_background_load()
@@ -1534,6 +1535,27 @@ def _import_effects(spec: str) -> dict:
     return obj
 
 
+def _import_fs(spec: str, path: str) -> "LoaderFS":
+    """Build the bench's filesystem from a 'module:attr' spec.
+
+    `attr` is called with the served entry path and returns the LoaderFS every
+    bench load reads through — sources, documents, and the bench's own lib
+    files (Bench.STD_PATH, Bench.BENCH_PG_DIR) alike.
+    """
+    import importlib
+
+    from ..loader.fs import LoaderFS
+
+    if ":" not in spec:
+        raise click.BadParameter(f"FS spec must be 'module:attr', got: {spec}")
+    mod_path, attr = spec.rsplit(":", 1)
+    factory = getattr(importlib.import_module(mod_path), attr)
+    fs = factory(str(Path(path).resolve()))
+    if not isinstance(fs, LoaderFS):
+        raise click.BadParameter(f"{spec} built {type(fs).__name__}, expected a LoaderFS")
+    return fs
+
+
 _LIFECYCLE_HELP = (
     "Lifecycle: the server loads a frozen cache immediately (~20ms) so queries\n"
     "work right away, then computes a live evaluation in a background thread.\n"
@@ -1585,6 +1607,12 @@ def _serve_options(fn):
         default=None,
         help="Effects dict as 'module:attr', e.g. 'mypackage.ops:EFFECTS'.",
     )(fn)
+    fn = click.option(
+        "--fs",
+        "fs_spec",
+        default=None,
+        help="Filesystem as 'module:attr': called with the entry path, returns the LoaderFS loads read through.",
+    )(fn)
     fn = click.option("--user", default=None, help="Book bench: user name.")(fn)
     fn = click.option("--assistant", default=None, help="Book bench: assistant name.")(fn)
     fn = click.option(
@@ -1617,6 +1645,7 @@ def _daemonize(
     effects_spec: str | None = None,
     user: str | None = None,
     assistant: str | None = None,
+    fs_spec: str | None = None,
 ):
     """Double-fork, then exec `python -m ...bench_cli serve` in the grandchild.
 
@@ -1667,6 +1696,8 @@ def _daemonize(
     ]
     if effects_spec:
         argv += ["--effects", effects_spec]
+    if fs_spec:
+        argv += ["--fs", fs_spec]
     if user:
         argv += ["--user", user]
     if assistant:
@@ -1682,6 +1713,7 @@ def serve(
     sock: str,
     refresh_s: int,
     effects_spec: str | None,
+    fs_spec: str | None,
     user: str | None,
     assistant: str | None,
     replace: bool,
@@ -1690,6 +1722,7 @@ def serve(
 ):
     """Start the bench server in the foreground (blocking)."""
     effects = _import_effects(effects_spec) if effects_spec else None
+    fs = _import_fs(fs_spec, path) if fs_spec else None
     _ensure_socket_free(Path(sock), replace)
     _run_server(
         path,
@@ -1699,6 +1732,7 @@ def serve(
         effects=effects,
         user=user,
         assistant=assistant,
+        fs=fs,
     )
 
 
@@ -1710,6 +1744,7 @@ def start(
     sock: str,
     refresh_s: int,
     effects_spec: str | None,
+    fs_spec: str | None,
     user: str | None,
     assistant: str | None,
     replace: bool,
@@ -1723,8 +1758,11 @@ def start(
     Refuses to start when a live daemon already serves the socket;
     use --replace to terminate it and take its place.
     """
+    # Validate before forking — fail in the foreground
     if effects_spec:
-        _import_effects(effects_spec)  # validate before forking — fail in the foreground
+        _import_effects(effects_spec)
+    if fs_spec:
+        _import_fs(fs_spec, path)
     _ensure_socket_free(Path(sock), replace)
     _daemonize(
         path,
@@ -1734,6 +1772,7 @@ def start(
         effects_spec=effects_spec,
         user=user,
         assistant=assistant,
+        fs_spec=fs_spec,
     )
 
 
@@ -1746,6 +1785,7 @@ def up(
     sock: str,
     refresh_s: int,
     effects_spec: str | None,
+    fs_spec: str | None,
     user: str | None,
     assistant: str | None,
     replace: bool,
@@ -1762,12 +1802,22 @@ def up(
     """
     level = _resolve_log_level(verbose, log_level)
     effects = _import_effects(effects_spec) if effects_spec else None
+    fs = _import_fs(fs_spec, path) if fs_spec else None
     _ensure_socket_free(Path(sock), replace)
     if detach:
-        _daemonize(path, sock, refresh_s, level, effects_spec=effects_spec, user=user, assistant=assistant)
+        _daemonize(
+            path, sock, refresh_s, level, effects_spec=effects_spec, user=user, assistant=assistant, fs_spec=fs_spec
+        )
     else:
         _run_server(
-            path, Path(sock), refresh_s=refresh_s, log_level=level, effects=effects, user=user, assistant=assistant
+            path,
+            Path(sock),
+            refresh_s=refresh_s,
+            log_level=level,
+            effects=effects,
+            user=user,
+            assistant=assistant,
+            fs=fs,
         )
 
 

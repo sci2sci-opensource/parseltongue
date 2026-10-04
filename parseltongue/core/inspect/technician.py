@@ -19,9 +19,10 @@ from typing import TYPE_CHECKING, Callable, Collection
 if TYPE_CHECKING:
     from .systems.operations_v2 import OperationsSystemV2 as OperationsSystem
 
-from ..integrity.merkle import MerkleNode, _sha256, merkle_combine
+from ..integrity.merkle import MerkleNode
 from ..loader.fs import LoaderFS, LocalFS
 from ..loader.lazy_loader import LazyLoader, LazyLoadResult
+from ..system import effect_identity
 from .probe_core_to_consequence import CoreToConsequenceStructure, probe, probe_all
 from .store import Store, _collect_tree_leaves
 
@@ -32,6 +33,12 @@ Sample = tuple[str, MerkleNode, CoreToConsequenceStructure, LazyLoader]
 
 # Callback signature: (path, integrity, status) → None
 StatusCallback = Callable[[str, str, str], None]
+
+
+def _loaded_system(loader: LazyLoader):
+    """The system a loader produced, or None."""
+    result = loader.last_result
+    return result.system if result is not None else None
 
 
 class Technician:
@@ -107,20 +114,23 @@ class Technician:
         return LazyLoader(lib_paths=self._lib_paths, fs=self._fs, builtin_effects=self._builtin_effects)
 
     def _source_tree(self, file_list: list[str]) -> tuple[dict[str, str], MerkleNode]:
-        """Hash the source files through the fs and build their Merkle tree.
-
-        A narrowed effect set is part of the tree, so a cache built under
-        one set is never served under another.
-        """
+        """Hash the source files through the fs and build their Merkle tree."""
         hashes = self._store.hash_files(file_list, self._fs)
-        tree = self._store.build_file_tree(file_list, hashes)
-        if self._builtin_effects is not None:
-            effects_leaf = MerkleNode(
-                hash=_sha256("loader-effects:" + ",".join(sorted(self._builtin_effects))),
-                content="<loader-effects>",
-            )
-            tree = merkle_combine([tree, effects_leaf])
-        return hashes, tree
+        return hashes, self._store.build_file_tree(file_list, hashes)
+
+    def _ran_as_now(self, path: str, system) -> bool:
+        """Whether a cached system can stand for a load of `path` now.
+
+        Only the effects the system actually ran matter: each must resolve to
+        the same implementation under the current setting (the loader's own
+        effects, the host's effects over them). A system that ran none of the
+        effects that differ is served as is; one whose record is unknown is not.
+        """
+        used = getattr(system, "effects_used", None)
+        if used is None:
+            return False
+        current = self._new_loader().effects_for(self._effects.get(path))
+        return all(name in current and effect_identity(current[name]) == ran for name, ran in used.items())
 
     @property
     def file_lists(self) -> dict[str, list[str]]:
@@ -541,8 +551,8 @@ class Technician:
             new_hashes, new_tree = self._source_tree(file_list)
             log.info("Technician.prepare: hash+tree %.2fs", time.perf_counter() - th)
 
-            # Memory cache — exact match
-            if cached and cached[1].hash == new_tree.hash:
+            # Memory cache — exact match, run the way a load would run now
+            if cached and cached[1].hash == new_tree.hash and self._ran_as_now(path, _loaded_system(cached[3])):
                 return cached, None  # integrity unchanged
 
             self._on_status(path, self.CORRUPTED, "")
@@ -556,21 +566,26 @@ class Technician:
                 structure, loader = self._store.deserialize(disk_raw, self._new_loader())
                 log.info("Technician.prepare: Store.deserialize done in %.2fs", time.perf_counter() - td)
                 sample = (path, new_tree, structure, loader)
-                self._file_hashes[path] = new_hashes
-                self._ensure_frozen()
-                log.info("Technician.prepare: _register_scopes start")
-                tr = time.perf_counter()
-                self._register_scopes(path, sample)
-                log.info(
-                    "Technician.prepare: _register_scopes done in %.2fs (total prepare %.2fs)",
-                    time.perf_counter() - tr,
-                    time.perf_counter() - t0,
-                )
-                load_result = loader.last_result
-                integrity = self._check_load_integrity(path, load_result) if load_result else self.VERIFIED
-                self._on_status(path, integrity, self.LOADING)
-                self._background_reload(path, sample)
-                return sample, None
+                if self._ran_as_now(path, _loaded_system(loader)):
+                    self._file_hashes[path] = new_hashes
+                    self._ensure_frozen()
+                    log.info("Technician.prepare: _register_scopes start")
+                    tr = time.perf_counter()
+                    self._register_scopes(path, sample)
+                    log.info(
+                        "Technician.prepare: _register_scopes done in %.2fs (total prepare %.2fs)",
+                        time.perf_counter() - tr,
+                        time.perf_counter() - t0,
+                    )
+                    load_result = loader.last_result
+                    integrity = self._check_load_integrity(path, load_result) if load_result else self.VERIFIED
+                    self._on_status(path, integrity, self.LOADING)
+                    self._background_reload(path, sample)
+                    return sample, None
+                # Same sources, but the cached system ran an effect that resolves
+                # differently now: it is not a base for anything, cold load below.
+                log.info("Technician.prepare: cached system ran other effects — cold load")
+                disk_raw = None
 
             # Tree differs — hot-patch if we have a cached system
             if disk_raw and "system" in disk_raw and "merkle_tree" in disk_raw:
@@ -581,7 +596,7 @@ class Technician:
                 if old_hashes:
                     changed_files = self._store.diff_file_hashes(old_hashes, new_hashes)
                     if changed_files:
-                        patch_result = self._hot_patch(disk_raw, changed_files)
+                        patch_result = self._hot_patch(path, disk_raw, changed_files)
                         if patch_result is not None:
                             structure, loader, affected = patch_result
                             sample = (path, new_tree, structure, loader)
@@ -713,17 +728,20 @@ class Technician:
         return sample
 
     def _hot_patch(
-        self, disk_raw: dict, changed_files: set[str]
+        self, path: str, disk_raw: dict, changed_files: set[str]
     ) -> tuple[CoreToConsequenceStructure, LazyLoader, set[str]] | None:
         """Hot-patch a cached system from changed files.
 
         Delegates all parsing/patching/execution to the loader — the
-        technician only orchestrates deserialization and re-probing.
+        technician only orchestrates deserialization and re-probing. A
+        cached system that ran effects resolving differently now is no base.
         """
         try:
             structure, loader = self._store.deserialize(disk_raw, self._new_loader())
         except Exception:
             log.warning("Failed to deserialize cache for hot-patch")
+            return None
+        if not self._ran_as_now(path, _loaded_system(loader)):
             return None
 
         node_index = disk_raw.get("node_index", {})

@@ -38,6 +38,11 @@ from .serialization import (
 log = logging.getLogger("parseltongue")
 
 
+def effect_identity(fn: Callable) -> str:
+    """Which implementation an effect is: its defining module and qualified name."""
+    return f"{getattr(fn, '__module__', '?')}:{getattr(fn, '__qualname__', repr(fn))}"
+
+
 class AbstractSystem(Rewriter, Interpreter):
     """Composes Engine with serialization and introspection. All args required — no defaults."""
 
@@ -83,9 +88,25 @@ class AbstractSystem(Rewriter, Interpreter):
 
         self._unresolved = set()
         self._effects = dict(effects)
+        #: Effects this system has run, name → effect_identity of the
+        #: implementation that ran. None when unknown (a system restored
+        #: from a record that predates it).
+        self.effects_used: dict[str, str] | None = {}
+        self._bind_effects()
 
-        for name, fn in effects.items():
-            self.engine.env[Symbol(name)] = lambda *args, _fn=fn: _fn(self, *args)
+    def _bind_effects(self) -> None:
+        """Bind each effect into the engine env; every call is recorded in effects_used."""
+
+        def bound(name: str, fn: Callable) -> Callable:
+            def run(*args):
+                if self.effects_used is not None:
+                    self.effects_used[name] = effect_identity(fn)
+                return fn(self, *args)
+
+            return run
+
+        for name, fn in self._effects.items():
+            self.engine.env[Symbol(name)] = bound(name, fn)
 
     def register_coverage_provider(self, coverage_type: str, provider) -> None:
         """Register (or replace) the provider measuring one coverage type."""
@@ -183,10 +204,10 @@ class AbstractSystem(Rewriter, Interpreter):
         clone.engine.diffs = dict(self.engine.diffs)
         clone.engine.diff_refs = {k: set(v) for k, v in self.engine.diff_refs.items()}
         clone.engine.documents = dict(self.engine.documents)
-        # Rebind effect lambdas to reference clone, not original
+        # Rebind effects to the clone, not the original
         clone._effects = dict(self._effects)
-        for ename, fn in clone._effects.items():
-            clone.engine.env[Symbol(ename)] = lambda *args, _fn=fn: _fn(clone, *args)
+        clone.effects_used = dict(self.effects_used) if self.effects_used is not None else None
+        clone._bind_effects()
         return clone
 
     def derive(self, name, wff, using):
@@ -321,6 +342,7 @@ class AbstractSystem(Rewriter, Interpreter):
             "diffs": dict(self.engine.diffs),
             "documents": dict(self.engine.documents),
             "verifier_index": self.engine._verifier.index.to_dict(),
+            "effects_used": dict(self.effects_used) if self.effects_used is not None else None,
         }
 
     @classmethod
@@ -346,6 +368,8 @@ class AbstractSystem(Rewriter, Interpreter):
             system.engine.register_diff(name, diff["replace"], diff["with"])
         for name, text in documents.items():
             system.engine.register_document(name, text)
+        used = data.get("effects_used")
+        system.effects_used = dict(used) if isinstance(used, dict) else None
         system._unresolved = system._rebuild_env()
         return system
 

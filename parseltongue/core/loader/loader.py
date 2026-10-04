@@ -582,6 +582,11 @@ class Loader:
     #         return system.evaluate(system.theorems[name].wff)
     #     raise KeyError(f"Unknown definition: {name}")
 
+    def effects_for(self, effects: dict[str, Any] | None = None) -> dict[str, Any]:
+        """The effects a load registers: the loader's own (builtin_effects),
+        with the host's `effects` over them by name."""
+        return {**self._make_loader_effects(), **(effects or {})}
+
     # ----------------------------------------------------------
     # Entry point
     # ----------------------------------------------------------
@@ -614,10 +619,7 @@ class Loader:
         root_md = self.create_md_ctx(abs_path, module_name)
         self._current = root_md
 
-        loader_effects = self._make_loader_effects()
-        all_effects = {**loader_effects, **(effects or {})}
-
-        system = System(effects=all_effects, **system_kwargs)
+        system = System(effects=self.effects_for(effects), **system_kwargs)
         self._engine = LoaderEngine(inner=system.engine)
         self._engine.register_module(module_name)  # main module, no parent
 
