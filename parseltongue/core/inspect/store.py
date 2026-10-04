@@ -28,7 +28,8 @@ if TYPE_CHECKING:
     from ..search_engine.index import DocumentSearchIndex
 
 from ..ast import DirectiveNode
-from ..integrity.merkle import MerkleNode, _sha256, _sha256_bytes, merkle_combine
+from ..integrity.merkle import MerkleNode, _sha256, merkle_combine
+from ..loader.fs import LoaderFS, LocalFS
 from ..loader.lazy_loader import LazyLoader, LazyLoadResult
 from ..quote_verifier import DocumentIndex
 from ..system import System
@@ -50,24 +51,6 @@ _HOME_BENCH_DIR = Path.home() / ".parseltongue" / "pg-bench"
 # Back-compat aliases for any external callers
 _pgz_write = pgz_write
 _pgz_read = pgz_read
-
-_EMPTY_SHA256 = _sha256_bytes(b"")
-
-
-def _hash_file(path: str) -> str:
-    """Hash a file's bytes with SHA-256.
-
-    Returns hex digest, or "" on OSError. Empty files short-circuit
-    to the well-known empty digest without opening the file. Larger
-    files stream via ``hashlib.file_digest`` to bound peak memory.
-    """
-    try:
-        if os.stat(path).st_size == 0:
-            return _EMPTY_SHA256
-        with open(path, "rb") as fp:
-            return hashlib.file_digest(fp, "sha256").hexdigest()
-    except OSError:
-        return ""
 
 
 def _collect_tree_leaves(node: MerkleNode) -> dict[str, str]:
@@ -171,14 +154,10 @@ class Store:
 
     # ── File hashing ──
 
-    def hash_files(self, files: list[str]) -> dict[str, str]:
-        """Hash each file's bytes. Returns {path: sha256}.
-
-        Uses streaming via :func:`_hash_file` so peak memory stays
-        bounded regardless of file size, and empty files short-circuit
-        without I/O.
-        """
-        return {f: _hash_file(f) for f in files}
+    def hash_files(self, files: list[str], fs: LoaderFS | None = None) -> dict[str, str]:
+        """Hash each file's bytes through `fs` (the local disk by default). Returns {path: sha256}."""
+        fs = fs if fs is not None else LocalFS()
+        return {f: fs.digest(f) for f in files}
 
     def build_file_tree(self, files: list[str], hashes: dict[str, str]) -> MerkleNode:
         """Build Merkle tree where each file is a leaf."""
@@ -254,8 +233,11 @@ class Store:
         except Exception as e:
             log.warning("Failed to save cache for %s: %s", path, e)
 
-    def deserialize(self, data: dict) -> tuple[CoreToConsequenceStructure, LazyLoader]:
-        """Deserialize structure + full system from cache data."""
+    def deserialize(
+        self, data: dict, loader: LazyLoader | None = None
+    ) -> tuple[CoreToConsequenceStructure, LazyLoader]:
+        """Deserialize structure + full system from cache data into `loader`
+        (a fresh default LazyLoader when none is given)."""
         structure = deserialize_structure(data["structure"])
 
         if "system" in data:
@@ -272,7 +254,7 @@ class Store:
                 node.atom = engine.theorems[name]
             elif name in engine.terms:
                 node.atom = engine.terms[name]
-        loader = LazyLoader()
+        loader = loader if loader is not None else LazyLoader()
         loader._result = LazyLoadResult(system=system)
         dir_nodes: list[DirectiveNode] = []
         for name, info in data.get("node_index", {}).items():

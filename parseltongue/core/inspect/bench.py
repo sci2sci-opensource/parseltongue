@@ -27,7 +27,9 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
+from typing import Collection
 
+from ..loader.fs import LoaderFS
 from ..loader.lazy_loader import LazyLoadResult
 from .optics import Lens
 from .optics.hologram import Hologram
@@ -102,7 +104,14 @@ class Bench:
     BENCH_PG = str(Path(__file__).resolve().parent / "bench.pltg")
     BENCH_PG_DIR = str(Path(__file__).resolve().parent)
 
-    def __init__(self, bench_dir: str | Path | None = None, lib_paths: list[str] | None = None):
+    def __init__(
+        self,
+        bench_dir: str | Path | None = None,
+        lib_paths: list[str] | None = None,
+        fs: LoaderFS | None = None,
+        builtin_effects: Collection[str] | None = None,
+    ):
+        """`fs` and `builtin_effects` configure how bench paths are loaded (see Loader)."""
         self._store = Store(bench_dir)
         self._lib_paths = lib_paths if lib_paths is not None else [self.STD_PATH]
         self._technician = Technician(
@@ -110,6 +119,8 @@ class Bench:
             self._on_status,
             lib_paths=self._lib_paths + [self.BENCH_PG_DIR],
             bench_pg=self.BENCH_PG,
+            fs=fs,
+            builtin_effects=builtin_effects,
         )
         self._mem: dict[str, Sample] = {}
         self._current_path: str | None = None

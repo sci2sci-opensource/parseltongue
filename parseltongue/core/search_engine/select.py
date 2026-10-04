@@ -86,22 +86,47 @@ def select_files(
     ignore_patterns.
     """
     base = Path(root)
+    entries = [
+        (path.relative_to(base).as_posix(), path.stat().st_size)
+        for path in sorted(base.glob(pattern))
+        if path.is_file()
+    ]
+    return select_entries(
+        entries,
+        ignore_patterns=ignore_patterns,
+        ignore_lines=Path(ignore_file).read_text().splitlines() if ignore_file is not None else (),
+        extensions=extensions,
+        max_bytes=max_bytes,
+        allow_large=allow_large,
+    )
+
+
+def select_entries(
+    entries: "list[tuple[str, int]]",
+    *,
+    ignore_patterns: "list[str] | tuple" = (),
+    ignore_lines: "list[str] | tuple" = (),
+    extensions: "list[str] | tuple | None" = None,
+    max_bytes: "int | None" = None,
+    allow_large: "list[str] | tuple" = (),
+) -> "tuple[list[str], dict[str, str]]":
+    """Classify listed files: `entries` are (root-relative posix path, size)
+    pairs from any listing. ignore_lines are the lines of an ignore file
+    (comments and blanks dropped) added to ignore_patterns. Returns
+    (selected, skipped) as select_files does.
+    """
     patterns = list(ignore_patterns)
-    if ignore_file is not None:
-        for line in Path(ignore_file).read_text().splitlines():
-            line = line.strip()
-            if line and not line.startswith("#"):
-                patterns.append(line)
+    for line in ignore_lines:
+        line = line.strip()
+        if line and not line.startswith("#"):
+            patterns.append(line)
 
     selected: list[str] = []
     skipped: dict[str, str] = {}
-    for path in sorted(base.glob(pattern)):
-        if not path.is_file():
-            continue
-        rel = path.relative_to(base).as_posix()
+    for rel, size in entries:
         verdict = classify_file(
             rel,
-            path.stat().st_size,
+            size,
             ignore_patterns=patterns,
             extensions=extensions,
             max_bytes=max_bytes,

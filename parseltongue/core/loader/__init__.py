@@ -5,9 +5,12 @@ Re-exports the standard loader API for backward compatibility,
 plus the lazy loader and AST types.
 """
 
+from .fs import LoaderFS as LoaderFS
+from .fs import LocalFS as LocalFS
 from .lazy_loader import LazyLoader as LazyLoader
 from .lazy_loader import LazyLoadResult as LazyLoadResult
 from .lazy_loader import lazy_load_pltg as lazy_load_pltg
+from .loader import LOADER_EFFECTS as LOADER_EFFECTS
 from .loader import Context as Context
 from .loader import Loader as Loader
 from .loader import LoaderContext as LoaderContext

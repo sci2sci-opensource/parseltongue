@@ -14,12 +14,13 @@ import logging
 import threading
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import TYPE_CHECKING, Callable
+from typing import TYPE_CHECKING, Callable, Collection
 
 if TYPE_CHECKING:
     from .systems.operations_v2 import OperationsSystemV2 as OperationsSystem
 
-from ..integrity.merkle import MerkleNode
+from ..integrity.merkle import MerkleNode, _sha256, merkle_combine
+from ..loader.fs import LoaderFS, LocalFS
 from ..loader.lazy_loader import LazyLoader, LazyLoadResult
 from .probe_core_to_consequence import CoreToConsequenceStructure, probe, probe_all
 from .store import Store, _collect_tree_leaves
@@ -57,7 +58,14 @@ class Technician:
         on_status: StatusCallback,
         lib_paths: list[str] | None = None,
         bench_pg: str | None = None,
+        fs: LoaderFS | None = None,
+        builtin_effects: Collection[str] | None = None,
     ):
+        """`fs` and `builtin_effects` configure every loader this technician
+        creates for a bench path (see Loader); the bench's own systems
+        (std, bench_pg) are not affected."""
+        self._fs: LoaderFS = fs if fs is not None else LocalFS()
+        self._builtin_effects = builtin_effects
         self._store = store
         self._on_status = on_status
         self._file_lists: dict[str, list[str]] = {}
@@ -93,6 +101,26 @@ class Technician:
                 "started": datetime.now(timezone.utc).isoformat(),
             }
         )
+
+    def _new_loader(self) -> LazyLoader:
+        """A loader for a bench path, on this technician's fs and effect set."""
+        return LazyLoader(lib_paths=self._lib_paths, fs=self._fs, builtin_effects=self._builtin_effects)
+
+    def _source_tree(self, file_list: list[str]) -> tuple[dict[str, str], MerkleNode]:
+        """Hash the source files through the fs and build their Merkle tree.
+
+        A narrowed effect set is part of the tree, so a cache built under
+        one set is never served under another.
+        """
+        hashes = self._store.hash_files(file_list, self._fs)
+        tree = self._store.build_file_tree(file_list, hashes)
+        if self._builtin_effects is not None:
+            effects_leaf = MerkleNode(
+                hash=_sha256("loader-effects:" + ",".join(sorted(self._builtin_effects))),
+                content="<loader-effects>",
+            )
+            tree = merkle_combine([tree, effects_leaf])
+        return hashes, tree
 
     @property
     def file_lists(self) -> dict[str, list[str]]:
@@ -510,8 +538,7 @@ class Technician:
         if file_list:
             log.info("Technician.prepare: hashing %d source files", len(file_list))
             th = time.perf_counter()
-            new_hashes = self._store.hash_files(file_list)
-            new_tree = self._store.build_file_tree(file_list, new_hashes)
+            new_hashes, new_tree = self._source_tree(file_list)
             log.info("Technician.prepare: hash+tree %.2fs", time.perf_counter() - th)
 
             # Memory cache — exact match
@@ -526,7 +553,7 @@ class Technician:
             if disk_raw and disk_raw.get("merkle_root") == new_tree.hash:
                 log.info("Technician.prepare: disk-cache hit, Store.deserialize start")
                 td = time.perf_counter()
-                structure, loader = self._store.deserialize(disk_raw)
+                structure, loader = self._store.deserialize(disk_raw, self._new_loader())
                 log.info("Technician.prepare: Store.deserialize done in %.2fs", time.perf_counter() - td)
                 sample = (path, new_tree, structure, loader)
                 self._file_hashes[path] = new_hashes
@@ -557,7 +584,6 @@ class Technician:
                         patch_result = self._hot_patch(disk_raw, changed_files)
                         if patch_result is not None:
                             structure, loader, affected = patch_result
-                            new_tree = self._store.build_file_tree(file_list, new_hashes)
                             sample = (path, new_tree, structure, loader)
                             self._file_hashes[path] = new_hashes
                             self._affected[path] = affected
@@ -598,7 +624,7 @@ class Technician:
                 files.append(node.source_file)
         # Documents with recorded paths (load-document / load-documents)
         for p in sorted(set(getattr(loader, "document_paths", {}).values())):
-            if p not in seen and Path(p).exists():
+            if p not in seen and self._fs.is_file(p):
                 seen.add(p)
                 files.append(p)
         result = loader.last_result
@@ -606,9 +632,8 @@ class Technician:
             for name in sorted(result.system.engine.documents):
                 doc_content = result.system.engine.documents[name]
                 for ctx in loader.modules_contexts.values():
-                    candidate = Path(ctx.current_dir) / name
-                    if candidate.exists() and candidate.read_text() == doc_content:
-                        p = str(candidate)
+                    p = str(Path(ctx.current_dir) / name)
+                    if self._fs.is_file(p) and self._fs.read_text(p) == doc_content:
                         if p not in seen:
                             seen.add(p)
                             files.append(p)
@@ -669,13 +694,12 @@ class Technician:
 
     def _cold_load(self, path: str) -> Sample:
         """Full reload from scratch."""
-        loader = LazyLoader(lib_paths=self._lib_paths)
+        loader = self._new_loader()
         loader.load_main(path, effects=self._effects.get(path), name="Technician.cold")
         load_result = loader.last_result
         assert load_result is not None
         file_list = self.collect_source_files(loader)
-        new_hashes = self._store.hash_files(file_list)
-        new_tree = self._store.build_file_tree(file_list, new_hashes)
+        new_hashes, new_tree = self._source_tree(file_list)
         self._file_lists[path] = file_list
         self._file_hashes[path] = new_hashes
         structure = probe_all(load_result)
@@ -697,7 +721,7 @@ class Technician:
         technician only orchestrates deserialization and re-probing.
         """
         try:
-            structure, loader = self._store.deserialize(disk_raw)
+            structure, loader = self._store.deserialize(disk_raw, self._new_loader())
         except Exception:
             log.warning("Failed to deserialize cache for hot-patch")
             return None
@@ -781,11 +805,10 @@ class Technician:
         def _reload():
             try:
                 kw = {"verifier": cached_verifier} if cached_verifier else {}
-                loader = LazyLoader(lib_paths=technician._lib_paths)
+                loader = technician._new_loader()
                 loader.load_main(path, effects=technician._effects.get(path), name="Technician.bg_reload", **kw)  # type: ignore[arg-type]
                 file_list = file_lists.get(path) or technician.collect_source_files(loader)
-                new_hashes = store.hash_files(file_list)
-                new_tree = store.build_file_tree(file_list, new_hashes)
+                new_hashes, new_tree = technician._source_tree(file_list)
                 bg_result = loader.last_result
                 assert bg_result is not None
                 structure = probe_all(bg_result)

@@ -72,8 +72,12 @@ import sys
 import threading
 import traceback
 from pathlib import Path
+from typing import TYPE_CHECKING, Collection
 
 import click
+
+if TYPE_CHECKING:
+    from ..loader.fs import LoaderFS
 
 log = logging.getLogger("parseltongue.bench_cli")
 
@@ -286,10 +290,13 @@ class BenchServer:
         effects: dict | None = None,
         user: str | None = None,
         assistant: str | None = None,
+        fs: LoaderFS | None = None,
+        builtin_effects: Collection[str] | None = None,
     ):
+        """`fs` and `builtin_effects` configure how the served path is loaded (see Loader)."""
         from .bench import Bench
 
-        self.bench = Bench()
+        self.bench = Bench(fs=fs, builtin_effects=builtin_effects)
         self.pltg_path = pltg_path
         self._effects = effects
         self._last_search: dict | None = None  # cached last search query+params
