@@ -519,12 +519,12 @@
 
 (fact load-main-creates-system true
     :evidence (evidence "loader.py"
-        :quotes ("system = System(effects=all_effects, **system_kwargs)")
+        :quotes ("system = System(effects=self.effects_for(effects), **system_kwargs)")
         :explanation "load_main creates System with merged effects"))
 
 (fact load-main-merges-effects true
     :evidence (evidence "loader.py"
-        :quotes ("loader_effects = self._make_loader_effects()" "all_effects = {**loader_effects, **(effects or {})}")
+        :quotes ("return {**self._make_loader_effects(), **(effects or {})}")
         :explanation "Loader effects merged with user-provided effects"))
 
 (fact load-pltg-doc "Convenience function"
