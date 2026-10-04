@@ -5,14 +5,14 @@
 (load-document "pyproject" "../pyproject.toml")
 (load-document "release-announcement" "../README.md")
 
-(fact readme-announced-version "0.9.0"
+(fact readme-announced-version "0.9.1"
     :evidence (evidence "README"
-        :quotes ("v0.9.0")
+        :quotes ("v0.9.1")
         :explanation "the leading README announcement states the current release version"))
 
-(fact package-version "0.9.0"
+(fact package-version "0.9.1"
     :evidence (evidence "pyproject"
-        :quotes ("version = \"0.9.0\"")
+        :quotes ("version = \"0.9.1\"")
         :explanation "project metadata declares the package version"))
 
 (diff announced-version-matches-package

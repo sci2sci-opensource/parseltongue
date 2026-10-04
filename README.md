@@ -14,7 +14,7 @@ A DSL for systems that refuse to speak falsehood.
 [![Python](https://img.shields.io/pypi/pyversions/parseltongue-dsl)](https://pypi.org/project/parseltongue-dsl/)
 [![License](https://img.shields.io/github/license/sci2sci-opensource/parseltongue)](https://github.com/sci2sci-opensource/parseltongue/blob/main/LICENSE)
 
-> **v0.9.0 — Travelling Light.** The search index moves to array-backed postings with a binary cache, the tokenizer splits identifiers into the parts people type, and the loader reads through a pluggable filesystem with a host-chosen set of effects. [Read the release notes](https://github.com/sci2sci-opensource/parseltongue/releases/tag/v0.9.0) or start with the [documentation](https://sci2sci-opensource.github.io/parseltongue/index.html).
+> **v0.9.1 — Travelling Light.** The search index moves to array-backed postings with a binary cache, the tokenizer splits identifiers into the parts people type, and the loader reads through a pluggable filesystem with a host-chosen set of effects; the bench now reuses a cache by the effects a system actually ran, and the daemon takes `--fs`. [Read the release notes](https://github.com/sci2sci-opensource/parseltongue/releases/tag/v0.9.1) or start with the [documentation](https://sci2sci-opensource.github.io/parseltongue/index.html).
 
 P.S. This announcement validates itself: a `:forall` claim with `near` requires every versioned announcement to carry the canonical documentation link, while a cross-document `diff` checks its version against `pyproject.toml`.
 
