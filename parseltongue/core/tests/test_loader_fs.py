@@ -133,7 +133,13 @@ class TestBenchFS(unittest.TestCase):
     def _prepare(self, fs, builtin_effects=None) -> int:
         """Prepare ROOT/main.pltg on a fresh Bench over the shared bench dir; returns the number of cold loads."""
         with patch.object(Technician, "_cold_load", autospec=True, side_effect=Technician._cold_load) as cold:
-            Bench(bench_dir=self.bench_dir, fs=fs, builtin_effects=builtin_effects).prepare(f"{ROOT}/main.pltg")
+            bench = Bench(bench_dir=self.bench_dir, fs=fs, builtin_effects=builtin_effects)
+            bench.prepare(f"{ROOT}/main.pltg")
+            # A cache hit starts a background reload (and a screen refresh) that
+            # write into the bench dir; let them finish before the dir goes away.
+            technician = bench._technician
+            for thread in [*technician._bg_reload.values(), *technician._screen_refresh.values()]:
+                thread.join(timeout=60)
         return cold.call_count
 
     def test_cache_is_served_when_the_effects_it_ran_are_unchanged(self):
