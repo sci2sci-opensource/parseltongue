@@ -1,4 +1,4 @@
-"""Search infrastructure — line-level indices, stemming, n-grams, metadata, synonyms, strategies.
+"""Search infrastructure — line-level indices, stemming, phrases, metadata, synonyms, strategies.
 
 Builds on top of quote_verifier's IndexedDocument / DocumentIndex.
 """
@@ -13,7 +13,7 @@ from .annotators import (
 from .document import SearchDocument
 from .index import DocumentSearchIndex
 from .meta import MetaIndex, MetaMark, index_doc_name
-from .ngrams import NGramIndex
+from .postings import LineSet, TermLines
 from .stemmer import stem, stem_tokens
 from .strategy import (
     STRATEGIES,
@@ -36,10 +36,11 @@ __all__ = [
     "ExceptionHandlingAnnotator",
     "ExpansionScope",
     "ImportAnnotator",
+    "LineSet",
     "MetaIndex",
     "MetaMark",
-    "NGramIndex",
     "SearchDocument",
+    "TermLines",
     "STRATEGIES",
     "SynonymEntry",
     "SynonymIndex",

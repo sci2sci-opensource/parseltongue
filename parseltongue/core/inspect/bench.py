@@ -325,14 +325,20 @@ class Bench:
     # ── Search ──
 
     def search(
-        self, query: str, max_lines: int = 20, max_callers: int = 5, offset: int = 0, rank: str = "callers"
+        self,
+        query: str,
+        max_lines: int = 20,
+        max_callers: int = 5,
+        offset: int = 0,
+        rank: str = "callers",
+        highlights: bool = False,
     ) -> dict:
         """Full-text search across all loaded documents with pltg provenance."""
         path = self._require_current()
         if path not in self._mem:
             self.prepare(path)
         return self._technician.search_engine(path).query(
-            query, max_lines=max_lines, max_callers=max_callers, offset=offset, rank=rank
+            query, max_lines=max_lines, max_callers=max_callers, offset=offset, rank=rank, highlights=highlights
         )
 
     def eval(self, query: str):
@@ -428,6 +434,15 @@ class Bench:
         if count:
             self._on_corpus_moved()
         return count
+
+    def cache_choice(self, choice: str, on_progress=None) -> str:
+        """Settle a v1 (legacy layout) corpus cache found at start — the
+        operator's explicit decision; see Search.cache_choice. A rebuild
+        re-reads the corpus, so cached screens are dropped as for index_dir."""
+        text = self.index.cache_choice(choice, on_progress=on_progress)
+        if choice == "rebuild":
+            self._on_corpus_moved()
+        return text
 
     def _on_corpus_moved(self) -> None:
         """The corpus changed under the current sample — refresh its screen.

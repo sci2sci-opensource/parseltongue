@@ -88,6 +88,47 @@ def _atomic_write_bytes(path: Path, data: bytes):
     tmp.replace(path)
 
 
+def pgz_payload_kind(path: Path) -> str:
+    """Classify a PGZ file's payload without reading it: ``"blob"`` (BlobPGZ),
+    ``"json"`` (the pre-blob JSON layout), or ``"unknown"``.
+
+    Decompresses only the first bytes of the stream. Never modifies the file.
+    """
+    with open(path, "rb") as f:
+        head = f.read(_PGZ_HEADER.size + 4096)
+    if len(head) < _PGZ_HEADER.size:
+        return "unknown"
+    magic = _PGZ_HEADER.unpack_from(head)[0]
+    if magic != _PGZ_MAGIC:
+        return "unknown"
+    try:
+        first = zlib.decompressobj().decompress(head[_PGZ_HEADER.size :], 8)
+    except zlib.error:
+        return "unknown"
+    if first.startswith(b"PGB\x01"):
+        return "blob"
+    if first[:1] in (b"{", b"["):
+        return "json"
+    return "unknown"
+
+
+def pgz_stream_to_file(path: Path, out: Path) -> int:
+    """Decompress a PGZ payload to *out* in chunks; returns the payload size.
+    Memory stays at one chunk — for payloads too large to hold as one bytes."""
+    d = zlib.decompressobj()
+    size = 0
+    with open(path, "rb") as f, open(out, "wb") as o:
+        f.seek(_PGZ_HEADER.size)
+        while chunk := f.read(1 << 20):
+            piece = d.decompress(chunk)
+            size += len(piece)
+            o.write(piece)
+        piece = d.flush()
+        size += len(piece)
+        o.write(piece)
+    return size
+
+
 def pgz_read(path: Path) -> bytes:
     """Read and verify a .pgz file. Raises on corruption."""
     raw = path.read_bytes()
@@ -154,6 +195,94 @@ def json_pgz_write(path: Path, data: dict):
 def json_pgz_read(path: Path) -> dict:
     """Read a PGZ file and parse the payload as JSON."""
     return json.loads(pgz_read(path))
+
+
+# ── BlobPGZ — JSON meta + named binary blobs, one PGZ envelope ──
+#
+# Payload layout (before the PGZ zlib stream):
+#
+#     [4 bytes]  b"PGB\x01"
+#     [4 bytes]  meta length (uint32 LE)
+#     [M bytes]  meta JSON — carries "__blobs__": [[name, offset, length], ...]
+#     [rest]     blob region; offsets are relative to its start
+#
+# Index caches hold ``array('I')`` payloads. Written as raw bytes they
+# deserialize with one ``frombytes`` per array instead of one Python int
+# per element, and the reader keeps a single ``bytes`` object alive.
+
+_BLOB_MAGIC = b"PGB\x01"
+_BLOB_HEAD = struct.Struct("<4sI")
+
+
+def blob_pgz_write(path: Path, meta: dict, blobs: dict[str, bytes]):
+    """Stream *meta* + *blobs* into a PGZ envelope.
+
+    Same incremental sha256/zlib/back-patched-header discipline as
+    :func:`json_pgz_write`: peak memory is one buffer, not the payload.
+    """
+    index = []
+    offset = 0
+    for name, blob in blobs.items():
+        index.append([name, offset, len(blob)])
+        offset += len(blob)
+    head_meta = dict(meta)
+    head_meta["__blobs__"] = index
+    meta_bytes = json.dumps(head_meta, separators=(",", ":")).encode("utf-8")
+
+    digest = hashlib.sha256()
+    compress = zlib.compressobj(level=6)
+    size = 0
+    tmp = path.with_name(path.name + ".tmp")
+
+    def _chunks():
+        yield _BLOB_HEAD.pack(_BLOB_MAGIC, len(meta_bytes))
+        yield meta_bytes
+        for blob in blobs.values():
+            for i in range(0, len(blob), _STREAM_BUF):
+                yield blob[i : i + _STREAM_BUF]
+
+    try:
+        with open(tmp, "wb") as f:
+            f.write(b"\x00" * _PGZ_HEADER.size)
+            buf = bytearray()
+            for raw in _chunks():
+                size += len(raw)
+                if size >= _PGZ_MAX_PAYLOAD:
+                    raise ValueError(f"Payload exceeds PGZ 4 GiB format limit (uint32 size field): {path.name}")
+                digest.update(raw)
+                buf += compress.compress(raw)
+                if len(buf) >= _STREAM_BUF:
+                    f.write(buf)
+                    buf.clear()
+            buf += compress.flush()
+            f.write(buf)
+            f.seek(0)
+            f.write(_PGZ_HEADER.pack(_PGZ_MAGIC, digest.digest(), size))
+        tmp.replace(path)
+    except BaseException:
+        tmp.unlink(missing_ok=True)
+        raise
+
+
+def blob_pgz_read(path: Path) -> tuple[dict, dict[str, memoryview]]:
+    """Read a BlobPGZ file → (meta, blobs). Blob values are zero-copy views
+    into one payload buffer; ``bytes(view)`` or ``array.frombytes(view)``
+    when a copy is wanted. Raises ValueError for non-blob PGZ payloads."""
+    data = pgz_read(path)
+    return blob_unpack(data)
+
+
+def blob_unpack(data: bytes) -> tuple[dict, dict[str, memoryview]]:
+    if len(data) < _BLOB_HEAD.size:
+        raise ValueError("Payload too small for BlobPGZ head")
+    magic, meta_len = _BLOB_HEAD.unpack_from(data)
+    if magic != _BLOB_MAGIC:
+        raise ValueError(f"Not a BlobPGZ payload: {magic!r}")
+    meta_start = _BLOB_HEAD.size
+    meta = json.loads(data[meta_start : meta_start + meta_len])
+    region = memoryview(data)[meta_start + meta_len :]
+    blobs = {name: region[off : off + length] for name, off, length in meta.pop("__blobs__", [])}
+    return meta, blobs
 
 
 # ── OrdinalPGZ — two independent zlib streams ──

@@ -156,25 +156,27 @@ class TestSearchIndexSplitCache(ReindexChurnBase):
             reborn = self._make_search()
         self.assertGreater(reborn.query("ALPHA")["total_lines"], 0)
 
-    def test_legacy_inline_search_index_still_loads(self):
+    def test_pre_blob_json_cache_is_detected_and_left_in_place(self):
+        """A cache in the pre-blob JSON layout is the operator's data.
+
+        It is detected as legacy, never unlinked by a load, and the store
+        surfaces it as a pending decision (full contract: test_legacy_cache).
+        """
         from ..inspect.pgz import json_pgz_write
 
         with patch("os.getcwd", return_value=TEST_DIR):
             search = self._make_search()
             search.index_dir(TEST_DIR)
             store = search._store._store
-            # Rewrite the caches into the pre-split layout: search_index
-            # inline in .idx.pgz, no .six.pgz.
-            sidx_data = store.load_search_index_data(TEST_DIR)
-            self.assertIsNotNone(sidx_data)
-            cached = store.load_index(TEST_DIR)
-            cached["search_index"] = sidx_data
-            json_pgz_write(store._index_cache_path(TEST_DIR), cached)
+            idx_path = store._index_cache_path(TEST_DIR)
+            json_pgz_write(idx_path, {"directory": TEST_DIR, "file_hashes": {"a": "0"}, "index": {"documents": {}}})
             store._search_index_cache_path(TEST_DIR).unlink()
+            before = idx_path.read_bytes()
 
-            reborn_store = SearchStore(store=Store(os.path.join(TEST_DIR, ".bench")), path=TEST_DIR)
-            doc_index = reborn_store.load_index()
-            self.assertIsNotNone(reborn_store.load_search_index(doc_index))
+            reborn = self._make_search()
+            self.assertIsNotNone(reborn.legacy_cache)
+            self.assertTrue(idx_path.exists())
+            self.assertEqual(idx_path.read_bytes(), before)
 
 
 class TestDeferredSave(ReindexChurnBase):

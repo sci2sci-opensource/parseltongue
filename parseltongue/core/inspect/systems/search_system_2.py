@@ -85,6 +85,7 @@ class SearchSystem2:
         # Wrap evaluate: internal operators use posting sets,
         # but the system produces s-expressions at the boundary
         _raw_eval = self._pltg_system.evaluate
+        self._raw_evaluate = _raw_eval
 
         def _sexp_evaluate(expr):
             result = _raw_eval(expr)
@@ -97,33 +98,35 @@ class SearchSystem2:
         # Register self as a scope for recursive composition
         self._scopes["self"] = self._pltg_system
 
-    def evaluate(self, expr, local_env=None):
+    def evaluate(self, expr, local_env=None, *, preserve_postings=False):
         """Evaluate a query — string or s-expression.
 
         No wrapping, no formatting. Returns whatever the system produces:
         sr list, integer, string, etc.
         """
+        evaluate = self._raw_evaluate if preserve_postings else self._pltg_system.evaluate
+        convert = (lambda posting: posting) if preserve_postings else _posting_to_sr
         if isinstance(expr, str):
             if not expr.strip():
-                return self._pltg_system.evaluate([])
+                return evaluate([])
             from parseltongue.core.atoms import Symbol
             from parseltongue.core.lang import PGStringParser
 
             parsed = PGStringParser.translate(expr)
             if isinstance(parsed, str):
-                return _posting_to_sr(self._to_posting(parsed))
+                return convert(self._to_posting(parsed))
             if isinstance(parsed, (list, tuple)) and len(parsed) == 1 and isinstance(parsed[0], str):
-                return _posting_to_sr(self._to_posting(parsed[0]))
+                return convert(self._to_posting(parsed[0]))
             # If first element is a known operator, evaluate as s-expression
             if isinstance(parsed, (list, tuple)) and parsed:
                 head = parsed[0]
                 if isinstance(head, Symbol) and head in self._pltg_system.engine.env:
-                    return self._pltg_system.evaluate(parsed)
+                    return evaluate(parsed)
                 # Unknown symbols = plain text query
-                return _posting_to_sr(self._to_posting(expr))
-            return self._pltg_system.evaluate(parsed)
+                return convert(self._to_posting(expr))
+            return evaluate(parsed)
 
-        return self._pltg_system.evaluate(expr)
+        return evaluate(expr)
 
     def register_scope(self, name: str, system: BenchSubsystem):
         """Register a BenchSubsystem as a callable scope operator."""
