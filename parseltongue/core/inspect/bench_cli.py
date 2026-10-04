@@ -72,8 +72,12 @@ import sys
 import threading
 import traceback
 from pathlib import Path
+from typing import TYPE_CHECKING, Collection
 
 import click
+
+if TYPE_CHECKING:
+    from ..loader.fs import LoaderFS
 
 log = logging.getLogger("parseltongue.bench_cli")
 
@@ -286,10 +290,13 @@ class BenchServer:
         effects: dict | None = None,
         user: str | None = None,
         assistant: str | None = None,
+        fs: LoaderFS | None = None,
+        builtin_effects: Collection[str] | None = None,
     ):
+        """`fs` and `builtin_effects` configure how the served path is loaded (see Loader)."""
         from .bench import Bench
 
-        self.bench = Bench()
+        self.bench = Bench(fs=fs, builtin_effects=builtin_effects)
         self.pltg_path = pltg_path
         self._effects = effects
         self._last_search: dict | None = None  # cached last search query+params
@@ -338,12 +345,22 @@ class BenchServer:
         action = cmd.get("action", "")
 
         if action == "ping":
-            return {
+            reply = {
                 "ok": True,
                 "text": "pong" if self._is_ready() else "loading",
                 "pid": os.getpid(),
                 "pltg": self.pltg_path,
             }
+            # A v1 corpus cache on disk is something the operator must hear
+            # about at the first contact, not only when they ask for status.
+            if self._is_ready():
+                try:
+                    notices = self.bench.index.notices()
+                except Exception:
+                    notices = []
+                if notices:
+                    reply["notice"] = "\n".join(notices)
+            return reply
 
         if action == "shutdown":
             # Answer first, then signal ourselves — the client sees the ack
@@ -358,6 +375,15 @@ class BenchServer:
                 f"status={self.bench.status!r}",
                 f"integrity={self.bench.integrity!r}",
             ]
+            # Operator notices: a v1 corpus cache awaiting a decision, a
+            # search index built by another tokenizer version.
+            try:
+                notices = self.bench.index.notices() if self._is_ready() else []
+            except Exception:
+                notices = []
+            if notices:
+                lines.append("")
+                lines.extend(notices)
             # Elaborate on corrupted integrity
             path = self.bench._current_path
             if path and self.bench.integrity[path] == "corrupted":
@@ -613,6 +639,7 @@ class BenchServer:
                         max_lines=limit,
                         max_callers=5,
                         offset=offset,
+                        highlights=bool(cmd.get("highlights", False)),
                     )
                     prof.disable()
                     prof_dir = BENCH_DIR / "profiles"
@@ -634,45 +661,41 @@ class BenchServer:
                         max_lines=limit,
                         max_callers=5,
                         offset=offset,
+                        highlights=bool(cmd.get("highlights", False)),
                     )
                 self._last_search = {"query": query, "limit": limit, "offset": offset}
 
-                # Group results by document, preserving first-seen order
-                from collections import OrderedDict
+                # Structured reply; the CLI renders (grouped / grep / json).
+                # "results" keeps the grouped text lines for the TUI client.
+                import json as _json
 
-                by_doc: OrderedDict[str, list[dict]] = OrderedDict()
-                for r in search_result.get("lines", []):
-                    by_doc.setdefault(r["document"], []).append(r)
-
-                out_lines: list[str] = []
-                for doc, entries in by_doc.items():
-                    if out_lines:
-                        out_lines.append("")
-                    out_lines.append(doc)
-                    prev_line = None
-                    for r in entries:
-                        line_no = r["line"]
-                        if prev_line and line_no - prev_line > 1:
-                            out_lines.append("")
-                        callers = ", ".join(c["name"] for c in r.get("callers", []))
-                        prefix = f"[{callers}] " if callers else ""
-                        out_lines.append(f"  {line_no:<6} {prefix}{r['context']}")
-                        prev_line = line_no
-                total = search_result.get("total_lines", 0)
-                shown = sum(len(v) for v in by_doc.values())
-                page = offset // limit + 1 if limit else 1
-                pages = (total + limit - 1) // limit if limit else 1
-                out_lines.append("")
-                if total > limit:
-                    out_lines.append(f"({offset + 1}-{offset + shown}/{total} results, page {page}/{pages})")
-                else:
-                    out_lines.append(f"({total} results)")
-                if sexp_warn:
-                    out_lines.insert(0, f"⚠ {sexp_warn}")
-                if search_warn:
-                    out_lines.insert(0, f"⚠ {search_warn}")
-                    out_lines.insert(1, "")
-                return {"ok": True, "results": out_lines}
+                search_warnings: list[str] = [w for w in (search_warn, sexp_warn) if w]
+                search_reply: dict[str, object] = {
+                    "ok": True,
+                    "lines": [
+                        {
+                            "document": r["document"],
+                            "line": r["line"],
+                            "context": r.get("context", ""),
+                            **(
+                                {"highlights": r.get("highlights", []), "matched_terms": r.get("matched_terms", [])}
+                                if cmd.get("highlights", False)
+                                else {}
+                            ),
+                            "callers": [c["name"] for c in r.get("callers", [])],
+                        }
+                        for r in search_result.get("lines", [])
+                    ],
+                    "total": search_result.get("total_lines", 0),
+                    "offset": offset,
+                    "limit": limit,
+                    "warnings": search_warnings,
+                }
+                grouped: list[str] = _render_search(search_reply, "grouped", _json).rstrip("\n").split("\n")
+                for w in reversed(search_warnings):
+                    grouped.insert(0, f"⚠ {w}")
+                search_reply["results"] = grouped
+                return search_reply
 
             elif action == "index":
                 # Handled separately via dispatch_stream
@@ -735,6 +758,15 @@ class BenchServer:
 
                 count = self.bench.reindex(on_progress=_progress, force=force)
                 _send(conn, {"ok": True, "done": True, "text": f"Reindexed {count} files"})
+
+            elif action == "cache":
+                choice = cmd.get("choice", "")
+
+                def _progress(count, total, rel):
+                    _send(conn, {"progress": True, "count": count, "total": total, "file": rel})
+
+                text = self.bench.cache_choice(choice, on_progress=_progress)
+                _send(conn, {"ok": True, "done": True, "text": text})
         except Exception:
             _send(conn, {"ok": False, "done": True, "error": traceback.format_exc()})
 
@@ -1153,7 +1185,7 @@ def _format_eval_raw(result) -> str:
     return to_sexp(result)
 
 
-_STREAM_ACTIONS = {"index", "reindex"}
+_STREAM_ACTIONS = {"index", "reindex", "cache"}
 
 
 def _handle_client(server: BenchServer, conn: socket.socket):
@@ -2323,14 +2355,52 @@ def stain(names: tuple[str, ...], bias: str):
 
 @cli.command()
 @click.argument("query", default="")
-@click.option("-n", "--limit", default=20, help="Results per page.")
+@click.option("-f", "--file", "query_file", default=None, help="Read the query from a file ('-' = stdin).")
+@click.option("-n", "--limit", default=0, help="Cap the number of result lines (0 = all).")
 @click.option("--offset", default=0, help="Skip first N results.")
-@click.option("--page", default=0, type=int, help="Jump to page (1-based). Overrides offset.")
-@click.option("--next", "go_next", is_flag=True, help="Next page of last search.")
-@click.option("--prev", "go_prev", is_flag=True, help="Previous page of last search.")
+@click.option("--page", default=0, type=int, help="Jump to page (1-based, needs -n). Overrides offset.")
+@click.option("--next", "go_next", is_flag=True, help="Next page of last search (needs -n).")
+@click.option("--prev", "go_prev", is_flag=True, help="Previous page of last search (needs -n).")
+@click.option(
+    "-o",
+    "--output",
+    "output",
+    type=click.Choice(["grouped", "grep", "json"]),
+    default=None,
+    help="grouped (default on a terminal), grep = path:line:text (default when piped), json = one object per line.",
+)
+@click.option(
+    "--highlights/--no-highlights",
+    default=False,
+    help="Include highlight ranges and matched terms in JSON output (off by default).",
+)
+@click.option("--no-pager", is_flag=True, help="Print directly instead of paging terminal output.")
 @click.option("--profile", is_flag=True, help="Profile search and save to .parseltongue-bench/profiles/.")
-def search(query: str, limit: int, offset: int, page: int, go_next: bool, go_prev: bool, profile: bool):
+def search(
+    query: str,
+    query_file: str | None,
+    limit: int,
+    offset: int,
+    page: int,
+    go_next: bool,
+    go_prev: bool,
+    output: str | None,
+    profile: bool,
+    no_pager: bool,
+    highlights: bool,
+):
     """Full-text search across indexed documents with pltg provenance.
+
+    \b
+    Terminal results open in a pager: arrows/Space to scroll, q to quit.
+    Short replies exit automatically with the default less pager.
+    Use --no-pager for direct output; PAGER and LESS customize paging.
+
+    \b
+    Pipes: the query can come from stdin or a file, and results print as
+    path:line:text when stdout is not a terminal (or with -o grep):
+      echo '(near 2 "celery" "beat")' | pg search -f - | cut -d: -f1 | sort -u
+      pg search '(in "OSS/xen" "cascade")' -o json | jq .document
 
     \b
     Plain strings are literal phrase searches:
@@ -2385,22 +2455,97 @@ def search(query: str, limit: int, offset: int, page: int, go_next: bool, go_pre
 
     Results include pltg provenance: [node.name] matching line
     """
+    import json as _json
+    import sys as _sys
+
+    if query_file:
+        query = (_sys.stdin.read() if query_file == "-" else Path(query_file).read_text()).strip()
+    elif not query and not go_next and not go_prev and not _sys.stdin.isatty():
+        query = _sys.stdin.read().strip()
     cmd: dict = {"action": "search", "limit": limit}
+    if highlights:
+        cmd["highlights"] = True
     if profile:
         cmd["profile"] = True
     if query:
         cmd["query"] = query
     if page > 0:
+        if not limit:
+            raise click.UsageError("--page needs -n/--limit.")
         offset = (page - 1) * limit
     if offset:
         cmd["offset"] = offset
+    if (go_next or go_prev) and not limit:
+        raise click.UsageError("--next/--prev need -n/--limit.")
     if go_next:
         cmd["next"] = True
     if go_prev:
         cmd["prev"] = True
     if not query and not go_next and not go_prev:
-        raise click.UsageError("Provide a query or use --next/--prev.")
-    _print_result(_query(cmd))
+        raise click.UsageError("Provide a query (argument, -f FILE, or stdin) or use --next/--prev.")
+    result = _query(cmd)
+    if not result.get("ok"):
+        click.echo(result.get("error", "Unknown error"), err=True)
+        raise SystemExit(1)
+    fmt = output or ("grouped" if _sys.stdout.isatty() else "grep")
+    for w in result.get("warnings", []):
+        click.echo(f"⚠ {w}", err=True)
+    chunks = _iter_search(result, fmt, _json)
+    if not no_pager and _sys.stdout.isatty() and _sys.stdin.isatty():
+        # Let Click handle pager selection, streaming writes, and early quit.
+        # Preserve user options; -F leaves short replies directly on screen.
+        old_less = os.environ.get("LESS")
+        if old_less is None:
+            os.environ["LESS"] = "-FRX"
+        try:
+            click.echo_via_pager(chunks)
+        finally:
+            if old_less is None:
+                os.environ.pop("LESS", None)
+    else:
+        for chunk in chunks:
+            click.echo(chunk, nl=False)
+
+
+def _render_search(result: dict, fmt: str, _json) -> str:
+    """Materialize search output for clients that need a single string."""
+    return "".join(_iter_search(result, fmt, _json))
+
+
+def _iter_search(result: dict, fmt: str, _json):
+    """Yield formatted lines without building another copy of the full reply."""
+    lines = result.get("lines", [])
+    if fmt == "grep":
+        for r in lines:
+            yield f"{r['document']}:{r['line']}:{r['context']}\n"
+        return
+    if fmt == "json":
+        for r in lines:
+            yield _json.dumps(r, ensure_ascii=False) + "\n"
+        return
+    prev_doc = None
+    prev_line = None
+    for r in lines:
+        if r["document"] != prev_doc:
+            if prev_doc is not None:
+                yield "\n"
+            yield r["document"] + "\n"
+            prev_doc = r["document"]
+            prev_line = None
+        if prev_line and r["line"] - prev_line > 1:
+            yield "\n"
+        callers = ", ".join(r.get("callers", []))
+        prefix = f"[{callers}] " if callers else ""
+        yield f"  {r['line']:<6} {prefix}{r['context']}\n"
+        prev_line = r["line"]
+    total, offset, limit = result.get("total", 0), result.get("offset", 0), result.get("limit", 0)
+    yield "\n"
+    if limit and total > limit:
+        page = offset // limit + 1
+        pages = (total + limit - 1) // limit
+        yield f"({offset + 1}-{offset + len(lines)}/{total} results, page {page}/{pages})\n"
+    else:
+        yield f"({total} results)\n"
 
 
 def _stream_index_progress(cmd: dict, every: int) -> None:
@@ -2585,6 +2730,30 @@ def purge(yes: bool):
     _print_result(_query({"action": "purge"}))
 
 
+@cli.command("cache")
+@click.argument("choice", type=click.Choice(["convert", "migrate", "rebuild", "keep"]))
+@click.option("--yes", is_flag=True, help="Skip confirmation (migrate deletes the v1 files).")
+@click.option(
+    "--progress-every", type=int, default=25, show_default=True, help="Print progress every N files (0 = every file)."
+)
+def cache_choice(choice: str, yes: bool, progress_every: int):
+    """Settle a corpus cache found in the previous (v1, JSON) layout.
+
+    \b
+    At start the daemon reads a v1 cache in place and serves it; the files
+    stay untouched and cache saves are held until you choose:
+      convert  write the loaded corpus in the current layout; v1 files kept as *.v1.pgz
+      migrate  convert, then delete the v1 files — or, after a convert/rebuild,
+               delete the *.v1.pgz backups it left
+      rebuild  re-walk the directory with this version; v1 files kept as *.v1.pgz
+      keep     leave everything as is
+    `pg status` shows what was found.
+    """
+    if choice == "migrate" and not yes:
+        click.confirm("migrate deletes the v1 cache files after writing the current layout. Continue?", abort=True)
+    _stream_index_progress({"action": "cache", "choice": choice}, progress_every)
+
+
 @cli.command()
 @click.option("--socket", "sock", default=str(SOCK_PATH), help="Unix socket path.")
 def stop(sock: str):
@@ -2665,6 +2834,8 @@ def wait(timeout_s: int):
             result = _query({"action": "ping"})
             if result.get("text") == "pong":
                 click.echo("Ready.")
+                if result.get("notice"):
+                    click.echo(result["notice"], err=True)
                 return
         except (ConnectionError, FileNotFoundError, OSError):
             pass

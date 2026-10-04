@@ -85,8 +85,7 @@ def run_pipeline(
         if not pipeline._documents:
             failed = "; ".join(f"{name} ({reason})" for name, reason in config.ingest_errors.items())
             raise ValueError(
-                f"No documents could be ingested. Failed: {failed}. "
-                "Check the paths passed via -d NAME:PATH."
+                f"No documents could be ingested. Failed: {failed}. Check the paths passed via -d NAME:PATH."
             )
 
         progress("Running pipeline (4 passes: extract → derive → factcheck → answer)...")

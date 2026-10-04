@@ -28,7 +28,8 @@ if TYPE_CHECKING:
     from ..search_engine.index import DocumentSearchIndex
 
 from ..ast import DirectiveNode
-from ..integrity.merkle import MerkleNode, _sha256, _sha256_bytes, merkle_combine
+from ..integrity.merkle import MerkleNode, _sha256, merkle_combine
+from ..loader.fs import LoaderFS, LocalFS
 from ..loader.lazy_loader import LazyLoader, LazyLoadResult
 from ..quote_verifier import DocumentIndex
 from ..system import System
@@ -37,7 +38,7 @@ from .config import load_extensions as _load_extensions
 from .config import load_ignore_patterns as _load_pgignore
 from .config import load_max_file_size_bytes as _load_max_file_size_bytes
 from .history import History
-from .pgz import json_pgz_read, json_pgz_write, pgz_read, pgz_write
+from .pgz import blob_pgz_read, blob_pgz_write, json_pgz_write, pgz_read, pgz_write
 from .probe_core_to_consequence import CoreToConsequenceStructure
 from .screen import Screen
 from .serialization import deserialize_structure, serialize_structure
@@ -50,24 +51,6 @@ _HOME_BENCH_DIR = Path.home() / ".parseltongue" / "pg-bench"
 # Back-compat aliases for any external callers
 _pgz_write = pgz_write
 _pgz_read = pgz_read
-
-_EMPTY_SHA256 = _sha256_bytes(b"")
-
-
-def _hash_file(path: str) -> str:
-    """Hash a file's bytes with SHA-256.
-
-    Returns hex digest, or "" on OSError. Empty files short-circuit
-    to the well-known empty digest without opening the file. Larger
-    files stream via ``hashlib.file_digest`` to bound peak memory.
-    """
-    try:
-        if os.stat(path).st_size == 0:
-            return _EMPTY_SHA256
-        with open(path, "rb") as fp:
-            return hashlib.file_digest(fp, "sha256").hexdigest()
-    except OSError:
-        return ""
 
 
 def _collect_tree_leaves(node: MerkleNode) -> dict[str, str]:
@@ -171,14 +154,10 @@ class Store:
 
     # ── File hashing ──
 
-    def hash_files(self, files: list[str]) -> dict[str, str]:
-        """Hash each file's bytes. Returns {path: sha256}.
-
-        Uses streaming via :func:`_hash_file` so peak memory stays
-        bounded regardless of file size, and empty files short-circuit
-        without I/O.
-        """
-        return {f: _hash_file(f) for f in files}
+    def hash_files(self, files: list[str], fs: LoaderFS | None = None) -> dict[str, str]:
+        """Hash each file's bytes through `fs` (the local disk by default). Returns {path: sha256}."""
+        fs = fs if fs is not None else LocalFS()
+        return {f: fs.digest(f) for f in files}
 
     def build_file_tree(self, files: list[str], hashes: dict[str, str]) -> MerkleNode:
         """Build Merkle tree where each file is a leaf."""
@@ -254,8 +233,11 @@ class Store:
         except Exception as e:
             log.warning("Failed to save cache for %s: %s", path, e)
 
-    def deserialize(self, data: dict) -> tuple[CoreToConsequenceStructure, LazyLoader]:
-        """Deserialize structure + full system from cache data."""
+    def deserialize(
+        self, data: dict, loader: LazyLoader | None = None
+    ) -> tuple[CoreToConsequenceStructure, LazyLoader]:
+        """Deserialize structure + full system from cache data into `loader`
+        (a fresh default LazyLoader when none is given)."""
         structure = deserialize_structure(data["structure"])
 
         if "system" in data:
@@ -272,7 +254,7 @@ class Store:
                 node.atom = engine.theorems[name]
             elif name in engine.terms:
                 node.atom = engine.terms[name]
-        loader = LazyLoader()
+        loader = loader if loader is not None else LazyLoader()
         loader._result = LazyLoadResult(system=system)
         dir_nodes: list[DirectiveNode] = []
         for name, info in data.get("node_index", {}).items():
@@ -335,28 +317,48 @@ class Store:
     def _search_index_cache_path(self, directory: str) -> Path:
         return self._dir / f"{self._cache_key(directory)}.six.pgz"
 
-    def save_search_index_data(self, key: str, data: dict):
-        """Save serialized DocumentSearchIndex to its own .six.pgz.
+    def save_search_index_data(self, key: str, record: tuple[dict, dict[str, bytes]]):
+        """Save a serialized DocumentSearchIndex (meta, blobs) to its own .six.pgz.
 
         Kept out of the main .idx.pgz so persisting it never requires
         parsing and rewriting the (much larger) index cache."""
         self._ensure_dir()
+        meta, blobs = record
         try:
-            json_pgz_write(self._search_index_cache_path(key), data)
+            blob_pgz_write(self._search_index_cache_path(key), meta, blobs)
         except Exception as e:
             log.warning("Failed to save search index for %s: %s", key, e)
 
-    def load_search_index_data(self, key: str) -> dict | None:
-        """Load serialized DocumentSearchIndex from .six.pgz, or None."""
+    def load_search_index_data(self, key: str) -> tuple[dict, dict[str, memoryview]] | None:
+        """Load a serialized DocumentSearchIndex (meta, blobs) from .six.pgz, or None.
+
+        An unreadable file is reported and LEFT IN PLACE — a cache is the
+        operator's data; only an explicit `pg cache …` / `pg purge` removes one.
+        """
         cache_file = self._search_index_cache_path(key)
         if not cache_file.exists():
             return None
         try:
-            return json_pgz_read(cache_file)
+            return blob_pgz_read(cache_file)
         except Exception as e:
-            log.warning("Failed to read search index cache for %s: %s", key, e)
-            cache_file.unlink(missing_ok=True)
+            log.error("Search index cache %s is unreadable (%s); left in place, treated as a miss", cache_file.name, e)
             return None
+
+    def detect_legacy(self, key: str):
+        """A LegacyCache descriptor if the corpus caches for *key* are in the
+        pre-blob JSON layout, else None. Read-only."""
+        from .legacy import detect_legacy
+
+        return detect_legacy(self._index_cache_path(key), self._search_index_cache_path(key), key)
+
+    def legacy_backups(self, key: str) -> list[Path]:
+        """The ``*.v1*.pgz`` files a `pg cache convert` / `rebuild` set aside for *key*."""
+        prefix = self._cache_key(key)
+        if not self._dir.exists():
+            return []
+        return sorted(
+            p for p in self._dir.iterdir() if p.name.startswith(prefix) and ".v1" in p.name and p.suffix == ".pgz"
+        )
 
     def history(self, key: str, max_layers: int = 42) -> History:
         """Get a History instance for a given cache key.
@@ -399,7 +401,7 @@ class Store:
         key: str,
         directory: str,
         file_hashes: dict[str, str],
-        index_data: dict,
+        index_record: tuple[dict, dict[str, bytes]],
         indexed_dirs: dict[str, list[str]] | None = None,
         file_stats: dict[str, list] | None = None,
         dir_mtimes: dict[str, int] | None = None,
@@ -407,11 +409,14 @@ class Store:
     ):
         """Save search index to disk as .idx.pgz + texts as .texts.pgz.
 
-        file_texts are stored separately in OrdinalPGZ format — not in the
-        main index cache. This keeps the index small and fast to read.
+        *index_record* is ``DocumentIndex.to_record()`` — (meta, blobs). The
+        meta rides in the BlobPGZ JSON head under ``"index"``; the blobs
+        are the binary region. file_texts are stored separately in
+        OrdinalPGZ format — not in the main index cache.
         """
         self._ensure_dir()
-        data: dict = {"directory": directory, "file_hashes": file_hashes, "index": index_data}
+        index_meta, blobs = index_record
+        data: dict = {"directory": directory, "file_hashes": file_hashes, "index": index_meta}
         if indexed_dirs:
             data["indexed_dirs"] = indexed_dirs
         if file_stats:
@@ -420,7 +425,7 @@ class Store:
             data["dir_mtimes"] = dir_mtimes
         # file_texts go to separate .texts.pgz — NOT in main index
         try:
-            json_pgz_write(self._index_cache_path(key), data)
+            blob_pgz_write(self._index_cache_path(key), data, blobs)
         except Exception as e:
             log.warning("Failed to save index for %s: %s", key, e)
         if file_texts:
@@ -429,16 +434,24 @@ class Store:
     def load_index(self, key: str) -> dict | None:
         """Load cached index data (without file texts), or None if not cached.
 
-        File texts live in a separate .texts.pgz — use load_texts() for those.
+        Returns the JSON head dict with the binary blobs attached under
+        ``"blobs"`` (name → memoryview). File texts live in a separate
+        .texts.pgz — use load_texts() for those.
+
+        An unreadable file is reported and LEFT IN PLACE — a cache is the
+        operator's data; only an explicit `pg cache …` / `pg purge` removes
+        one. The pre-blob JSON layout is detected by ``detect_legacy`` and
+        surfaced as a decision, never read here.
         """
         cache_file = self._index_cache_path(key)
         if not cache_file.exists():
             return None
         try:
-            return json_pgz_read(cache_file)
+            data, blobs = blob_pgz_read(cache_file)
+            data["blobs"] = blobs
+            return data
         except Exception as e:
-            log.warning("Failed to read index cache for %s: %s", key, e)
-            cache_file.unlink(missing_ok=True)
+            log.error("Index cache %s is unreadable (%s); left in place, treated as a miss", cache_file.name, e)
             return None
 
     # ── Invalidation ──
@@ -577,6 +590,19 @@ class SearchStore:
         # _walk_directory when a file exceeds max_file_size_bytes and is not
         # matched by [index].allow_large. Surfaced via log.error.
         self._skipped_large: dict[str, int] = {}
+        # classify_file verdicts for paths re-used on the mtime-pruned walk
+        # path, keyed by (rel_path, size). Valid only for one rule
+        # configuration — _verdict_rules is the (.pgignore, size, allow_large)
+        # fingerprint the cache was built under; any change drops it whole.
+        self._verdict_cache: dict[tuple[str, int], str] = {}
+        self._verdict_rules: tuple | None = None
+        # Set by load_index when the on-disk corpus caches are in the v1
+        # layout. Nothing is loaded, moved, or deleted until the operator
+        # picks a `pg cache` choice.
+        self.legacy = None
+        # Tokenizer version the loaded .six was built with, when it differs
+        # from this version's (None otherwise). Reported, never auto-fixed.
+        self.tokenizer_built_with: int | None = None
 
     def _history(self) -> History | None:
         """Get the History instance for this search store."""
@@ -591,6 +617,12 @@ class SearchStore:
             return self._preloaded
         if not self._store:
             return DocumentIndex()
+        # A v1 (JSON) cache is the operator's data: it is read in place,
+        # streaming, one document at a time — served like any other cache,
+        # never rewritten or removed until they choose (inspect/legacy.py).
+        self.legacy = self._store.detect_legacy(self._path)
+        if self.legacy is not None:
+            return self._load_legacy_index()
         log.info("SearchStore.load_index: start path=%s", self._path)
         t0 = time.perf_counter()
         cached = self._store.load_index(self._path)
@@ -612,7 +644,9 @@ class SearchStore:
         self._dir_mtimes = cached.get("dir_mtimes", {})
         self._dir_hashes[self._path] = file_hashes
         idx_data = cached.get("index", {})
-        n_docs = len(idx_data.get("documents", {}))
+        idx_blobs = cached.get("blobs", {})
+        doc_names = [d["name"] for d in idx_data.get("documents", [])]
+        n_docs = len(doc_names)
         # Load texts from History (separate layered OrdinalPGZ files)
         log.info(
             "SearchStore.load_index: load_texts start (docs=%d, hashes=%d)",
@@ -631,10 +665,10 @@ class SearchStore:
         if not file_texts:
             file_texts = cached.get("file_texts", {})
         if file_texts and len(file_texts) >= len(file_hashes):
-            original_texts = {rel: file_texts.get(rel, "") for rel in idx_data.get("documents", {})}
-            log.info("SearchStore.load_index: DocumentIndex.from_dict start (docs=%d)", n_docs)
+            original_texts = {rel: file_texts.get(rel, "") for rel in doc_names}
+            log.info("SearchStore.load_index: DocumentIndex.from_record start (docs=%d)", n_docs)
             t0 = time.perf_counter()
-            idx = DocumentIndex.from_dict(idx_data, original_texts)
+            idx = DocumentIndex.from_record(idx_data, idx_blobs, original_texts)
             t_build = time.perf_counter() - t0
             log.info(
                 "SearchStore.load_index: done docs=%d hashes=%d cache_read=%.2fs texts_load=%.2fs index_build=%.2fs",
@@ -663,13 +697,13 @@ class SearchStore:
         t_rehash = time.perf_counter() - t0
         merged_texts = dict(file_texts)
         merged_texts.update(disk_texts)
-        original_texts = {rel: merged_texts.get(rel, "") for rel in idx_data.get("documents", {})}
+        original_texts = {rel: merged_texts.get(rel, "") for rel in doc_names}
         if disk_texts:
             # Backfill History so next load has complete texts and skips the fallback.
             self._store.save_texts(self._path, merged_texts)
-        log.info("SearchStore.load_index: DocumentIndex.from_dict start (docs=%d)", n_docs)
+        log.info("SearchStore.load_index: DocumentIndex.from_record start (docs=%d)", n_docs)
         t0 = time.perf_counter()
-        idx = DocumentIndex.from_dict(idx_data, original_texts)
+        idx = DocumentIndex.from_record(idx_data, idx_blobs, original_texts)
         t_build = time.perf_counter() - t0
         log.info(
             "SearchStore.load_index [fallback]: docs=%d hashes=%d missing=%d "
@@ -681,6 +715,45 @@ class SearchStore:
             t_texts,
             t_rehash,
             t_build,
+        )
+        return idx
+
+    def _load_legacy_index(self) -> DocumentIndex:
+        """Serve a v1 idx cache: stream-convert it into the current in-memory
+        layout. Reads only; the files on disk stay exactly as found."""
+        import time
+
+        from .legacy import convert_idx
+
+        legacy = self.legacy
+        assert legacy is not None
+        # error level: the daemon's default log level is ERROR, and this
+        # is exactly the kind of state the operator must see in bench.log.
+        log.error("\n".join(legacy.describe()))
+        if legacy.idx_path is None:
+            return DocumentIndex()
+        t0 = time.perf_counter()
+        file_texts = self._store.load_texts(self._path) or {}
+
+        def _fetch_missing(directory: str, names: list[str]) -> dict[str, str]:
+            # Same fallback the blob path uses: texts the history lacks are
+            # read from disk (stat fast-path + hash), never silently dropped.
+            base = Path(directory)
+            texts, _ = self._read_and_hash([(base / rel, rel) for rel in names])
+            return texts
+
+        idx, head = convert_idx(legacy.idx_path, file_texts, fetch_missing=_fetch_missing)
+        directory = head.get("directory", legacy.directory)
+        self._dir_hashes[self._path] = head.get("file_hashes", {})
+        indexed = head.get("indexed_dirs") or ({directory: None} if directory else {})
+        self._indexed_dirs = {k: (v if v else _load_extensions()) for k, v in indexed.items()}
+        self._file_stats = {k: tuple(v) for k, v in head.get("file_stats", {}).items()}
+        self._dir_mtimes = head.get("dir_mtimes", {})
+        log.info(
+            "SearchStore.load_index [v1]: %d docs streamed from %s in %.1fs",
+            len(idx.documents),
+            legacy.idx_path.name,
+            time.perf_counter() - t0,
         )
         return idx
 
@@ -696,30 +769,52 @@ class SearchStore:
 
         if not self._store:
             return None
+        if self.legacy is not None:
+            if self.legacy.six_path is None:
+                return None
+            from ..search_engine.document import TOKENIZER_VERSION
+            from .legacy import convert_six
+
+            t0 = time.perf_counter()
+            result = convert_six(self.legacy.six_path, doc_index)
+            # A v1 cache was tokenized by v1; say so like any other version gap.
+            self.tokenizer_built_with = 1 if TOKENIZER_VERSION != 1 else None
+            log.info(
+                "SearchStore.load_search_index [v1]: %d docs streamed from %s in %.1fs",
+                len(result.documents),
+                self.legacy.six_path.name,
+                time.perf_counter() - t0,
+            )
+            return result
         log.info("SearchStore.load_search_index: start path=%s", self._path)
         t0 = time.perf_counter()
-        sidx = self._store.load_search_index_data(self._path)
-        if sidx is None:
-            # Legacy layout: search_index stored inline in the main .idx.pgz.
-            # One expensive parse on the first boot after upgrade; the next
-            # save writes the dedicated .six.pgz and this path goes away.
-            cached = self._store.load_index(self._path)
-            if not cached or "search_index" not in cached:
-                return None
-            sidx = cached["search_index"]
+        record = self._store.load_search_index_data(self._path)
+        if record is None:
+            return None
+        meta, blobs = record
         t_read = time.perf_counter() - t0
-        log.info("SearchStore.load_search_index: cache read %.2fs", t_read)
-        sidx_keys = list(sidx.keys()) if isinstance(sidx, dict) else []
-        log.info("SearchStore.load_search_index: deserialize start sections=%s", sidx_keys)
+        n_docs = len(meta.get("documents", []))
+        from ..search_engine.document import TOKENIZER_VERSION
+
+        built_with = meta.get("tokenizer", 1)
+        self.tokenizer_built_with = built_with if built_with != TOKENIZER_VERSION else None
+        if self.tokenizer_built_with is not None:
+            log.error(
+                "search index was built with tokenizer v%d; this version is v%d — "
+                "sub-token queries (paths, camelCase) miss until `pg reindex --force`",
+                built_with,
+                TOKENIZER_VERSION,
+            )
+        log.info("SearchStore.load_search_index: cache read %.2fs (docs=%d, blobs=%d)", t_read, n_docs, len(blobs))
         try:
             t0 = time.perf_counter()
-            result = deserialize_search_index(sidx, doc_index)
+            result = deserialize_search_index(meta, blobs, doc_index)
             t_build = time.perf_counter() - t0
             log.info(
-                "SearchStore.load_search_index: done cache_read=%.2fs deserialize=%.2fs sections=%s",
+                "SearchStore.load_search_index: done cache_read=%.2fs deserialize=%.2fs docs=%d",
                 t_read,
                 t_build,
-                sidx_keys,
+                n_docs,
             )
             return result
         except Exception as e:
@@ -844,11 +939,22 @@ class SearchStore:
         return _index, total_changed, deleted
 
     def flush_pending_save(self):
-        """Write the cache update queued by the last index/reindex pass."""
+        """Write the cache update queued by the last index/reindex pass.
+
+        Held while a v1 cache is on disk: writing would replace the
+        operator's files under the same names. Changes stay in memory (and
+        searchable) until `pg cache convert|rebuild|discard` settles it.
+        """
         info = self._pending_save
-        self._pending_save = None
         if not info:
             return
+        if self.legacy is not None:
+            log.warning(
+                "cache save held: v1 cache files present (%s); choose `pg cache convert|rebuild|discard|keep`",
+                ", ".join(p.name for p in self.legacy.files),
+            )
+            return
+        self._pending_save = None
         self._save_cache(
             info["directory"],
             info["file_hashes"],
@@ -876,7 +982,7 @@ class SearchStore:
             self._path,
             directory,
             file_hashes,
-            doc_index.to_dict(),
+            doc_index.to_record(),
             indexed_dirs=self._indexed_dirs,
             file_stats={k: list(v) for k, v in self._file_stats.items()},
             dir_mtimes=self._dir_mtimes,
@@ -902,6 +1008,13 @@ class SearchStore:
         "search_index" key, and rewrote it — a full read + double write of
         the largest cache file on every changed reindex pass."""
         if not self._store:
+            return
+        if self.legacy is not None:
+            # Same hold as flush_pending_save: never write over the v1 files.
+            log.warning(
+                "search index save held: v1 cache files present (%s); choose `pg cache convert|migrate|rebuild|keep`",
+                ", ".join(p.name for p in self.legacy.files),
+            )
             return
         from ..search_engine.serialization import serialize_search_index
 
@@ -954,6 +1067,22 @@ class SearchStore:
         max_file_size = _load_max_file_size_bytes()
         allow_large = _load_allow_large_globs()
 
+        # Per-file verdicts survive across passes while the rules are the same.
+        rules_fp = (tuple(ignore_patterns), max_file_size, tuple(allow_large))
+        if rules_fp != self._verdict_rules:
+            self._verdict_cache = {}
+            self._verdict_rules = rules_fp
+        verdict_cache = self._verdict_cache
+
+        # Previous file list grouped by parent directory, built once — the
+        # pruned path below is hit once per unchanged directory and must not
+        # rescan every key each time.
+        keys_by_dir: dict[str, list[str]] = {}
+        if old_hashes:
+            for key in old_hashes:
+                parent = key.replace("\\", "/").rpartition("/")[0] or "."
+                keys_by_dir.setdefault(parent, []).append(key)
+
         paths: list[tuple[Path, str]] = []
         for root, dirs, fnames in os.walk(directory):
             # Prune ignored directories
@@ -976,14 +1105,38 @@ class SearchStore:
                     dir_mtime = 0
                 cached_mtime = self._dir_mtimes.get(root)
                 if cached_mtime is not None and dir_mtime == cached_mtime:
-                    # Reuse old file entries for this directory level only
-                    rel_root_str = str(Path(root).relative_to(directory))
-                    for key in old_hashes:
-                        key_dir = str(Path(key).parent)
-                        if key_dir == rel_root_str or (rel_root_str == "." and "/" not in key and "\\" not in key):
-                            fpath = Path(directory) / key
-                            if any(key.endswith(e) for e in ext_set):
-                                paths.append((fpath, key))
+                    # Reuse old file entries for this directory level only.
+                    # The reused entries still pass through classify_file:
+                    # a .pgignore line or size rule added after a file was
+                    # first indexed must evict it even though its directory
+                    # never changed. (_read_and_hash stats every path anyway
+                    # for the fingerprint fast-path, so this costs nothing.)
+                    rel_root_str = str(Path(root).relative_to(directory)).replace("\\", "/")
+                    for key in keys_by_dir.get(rel_root_str, ()):
+                        if not any(key.endswith(e) for e in ext_set):
+                            continue
+                        fpath = Path(directory) / key
+                        try:
+                            size = fpath.stat().st_size
+                        except OSError:
+                            continue
+                        ck = (key, size)
+                        verdict = verdict_cache.get(ck)
+                        if verdict is None:
+                            verdict = classify_file(
+                                key,
+                                size,
+                                ignore_patterns=ignore_patterns,
+                                max_bytes=max_file_size,
+                                allow_large=allow_large,
+                            )
+                            verdict_cache[ck] = verdict
+                        if verdict == "oversized":
+                            self._skipped_large[key] = size
+                            continue
+                        if verdict != "ok":
+                            continue
+                        paths.append((fpath, key))
                     continue
 
             # Record this directory's mtime
@@ -1013,7 +1166,77 @@ class SearchStore:
                     if verdict != "ok":
                         continue
                     paths.append((fpath, rel))
-        return paths
+        return self._drop_gitignored(paths)
+
+    def _drop_gitignored(self, paths: list[tuple[Path, str]]) -> list[tuple[Path, str]]:
+        """Remove every path its own git repository ignores.
+
+        A file gitignored by the repository that contains it — local
+        settings, credentials, scratch notes — is never corpus material:
+        the index caches embed full text and travel with the workspace.
+        Each path is judged by the *nearest* repository above it (a
+        workspace of nested repos ignores its children at the top level,
+        which says nothing about the files inside them). One
+        ``git check-ignore --stdin`` per repository per walk.
+        """
+        import subprocess
+
+        root_cache: dict[Path, Path | None] = {}
+
+        def repo_of(p: Path) -> Path | None:
+            d = p.parent
+            chain = []
+            while True:
+                if d in root_cache:
+                    found = root_cache[d]
+                    break
+                chain.append(d)
+                if (d / ".git").exists():
+                    found = d
+                    break
+                if d.parent == d:
+                    found = None
+                    break
+                d = d.parent
+            for c in chain:
+                root_cache[c] = found
+            return found
+
+        by_repo: dict[Path, list[int]] = {}
+        for i, (fpath, _rel) in enumerate(paths):
+            repo = repo_of(fpath)
+            if repo is not None:
+                by_repo.setdefault(repo, []).append(i)
+
+        dropped: set[int] = set()
+        for repo, idxs in by_repo.items():
+            rels = [str(paths[i][0].relative_to(repo)) for i in idxs]
+            try:
+                out = subprocess.run(
+                    ["git", "-C", str(repo), "check-ignore", "--stdin", "-z"],
+                    input="\0".join(rels) + "\0",
+                    capture_output=True,
+                    text=True,
+                    timeout=60,
+                )
+            except (OSError, subprocess.SubprocessError) as e:
+                log.warning("git check-ignore unavailable for %s (%s); gitignore not applied there", repo, e)
+                continue
+            # exit 0: some ignored; 1: none; 128: not a repo / error
+            if out.returncode not in (0, 1):
+                log.warning("git check-ignore failed for %s: %s", repo, out.stderr.strip())
+                continue
+            ignored = set(filter(None, out.stdout.split("\0")))
+            for i, rel in zip(idxs, rels):
+                if rel in ignored:
+                    dropped.add(i)
+        if dropped:
+            log.info(
+                "%d file(s) skipped: gitignored by their own repository (e.g. %s)",
+                len(dropped),
+                paths[next(iter(dropped))][1],
+            )
+        return [p for i, p in enumerate(paths) if i not in dropped]
 
     def index_incremental(
         self,

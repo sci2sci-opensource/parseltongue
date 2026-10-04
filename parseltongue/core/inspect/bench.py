@@ -27,7 +27,9 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
+from typing import Collection
 
+from ..loader.fs import LoaderFS
 from ..loader.lazy_loader import LazyLoadResult
 from .optics import Lens
 from .optics.hologram import Hologram
@@ -102,7 +104,14 @@ class Bench:
     BENCH_PG = str(Path(__file__).resolve().parent / "bench.pltg")
     BENCH_PG_DIR = str(Path(__file__).resolve().parent)
 
-    def __init__(self, bench_dir: str | Path | None = None, lib_paths: list[str] | None = None):
+    def __init__(
+        self,
+        bench_dir: str | Path | None = None,
+        lib_paths: list[str] | None = None,
+        fs: LoaderFS | None = None,
+        builtin_effects: Collection[str] | None = None,
+    ):
+        """`fs` and `builtin_effects` configure how bench paths are loaded (see Loader)."""
         self._store = Store(bench_dir)
         self._lib_paths = lib_paths if lib_paths is not None else [self.STD_PATH]
         self._technician = Technician(
@@ -110,6 +119,8 @@ class Bench:
             self._on_status,
             lib_paths=self._lib_paths + [self.BENCH_PG_DIR],
             bench_pg=self.BENCH_PG,
+            fs=fs,
+            builtin_effects=builtin_effects,
         )
         self._mem: dict[str, Sample] = {}
         self._current_path: str | None = None
@@ -314,14 +325,20 @@ class Bench:
     # ── Search ──
 
     def search(
-        self, query: str, max_lines: int = 20, max_callers: int = 5, offset: int = 0, rank: str = "callers"
+        self,
+        query: str,
+        max_lines: int = 20,
+        max_callers: int = 5,
+        offset: int = 0,
+        rank: str = "callers",
+        highlights: bool = False,
     ) -> dict:
         """Full-text search across all loaded documents with pltg provenance."""
         path = self._require_current()
         if path not in self._mem:
             self.prepare(path)
         return self._technician.search_engine(path).query(
-            query, max_lines=max_lines, max_callers=max_callers, offset=offset, rank=rank
+            query, max_lines=max_lines, max_callers=max_callers, offset=offset, rank=rank, highlights=highlights
         )
 
     def eval(self, query: str):
@@ -417,6 +434,15 @@ class Bench:
         if count:
             self._on_corpus_moved()
         return count
+
+    def cache_choice(self, choice: str, on_progress=None) -> str:
+        """Settle a v1 (legacy layout) corpus cache found at start — the
+        operator's explicit decision; see Search.cache_choice. A rebuild
+        re-reads the corpus, so cached screens are dropped as for index_dir."""
+        text = self.index.cache_choice(choice, on_progress=on_progress)
+        if choice == "rebuild":
+            self._on_corpus_moved()
+        return text
 
     def _on_corpus_moved(self) -> None:
         """The corpus changed under the current sample — refresh its screen.

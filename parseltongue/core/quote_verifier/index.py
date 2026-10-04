@@ -4,13 +4,19 @@ Inverted word-position index for fast quote lookup.
 Build once per document, query many times.
 """
 
+import base64
 import logging
 import zlib
+from array import array
+from bisect import bisect_left
 from collections import defaultdict
+from collections.abc import Iterator, Mapping
 from typing import Dict, List, Tuple
 
 from .config import MatchStrategy, QuoteVerifierConfig
 from .normalizer import normalize_with_mapping
+from .posmap import U32, RunMap
+from .vocab import Vocab
 
 log = logging.getLogger("parseltongue.quote_verifier")
 
@@ -19,81 +25,185 @@ def _content_hash(text: str) -> str:
     return format(zlib.crc32(text.encode()), "08x")
 
 
+def remap_csr(terms: array, offsets: array, values: array, id_remap: array) -> tuple[array, array, array]:
+    """Translate a CSR (sorted term ids, offsets, values) through *id_remap*.
+
+    Ids change, so the term order may change; the value runs are permuted
+    along with their terms so the layout stays contiguous and sorted.
+    """
+    order = sorted(range(len(terms)), key=lambda k: id_remap[terms[k]])
+    new_terms = array(U32, (id_remap[terms[k]] for k in order))
+    new_offsets = array(U32, [0])
+    new_values = array(U32)
+    for k in order:
+        new_values.extend(values[offsets[k] : offsets[k + 1]])
+        new_offsets.append(len(new_values))
+    return new_terms, new_offsets, new_values
+
+
+class TermPositions(Mapping[str, array]):
+    """Read-only ``word → positions`` view over a document's id arrays.
+
+    Backed by three arrays on the document: sorted term ids, a CSR-style
+    offsets table, and the flat position list. Values are ``array('I')``
+    slices — iterate them or take ``len()`` exactly like the lists they
+    replace.
+    """
+
+    __slots__ = ("_doc",)
+
+    def __init__(self, doc: "IndexedDocument"):
+        self._doc = doc
+
+    def _slot(self, word: str) -> int:
+        tid = self._doc.vocab.lookup(word)
+        if tid is None:
+            return -1
+        terms = self._doc._wp_terms
+        k = bisect_left(terms, tid)
+        if k < len(terms) and terms[k] == tid:
+            return k
+        return -1
+
+    def _positions(self, k: int) -> array:
+        off = self._doc._wp_offsets
+        return self._doc._wp_positions[off[k] : off[k + 1]]
+
+    def __getitem__(self, word: str) -> array:
+        k = self._slot(word)
+        if k < 0:
+            raise KeyError(word)
+        return self._positions(k)
+
+    def __contains__(self, word: object) -> bool:
+        return isinstance(word, str) and self._slot(word) >= 0
+
+    def __iter__(self) -> Iterator[str]:
+        vocab = self._doc.vocab
+        for tid in self._doc._wp_terms:
+            yield vocab.term(tid)
+
+    def __len__(self) -> int:
+        return len(self._doc._wp_terms)
+
+    def items(self):
+        vocab = self._doc.vocab
+        off = self._doc._wp_offsets
+        pos = self._doc._wp_positions
+        for k, tid in enumerate(self._doc._wp_terms):
+            yield vocab.term(tid), pos[off[k] : off[k + 1]]
+
+
 class IndexedDocument:
-    """A single document's pre-processed data with word-position index."""
+    """A single document's pre-processed data with word-position index.
+
+    Everything positional is an ``array('I')`` or a :class:`RunMap`; the
+    only per-document Python objects are the two text strings and a
+    handful of containers, whatever the document size.
+    """
 
     __slots__ = (
         "name",
         "original_text",
         "normalized_text",
         "position_map",
-        "word_positions",
         "content_hash",
+        "vocab",
+        "_wp_terms",
+        "_wp_offsets",
+        "_wp_positions",
         "_collapsed_text",
         "_collapsed_to_norm",
     )
 
-    def __init__(self, name: str, text: str, config: QuoteVerifierConfig):
+    #: Blob keys emitted by :meth:`to_record`, in a fixed order.
+    BLOB_KEYS = ("nt", "pm.s", "pm.v", "wt", "wo", "wp")
+
+    def __init__(self, name: str, text: str, config: QuoteVerifierConfig, vocab: Vocab | None = None):
         self.name = name
         self.original_text = text
         self.content_hash = _content_hash(text)
-        self.normalized_text, self.position_map, _ = normalize_with_mapping(text, config)
-        self.word_positions = self._build_word_index()
-        self._collapsed_text, self._collapsed_to_norm = self._build_collapsed()
+        self.vocab = vocab if vocab is not None else Vocab()
+        normalized, pos_map, _ = normalize_with_mapping(text, config)
+        self.normalized_text = normalized
+        self.position_map = RunMap.from_seq(pos_map)
+        self._wp_terms, self._wp_offsets, self._wp_positions = self._build_word_index()
+        self._collapsed_text: str | None = None
+        self._collapsed_to_norm: RunMap | None = None
+
+    @property
+    def word_positions(self) -> TermPositions:
+        """``word → array of start positions in normalized_text``."""
+        return TermPositions(self)
+
+    # ── persistence ──
+
+    def to_record(self) -> tuple[dict, dict[str, bytes]]:
+        """(meta, blobs) for the cache. Ids in the blobs are relative to
+        ``self.vocab`` — the owner persists the term list alongside."""
+        pm_starts, pm_values = self.position_map.to_blobs()
+        meta = {
+            "name": self.name,
+            "content_hash": self.content_hash,
+            "norm_len": len(self.position_map),
+        }
+        blobs = {
+            "nt": self.normalized_text.encode("utf-8"),
+            "pm.s": pm_starts,
+            "pm.v": pm_values,
+            "wt": self._wp_terms.tobytes(),
+            "wo": self._wp_offsets.tobytes(),
+            "wp": self._wp_positions.tobytes(),
+        }
+        return meta, blobs
 
     @classmethod
-    def from_serialized(
+    def from_record(
         cls,
-        name: str,
         original_text: str,
-        normalized_text: str,
-        position_map: List[int],
-        word_positions: Dict[str, List[int]] | None = None,
-        collapsed_text: str | None = None,
-        collapsed_to_norm: List[int] | None = None,
+        meta: dict,
+        blobs: Mapping[str, bytes | memoryview],
+        vocab: Vocab,
+        id_remap: array | None = None,
     ) -> "IndexedDocument":
-        """Restore from serialized state.
+        """Restore from :meth:`to_record` output.
 
-        ``word_positions``, ``collapsed_text``, and ``collapsed_to_norm`` are
-        persisted since they're the expensive part to compute (char-by-char
-        Python loops over normalized_text). If missing — e.g. a cache written
-        before this schema expanded — they're rebuilt transparently.
+        ``id_remap`` translates the cache's term ids into *vocab*'s ids when
+        the cache was written against a different term list.
         """
         obj = object.__new__(cls)
-        obj.name = name
+        obj.name = meta["name"]
         obj.original_text = original_text
         obj.content_hash = _content_hash(original_text)
-        obj.normalized_text = normalized_text
-        obj.position_map = position_map
-        if word_positions is not None:
-            obj.word_positions = word_positions
-        else:
-            obj.word_positions = obj._build_word_index()
-        if collapsed_text is not None and collapsed_to_norm is not None:
-            obj._collapsed_text = collapsed_text
-            obj._collapsed_to_norm = collapsed_to_norm
-        else:
-            obj._collapsed_text, obj._collapsed_to_norm = obj._build_collapsed()
+        obj.vocab = vocab
+        obj.normalized_text = bytes(blobs["nt"]).decode("utf-8")
+        obj.position_map = RunMap.from_blobs(blobs["pm.s"], blobs["pm.v"], meta["norm_len"])
+        terms = array(U32)
+        terms.frombytes(blobs["wt"])
+        offsets = array(U32)
+        offsets.frombytes(blobs["wo"])
+        positions = array(U32)
+        positions.frombytes(blobs["wp"])
+        if id_remap is not None:
+            terms, offsets, positions = remap_csr(terms, offsets, positions, id_remap)
+        obj._wp_terms = terms
+        obj._wp_offsets = offsets
+        obj._wp_positions = positions
+        obj._collapsed_text = None
+        obj._collapsed_to_norm = None
         return obj
 
-    def to_dict(self) -> dict:
-        return {
-            "name": self.name,
-            "normalized_text": self.normalized_text,
-            "position_map": self.position_map,
-            "content_hash": self.content_hash,
-            # Persist the expensive index structures — restoring them is the
-            # whole point of a cache. Without these, from_serialized would
-            # rebuild them via char-by-char Python loops on every startup.
-            "word_positions": self.word_positions,
-            "collapsed_text": self._collapsed_text,
-            "collapsed_to_norm": self._collapsed_to_norm,
-        }
+    # ── index construction ──
 
-    def _build_word_index(self) -> Dict[str, List[int]]:
-        """Map each word to its character start positions in normalized text."""
-        index: Dict[str, List[int]] = defaultdict(list)
+    def _build_word_index(self) -> tuple[array, array, array]:
+        """CSR layout of ``term id → start positions`` over normalized text.
+
+        Returns (sorted term ids, offsets[len+1], positions). Positions of
+        one term are ascending because the scan is left-to-right.
+        """
+        by_id: Dict[int, List[int]] = defaultdict(list)
         text = self.normalized_text
+        vocab_id = self.vocab.id
         i = 0
         n = len(text)
 
@@ -109,26 +219,33 @@ class IndexedDocument:
                 i += 1
             word = text[start:i]
             if word:
-                index[word].append(start)
+                by_id[vocab_id(word)].append(start)
 
-        return dict(index)
+        terms = array(U32, sorted(by_id))
+        offsets = array(U32, [0])
+        positions = array(U32)
+        for tid in terms:
+            positions.extend(by_id[tid])
+            offsets.append(len(positions))
+        return terms, offsets, positions
 
-    def _build_collapsed(self):
-        """Build a space-collapsed version of normalized_text.
+    def _collapsed(self) -> tuple[str, RunMap]:
+        """Space-collapsed normalized_text + map back to normalized positions.
 
-        Used as fallback when the primary index misses due to spurious
-        spaces in the source (e.g. PDF line-break inside a word).
-
-        Returns (collapsed_text, collapsed_to_norm) where
-        collapsed_to_norm[i] is the position in normalized_text.
+        Fallback for quotes that miss the primary index because the source
+        has spurious spaces inside words (PDF line breaks). Built on first
+        use and kept; never persisted — it is derivable in one pass.
         """
-        collapsed = []
-        mapping = []
-        for i, ch in enumerate(self.normalized_text):
-            if ch != " ":
-                collapsed.append(ch)
-                mapping.append(i)
-        return "".join(collapsed), mapping
+        if self._collapsed_text is None or self._collapsed_to_norm is None:
+            collapsed = []
+            mapping = []
+            for i, ch in enumerate(self.normalized_text):
+                if ch != " ":
+                    collapsed.append(ch)
+                    mapping.append(i)
+            self._collapsed_text = "".join(collapsed)
+            self._collapsed_to_norm = RunMap.from_seq(mapping)
+        return self._collapsed_text, self._collapsed_to_norm
 
     def find(self, normalized_quote: str) -> Tuple[int, int, MatchStrategy]:
         """Find first quote position. Back-compat wrapper around find_all.
@@ -193,15 +310,15 @@ class IndexedDocument:
 
         results = []
         offset = 0
-        ctext = self._collapsed_text
+        ctext, to_norm = self._collapsed()
         clen = len(collapsed_quote)
 
         while offset <= len(ctext) - clen:
             idx = ctext.find(collapsed_quote, offset)
             if idx == -1:
                 break
-            start = self._collapsed_to_norm[idx]
-            end = self._collapsed_to_norm[idx + clen - 1]
+            start = to_norm[idx]
+            end = to_norm[idx + clen - 1]
             results.append((start, end))
             offset = idx + 1
 
@@ -217,6 +334,7 @@ class DocumentIndex:
         config: QuoteVerifierConfig | None = None,
     ):
         self.config = config or QuoteVerifierConfig()
+        self.vocab = Vocab()
         self.documents: Dict[str, IndexedDocument] = {}
         self._hashes: Dict[str, str] = {}
         self._merged: Dict[str, List[Tuple[str, int]]] | None = None
@@ -236,7 +354,7 @@ class DocumentIndex:
         h = _content_hash(text)
         if name in self._hashes and self._hashes[name] == h and name in self.documents:
             return self.documents[name]
-        doc = IndexedDocument(name, text, self.config)
+        doc = IndexedDocument(name, text, self.config, self.vocab)
         # COW swap — readers holding the old dict ref see a consistent view.
         new_docs = dict(self.documents)
         new_docs[name] = doc
@@ -257,51 +375,80 @@ class DocumentIndex:
         """Find a normalized quote in a named document. Returns (-1, -1) if not found."""
         return self.get(name).find(normalized_quote)
 
-    def to_dict(self) -> dict:
-        """Serialize index: normalized text + position maps + content hashes.
+    def to_record(self) -> tuple[dict, dict[str, bytes]]:
+        """Serialize index as (meta, blobs): the term list, per-document
+        normalized text + position maps + word positions, content hashes.
 
         Quote ranges are NOT serialized — they are rebuilt on load
         via _verify_evidence calls.
         """
+        docs_meta = []
+        blobs: dict[str, bytes] = {}
+        for i, (name, doc) in enumerate(self.documents.items()):
+            meta, doc_blobs = doc.to_record()
+            docs_meta.append(meta)
+            for key, blob in doc_blobs.items():
+                blobs[f"{i}.{key}"] = blob
         return {
-            "documents": {name: doc.to_dict() for name, doc in self.documents.items()},
+            "vocab": list(self.vocab.terms),
+            "documents": docs_meta,
             "hashes": dict(self._hashes),
-        }
+        }, blobs
 
     @classmethod
-    def from_dict(
-        cls, data: dict, original_texts: Dict[str, str], config: QuoteVerifierConfig | None = None
+    def from_record(
+        cls,
+        meta: dict,
+        blobs: Mapping[str, bytes | memoryview],
+        original_texts: Dict[str, str],
+        config: QuoteVerifierConfig | None = None,
     ) -> "DocumentIndex":
-        """Restore index from serialized state + original texts.
+        """Restore index from :meth:`to_record` output + original texts.
 
         Documents whose content hash no longer matches are re-indexed.
         """
         idx = cls(config=config)
-        docs_data = data.get("documents", data)  # compat: old format had docs at top level
-        saved_hashes = data.get("hashes", {})
+        idx.vocab = Vocab(meta.get("vocab", ()))
+        saved_hashes = meta.get("hashes", {})
 
-        for name, doc_data in docs_data.items():
+        for i, doc_meta in enumerate(meta.get("documents", [])):
+            name = doc_meta["name"]
             original = original_texts.get(name, "")
             saved_hash = saved_hashes.get(name, "")
             current_hash = _content_hash(original) if original else ""
 
             if saved_hash and saved_hash == current_hash:
-                # Content unchanged — restore from serialized
-                idx.documents[name] = IndexedDocument.from_serialized(
-                    name=doc_data["name"],
-                    original_text=original,
-                    normalized_text=doc_data["normalized_text"],
-                    position_map=doc_data["position_map"],
-                    word_positions=doc_data.get("word_positions"),
-                    collapsed_text=doc_data.get("collapsed_text"),
-                    collapsed_to_norm=doc_data.get("collapsed_to_norm"),
-                )
+                # Content unchanged — restore from the record
+                doc_blobs = {key: blobs[f"{i}.{key}"] for key in IndexedDocument.BLOB_KEYS}
+                idx.documents[name] = IndexedDocument.from_record(original, doc_meta, doc_blobs, idx.vocab)
                 idx._hashes[name] = saved_hash
             else:
                 # Content changed — re-index
                 idx.add(name, original)
 
         return idx
+
+    # JSON-embeddable form of the record, for callers that persist the
+    # index inside a larger JSON document (System caches). Blobs ride as
+    # base64 — fine for the handful of evidence documents a .pltg cites;
+    # corpus-scale indexes go through to_record()/BlobPGZ.
+
+    def to_dict(self) -> dict:
+        meta, blobs = self.to_record()
+        meta["blobs"] = {k: base64.b64encode(v).decode("ascii") for k, v in blobs.items()}
+        return meta
+
+    @classmethod
+    def from_dict(
+        cls, data: dict, original_texts: Dict[str, str], config: QuoteVerifierConfig | None = None
+    ) -> "DocumentIndex":
+        """Restore from :meth:`to_dict`. Any other layout (a cache written by
+        an earlier schema) is rebuilt from *original_texts* instead."""
+        if "blobs" not in data or "vocab" not in data:
+            return cls(documents=dict(original_texts), config=config)
+        blobs = {k: base64.b64decode(v) for k, v in data["blobs"].items()}
+        meta = {k: v for k, v in data.items() if k != "blobs"}
+        return cls.from_record(meta, blobs, original_texts, config=config)
 
     def refresh_document(self, name: str, new_text: str) -> int:
         """Re-index a document and recompute quote positions.

@@ -22,15 +22,30 @@ import logging
 import os
 from abc import ABC
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Collection
 
 from ..atoms import Symbol
 from ..engine import _execute_directive
 from ..system import System
+from .fs import LoaderFS, LocalFS
 from .loader_engine import LoaderEngine
 from .loader_morphism import ModuleSource
 
 log = logging.getLogger("parseltongue")
+
+#: The loader's own effects, by name. A Loader registers all of them unless
+#: given a narrower `builtin_effects`.
+LOADER_EFFECTS = (
+    "import",
+    "run-on-entry",
+    "load-document",
+    "load-documents",
+    "context",
+    "print",
+    "consistency",
+    "verify-manual",
+    "dangerously-eval",
+)
 
 
 class PltgError(Exception):
@@ -95,7 +110,24 @@ class Loader:
     time — the definition→module mapping tells us where to look.
     """
 
-    def __init__(self, lib_paths: list[str] | None = None):
+    def __init__(
+        self,
+        lib_paths: list[str] | None = None,
+        fs: LoaderFS | None = None,
+        builtin_effects: Collection[str] | None = None,
+    ):
+        """
+        Args:
+            lib_paths: Lib entry points and roots imports resolve against.
+            fs: Where sources and documents are read from; the local disk by default.
+            builtin_effects: Names of the loader's own effects to register
+                (see LOADER_EFFECTS); all of them by default.
+        """
+        unknown = set(builtin_effects or ()) - set(LOADER_EFFECTS)
+        if unknown:
+            raise ValueError(f"Unknown loader effects: {sorted(unknown)}")
+        self.fs: LoaderFS = fs if fs is not None else LocalFS()
+        self.builtin_effects: frozenset[str] = frozenset(LOADER_EFFECTS if builtin_effects is None else builtin_effects)
         self.main_ctx: LoaderContext = None  # type: ignore[assignment]
         self.modules_contexts: dict[str, ModuleContext] = {}
         self._current: ModuleContext = None  # type: ignore[assignment]
@@ -125,6 +157,13 @@ class Loader:
     def resolve_md_ctx(self, module_name):
         """Look up a module's context by name."""
         return self.modules_contexts[module_name]
+
+    def _lib_dirs(self) -> list[str]:
+        """The directories lib imports resolve against: a lib entry file's directory, or the lib root itself."""
+        return [
+            os.path.dirname(os.path.abspath(lp)) if self.fs.is_file(os.path.abspath(lp)) else os.path.abspath(lp)
+            for lp in self._lib_paths
+        ]
 
     # ----------------------------------------------------------
     # Source loading with definition tracking which we patch
@@ -248,14 +287,11 @@ class Loader:
 
             # Resolve the longest module prefix. If the full dotted path is
             # not a module but its parent is, the last segment is an entity.
-            lib_dirs = [
-                os.path.dirname(os.path.abspath(lp)) if os.path.isfile(lp) else os.path.abspath(lp)
-                for lp in self._lib_paths
-            ]
+            lib_dirs = self._lib_dirs()
 
             def _module_exists(name: str, candidate: str) -> bool:
-                return os.path.isfile(candidate) or any(
-                    os.path.isfile(os.path.join(root, name.replace(".", os.sep) + ".pltg")) for root in lib_dirs
+                return self.fs.is_file(candidate) or any(
+                    self.fs.is_file(os.path.join(root, name.replace(".", os.sep) + ".pltg")) for root in lib_dirs
                 )
 
             if not _module_exists(module_name, abs_path) and "." in module_name:
@@ -308,11 +344,8 @@ class Loader:
 
             from .loader_engine import resolve_module_path
 
-            lib_dirs = [
-                os.path.dirname(os.path.abspath(lp)) if os.path.isfile(lp) else os.path.abspath(lp)
-                for lp in self._lib_paths
-            ]
-            abs_path = resolve_module_path(module_name, abs_path, lib_dirs)
+            lib_dirs = self._lib_dirs()
+            abs_path = resolve_module_path(module_name, abs_path, lib_dirs, is_file=self.fs.is_file)
 
             # Re-check after lib-path resolution — the initial abs_path may
             # have pointed to a non-existent local path while the resolved
@@ -335,10 +368,7 @@ class Loader:
                 return True
 
             # Mark as lib if resolved from a lib path
-            lib_dirs = [
-                os.path.dirname(os.path.abspath(lp)) if os.path.isfile(lp) else os.path.abspath(lp)
-                for lp in self._lib_paths
-            ]
+            lib_dirs = self._lib_dirs()
             if any(abs_path.startswith(ld) for ld in lib_dirs):
                 self._engine.register_lib_module(module_name)
 
@@ -352,8 +382,7 @@ class Loader:
             try:
                 self._file_stack.append(abs_path)
 
-                with open(abs_path) as f:
-                    source = f.read()
+                source = self.fs.read_text(abs_path)
 
                 self._load_source(system, source)
                 self._imported.add(abs_path)
@@ -380,7 +409,7 @@ class Loader:
         def load_document_effect(system: System, name, path) -> bool:
             """Effect: (load-document "name" "relative/path.txt")"""
             resolved = os.path.normpath(os.path.join(self._current.current_dir, str(path)))
-            system.load_document(str(name), resolved)
+            system.register_document(str(name), self.fs.read_text(resolved))
             self.document_paths[str(name)] = resolved
             log.info("Loaded document '%s' from %s", name, resolved)
             return True
@@ -395,7 +424,7 @@ class Loader:
             Documents register as "<prefix>/<relative-posix-path>".
             """
             from ..lang import get_keyword
-            from ..search_engine.select import DEFAULT_IGNORE, select_files
+            from ..search_engine.select import DEFAULT_IGNORE, select_entries
 
             base = self._current.current_dir
             excepts = get_keyword(kv, ":except", ())
@@ -411,11 +440,11 @@ class Loader:
             if not sep and os.path.dirname(glob_pattern):
                 root_dir = os.path.normpath(os.path.join(base, os.path.dirname(glob_pattern)))
 
-            selected, skipped = select_files(
-                root_dir,
-                rel_pattern,
+            ignore_path = os.path.normpath(os.path.join(base, str(ignore_file))) if ignore_file else None
+            selected, skipped = select_entries(
+                self.fs.list_files(root_dir, rel_pattern),
                 ignore_patterns=list(DEFAULT_IGNORE) + [str(e) for e in excepts],
-                ignore_file=os.path.normpath(os.path.join(base, str(ignore_file))) if ignore_file else None,
+                ignore_lines=self.fs.read_text(ignore_path).splitlines() if ignore_path else (),
                 max_bytes=int(max_bytes) if max_bytes is not None else None,
                 allow_large=[
                     str(g) for g in (allow_large if isinstance(allow_large, (list, tuple)) else (allow_large,))
@@ -424,7 +453,7 @@ class Loader:
             for rel in selected:
                 abs_path = os.path.join(root_dir, rel)
                 doc_name = f"{prefix}/{rel}"
-                system.load_document(doc_name, abs_path)
+                system.register_document(doc_name, self.fs.read_text(abs_path))
                 self.document_paths[doc_name] = abs_path
             oversized = {r: v for r, v in skipped.items() if v == "oversized"}
             if oversized:
@@ -527,7 +556,7 @@ class Loader:
                 exec(code, ns)
                 return ns.get("result", True)
 
-        return {
+        effects = {
             "import": import_effect,
             "run-on-entry": run_on_entry_effect,
             "load-document": load_document_effect,
@@ -538,6 +567,7 @@ class Loader:
             "verify-manual": verify_manual_effect,
             "dangerously-eval": dangerously_eval_effect,
         }
+        return {name: effect for name, effect in effects.items() if name in self.builtin_effects}
 
     # ----------------------------------------------------------
     # Context-aware evaluation
@@ -570,7 +600,7 @@ class Loader:
             The fully-loaded System.
         """
         abs_path = os.path.abspath(path)
-        if not os.path.isfile(abs_path):
+        if not self.fs.is_file(abs_path):
             raise FileNotFoundError(f"File not found: {abs_path}")
 
         module_name = os.path.splitext(os.path.basename(abs_path))[0]
@@ -594,7 +624,7 @@ class Loader:
         # Auto-load lib entry points before main
         for lib_path in self._lib_paths:
             lib_abs = os.path.abspath(lib_path)
-            if os.path.isfile(lib_abs):
+            if self.fs.is_file(lib_abs):
                 lib_name = os.path.splitext(os.path.basename(lib_abs))[0]
                 self._engine.register_lib_module(lib_name)
                 self._engine.register_module(lib_name)
@@ -603,16 +633,14 @@ class Loader:
                 self._current = lib_ctx
                 try:
                     self._file_stack.append(lib_abs)
-                    with open(lib_abs) as f:
-                        lib_source = f.read()
+                    lib_source = self.fs.read_text(lib_abs)
                     self._load_source(system, lib_source)
                     self._imported.add(lib_abs)
                 finally:
                     self._current = saved
                     self._file_stack.pop()
 
-        with open(abs_path) as f:
-            source = f.read()
+        source = self.fs.read_text(abs_path)
 
         self._file_stack.append(abs_path)
         try:

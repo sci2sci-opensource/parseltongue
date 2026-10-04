@@ -88,22 +88,34 @@ def _normalize_lists(
     normalized_map = []
     list_items_removed = 0
     i = 0
+    n = len(text)
     _list_re = re.compile(r"([12]?\d)\.\s+")
 
-    while i < len(text):
-        match = _list_re.match(text, i)
-        line_start = text.rfind("\n", 0, i) + 1
-        prefix = text[line_start:i]
-        at_line_start = prefix == "" or (len(prefix) >= 2 and prefix.strip() == "")
+    # line_start is carried forward instead of re-derived with rfind at
+    # every character — that made the pass quadratic in line length, which
+    # on a one-line minified file meant minutes per megabyte.
+    line_start = 0
+    while i < n:
+        ch = text[i]
+        match = _list_re.match(text, i) if ch.isdigit() else None
+        if match:
+            prefix = text[line_start:i]
+            at_line_start = prefix == "" or (len(prefix) >= 2 and prefix.strip() == "")
+        else:
+            at_line_start = False
         if match and at_line_start:
             list_items_removed += 1
             i += len(match.group(0))
             normalized_text += " "
             normalized_map.append(position_map[i - 1])
+            # The marker's trailing whitespace may have crossed a newline.
+            line_start = text.rfind("\n", 0, i) + 1
         else:
-            normalized_text += text[i]
+            normalized_text += ch
             normalized_map.append(position_map[i])
             i += 1
+            if ch == "\n":
+                line_start = i
 
     if list_items_removed > 0:
         transformations.append(

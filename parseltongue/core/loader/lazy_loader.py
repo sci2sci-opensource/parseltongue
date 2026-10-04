@@ -21,13 +21,14 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Collection
 
 from ..ast import DirectiveNode, parse_directive, resolve_graph
 from ..atoms import Symbol
 from ..engine import _execute_directive
 from ..lang import Sentence
 from ..system import System
+from .fs import LoaderFS
 from .loader import Loader
 from .loader_morphism import LoaderAnnotatedDirective, ModuleSource
 
@@ -381,8 +382,13 @@ class LazyLoader(Loader):
     def _is_pre_directive(self, head: str) -> bool:
         return any(head in names for names in self.PRE_DIRECTIVE_EFFECTS)
 
-    def __init__(self, lib_paths: list[str] | None = None):
-        super().__init__(lib_paths=lib_paths)
+    def __init__(
+        self,
+        lib_paths: list[str] | None = None,
+        fs: LoaderFS | None = None,
+        builtin_effects: Collection[str] | None = None,
+    ):
+        super().__init__(lib_paths=lib_paths, fs=fs, builtin_effects=builtin_effects)
         self._all_nodes: list[DirectiveNode] = []
         self._result: LazyLoadResult | None = None
         self._failed_names: dict[str, DirectiveNode] = {}  # global across modules
@@ -690,7 +696,7 @@ class LazyLoader(Loader):
             if not f.endswith(".pltg"):
                 # Document file — re-register
                 try:
-                    content = Path(f).read_text()
+                    content = self.fs.read_text(f)
                     for doc_name in list(engine.documents):
                         if f.endswith(doc_name) or Path(f).stem == doc_name:
                             engine.register_document(doc_name, content)
@@ -700,7 +706,7 @@ class LazyLoader(Loader):
                 continue
 
             try:
-                content = Path(f).read_text()
+                content = self.fs.read_text(f)
             except OSError:
                 continue
 

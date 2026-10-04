@@ -15,6 +15,7 @@ is pure: reuses or creates a translator, translates, returns frozen analysis
 
 import logging
 import os
+from typing import Callable
 
 from ..ast import AnnotatedDirective, NavList
 from ..atoms import SILENCE, Silence, Symbol
@@ -90,16 +91,19 @@ def module_to_path(module_name: str, dots: int, current_dir: str) -> str:
     return os.path.normpath(os.path.join(current_dir, rel_path))
 
 
-def resolve_module_path(module_name: str, abs_path: str, module_paths: list[str]) -> str:
+def resolve_module_path(
+    module_name: str, abs_path: str, module_paths: list[str], is_file: Callable[[str], bool] = os.path.isfile
+) -> str:
     """Resolve a module to a file, falling back to module paths (lib dirs).
 
+    `is_file` answers whether a path names a file (the loader passes its fs).
     Returns the resolved absolute path, or raises FileNotFoundError.
     """
-    if os.path.isfile(abs_path):
+    if is_file(abs_path):
         return abs_path
     for root in module_paths:
         candidate = os.path.normpath(os.path.join(root, module_name.replace(".", os.sep) + ".pltg"))
-        if os.path.isfile(candidate):
+        if is_file(candidate):
             return candidate
     raise FileNotFoundError(f"Module '{module_name}' not found at {abs_path}")
 
