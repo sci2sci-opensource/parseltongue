@@ -353,6 +353,48 @@ class TestDerivation(unittest.TestCase):
         self.assertIn("potential fabrication", thm.origin)
         self.assertIn("does not hold", thm.origin)
 
+    def _system_with_unverified_fact_behind_term(self):
+        """`wraps` is a grounded term whose definition reads the unverified fact `inner`."""
+        s = make_system()
+        quiet(s.register_document, "Doc", SAMPLE_DOC)
+        quiet(s.set_fact, "inner", 999, Evidence(document="Doc", quotes=["Nonexistent quote xyz"]))
+        quiet(
+            s.introduce_term,
+            "wraps",
+            [Symbol(">"), Symbol("inner"), 0],
+            Evidence(document="Doc", quotes=["Q3 revenue was $15M"]),
+        )
+        self.assertTrue(s.terms["wraps"].origin.is_grounded)
+        self.assertFalse(s.facts["inner"].origin.is_grounded)
+        return s
+
+    def test_derive_flags_unverified_fact_behind_listed_term(self):
+        """:using lists only the term, yet its definition reads an unverified fact."""
+        s = self._system_with_unverified_fact_behind_term()
+
+        thm = quiet(s.derive, "d", Symbol("wraps"), ["wraps"])
+
+        self.assertIn("potential fabrication", thm.origin)
+        self.assertIn("inner", thm.origin)
+
+    def test_fabrication_behind_term_propagates_down_chain(self):
+        s = self._system_with_unverified_fact_behind_term()
+        quiet(s.derive, "d1", Symbol("wraps"), ["wraps"])
+
+        thm2 = quiet(s.derive, "d2", Symbol("d1"), ["d1"])
+
+        self.assertIn("potential fabrication", thm2.origin)
+
+    def test_rederive_follows_fact_behind_term(self):
+        s = self._system_with_unverified_fact_behind_term()
+        quiet(s.derive, "d", Symbol("wraps"), ["wraps"])
+        self.assertIn("potential fabrication", s.theorems["d"].origin)
+
+        quiet(s.verify_manual, "inner")
+        quiet(s.rederive, "d")
+
+        self.assertEqual(s.theorems["d"].origin, "derived")
+
     def test_fabrication_chain(self):
         """Deriving from an already-fabricated theorem propagates fabrication."""
         s = make_system()

@@ -1236,10 +1236,13 @@ class EngineImpl(Engine):
     def _check_sources_grounded(self, using: list[str]) -> list[str]:
         """Check if any source in `:using` has unverified evidence.
 
+        The check follows the same transitive expansion the evaluation uses, so
+        an unverified fact behind a listed term or theorem is caught too.
         Returns list of ungrounded source names.
         """
         ungrounded = []
-        for src_name in using:
+        listed = set(using)
+        for src_name in [*using, *sorted(set(self._expand_using(using)) - listed)]:
             origin = None
             if src_name in self.facts:
                 origin = self.facts[src_name].origin
