@@ -372,7 +372,11 @@ class LoaderEngine(Executor[LoaderTranslationResult]):
         ctx.aliases = self.module_aliases
         ctx.entity_aliases = self.entity_aliases
         ctx.names_to_modules = self.names_to_modules
-        if extra_names is not None:
+        # Once per context: a module's directives share it and pass the same
+        # names, and a union wrapped per directive nests as deep as the
+        # module is long (a membership check recursing past the stack).
+        already = isinstance(ctx.known_names, _UnionKnown) and ctx.known_names._b is extra_names
+        if extra_names is not None and not already:
             ctx.known_names = _UnionKnown(ctx.known_names, extra_names)
 
         # Namespace definition name
