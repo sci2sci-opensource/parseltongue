@@ -249,6 +249,22 @@ class TestLazyLoadWithImports(_TmpDirMixin, unittest.TestCase):
         self.assertTrue(result.ok)
         self.assertIn("helpers.helper-val", result.system.facts)
 
+    def test_an_imported_module_longer_than_the_stack_loads(self):
+        # A module's directives are patched against one shared context: its
+        # known names must not nest a layer per directive, or a membership
+        # check recurses as deep as the module is long.
+        # Past the recursion limit the engine raises (10,000), so it overflows
+        # on any Python; 3.12's C stack gives out near half that
+        count = 12_000
+        # Each directive names another, so each resolves a symbol against the known names
+        lines = ['(fact base 0 :origin "generated")']
+        lines += [f"(derive d{i} (> base -1) :using (base))" for i in range(count)]
+        self._write("big.pltg", "\n".join(lines))
+        path = self._write("main.pltg", "(import (quote big))\n(fact x 10 :origin \"test\")")
+        result = lazy_load_pltg(path)
+        self.assertTrue(result.ok, [str(e) for e in result.errors.values()][:1])
+        self.assertIn(f"big.d{count - 1}", result.system.theorems)
+
     def test_failure_in_main_doesnt_break_imports(self):
         self._write("helpers.pltg", '(fact helper-val 42 :origin "helper")')
         path = self._write(

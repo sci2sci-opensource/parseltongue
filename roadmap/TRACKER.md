@@ -23,3 +23,5 @@
 | [Absence Evidence](completed/absence-evidence.md) | done | feature/evidence-family-coverage-health | |
 | [Universal Obligations](completed/universal-obligations.md) | done | feature/evidence-family-coverage-health | |
 | [Compact Index — array-backed postings](completed/compact-index-arrays.md) | done | feature/compact-index-arrays | |
+| [Loader Known Names Nesting](pending/loader-known-names-nesting.md) | pending | | |
+| [Provenance on Every Directive](pending/provenance-on-every-directive.md) | pending | | |
