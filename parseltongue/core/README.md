@@ -510,7 +510,7 @@ The quote verifier is extensible: custom normalizers, fuzzy matchers, and custom
 | `confounded_evidence` | Both sides of a diff depend on the same document quote, weakening their independence |
 | `vacuous_rule` | A rule application held only because its antecedent was false, and states no `:expect` |
 
-Diffs are the primary mechanism for cross-validation. Register a diff, and the system automatically checks whether swapping one value for another causes dependent terms to change.
+Diffs are the primary mechanism for cross-validation. Register a diff, and the system automatically checks whether swapping one value for another causes dependent terms to change. Each diff is reported once: a diff whose two values disagree is a `diff_value_divergence` even when sibling diffs contaminate it, and `diff_contamination` is reserved for a diff whose values agree.
 The consistency check also traces evidence transitively through each side. If both sides reach the same quote in the same document, or one side's quote fully contains the other's, it reports `confounded_evidence`; identical text in different documents remains independent.
 
 ```python

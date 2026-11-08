@@ -620,7 +620,7 @@
 
 (fact diff-evaluated-structurally true
     :evidence (evidence "engine.py"
-        :quotes ("all_diffs = _eval_diffs(self, names)" "results.append(engine.eval_diff(name))" "downstream_divergent = [d for d in all_diffs if not d.empty and not d.diff_contamination_only]" "value_divergent = [d for d in all_diffs if d.values_diverge and d.empty]")
+        :quotes ("all_diffs = _eval_diffs(self, names)" "results.append(engine.eval_diff(name))" "downstream_divergent = [d for d in all_diffs if not d.empty and not d.diff_contamination_only]" "value_divergent = [d for d in all_diffs if d.values_diverge and (d.empty or d.diff_contamination_only)]")
         :explanation "Consistency evaluates diffs structurally — divergence is a system issue"))
 
 (defterm diff-calls-resolve-origin false
@@ -1031,7 +1031,7 @@
 
 (fact diff-value-divergence-detected true
     :evidence (evidence "engine.py"
-        :quotes ("value_divergent = [d for d in all_diffs if d.values_diverge and d.empty]")
+        :quotes ("value_divergent = [d for d in all_diffs if d.values_diverge and (d.empty or d.diff_contamination_only)]")
         :explanation "value-divergent diffs detected"))
 
 (defterm value-divergence-replace (epistemics.superpose epistemics.hallucinated epistemics.unknown epistemics.exemplifiable)
@@ -1059,12 +1059,12 @@
 
 (fact diff-contamination-detected true
     :evidence (evidence "engine.py"
-        :quotes ("diff_contamination = [d for d in all_diffs if d.diff_contamination_only]")
-        :explanation "contamination-only diffs detected"))
+        :quotes ("diff_contamination = [d for d in all_diffs if d.diff_contamination_only and not d.values_diverge]")
+        :explanation "contamination-only diffs whose two values agree detected"))
 
 (defterm contamination-status (epistemics.superpose epistemics.hallucinated epistemics.unknown epistemics.exemplifiable)
     :evidence (evidence "engine.py"
-        :quotes ("diff_contamination = [d for d in all_diffs if d.diff_contamination_only]")
+        :quotes ("diff_contamination = [d for d in all_diffs if d.diff_contamination_only and not d.values_diverge]")
         :explanation "contaminated diff — superposed until observed"))
 
 (derive witness-diff-contamination-unknown
@@ -1178,9 +1178,9 @@
 (defterm diff-detection-kind-count 3
     :evidence (evidence "engine.py"
         :quotes ("downstream_divergent = [d for d in all_diffs if not d.empty and not d.diff_contamination_only]"
-                 "value_divergent = [d for d in all_diffs if d.values_diverge and d.empty]"
-                 "diff_contamination = [d for d in all_diffs if d.diff_contamination_only]")
-        :explanation "check() partitions all_diffs into three detection kinds: downstream divergence, value divergence, contamination-only"))
+                 "value_divergent = [d for d in all_diffs if d.values_diverge and (d.empty or d.diff_contamination_only)]"
+                 "diff_contamination = [d for d in all_diffs if d.diff_contamination_only and not d.values_diverge]")
+        :explanation "check() partitions all_diffs into three detection kinds: downstream divergence, value divergence, contamination-only with agreeing values"))
 
 (derive diff-detection-count
     (count-exists diff-divergence-detected diff-value-divergence-detected diff-contamination-detected)
@@ -1337,14 +1337,14 @@
     :expect fired)
 
 ; DIFF_VALUE_DIVERGENCE → error
-; The code compares the two sides' values and keeps for this branch only the
-; diffs with no downstream divergence.
+; The code compares the two sides' values and keeps for this branch the diffs
+; no real downstream divergence reports: none at all, or contamination only.
 (axiom error-on-value-divergence
-    (implies (and ?compares-values ?requires-no-downstream) (= ?channel consistency-error))
-    :types ((?compares-values Bool) (?requires-no-downstream Bool) (?channel Channel))
+    (implies (and ?compares-values ?no-real-downstream) (= ?channel consistency-error))
+    :types ((?compares-values Bool) (?no-real-downstream Bool) (?channel Channel))
     :evidence (evidence "engine.py"
         :quotes ("if value_divergent:\n            issues.append(ConsistencyIssue(IssueType.DIFF_VALUE_DIVERGENCE, value_divergent))")
-        :explanation "replace and with resolve to different values, no downstream divergences → error"))
+        :explanation "replace and with resolve to different values, no real downstream divergence → error"))
 
 (fact value-divergence-values-differ true
     :evidence (evidence "engine.py"
@@ -1353,8 +1353,8 @@
 
 (fact value-divergence-no-downstream true
     :evidence (evidence "engine.py"
-        :quotes ("value_divergent = [d for d in all_diffs if d.values_diverge and d.empty]")
-        :explanation "value divergence requires d.empty — no downstream dependents affected"))
+        :quotes ("value_divergent = [d for d in all_diffs if d.values_diverge and (d.empty or d.diff_contamination_only)]")
+        :explanation "value divergence takes the diffs with no downstream divergence or only sibling-diff contamination"))
 
 (fact value-divergence-channel consistency-error :type Channel
     :evidence (evidence "engine.py"
@@ -1362,7 +1362,7 @@
         :explanation "value divergences are appended to issues"))
 
 (derive value-divergence-causes-error error-on-value-divergence
-    :bind ((?compares-values value-divergence-values-differ) (?requires-no-downstream value-divergence-no-downstream)
+    :bind ((?compares-values value-divergence-values-differ) (?no-real-downstream value-divergence-no-downstream)
            (?channel value-divergence-channel))
     :using (error-on-value-divergence value-divergence-values-differ value-divergence-no-downstream
             value-divergence-channel consistency-error)
@@ -1404,14 +1404,21 @@
     :expect fired)
 
 ; DIFF_CONTAMINATION → warning
-; Code: diff_contamination_only checks (1) not empty, (2) all divergences are diff() refs
-; When both hold, it's a warning not an error — sibling diffs contaminate but don't break consistency
+; Code: diff_contamination_only checks (1) not empty, (2) all divergences are diff() refs,
+; and the partition adds (3) the two values agree. When all three hold, it's a warning
+; not an error — sibling diffs contaminate but don't break consistency. A diff whose
+; values disagree is a value divergence instead: contamination never masks it.
 (axiom warning-on-contamination
-    (implies (and (not ?is-empty) ?all-are-diff-refs) (= ?channel consistency-warning))
-    :types ((?is-empty Bool) (?all-are-diff-refs Bool) (?channel Channel))
+    (implies (and (not ?is-empty) ?all-are-diff-refs (not ?values-diverge)) (= ?channel consistency-warning))
+    :types ((?is-empty Bool) (?all-are-diff-refs Bool) (?values-diverge Bool) (?channel Channel))
     :evidence (evidence "engine.py"
         :quotes ("warnings.append(\n                ConsistencyWarning(WarningType.DIFF_CONTAMINATION, [d.name for d in diff_contamination], contam_details)\n            )")
-        :explanation "contaminated diffs (not empty + all divergences are diff refs) appended to warnings"))
+        :explanation "contaminated diffs (not empty + all divergences are diff refs + values agree) appended to warnings"))
+
+(fact contamination-values-diverge false
+    :evidence (evidence "engine.py"
+        :quotes ("diff_contamination = [d for d in all_diffs if d.diff_contamination_only and not d.values_diverge]")
+        :explanation "a contamination warning is only for a diff whose two values agree"))
 
 (fact contamination-is-empty false
     :evidence (evidence "engine.py"
@@ -1429,8 +1436,9 @@
         :explanation "contamination-only diffs are appended to warnings"))
 
 (derive contamination-causes-warning warning-on-contamination
-    :bind ((?is-empty contamination-is-empty) (?all-are-diff-refs contamination-all-are-diff-refs) (?channel contamination-channel))
-    :using (warning-on-contamination contamination-is-empty contamination-all-are-diff-refs
+    :bind ((?is-empty contamination-is-empty) (?all-are-diff-refs contamination-all-are-diff-refs)
+           (?values-diverge contamination-values-diverge) (?channel contamination-channel))
+    :using (warning-on-contamination contamination-is-empty contamination-all-are-diff-refs contamination-values-diverge
             contamination-channel consistency-warning)
     :expect fired)
 

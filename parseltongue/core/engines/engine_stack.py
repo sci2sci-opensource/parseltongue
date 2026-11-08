@@ -1768,9 +1768,11 @@ class Engine(EngineProtocol):
 
         names = diff_names if diff_names is not None else set(self.diffs)
         all_diffs = _eval_diffs(self, names)
+        # Each diff lands in exactly one class. Sibling-diff contamination is a warning
+        # only when the two values agree: it never masks a direct disagreement.
         downstream_divergent = [d for d in all_diffs if not d.empty and not d.diff_contamination_only]
-        diff_contamination = [d for d in all_diffs if d.diff_contamination_only]
-        value_divergent = [d for d in all_diffs if d.values_diverge and d.empty]
+        value_divergent = [d for d in all_diffs if d.values_diverge and (d.empty or d.diff_contamination_only)]
+        diff_contamination = [d for d in all_diffs if d.diff_contamination_only and not d.values_diverge]
         if downstream_divergent:
             issues.append(ConsistencyIssue(IssueType.DIFF_DIVERGENCE, downstream_divergent))
         if value_divergent:

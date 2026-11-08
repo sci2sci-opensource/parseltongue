@@ -1142,6 +1142,25 @@ class TestConsistency(unittest.TestCase):
         issue_types = [i.type for i in report.issues]
         self.assertNotIn("diff_divergence", issue_types)
 
+    def test_contamination_does_not_mask_a_value_disagreement(self):
+        """A diff whose two values disagree is an error even when its only downstream
+        divergences are sibling-diff contamination."""
+        s = make_system()
+        quiet(s.set_fact, "a", 10, "derived")
+        quiet(s.set_fact, "b", 20, "derived")
+        # Two diffs sharing the same :replace symbol — each contaminates the other
+        quiet(s.register_diff, "d1", "a", "b")
+        quiet(s.register_diff, "d2", "a", "b")
+        self.assertTrue(quiet(s.engine.eval_diff, "d1").diff_contamination_only)
+
+        report = quiet(s.consistency)
+
+        self.assertFalse(report.consistent)
+        value = next(i for i in report.issues if i.type == "diff_value_divergence")
+        self.assertEqual(sorted(d.name for d in value.items), ["d1", "d2"])
+        self.assertNotIn("diff_contamination", [w.type for w in report.warnings])
+        self.assertNotIn("diff_divergence", [i.type for i in report.issues])
+
     def test_unresolved_side_raises_naming_its_diff(self):
         from ..engine import DiffKeyError
 
