@@ -465,10 +465,11 @@ patterns for variadic operations: sum-all, count-gt, all-gt.")
 
 (derive pltg-loader-bootstrap-confirmed
     pltg-demo-proves-loader-bootstrap
-    :bind ((?pltg-topic apples-pltg-topic) (?empty-env apples-pltg-uses-empty-env)
+    :bind ((?pltg-topic (!= apples-pltg-topic "")) (?empty-env apples-pltg-uses-empty-env)
            (?successor apples-uses-successor-notation) (?starts-empty apples-starts-empty))
     :using (pltg-demo-proves-loader-bootstrap apples-pltg-topic apples-pltg-uses-empty-env
-            apples-uses-successor-notation apples-starts-empty))
+            apples-uses-successor-notation apples-starts-empty)
+    :expect fired)
 
 ; splats topic implies splats usage in the demo
 (axiom splats-topic-implies-usage
@@ -479,8 +480,9 @@ patterns for variadic operations: sum-all, count-gt, all-gt.")
 
 (derive splats-topic-confirms-usage
     splats-topic-implies-usage
-    :bind ((?splats-topic apples-splats-pltg-topic) (?splats-usage apples-splats-uses-splat-patterns))
-    :using (splats-topic-implies-usage apples-splats-pltg-topic apples-splats-uses-splat-patterns))
+    :bind ((?splats-topic (!= apples-splats-pltg-topic "")) (?splats-usage apples-splats-uses-splat-patterns))
+    :using (splats-topic-implies-usage apples-splats-pltg-topic apples-splats-uses-splat-patterns)
+    :expect fired)
 
 ; --- Self-healing: docstring documents 6 effects, code registers them ---
 
@@ -692,6 +694,17 @@ patterns for variadic operations: sum-all, count-gt, all-gt.")
         :quotes ("(run-on-entry"
                  "(quote (fact demo-ready true :origin \"deferred — demo is main\")))")
         :explanation "demo.pltg's run-on-entry fires because it IS main"))
+
+; The witnessing case for the gate: lib.pltg is imported, so it is not main, and its block was skipped
+(fact lib-is-main false
+    :evidence (evidence "deferred_demo_pltg"
+        :quotes ("lib's run-on-entry: SKIPPED (not main)")
+        :explanation "lib.pltg is imported by the demo, not run as main"))
+
+(fact lib-run-on-entry-fired false
+    :evidence (evidence "deferred_demo_pltg"
+        :quotes ("lib's run-on-entry: SKIPPED (not main)")
+        :explanation "lib.pltg's run-on-entry block did not fire"))
 
 (derive run-on-entry-gating-proven
     (and lib-has-run-on-entry app-has-run-on-entry demo-run-on-entry-fires deferred-skips-on-import)
@@ -1083,8 +1096,9 @@ patterns for variadic operations: sum-all, count-gt, all-gt.")
     :using (forward-decl-produces-formal primitives-are-forward-declared afternoon-uses-without-import))
 
 (derive bound-run-on-entry-gate run-on-entry-gate
-    :bind ((?is-main lib-has-run-on-entry) (?run-on-entry app-has-run-on-entry))
-    :using (run-on-entry-gate lib-has-run-on-entry app-has-run-on-entry))
+    :bind ((?is-main lib-is-main) (?run-on-entry lib-run-on-entry-fired))
+    :using (run-on-entry-gate lib-is-main lib-run-on-entry-fired)
+    :expect fired)
 
 (derive bound-let-rebinds-forward-decl let-rebinds-forward-decl
     :bind ((?is-forward-declared entry-mocks-primitives-forward-declared) (?has-mock-value let-mock-rebinds-zero) (?is-computable let-mock-asserts))

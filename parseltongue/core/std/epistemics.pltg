@@ -39,12 +39,16 @@
 ;   - Two sides of a diff disagree (value divergence)
 ;   - Substitution changed a theorem's result (proposition contamination)
 ;   - A stub or unresolved import — system knows there is no witness
+;   - A claimed absence or obligation has counter-example lines in the corpus
+;   - A value is not of the type its position requires (type error)
+;   - A rule application's outcome is not the one its author expected
 (defterm hallucinated :origin "system found evidence of failure — claim is demonstrably ungrounded")
 
 ; unknown — the system cannot make a determination.
 ; Examples:
 ;   - A human called verify_manual — the system trusts but can't check
 ;   - A sibling diff is contaminated — it will evaluate itself independently
+;   - A rule held only because its antecedent was false (vacuous rule)
 ; This is NOT "maybe true" — it is "the system has no witness either way."
 (defterm unknown :origin "system cannot determine — neither exemplifiable nor provably hallucinated")
 

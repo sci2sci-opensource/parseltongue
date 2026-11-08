@@ -128,7 +128,13 @@ Built on `feature/type-system`:
 
 Known limits: `pipe`'s type does not chain its functions' types (`(-> ?A (Rest (-> Any Any)) Any)`); restoring a system evaluates every term definition (`_rebuild_env`), so a term whose definition raises — such as a `get` of a field its record lacks — cannot be restored.
 
-Then: the corpus fixes — the vacuous rules and type errors in `validation/`, and the self-proof's counts of issue and warning types taken from `py-ast` instead of quoted lines.
+The corpus under the types:
+
+- `validation/` loads with no type errors. String facts used as conditions became presence checks (`(!= doc "")`), a count used as a condition became `(> n 0)`, and bindings that bound one property to a variable naming another were rebound to facts quoting the property the variable names.
+- Every rule application states its outcome. Rules whose antecedent the facts did not meet were rebound to a witnessing case quoted from the code (the run-on-entry gates, the consistency modes, the grounding defaults, written as the docstring's "no path outside verified/manual"); the engine's outcome rules conclude a `Channel`, an enumeration of the report's two channels, bound to facts quoting each append. The packaging breakage rules state `:expect vacuous`: their trigger is expected absent, and shipping a project without a file type it uses makes them fire and the expectation unmet.
+- The self-proof's counts follow the code: the `IssueType` and `WarningType` members and the loader's effects are `py-ast` reads, and the error ↔ hallucinated, warning ↔ unknown isomorphism covers all of them — `absence_violated` and `obligation_violated` (which the proof had not covered), `type_error`, `unmet_expectation` and `vacuous_rule`, each with a witness, a rule and its channel. The README documents `deftype`, the types, the new issue, warning and effect rows, and `readme.pltg` follows it.
+
+Found on the way, not changed here: a diff whose two values disagree directly is filed as a `diff_contamination` warning when its downstream divergences all reference sibling diffs (`value_divergent` requires `d.empty`, and `diff_contamination_only` takes the rest), so a direct disagreement can be reported as a warning only. The base commit has no diff in that state; the stale README counts reached it during this work and were visible only by reading each diff's `values_diverge`.
 
 ## Decisions
 

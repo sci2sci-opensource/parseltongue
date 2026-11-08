@@ -3,6 +3,7 @@
 (load-document "verifier.py" "../quote_verifier/verifier.py")
 (load-document "normalizer.py" "../quote_verifier/normalizer.py")
 (load-document "config.py" "../quote_verifier/config.py")
+(load-document "index.py" "../quote_verifier/index.py")
 (import (quote ..std.counting))
 (import (quote counting.count-exists))
 (import (quote counting.sum-values))
@@ -156,8 +157,12 @@
                  "\"whitespace_normalization\": 0.001")
         :explanation "Penalties are ordered by semantic impact"))
 
-; 2. Confidence level determination: score thresholds map to levels
-(axiom confidence-level-rule (implies (> ?score ?threshold) (= ?level ?expected-level))
+; 2. Confidence level determination: score thresholds map to levels. A level's
+; branch is reached by a score above its threshold that the branch before it
+; (the ceiling) did not take: the MEDIUM branch is score > medium, not > high.
+(axiom confidence-level-rule
+    (implies (and (> ?score ?threshold) (not (> ?score ?ceiling))) (= ?level ?expected-level))
+    :types ((?score Num) (?threshold Num) (?ceiling Num) (?level Str) (?expected-level Str))
     :evidence (evidence "verifier.py"
         :quotes ("if score > self.config.high_confidence_threshold:"
                  "level = ConfidenceLevel.HIGH"
@@ -213,8 +218,11 @@
                  "processed, pos_map, trans = _normalize_whitespace(processed, pos_map, config)")
         :explanation "Pipeline runs 6 steps in fixed order"))
 
-; 9. Collapsed match is fallback for exact
-(axiom collapsed-is-fallback (implies (= ?exact-match false) ?try-collapsed)
+; 9. Collapsed match is fallback for exact: the exact search runs first, the
+; collapsed one only when it found nothing, so the fallback's strategy is COLLAPSED.
+(axiom collapsed-is-fallback
+    (implies (and ?exact-first ?only-without-exact) (= ?fallback-strategy ?collapsed))
+    :types ((?exact-first Bool) (?only-without-exact Bool) (?fallback-strategy Str) (?collapsed Str))
     :evidence (evidence "verifier.py"
         :quotes ("# Use the inverted index (with space-collapsed fallback)")
         :explanation "Exact index match first, collapsed space match as fallback"))
@@ -425,12 +433,13 @@
     :using (count-exists whitespace-lt-case case-lt-punctuation
                          punctuation-lt-stopword stopword-lt-dangerous))
 
-; Adjacent value pairs — each pair should have an ordering proof
+; Adjacent value pairs — each pair should have an ordering proof; a pair
+; counts when both of its penalties are set (non-zero)
 (derive ordering-pairs-count
-    (count-exists (and penalty-whitespace-value penalty-case-value)
-                  (and penalty-case-value penalty-punctuation-value)
-                  (and penalty-punctuation-value penalty-stopword-value)
-                  (and penalty-stopword-value penalty-dangerous-value))
+    (count-exists (and (!= penalty-whitespace-value 0) (!= penalty-case-value 0))
+                  (and (!= penalty-case-value 0) (!= penalty-punctuation-value 0))
+                  (and (!= penalty-punctuation-value 0) (!= penalty-stopword-value 0))
+                  (and (!= penalty-stopword-value 0) (!= penalty-dangerous-value 0)))
     :using (count-exists penalty-whitespace-value penalty-case-value
                          penalty-punctuation-value penalty-stopword-value
                          penalty-dangerous-value))
@@ -478,12 +487,25 @@
     (= medium-confidence-threshold verifier-default-threshold)
     :using (medium-confidence-threshold verifier-default-threshold))
 
-; Bind confidence-level-rule: medium threshold determines MEDIUM level
+; Bind confidence-level-rule: a score exactly at the high threshold does not
+; exceed it, exceeds the medium one, and so is assigned MEDIUM.
+(fact medium-branch-level "medium"
+    :evidence (evidence "verifier.py"
+        :quotes ("elif score > self.config.medium_confidence_threshold:\n            level = ConfidenceLevel.MEDIUM")
+        :explanation "the medium branch assigns ConfidenceLevel.MEDIUM"))
+
+(fact medium-level-value "medium"
+    :evidence (evidence "config.py"
+        :quotes ("MEDIUM = \"medium\"")
+        :explanation "ConfidenceLevel.MEDIUM's value"))
+
 (derive bound-confidence-level confidence-level-rule
-    :bind ((?score verifier-default-threshold) (?threshold medium-confidence-threshold)
-           (?level verifier-confidence-has-level) (?expected-level medium-confidence-threshold))
-    :using (confidence-level-rule verifier-default-threshold medium-confidence-threshold
-            verifier-confidence-has-level))
+    :bind ((?score high-confidence-threshold) (?threshold medium-confidence-threshold)
+           (?ceiling high-confidence-threshold)
+           (?level medium-branch-level) (?expected-level medium-level-value))
+    :using (confidence-level-rule high-confidence-threshold medium-confidence-threshold
+            medium-branch-level medium-level-value)
+    :expect fired)
 
 (derive threshold-count
     (count-exists high-confidence-threshold medium-confidence-threshold verifier-default-threshold)
@@ -640,9 +662,27 @@
         :explanation "Collapsed match is fallback, adds penalty for space collapse"))
 
 ; Axiom bind: collapsed is fallback for exact
+(fact exact-searched-first true
+    :evidence (evidence "index.py"
+        :quotes ("results.append((start, end, MatchStrategy.EXACT))")
+        :explanation "find_all collects exact matches first"))
+
+(fact collapsed-only-without-exact true
+    :evidence (evidence "index.py"
+        :quotes ("if not results:\n            for start, end in self._find_all_collapsed(normalized_quote):")
+        :explanation "collapsed matches are searched only when there is no exact match"))
+
+(fact fallback-strategy "collapsed"
+    :evidence (evidence "index.py"
+        :quotes ("results.append((start, end, MatchStrategy.COLLAPSED))")
+        :explanation "the fallback appends MatchStrategy.COLLAPSED, whose value is \"collapsed\""))
+
 (derive bound-collapsed-fallback collapsed-is-fallback
-    :bind ((?exact-match match-strategy-exact) (?try-collapsed match-strategy-collapsed))
-    :using (collapsed-is-fallback match-strategy-exact match-strategy-collapsed))
+    :bind ((?exact-first exact-searched-first) (?only-without-exact collapsed-only-without-exact)
+           (?fallback-strategy fallback-strategy) (?collapsed match-strategy-collapsed))
+    :using (collapsed-is-fallback exact-searched-first collapsed-only-without-exact
+            fallback-strategy match-strategy-collapsed)
+    :expect fired)
 
 (derive match-enum-count
     (count-exists match-strategy-exact match-strategy-collapsed)
@@ -656,9 +696,10 @@
     (count-exists doc-match-strategy-exact doc-match-strategy-collapsed)
     :using (count-exists doc-match-strategy-exact doc-match-strategy-collapsed))
 
+; An item is paired when it is documented, defined with a value, and used
 (derive match-paired-count
-    (count-exists (and doc-match-strategy-exact match-strategy-exact match-usage-exact)
-                  (and doc-match-strategy-collapsed match-strategy-collapsed match-usage-collapsed))
+    (count-exists (and doc-match-strategy-exact (!= match-strategy-exact "") match-usage-exact)
+                  (and doc-match-strategy-collapsed (!= match-strategy-collapsed "") match-usage-collapsed))
     :using (count-exists
             doc-match-strategy-exact match-strategy-exact match-usage-exact
             doc-match-strategy-collapsed match-strategy-collapsed match-usage-collapsed))
@@ -826,10 +867,10 @@
                          doc-result-has-level doc-result-position-key))
 
 (derive result-paired-count
-    (count-exists (and doc-result-confidence-dict verifier-confidence-return-shape result-impl-confidence-dict)
+    (count-exists (and doc-result-confidence-dict (!= verifier-confidence-return-shape "") result-impl-confidence-dict)
                   (and doc-result-has-score verifier-confidence-has-score result-impl-has-score)
                   (and doc-result-has-level verifier-confidence-has-level result-impl-has-level)
-                  (and doc-result-position-key verifier-position-key result-impl-position-key))
+                  (and doc-result-position-key (!= verifier-position-key "") result-impl-position-key))
     :using (count-exists
             doc-result-confidence-dict verifier-confidence-return-shape result-impl-confidence-dict
             doc-result-has-score verifier-confidence-has-score result-impl-has-score

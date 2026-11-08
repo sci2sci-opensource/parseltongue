@@ -5,6 +5,7 @@
 (load-document "loader_morphism.py" "../loader/loader_morphism.py")
 (load-document "test_module_imports.py" "../tests/test_module_imports.py")
 (import (quote ..std.counting))
+(import (quote ..std.lists))
 (import (quote ..std.util))
 (import (quote counting.count-exists))
 
@@ -207,6 +208,27 @@
         :quotes ("Effect: (dangerously-eval code) — execute arbitrary Python string.")
         :explanation "dangerously-eval effect docstring"))
 
+(fact effect-load-documents-doc true
+    :evidence (evidence "loader.py"
+        :quotes ("Effect: (load-documents \"prefix\" \"glob\"")
+        :explanation "load-documents effect docstring"))
+
+(fact effect-py-ast-doc true
+    :evidence (evidence "loader.py"
+        :quotes ("Effect: (py-ast \"document\" \"kind\" \"NAME\") — the structure of a registered")
+        :explanation "py-ast effect docstring"))
+
+(fact effect-outcome-doc true
+    :evidence (evidence "loader.py"
+        :quotes ("Effect: (outcome (quote rule)) — the outcome of a derive that applies an")
+        :explanation "outcome effect docstring"))
+
+; fired?, vacuous? and violated? share one docstring, formatted with the outcome each tests
+(fact effect-outcome-is-doc true
+    :evidence (evidence "loader.py"
+        :quotes ("effect.__doc__ = f\"Effect: ({expected}? (quote rule)) — whether a rule application {expected}.\"")
+        :explanation "fired?, vacuous? and violated? effect docstring"))
+
 ; --- Layer 2: IMPL — effect registrations in _make_loader_effects ---
 
 (fact effect-import-impl true
@@ -249,37 +271,68 @@
         :quotes ("\"dangerously-eval\": dangerously_eval_effect,")
         :explanation "dangerously-eval effect registered"))
 
-; --- Effect count fact ---
-
-(fact built-in-effect-count 8
+(fact effect-load-documents-impl true
     :evidence (evidence "loader.py"
-        :quotes ("\"import\": import_effect"
-                 "\"run-on-entry\": run_on_entry_effect"
-                 "\"load-document\": load_document_effect"
-                 "\"context\": context_effect"
-                 "\"print\": print_effect"
-                 "\"consistency\": consistency_effect"
-                 "\"verify-manual\": verify_manual_effect"
-                 "\"dangerously-eval\": dangerously_eval_effect,")
-        :explanation "8 built-in loader effects"))
+        :quotes ("\"load-documents\": load_documents_effect,")
+        :explanation "load-documents effect registered"))
+
+(fact effect-py-ast-impl true
+    :evidence (evidence "loader.py"
+        :quotes ("\"py-ast\": py_ast_effect,")
+        :explanation "py-ast effect registered"))
+
+(fact effect-outcome-impl true
+    :evidence (evidence "loader.py"
+        :quotes ("\"outcome\": outcome_effect,")
+        :explanation "outcome effect registered"))
+
+(fact effect-fired-impl true
+    :evidence (evidence "loader.py"
+        :quotes ("\"fired?\": outcome_is(\"fired\"),")
+        :explanation "fired? effect registered"))
+
+(fact effect-vacuous-impl true
+    :evidence (evidence "loader.py"
+        :quotes ("\"vacuous?\": outcome_is(\"vacuous\"),")
+        :explanation "vacuous? effect registered"))
+
+(fact effect-violated-impl true
+    :evidence (evidence "loader.py"
+        :quotes ("\"violated?\": outcome_is(\"violated\"),")
+        :explanation "violated? effect registered"))
+
+; --- Effect count: the names LOADER_EFFECTS declares, as Python's parser reads them ---
+
+(defterm loader-effect-names (py-ast "loader.py" "items" "LOADER_EFFECTS")
+    :evidence (evidence "loader.py"
+        :quotes ("LOADER_EFFECTS = (" "unknown = set(builtin_effects or ()) - set(LOADER_EFFECTS)")
+        :explanation "LOADER_EFFECTS names every built-in loader effect; a loader refuses any other"))
+
+(derive built-in-effect-count (lists.length loader-effect-names)
+    :using (lists.length lists.length-base lists.length-step loader-effect-names))
 
 ; --- Per-layer counts ---
+; fired?, vacuous? and violated? are three effects with one shared docstring: it counts once per effect
 
 (derive effect-doc-count
-    (count-exists effect-import-doc effect-run-on-entry-doc effect-load-document-doc
+    (count-exists effect-import-doc effect-run-on-entry-doc effect-load-document-doc effect-load-documents-doc
                   effect-context-doc effect-print-doc effect-consistency-doc
-                  effect-verify-manual-doc effect-dangerously-eval-doc)
-    :using (count-exists effect-import-doc effect-run-on-entry-doc effect-load-document-doc
+                  effect-verify-manual-doc effect-dangerously-eval-doc
+                  effect-py-ast-doc effect-outcome-doc effect-outcome-is-doc effect-outcome-is-doc effect-outcome-is-doc)
+    :using (count-exists effect-import-doc effect-run-on-entry-doc effect-load-document-doc effect-load-documents-doc
                          effect-context-doc effect-print-doc effect-consistency-doc
-                         effect-verify-manual-doc effect-dangerously-eval-doc))
+                         effect-verify-manual-doc effect-dangerously-eval-doc
+                         effect-py-ast-doc effect-outcome-doc effect-outcome-is-doc))
 
 (derive effect-impl-count
-    (count-exists effect-import-impl effect-run-on-entry-impl effect-load-document-impl
+    (count-exists effect-import-impl effect-run-on-entry-impl effect-load-document-impl effect-load-documents-impl
                   effect-context-impl effect-print-impl effect-consistency-impl
-                  effect-verify-manual-impl effect-dangerously-eval-impl)
-    :using (count-exists effect-import-impl effect-run-on-entry-impl effect-load-document-impl
+                  effect-verify-manual-impl effect-dangerously-eval-impl
+                  effect-py-ast-impl effect-outcome-impl effect-fired-impl effect-vacuous-impl effect-violated-impl)
+    :using (count-exists effect-import-impl effect-run-on-entry-impl effect-load-document-impl effect-load-documents-impl
                          effect-context-impl effect-print-impl effect-consistency-impl
-                         effect-verify-manual-impl effect-dangerously-eval-impl))
+                         effect-verify-manual-impl effect-dangerously-eval-impl
+                         effect-py-ast-impl effect-outcome-impl effect-fired-impl effect-vacuous-impl effect-violated-impl))
 
 ; --- Cross-layer diffs ---
 
@@ -297,7 +350,13 @@
                   (and effect-print-doc effect-print-impl)
                   (and effect-consistency-doc effect-consistency-impl)
                   (and effect-verify-manual-doc effect-verify-manual-impl)
-                  (and effect-dangerously-eval-doc effect-dangerously-eval-impl))
+                  (and effect-dangerously-eval-doc effect-dangerously-eval-impl)
+                  (and effect-load-documents-doc effect-load-documents-impl)
+                  (and effect-py-ast-doc effect-py-ast-impl)
+                  (and effect-outcome-doc effect-outcome-impl)
+                  (and effect-outcome-is-doc effect-fired-impl)
+                  (and effect-outcome-is-doc effect-vacuous-impl)
+                  (and effect-outcome-is-doc effect-violated-impl))
     :using (count-exists
             effect-import-doc effect-import-impl
             effect-run-on-entry-doc effect-run-on-entry-impl
@@ -306,7 +365,11 @@
             effect-print-doc effect-print-impl
             effect-consistency-doc effect-consistency-impl
             effect-verify-manual-doc effect-verify-manual-impl
-            effect-dangerously-eval-doc effect-dangerously-eval-impl))
+            effect-dangerously-eval-doc effect-dangerously-eval-impl
+            effect-load-documents-doc effect-load-documents-impl
+            effect-py-ast-doc effect-py-ast-impl
+            effect-outcome-doc effect-outcome-impl
+            effect-outcome-is-doc effect-fired-impl effect-vacuous-impl effect-violated-impl))
 
 (diff effect-paired-vs-doc :replace effect-paired-count :with effect-doc-count)
 (diff effect-paired-vs-impl :replace effect-paired-count :with effect-impl-count)
@@ -452,14 +515,27 @@
     :using (count-exists effect-consistency-has-raise effect-consistency-has-bool
                          effect-consistency-has-report effect-consistency-default-prints))
 
+; The witnessing cases: the default branch is the call with no args, the raise is taken on an inconsistent report
+(fact consistency-default-has-args false
+    :evidence (evidence "loader.py"
+        :quotes ("mode = str(args[0]) if args else None")
+        :explanation "With no args the mode is None and the default branch runs"))
+
+(fact consistency-raise-report-consistent false
+    :evidence (evidence "loader.py"
+        :quotes ("if not report.consistent:")
+        :explanation "The :raise branch raises only when the report is not consistent"))
+
 ; Bind consistency axioms to their mode facts
 (derive bound-consistency-no-args consistency-no-args-prints
-    :bind ((?has-args effect-consistency-default-prints) (?prints-report effect-consistency-default-prints) (?returns-true effect-consistency-default-prints))
-    :using (consistency-no-args-prints effect-consistency-default-prints))
+    :bind ((?has-args consistency-default-has-args) (?prints-report effect-consistency-default-prints) (?returns-true effect-consistency-default-prints))
+    :using (consistency-no-args-prints consistency-default-has-args effect-consistency-default-prints)
+    :expect fired)
 
 (derive bound-consistency-raise consistency-raise-on-inconsistent
-    :bind ((?mode-is-raise effect-consistency-has-raise) (?is-consistent effect-consistency-has-raise) (?raises-error effect-consistency-has-raise))
-    :using (consistency-raise-on-inconsistent effect-consistency-has-raise))
+    :bind ((?mode-is-raise effect-consistency-has-raise) (?is-consistent consistency-raise-report-consistent) (?raises-error effect-consistency-has-raise))
+    :using (consistency-raise-on-inconsistent effect-consistency-has-raise consistency-raise-report-consistent)
+    :expect fired)
 
 (derive bound-consistency-bool consistency-bool-no-print
     :bind ((?mode-is-bool effect-consistency-has-bool) (?returns-consistent-bool effect-consistency-has-bool))
@@ -569,10 +645,17 @@
 
 ; Bind axioms to concrete facts that prove their consequences
 
+; The witnessing case: the skip branch runs for a module that is not main
+(fact run-on-entry-skip-branch-is-main false
+    :evidence (evidence "loader.py"
+        :quotes ("if not self._current.is_main:")
+        :explanation "The skip branch is taken when the current module is not main"))
+
 ; run-on-entry-gating: non-main → skip entry. Consequence: skips-non-main proves it.
 (derive bound-run-on-entry-gating run-on-entry-gating
-    :bind ((?is-main module-context-has-is-main) (?skip-entry effect-run-on-entry-skips-non-main))
-    :using (run-on-entry-gating module-context-has-is-main effect-run-on-entry-skips-non-main))
+    :bind ((?is-main run-on-entry-skip-branch-is-main) (?skip-entry effect-run-on-entry-skips-non-main))
+    :using (run-on-entry-gating module-context-has-is-main run-on-entry-skip-branch-is-main effect-run-on-entry-skips-non-main)
+    :expect fired)
 
 ; circular-import-detection: file-in-stack → raises. Consequence: checks-circular proves it.
 (derive bound-circular-import circular-import-detection
@@ -727,10 +810,16 @@
 ; Grand paired count — all axioms backed by facts
 ; =====================================================================
 
+(fact effect-context-uses-registry true
+    :evidence (evidence "loader.py"
+        :quotes ("ctx = self.modules_contexts[module]")
+        :explanation "A known module's context is taken from the modules_contexts registry"))
+
 ; context-resolves-via-registry: module-known → uses registry ctx
 (derive bound-context-resolves context-resolves-via-registry
-    :bind ((?module-known loader-has-names-to-modules) (?uses-registry-ctx effect-context-keys))
-    :using (context-resolves-via-registry loader-has-names-to-modules effect-context-keys))
+    :bind ((?module-known loader-has-names-to-modules) (?uses-registry-ctx effect-context-uses-registry))
+    :using (context-resolves-via-registry loader-has-names-to-modules effect-context-uses-registry)
+    :expect fired)
 
 (derive all-axioms-backed-count
     (count-exists (and effect-run-on-entry-skips-non-main module-context-has-is-main)
@@ -740,7 +829,7 @@
                   (and effect-consistency-default-prints effect-consistency-has-raise)
                   (and effect-consistency-has-bool effect-consistency-has-report)
                   (and loader-context-frozen module-context-has-parent)
-                  (and effect-context-keys effect-load-document-resolves-path)
+                  (and (> effect-context-keys 0) effect-load-document-resolves-path)
                   (and effect-print-exists loader-detects-circular-imports)
                   (and context-is-abc loader-has-names-to-modules))
     :using (count-exists

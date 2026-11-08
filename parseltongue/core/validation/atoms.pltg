@@ -95,14 +95,14 @@
         :quotes ("return self.verified or self.verify_manual")
         :explanation "is_grounded implementation"))
 
-; Axiom from docstring: grounding requires verified or manual
-(axiom grounding-rule-doc (implies ?grounded (or ?verified ?manual))
+; Axiom from docstring: grounding requires verified or manual — with neither, evidence is not grounded
+(axiom grounding-rule-doc (implies (not (or ?verified ?manual)) (not ?grounded))
     :evidence (evidence "atoms.py"
         :quotes ("Evidence is grounded if verified or manually verified.")
         :explanation "Docstring: grounding has no path outside verified/manual"))
 
-; Axiom from code: grounding requires verified or manual
-(axiom grounding-rule-impl (implies ?grounded (or ?verified ?manual))
+; Axiom from code: grounding requires verified or manual — with neither, evidence is not grounded
+(axiom grounding-rule-impl (implies (not (or ?verified ?manual)) (not ?grounded))
     :evidence (evidence "atoms.py"
         :quotes ("return self.verified or self.verify_manual")
         :explanation "Implementation: is_grounded = verified OR verify_manual"))
@@ -240,7 +240,7 @@
     :with term-docstring-says-primitive)
 
 (derive term-display-documented
-    (and term-definition-check term-docstring-says-primitive)
+    (and (!= term-definition-check "") term-docstring-says-primitive)
     :using (term-definition-check term-docstring-says-primitive))
 
 ; =====================================================================
@@ -313,7 +313,7 @@
             term-forward-decl-display term-has-body-display))
 
 (derive term-display-bound term-display-rule
-    :bind ((?has-definition term-definition-check) (?to-sexp term-has-body-display) (?primitive term-forward-decl-display))
+    :bind ((?has-definition (!= term-definition-check "")) (?to-sexp term-has-body-display) (?primitive term-forward-decl-display))
     :using (term-display-rule term-definition-check term-has-body-display term-forward-decl-display))
 
 (defterm term-display-impl-count 2
@@ -382,7 +382,8 @@
            (?verified evidence-verified-default)
            (?manual evidence-verify-manual-default))
     :using (grounding-rule-doc defaults-grounded-value
-            evidence-verified-default evidence-verify-manual-default))
+            evidence-verified-default evidence-verify-manual-default)
+    :expect fired)
 
 ; Code path: bind implementation axiom with defaults
 (derive bound-grounding-impl grounding-rule-impl
@@ -390,9 +391,10 @@
            (?verified evidence-verified-default)
            (?manual evidence-verify-manual-default))
     :using (grounding-rule-impl defaults-grounded-value
-            evidence-verified-default evidence-verify-manual-default))
+            evidence-verified-default evidence-verify-manual-default)
+    :expect fired)
 
-; Both prove true (vacuously) — doc and code agree
+; Both fire: with the defaults neither path is open and the evidence is not grounded — doc and code agree
 (diff evidence-defaults-grounding
     :replace bound-grounding-doc
     :with bound-grounding-impl)

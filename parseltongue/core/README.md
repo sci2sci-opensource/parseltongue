@@ -131,7 +131,7 @@ Parseltongue inverts this. Every axiom, every fact, every primitive term must ci
 
 ## Directive Types
 
-Six directive types — `fact`, `axiom`, `defterm`, `derive`, `diff`, and `evidence` — split into two categories.
+Seven directive types — `fact`, `axiom`, `defterm`, `deftype`, `derive`, `diff`, and `evidence` — split into two categories.
 
 In addition to primary directives, the language is extensible with [custom operators](#custom-environments) and [effects](#built-in-effects).
 
@@ -169,6 +169,14 @@ Symbols are the core entity of the language. Symbolic directives introduce named
 ```scheme
 ;; Primitive symbol (no body) — forward declaration
 (defterm growth-target :origin "Board-set target")
+```
+
+**`deftype`** — a named, nominal type. It is an enumeration of member symbols, optionally ordered; a refinement of a base type by a `:where` predicate over `?x`; or a wrapper that gives a base type a distinct name. The type is registered as a term with its evidence, grounded and checked like any other term, and every node that names it with `:type` depends on it. See [Types](#types).
+
+```scheme
+(deftype Status (one-of exemplifiable unknown hallucinated)
+  :order (exemplifiable < unknown < hallucinated)
+  :origin "the epistemic lattice")
 ```
 
 #### Special Technique: Rewrite Axioms as Reusable Functions
@@ -331,7 +339,7 @@ If someone adds a feature flag to the config but forgets to document it or accep
 
 Evidence is a first-class citizen and is directly used by the engine and grammar.
 
-**`evidence`** is a structured provenance attached to symbolic directives. Evidence links a claim to a verbatim quote from a registered source document. Unlike the other five directive types, evidence does not participate in direct computation — it primarily exists for evaluation by the consistency checker, which verifies quotes and propagates fabrication flags.
+**`evidence`** is a structured provenance attached to symbolic directives. Evidence links a claim to a verbatim quote from a registered source document. Unlike the other six directive types, evidence does not participate in direct computation — it primarily exists for evaluation by the consistency checker, which verifies quotes and propagates fabrication flags.
 
 ```scheme
 ;; Structured evidence with verifiable quotes
@@ -380,6 +388,33 @@ The system's own [`validation/verify_manual.pltg`](validation/verify_manual.pltg
 ```
 
 The hypothetical values are manually verified because they represent scenarios implied by the code but not literally quoted from it. The `quote_verifier` validation module ([`validation/quote_verifier.pltg`](validation/quote_verifier.pltg)) uses this technique for 7 axioms — empty quotes, single-stopword quotes, normalized-to-empty quotes, score clamping, and config flag gating.
+
+### Types
+
+Every node has a type before it is evaluated. The built-in types are `Bool`, `Num`, `Sym`, `Str`, `List`, `Outcome` and `Any`; `Bool` and `Num` are disjoint, so `true` is not `1`. A fact's type is inferred from its literal, a computed term's from its body, a derive's from its formula, and a term that heads rewrite rules gets a signature inferred from them. `:type` narrows a node to a declared type, and `:types` gives an axiom's `?`-variables their types:
+
+```scheme
+(deftype Channel (one-of consistency-error consistency-warning) :origin "the two report channels")
+(fact unverified-channel consistency-error :type Channel :origin "...")
+(axiom error-on-unverified (implies ?is-unverified (= ?channel consistency-error))
+  :types ((?is-unverified Bool) (?channel Channel))
+  :origin "...")
+```
+
+Type expressions compose: `(List T)`, function types `(-> A B R)` with `(Rest T)` as the last parameter of a variadic function, `(union A B)`, type variables `?T` unified at each call site, and records `(Record :name Sym :value Num)`, whose values are keyword lists read with `(get r :value)`. Declared types are nominal: two declared types with the same representation are distinct. Members of an ordered enumeration compare with `<`, `>`, `<=` and `>=`; members of different enumerations do not compare.
+
+A mismatch is a `type_error` in the consistency report, with the node and both types; the file still loads. A derive whose value is a `Bool` is a theorem; any other value makes it a computation, which carries no truth claim.
+
+Applying an implication axiom with `:bind` has an outcome: `fired` (the antecedent holds and the consequent holds), `vacuous` (the antecedent is false) or `violated` (the antecedent holds and the consequent does not). `:expect` states the outcome the author intends; an outcome other than the expected one is an `unmet_expectation`, and a vacuous application without `:expect` is a `vacuous_rule` warning.
+
+```scheme
+(derive unverified-causes-error error-on-unverified
+  :bind ((?is-unverified unverified-is-unverified) (?channel unverified-channel))
+  :using (error-on-unverified unverified-is-unverified unverified-channel)
+  :expect fired)
+```
+
+`(count-where fired? (quote r1) (quote r2))` from `std.counting` counts the rule applications that fired, and `(py-ast "engine.py" "members" "IssueType")` reads a registered Python document with Python's own parser, so a count derived from it follows the code instead of a quoted number.
 
 ## Execution Engine
 
@@ -463,12 +498,17 @@ The quote verifier is extensible: custom normalizers, fuzzy matchers, and custom
 | `potential_fabrication` | Theorem depends on unverified evidence |
 | `diff_divergence` | Downstream terms diverge when swapping one value for another |
 | `diff_value_divergence` | The two values in a diff disagree directly |
+| `absence_violated` | A claimed absence has counter-example lines in the registered documents |
+| `obligation_violated` | A universal obligation has counter-example lines in the registered documents |
+| `type_error` | A value is not of the type its position requires |
+| `unmet_expectation` | A rule application's outcome is not the one its `:expect` states |
 
 | Warning Type | Meaning |
 |---|---|
 | `manually_verified` | Evidence was manually verified by a human, not by the system |
 | `diff_contamination` | Diff divergence caused by a sibling diff, not a real disagreement |
 | `confounded_evidence` | Both sides of a diff depend on the same document quote, weakening their independence |
+| `vacuous_rule` | A rule application held only because its antecedent was false, and states no `:expect` |
 
 Diffs are the primary mechanism for cross-validation. Register a diff, and the system automatically checks whether swapping one value for another causes dependent terms to change.
 The consistency check also traces evidence transitively through each side. If both sides reach the same quote in the same document, or one side's quote fully contains the other's, it reports `confounded_evidence`; identical text in different documents remains independent.
@@ -604,7 +644,7 @@ system = loader.load_main("path/to/main.pltg", effects=custom_effects)
 
 ### Built-in Effects
 
-The loader provides 8 built-in effects available in any `.pltg` file:
+The loader provides 14 built-in effects available in any `.pltg` file:
 
 | Effect | Syntax | Description |
 |---|---|---|
@@ -616,6 +656,10 @@ The loader provides 8 built-in effects available in any `.pltg` file:
 | `consistency` | `(consistency)` | With no arguments, prints the report and returns True. Optional modes: `(consistency :raise)` prints and raises on inconsistency, `(consistency :bool)` returns boolean without printing, `(consistency :report)` returns the ConsistencyReport object |
 | `verify-manual` | `(verify-manual name)` | Manually verify a fact, term, or axiom |
 | `dangerously-eval` | `(dangerously-eval "python code")` | Execute arbitrary Python with `system` and `_ctx` in scope. Used by self_test.pltg to run the test suite from within the formal system |
+| `load-documents` | `(load-documents "prefix" "glob" :except (...))` | Register every file a glob matches as a source document, named under a prefix |
+| `py-ast` | `(py-ast "document" "members" "NAME")` | Read the structure of a registered Python document with Python's parser: `members`, `fields`, `methods`, `functions`, `classes`, `keys` or `items`, as a `(List Str)` |
+| `outcome` | `(outcome (quote rule))` | The outcome of a rule application: `fired`, `vacuous` or `violated` |
+| `fired?` / `vacuous?` / `violated?` | `(fired? (quote rule))` | Whether a rule application had that outcome; three effects, one per outcome |
 
 ### Imports and Namespacing
 
