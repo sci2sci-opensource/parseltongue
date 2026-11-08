@@ -120,12 +120,13 @@ Built on `feature/type-system`:
 - `py-ast`, a loader effect over a registered Python document: `(py-ast "engine.py" "members" "IssueType")` returns the names Python's parser finds (members, fields, methods, functions, classes, dict keys, tuple items), typed `(List Str)`, so a count derived from it follows the code.
 - Typing is serialized with the system and restored with its enumerations' member values.
 
-Remaining, before the corpus fixes:
+- A term with no declared type that heads rewrite rules has its signature inferred from them: each parameter's type is what its positions on the right-hand side demand, or a type variable when they demand none, and the result is the right-hand side's type; `(= (witness ?x) ?x)` infers `(-> ?x ?x)`. Rules of differing arity give a `Rest` signature.
+- `+` is overloaded: numeric addition, or concatenation when every argument is a list.
+- Records: `(Record :name Sym :value Num)`, structural in width and depth where written directly and nominal where declared; a record value is a keyword list `(:name revenue :value 3)`; `(get r :value)` is a core operator typed by the record's field.
+- `outcome`, `fired?`, `vacuous?` and `violated?` read a rule application's outcome: `(count-where fired? (quote r1) (quote r2))` counts the rules that fired.
+- `apply`, `pipe` and `filter` are typed; `apply` unifies through the function it applies.
 
-- An accessor for a rule application's outcome as an `Outcome` value, so `(count-where fired? …)` can count fired rules.
-- Inferring a defterm's type from its axioms when it declares none (today an undeclared function term is `Any` at its call sites).
-- Records.
-- Typing `apply`, `pipe` and `filter`, whose arity is not expressible as one function type.
+Known limits: `pipe`'s type does not chain its functions' types (`(-> ?A (Rest (-> Any Any)) Any)`); restoring a system evaluates every term definition (`_rebuild_env`), so a term whose definition raises — such as a `get` of a field its record lacks — cannot be restored.
 
 Then: the corpus fixes — the vacuous rules and type errors in `validation/`, and the self-proof's counts of issue and warning types taken from `py-ast` instead of quoted lines.
 

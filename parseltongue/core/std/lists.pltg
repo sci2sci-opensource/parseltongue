@@ -99,7 +99,7 @@
 ;     => (s1 s3)
 ;   (filter exemplifiable ((quote s1) s1) ((quote s2) s2) ((quote s3) s3))
 ;     => (s2)
-(defterm filter :origin "filter name-value pairs by target match — collect matching names")
+(defterm filter :type (-> ?T (Rest List) List) :origin "filter name-value pairs by target match — collect matching names")
 
 (axiom filter-base
     (= (filter ?target (?name ?val))

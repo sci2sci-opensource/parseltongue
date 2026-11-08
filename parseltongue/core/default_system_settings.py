@@ -32,9 +32,13 @@ OR = Symbol("or")
 NOT = Symbol("not")
 IMPLIES = Symbol("implies")
 
+# Records
+GET = Symbol("get")
+
 ARITHMETIC_OPS = (ADD, SUB, MUL, DIV, MOD)
 COMPARISON_OPS = (GT, LT, GE, LE, EQ, NE)
 LOGIC_OPS = (AND, OR, NOT, IMPLIES)
+RECORD_OPS = (GET,)
 
 
 # ============================================================
@@ -142,6 +146,15 @@ ENGINE_DOCS = {
         "example": "(implies true false)",
         "expected": False,
     },
+    # Records
+    GET: {
+        "category": "record",
+        "description": "The value of a record's field.  A record is a keyword list, "
+        "(:x 1 :y 2); (get r :x) is the value after :x.  Typed by the "
+        "record's type: an unknown field is a type error.",
+        "example": "(get (quote (:x 1 :y 2)) :y)",
+        "expected": 2,
+    },
 }
 
 
@@ -170,6 +183,15 @@ def typed_order(compare: Any) -> Any:
     return ordered
 
 
+def record_get(record: Any, field: Any) -> Any:
+    """The value after ``field`` in a keyword list ``(:k v :k v …)``."""
+    items = list(record)
+    for i in range(0, len(items) - 1, 2):
+        if items[i] == field:
+            return items[i + 1]
+    raise KeyError(f"record has no field {field}")
+
+
 DEFAULT_OPERATORS: dict[Symbol, Any] = {
     # Special case, eq from lang can act as operator (variadic: all args equal)
     EQ: lambda *args: all(typed_equal(a, args[0]) for a in args[1:]),
@@ -190,4 +212,6 @@ DEFAULT_OPERATORS: dict[Symbol, Any] = {
     OR: lambda *args: any(args),
     NOT: lambda a: not a,
     IMPLIES: lambda a, b: bool((not a) or b),
+    # Records
+    GET: record_get,
 }

@@ -4,6 +4,7 @@ import os
 import tempfile
 import unittest
 
+from ..atoms import Symbol
 from ..loader import LazyLoader
 from ..py_structure import py_structure
 
@@ -69,6 +70,27 @@ class TestPyAstEffect(unittest.TestCase):
         typing = system.engine.dsl.typing
         self.assertEqual(str(typing.nodes["kinds"].type), "(List Str)")
         self.assertTrue(typing.errors.get("misused"))
+
+
+class TestOutcomeEffects(unittest.TestCase):
+    def test_count_where_fired_counts_the_rules_that_fired(self):
+        import parseltongue.core as core
+
+        with tempfile.TemporaryDirectory() as d:
+            with open(os.path.join(d, "main.pltg"), "w") as f:
+                f.write(
+                    "(import (quote std.counting c))\n"
+                    '(defterm divergence :origin "d")\n'
+                    '(axiom diverges (implies (!= ?a ?b) (= divergence divergence)) :origin "r")\n'
+                    '(fact x 1 :origin "x") (fact y 2 :origin "y")\n'
+                    "(derive r1 diverges :bind ((?a x) (?b y)) :using (diverges x y))\n"
+                    "(derive r2 diverges :bind ((?a x) (?b x)) :using (diverges x))\n"
+                    "(derive fired-count (c.count-where fired? (quote r1) (quote r2))\n"
+                    "    :using (c.count-where c.count-where-base c.count-where-step r1 r2))\n"
+                )
+            system = LazyLoader(lib_paths=[os.path.dirname(core.__file__)]).load_main(os.path.join(d, "main.pltg"))
+        self.assertEqual(system.evaluate(system.engine.theorems["fired-count"].wff), 1)
+        self.assertEqual(str(system.evaluate([Symbol("outcome"), [Symbol("quote"), Symbol("r2")]])), "vacuous")
 
 
 if __name__ == "__main__":

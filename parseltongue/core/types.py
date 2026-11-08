@@ -14,6 +14,9 @@ accepted (``:type``, ``:types``, a ``deftype`` base):
   in its parameters, covariant in its result
 - ``(union A B)`` — a value of ``A`` or of ``B``
 - ``(-> A (Rest T) R)`` — a variadic function: after ``A``, any number of ``T``
+- ``(Record :x A :y B)`` — a record with fields ``x`` and ``y``; structural in width and
+  depth (a record with more fields, or narrower ones, stands for one with fewer). A
+  record value is a keyword list ``(:x 1 :y 2)``, read with ``(get r :x)``
 - ``?T`` — a type variable, bound by unification where a function is applied
 
 **User-defined types** (``deftype``) are nominal and come in four shapes:
@@ -44,7 +47,7 @@ from typing import Any as _Any
 
 from .atoms import Symbol
 
-LIST_C, FN_C, UNION_C, REST_C = "List", "->", "union", "Rest"
+LIST_C, FN_C, UNION_C, REST_C, RECORD_C = "List", "->", "union", "Rest", "Record"
 
 
 @dataclass(frozen=True)
@@ -66,14 +69,30 @@ class Type:
     builtin: bool = field(default=False, compare=False)
     args: "tuple[Type, ...]" = ()
     var: bool = False
+    labels: "tuple[str, ...]" = ()  # a record's field names, one per arg
 
     def __str__(self) -> str:
+        if self.labels:
+            return f"({self.name} {' '.join(f':{lab} {a}' for lab, a in zip(self.labels, self.args))})"
         if self.args:
             return f"({self.name} {' '.join(str(a) for a in self.args)})"
         return self.name
 
     def __hash__(self) -> int:
-        return hash((self.name, self.args, self.var))
+        return hash((self.name, self.args, self.var, self.labels))
+
+    @property
+    def is_record(self) -> bool:
+        return self.name == RECORD_C and not self.var
+
+    def field(self, label: str) -> "Type | None":
+        rep = self.representation
+        if not rep.is_record:
+            return None
+        for lab, a in zip(rep.labels, rep.args):
+            if lab == label:
+                return a
+        return None
 
     @property
     def is_list(self) -> bool:
@@ -126,6 +145,10 @@ def union(*members: Type) -> Type:
     return flat[0] if len(flat) == 1 else Type(UNION_C, args=tuple(flat))
 
 
+def record(fields: "dict[str, Type]") -> Type:
+    return Type(RECORD_C, args=tuple(fields.values()), labels=tuple(fields))
+
+
 def tvar(name: str) -> Type:
     return Type(name, var=True)
 
@@ -154,14 +177,16 @@ class NodeType:
 
 def is_subtype(a: Type, b: Type) -> bool:
     """Whether every value of ``a`` is a value of ``b``."""
-    if a == b or b == ANY or a.var or b.var:
-        return True
+    if a == b or a == ANY or b == ANY or a.var or b.var:
+        return True  # Any is consistent with every type in both directions (gradual typing)
     if b.is_union:
         return any(is_subtype(a, m) for m in b.args)
     if a.is_union:
         return all(is_subtype(m, b) for m in a.args)
     if a.is_list and b.is_list:
         return is_subtype(element(a), element(b))
+    if a.is_record and b.is_record:
+        return all((fa := a.field(lab)) is not None and is_subtype(fa, fb) for lab, fb in zip(b.labels, b.args))
     if a.is_fn and b.is_fn:
         if len(a.args) != len(b.args):
             return False
@@ -184,6 +209,11 @@ def assignable(value: NodeType, target: Type) -> bool:
         return True
     if value.type.is_list and rep.is_list:
         return assignable(NodeType(element(value.type)), element(rep))
+    if value.type.is_record and rep.is_record:
+        return all(
+            (fv := value.type.field(lab)) is not None and assignable(NodeType(fv), ft)
+            for lab, ft in zip(rep.labels, rep.args)
+        )
     return is_subtype(value.type, rep)
 
 
@@ -245,10 +275,22 @@ def type_of_value(value: object) -> Type:
         return SYM
     if isinstance(value, str):
         return STR
+    if isinstance(value, (list, tuple)) and _keyword_list(value):
+        return record({str(value[i])[1:]: type_of_value(value[i + 1]) for i in range(0, len(value), 2)})
     if isinstance(value, (list, tuple)):
         items = [type_of_value(v) for v in value]
         return list_of(items[0] if items and all(i == items[0] for i in items) else ANY)
     return ANY
+
+
+def _keyword_list(value: object) -> bool:
+    """A record value: an even-length list alternating :keywords and values."""
+    if not isinstance(value, (list, tuple)) or not value or len(value) % 2:
+        return False
+    return all(
+        isinstance(value[i], str) and not isinstance(value[i], Symbol) and str(value[i]).startswith(":")
+        for i in range(0, len(value), 2)
+    )
 
 
 # ============================================================
@@ -264,6 +306,17 @@ def parse_type(expr: object, types: "dict[str, Type]") -> "Type | str":
             return tvar(s)
         found = types.get(s)
         return found if found is not None else f"{s} names no type"
+    if isinstance(expr, (list, tuple)) and expr and isinstance(expr[0], Symbol) and str(expr[0]) == RECORD_C:
+        rest = list(expr[1:])
+        if len(rest) % 2 or not _keyword_list(rest):
+            return "(Record :field Type …) alternates :fields and types"
+        fields: dict[str, Type] = {}
+        for i in range(0, len(rest), 2):
+            ft = parse_type(rest[i + 1], types)
+            if isinstance(ft, str):
+                return ft
+            fields[str(rest[i])[1:]] = ft
+        return record(fields)
     if isinstance(expr, (list, tuple)) and expr and isinstance(expr[0], Symbol):
         head = str(expr[0])
         parsed = [parse_type(a, types) for a in expr[1:]]
@@ -287,6 +340,11 @@ def parse_type(expr: object, types: "dict[str, Type]") -> "Type | str":
 
 def type_to_sexp(t: Type) -> object:
     """A type as the expression that writes it."""
+    if t.labels:
+        out: list = [Symbol(t.name)]
+        for lab, a in zip(t.labels, t.args):
+            out += [f":{lab}", type_to_sexp(a)]
+        return out
     if t.args:
         return [Symbol(t.name), *[type_to_sexp(a) for a in t.args]]
     return Symbol(t.name)
@@ -308,6 +366,8 @@ class TypeEnv:
 
     nodes: dict[str, NodeType]
     vars: dict[str, Type] = field(default_factory=dict)
+    #: What each untyped ?-variable's positions demand of it, collected while inferring
+    constraints: dict[str, Type] = field(default_factory=dict)
 
 
 def substitute_type(t: Type, subst: "dict[str, Type]") -> Type:
@@ -342,6 +402,15 @@ def unify(param: Type, arg: NodeType, subst: "dict[str, Type]") -> bool:
             elif not is_subtype(substitute_type(p, subst), rest):
                 return False
         return unify(param.args[-1], NodeType(arg.type.args[-1], True), subst)
+    if param.is_fn and arg.type.is_fn and param.args[:-1] and param.args[-2].name == REST_C:
+        # A variadic parameter function accepts a function of any arity: each of its parameters meets the rest
+        rest = param.args[-2].args[0]
+        for a in arg.type.args[:-1]:
+            if rest.var or a.var:
+                unify(rest, NodeType(a, True), subst)
+            elif not is_subtype(substitute_type(rest, subst), a):
+                return False
+        return unify(param.args[-1], NodeType(arg.type.args[-1], True), subst)
     if param.is_fn and arg.type.is_fn and len(param.args) == len(arg.type.args):
         # Contravariant in the parameters: the argument function must accept what the parameter's would
         for p, a in zip(param.args[:-1], arg.type.args[:-1]):
@@ -371,31 +440,56 @@ def infer(expr: object, env: TypeEnv, errors: list[str]) -> NodeType:
         return NodeType(STR)
     if not isinstance(expr, (list, tuple)) or not expr:
         return NodeType(ANY)
+    if _keyword_list(expr):  # a record literal
+        return NodeType(
+            record({str(expr[i])[1:]: infer(expr[i + 1], env, errors).type for i in range(0, len(expr), 2)})
+        )
 
     head = str(expr[0]) if isinstance(expr[0], Symbol) else None
     args = expr[1:]
     if head == "quote":
-        return NodeType(ANY)
+        # A quoted list is a list (or record) value, a quoted symbol a symbol
+        return NodeType(type_of_value(args[0])) if len(args) == 1 else NodeType(ANY)
+    if head == "get" and len(args) == 2:
+        rec = infer(args[0], env, errors)
+        label = str(args[1])[1:] if isinstance(args[1], str) and str(args[1]).startswith(":") else None
+        if rec.type == ANY or rec.type.var:
+            return NodeType(ANY)
+        if not rec.type.representation.is_record:
+            errors.append(f"(get …): {_show(args[0])} is {rec}, not a record")
+            return NodeType(ANY)
+        ft = rec.type.field(label) if label is not None else None
+        if ft is None:
+            errors.append(f"(get …): {rec.type} has no field {args[1]}")
+            return NodeType(ANY)
+        return NodeType(ft, declared=rec.declared)
     if head == "strict" and len(args) == 1:
         return infer(args[0], env, errors)
     if head == "if" and len(args) == 3:
-        _expect(args[0], infer(args[0], env, errors), BOOL, "if", errors)
+        _expect(args[0], infer(args[0], env, errors), BOOL, "if", errors, env)
         a, b = infer(args[1], env, errors), infer(args[2], env, errors)
         return a if a == b else NodeType(union(a.type, b.type))
 
     types = [infer(a, env, errors) for a in args]
     if head in _LOGIC:
         for a, at in zip(args, types):
-            _expect(a, at, BOOL, head, errors)
+            _expect(a, at, BOOL, head, errors, env)
         return NodeType(BOOL)
+    if (
+        head == "+"
+        and any(_listish(at.type) for at in types)
+        and all(_listish(at.type) or at.type == ANY for at in types)
+    ):
+        # + on lists concatenates them
+        return NodeType(list_of(union(*[element(at.type) if at.type.is_list else ANY for at in types])))
     if head in _ARITH:
         for a, at in zip(args, types):
-            _expect(a, at, NUM, head, errors)
+            _expect(a, at, NUM, head, errors, env)
         return NodeType(NUM)
     if head in _ORDER:
         for a, at in zip(args, types):
             if ordering(at.type) is None:
-                _expect(a, at, NUM, head, errors)
+                _expect(a, at, NUM, head, errors, env)
         _all_comparable(head, args, types, errors)
         return NodeType(BOOL)
     if head in _EQUALITY:
@@ -426,7 +520,19 @@ def _apply(head: str, signature: Type, args, types: list[NodeType], errors: list
     return NodeType(substitute_type(ret, subst), declared=True)
 
 
-def _expect(arg: object, t: NodeType, target: Type, where: str, errors: list[str]) -> None:
+def _listish(t: Type) -> bool:
+    """A list, or a union whose every member is a list or unknown, with at least one list."""
+    if t.is_list:
+        return True
+    return t.is_union and any(m.is_list for m in t.args) and all(m.is_list or m == ANY for m in t.args)
+
+
+def _expect(
+    arg: object, t: NodeType, target: Type, where: str, errors: list[str], env: "TypeEnv | None" = None
+) -> None:
+    if env is not None and isinstance(arg, Symbol) and str(arg).startswith("?") and str(arg) not in env.vars:
+        env.constraints.setdefault(str(arg), target)  # an untyped variable: its position says what it must be
+        return
     if not assignable(t, target):
         errors.append(f"({where} …): {_show(arg)} is {t}, expected {target}")
 
@@ -450,9 +556,53 @@ def _show(expr: object) -> str:
     return str(expr)
 
 
+def infer_signature(rules: "list[tuple[list, object]]", nodes: "dict[str, NodeType]") -> Type:
+    """A function's type from its rewrite rules ``(= (f p …) rhs)``.
+
+    A parameter that is a ?-variable has the type its positions in the
+    right-hand side demand, or is a type variable when they demand none; a
+    literal parameter has its literal's type. The result is the right-hand
+    side's type. Rules of one arity give one signature; rules of different
+    arities, or with a splat, give a variadic one."""
+    shapes = []
+    for params, rhs in rules:
+        variadic = any(isinstance(p, Symbol) and str(p).startswith("?...") for p in params)
+        fixed = [p for p in params if not (isinstance(p, Symbol) and str(p).startswith("?..."))]
+        first = TypeEnv(nodes)
+        infer(rhs, first, [])
+        types: list[Type] = []
+        bound: dict[str, Type] = {}
+        for p in fixed:
+            if isinstance(p, Symbol) and str(p).startswith("?"):
+                t = first.constraints.get(str(p)) or tvar(str(p))
+                bound[str(p)] = t
+            elif isinstance(p, (list, tuple)):
+                t = LIST
+            else:
+                t = infer(p, TypeEnv(nodes), []).type
+            types.append(t)
+        ret = infer(rhs, TypeEnv(nodes, bound), []).type
+        shapes.append((variadic, types, ret))
+    rets = [r for _, _, r in shapes]
+    ret = rets[0] if all(r == rets[0] for r in rets) else union(*rets)
+    arities = {len(t) for _, t, _ in shapes}
+    if len(arities) == 1 and not any(v for v, _, _ in shapes):
+        n = arities.pop()
+        columns = [[t[i] for _, t, _ in shapes] for i in range(n)]
+        params = [col[0] if all(c == col[0] for c in col) else union(*col) for col in columns]
+        return fn(params, ret)
+    every = [t for _, ts, _ in shapes for t in ts]
+    rest = every[0] if every and all(t == every[0] for t in every) else (union(*every) if every else ANY)
+    return fn((Type(REST_C, args=(rest,)),), ret)
+
+
 # The types of the built-in effects, as their call sites see them
 EFFECT_TYPES: dict[str, NodeType] = {
     "py-ast": NodeType(fn((STR, STR, Type(REST_C, args=(STR,))), list_of(STR)), declared=True),
+    "outcome": NodeType(fn((ANY,), OUTCOME), declared=True),
+    "fired?": NodeType(fn((ANY,), BOOL), declared=True),
+    "vacuous?": NodeType(fn((ANY,), BOOL), declared=True),
+    "violated?": NodeType(fn((ANY,), BOOL), declared=True),
 }
 
 

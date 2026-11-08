@@ -61,9 +61,11 @@ from .types import (
     NodeType,
     Type,
     TypeState,
+    _show,
     assignable,
     fn,
     infer,
+    infer_signature,
     type_of_value,
 )
 
@@ -95,6 +97,7 @@ class DslLoader:
         self._engine = engine
         self.typing = TypeState()
         self._derived: dict[str, object] = {}  # a derive's value, handed over by the engine
+        self._rules: dict[str, list] = {}  # an undeclared function's rewrite rules, for its inferred type
 
     def load_source(self, source: str) -> Silence:
         """Parse source text and execute every directive in it."""
@@ -135,8 +138,8 @@ class DslLoader:
             else:
                 wff = expr[2]
             engine.introduce_axiom(name, wff, self.resolve_origin(expr))
+            self._infer_function(wff)  # the rule joins its head's signature before its own body is checked
             self._type_axiom(name, wff, get_keyword(expr, KW_TYPES, None))
-            self._infer_function(wff)
 
         elif head == DEFTERM:
             name = str(expr[1])
@@ -272,7 +275,7 @@ class DslLoader:
         base a refinement or subset narrows), a member of every enumeration on its
         chain, and satisfying every refinement's predicate on its chain."""
         if not assignable(inferred, declared) and not self._narrows(inferred, declared):
-            self.typing.error(name, f"value {value} is {inferred}, declared {declared}")
+            self.typing.error(name, f"value {_show(value)} is {inferred}, declared {declared}")
             return
         resolved = self._holds(value) if isinstance(value, Symbol) else value
         t: "Type | None" = declared
@@ -308,8 +311,9 @@ class DslLoader:
             self.typing.error(name, message)
 
     def _infer_function(self, wff: object) -> None:
-        """A term with no declared type that heads a rewrite rule is a function. Until
-        its type is declared it takes any arguments and returns any value."""
+        """A term with no declared type that heads rewrite rules is a function whose
+        type is inferred from those rules (``infer_signature``), re-inferred as each
+        rule arrives."""
         if not (isinstance(wff, (list, tuple)) and len(wff) == 3 and wff[0] == EQ):
             return
         pattern = wff[1]
@@ -319,8 +323,12 @@ class DslLoader:
         if head.startswith("?"):
             return
         existing = self.typing.nodes.get(head)
-        if existing is None or not existing.declared:
-            self.typing.nodes[head] = NodeType(fn((Type(REST_C, args=(ANY,)),), ANY))
+        if existing is not None and existing.declared:
+            return
+        rules = self._rules.setdefault(head, [])
+        rules.append((list(pattern[1:]), wff[2]))
+        self.typing.nodes[head] = NodeType(fn((Type(REST_C, args=(ANY,)),), ANY))  # while its rules infer
+        self.typing.nodes[head] = NodeType(infer_signature(rules, self.typing.nodes))
 
     def _check_bindings(self, name: str, rule: str, bindings: dict) -> None:
         """Every value a :bind gives an axiom's typed ?-variable must be of that type."""

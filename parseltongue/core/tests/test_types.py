@@ -279,5 +279,82 @@ class TestSerialization(unittest.TestCase):
         self.assertEqual(restored.consistency().to_dict(), s.consistency().to_dict())
 
 
+class TestInferredSignatures(unittest.TestCase):
+    def test_a_rewrite_rule_gives_its_head_a_signature(self):
+        s = _system(
+            '(defterm double :origin "d") (axiom double-rule (= (double ?x) (* 2 ?x)) :origin "d")'
+            '(defterm ident :origin "i") (axiom ident-rule (= (ident ?x) ?x) :origin "i")'
+            '(fact flag true :origin "f")'
+            '(defterm bad (double flag) :origin "b") (defterm ok (+ (ident 3) 1) :origin "o")'
+        )
+        typing = s.engine.dsl.typing
+        self.assertEqual(str(typing.nodes["double"].type), "(-> Num Num)")
+        self.assertEqual(str(typing.nodes["ident"].type), "(-> ?x ?x)")
+        self.assertTrue(_errors(s, "bad"))
+        self.assertEqual(_errors(s, "ok"), [])
+
+    def test_a_declared_type_wins_over_the_rules(self):
+        s = _system('(defterm f :type (-> Any Any) :origin "f") (axiom f-rule (= (f ?x) (* 2 ?x)) :origin "f")')
+        self.assertEqual(str(s.engine.dsl.typing.nodes["f"].type), "(-> Any Any)")
+
+    def test_plus_concatenates_lists(self):
+        s = _system(
+            '(defterm xs :type (List Num) :origin "x") (defterm ys :type (List Num) :origin "y")'
+            '(defterm both (+ xs ys) :origin "b")'
+        )
+        self.assertEqual(_errors(s, "both"), [])
+        self.assertEqual(str(s.engine.dsl.typing.nodes["both"].type), "(List Num)")
+
+    def test_apply_unifies_through_the_function_it_applies(self):
+        s = _system(
+            '(defterm apply :type (-> (-> (Rest ?A) ?B) (Rest ?A) ?B) :origin "a")'
+            '(defterm double :origin "d") (axiom double-rule (= (double ?x) (* 2 ?x)) :origin "d")'
+            '(fact flag true :origin "f") (defterm ok (+ (apply double 3) 1) :origin "o")'
+            '(defterm bad (apply double flag) :origin "b")'
+        )
+        self.assertEqual(_errors(s, "ok"), [])
+        self.assertTrue(_errors(s, "bad"))
+
+
+class TestRecords(unittest.TestCase):
+    SOURCE = (
+        '(deftype Side (Record :name Sym :value Num) :origin "a diff side")'
+        '(fact left (:name revenue :value 3) :type Side :origin "l")'
+    )
+
+    def test_get_reads_a_field_by_its_type(self):
+        s = _system(self.SOURCE + "(derive v (+ (get left :value) 1) :using (left))")
+        self.assertEqual(s.evaluate(s.engine.theorems["v"].wff), 4)
+        self.assertEqual(_errors(s, "v"), [])
+
+    def test_an_unknown_field_is_an_error(self):
+        s = _system(self.SOURCE + '(defterm w (get left :weight) :origin "w")')
+        self.assertTrue(any("no field" in e for e in _errors(s, "w")))
+
+    def test_a_value_missing_a_field_or_of_a_wrong_field_type_is_refused(self):
+        s = _system(
+            self.SOURCE
+            + '(fact short (:name x) :type Side :origin "s") (fact off (:name x :value true) :type Side :origin "o")'
+            '(fact wide (:name x :value 1 :unit eur) :type Side :origin "w")'
+        )
+        self.assertTrue(_errors(s, "short"))
+        self.assertTrue(_errors(s, "off"))
+        self.assertEqual(_errors(s, "wide"), [])
+
+    def test_declared_record_types_are_nominal(self):
+        s = _system(
+            self.SOURCE + '(deftype Other (Record :name Sym :value Num) :origin "o")'
+            '(fact o (:name y :value 2) :type Other :origin "o") (defterm read :type (-> Side Num) :origin "r")'
+            '(defterm d (read o) :origin "d") (defterm e (read left) :origin "e")'
+        )
+        self.assertTrue(_errors(s, "d"))
+        self.assertEqual(_errors(s, "e"), [])
+
+    def test_a_record_type_survives_a_round_trip(self):
+        s = _system(self.SOURCE)
+        restored = System.from_dict(s.to_dict())
+        self.assertEqual(str(restored.engine.dsl.typing.types["Side"].base), "(Record :name Sym :value Num)")
+
+
 if __name__ == "__main__":
     unittest.main()
