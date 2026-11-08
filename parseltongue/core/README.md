@@ -230,7 +230,7 @@ Computable directives produce results from the symbolic base. Computed terms are
   :origin "Bonus calculation")
 ```
 
-**`derive`** — a theorem proved by evaluating a WFF against existing facts, terms, and axioms. Evaluation is restricted to symbols listed in `:using`; rewrite axioms fire automatically, non-rewrite axioms require `:bind` to substitute `?`-variables. If any source has unverified evidence, the derivation inherits the fabrication taint.
+**`derive`** — a theorem proved by evaluating a WFF against existing facts, terms, and axioms. Evaluation is restricted to symbols listed in `:using`; rewrite axioms fire automatically, non-rewrite axioms require `:bind` to substitute `?`-variables. A `:bind` derive's own form names sources too: the axiom it applies and every node a `:bind` value names are sources without being listed, and `:using` adds whatever else it needs (a node only the axiom's body mentions, a rewrite rule) or is left out. Listing them again changes nothing. If any source has unverified evidence, the derivation inherits the fabrication taint.
 
 ```scheme
 ;; Direct — evaluates a WFF against facts listed in :using
@@ -238,10 +238,10 @@ Computable directives produce results from the symbolic base. Computed terms are
   (> revenue-q3-growth growth-target)
   :using (revenue-q3-growth growth-target))
 
-;; Instantiation — :bind substitutes ?-variables, then evaluates
+;; Instantiation — :bind substitutes ?-variables, then evaluates;
+;; add-identity, succ and zero are sources without a :using
 (derive three-plus-zero add-identity
-  :bind ((?n (succ (succ (succ zero)))))
-  :using (add-identity succ zero))
+  :bind ((?n (succ (succ (succ zero))))))
 
 ;; Rewrite axiom in :using — fires automatically, no :bind needed
 (derive morning-commutes add-commutative
@@ -410,7 +410,7 @@ Applying an implication axiom with `:bind` has an outcome: `fired` (the antecede
 ```scheme
 (derive unverified-causes-error error-on-unverified
   :bind ((?is-unverified unverified-is-unverified) (?channel unverified-channel))
-  :using (error-on-unverified unverified-is-unverified unverified-channel)
+  :using (consistency-error)
   :expect fired)
 ```
 

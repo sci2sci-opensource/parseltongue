@@ -85,6 +85,26 @@ def _parse_bindings(bind_raw):
     return bindings
 
 
+def _written_sources(engine, ref: str, bindings: dict) -> list[str]:
+    """The sources a rule-applying derive names in its own form: the rule, then every
+    node a :bind value mentions. They join :using on their own; :using lists the rest
+    (what only the rule's body mentions, the rewrite rules evaluation leans on)."""
+    known = (engine.axioms, engine.facts, engine.terms, engine.theorems)
+    names = [ref] if any(ref in table for table in known) else []
+
+    def walk(value):
+        if isinstance(value, Symbol):
+            if str(value) not in names and any(str(value) in table for table in known):
+                names.append(str(value))
+        elif isinstance(value, (list, tuple)):
+            for item in value:
+                walk(item)
+
+    for value in bindings.values():
+        walk(value)
+    return names
+
+
 class DslLoader:
     """Parses and executes directives against one engine.
 
@@ -176,6 +196,8 @@ class DslLoader:
             if bind_raw is not None:
                 ref = str(expr[2])
                 bindings = _parse_bindings(bind_raw)
+                if isinstance(using, list):
+                    using += [s for s in _written_sources(engine, ref, bindings) if s not in using]
                 if ref in engine.axioms:
                     rule = ref
                     self._check_bindings(name, ref, bindings)

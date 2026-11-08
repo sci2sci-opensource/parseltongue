@@ -365,6 +365,35 @@ class TestBindDirective(unittest.TestCase):
         quiet(load_source, s, "(derive d1 gt-zero :bind ((?x rev)) :using (rev gt-zero))")
         self.assertIn("d1", s.theorems)
 
+    def test_derive_with_bind_names_its_own_sources(self):
+        """The rule and every node a :bind value names are sources without a :using."""
+        s = make_system()
+        quiet(load_source, s, '(fact x 5 :origin "t")\n(fact y 2 :origin "t")\n(axiom gt (> ?a ?b) :origin "t")')
+        quiet(load_source, s, "(derive d1 gt :bind ((?a (+ x 1)) (?b y)))")
+        self.assertEqual(s.theorems["d1"].derivation, ["gt", "x", "y"])
+        self.assertIs(s.engine.dsl._derived["d1"], True)
+
+    def test_using_adds_to_the_sources_the_form_names(self):
+        """Listed sources keep their place; the form's own sources follow, once each."""
+        s = make_system()
+        quiet(load_source, s, '(fact x 5 :origin "t")\n(fact k 0 :origin "t")\n(axiom gt-k (> ?a k) :origin "t")')
+        quiet(load_source, s, "(derive d1 gt-k :bind ((?a x)) :using (k x))")
+        self.assertEqual(s.theorems["d1"].derivation, ["k", "x", "gt-k"])
+
+    def test_derive_with_bind_inherits_the_rules_taint_unlisted(self):
+        """A rule left out of :using is still a source: its fabrication reaches the theorem."""
+        s = make_system()
+        quiet(s.register_document, "Doc", SAMPLE_DOC)
+        quiet(
+            load_source,
+            s,
+            '(fact rev 15 :origin "t")\n'
+            '(axiom gt-zero (> ?x 0) :evidence (evidence "Doc" :quotes ("not in the document") :explanation "e"))\n'
+            "(derive d1 gt-zero :bind ((?x rev)) :using (rev))",
+        )
+        self.assertEqual(s.theorems["d1"].derivation, ["rev", "gt-zero"])
+        self.assertIn("potential fabrication", s.theorems["d1"].origin)
+
     def test_derive_inline_wff_with_bind_crashes(self):
         """Inline WFF + :bind is invalid syntax — :bind requires an axiom name, not a WFF."""
         s = make_system()

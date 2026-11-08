@@ -659,8 +659,10 @@ LANG_DOCS = {
         "     (derive name axiom-name :bind ((?var val)...) :using (sources...))\n"
         "     The second element MUST be an axiom name (a symbol),\n"
         "     NOT an expression. :bind substitutes ?-variables in\n"
-        "     the axiom's template. :using must include the axiom\n"
-        "     name and all symbols referenced in :bind values.\n\n"
+        "     the axiom's template. The axiom and every node a :bind\n"
+        "     value names are sources on their own; :using lists any\n"
+        "     further sources and may be omitted. Listing them again\n"
+        "     is allowed.\n\n"
         "  IMPORTANT: Do NOT combine an inline expression with :bind.\n"
         "  If the expression is already ground (no ?-variables), use\n"
         "  mode 1 (direct) without :bind. :bind is ONLY for\n"
@@ -675,16 +677,19 @@ LANG_DOCS = {
             "    (> revenue-q3-growth growth-target)\n"
             "    :using (revenue-q3-growth growth-target))",
             # Instantiation via :bind — single variable (apples demo)
-            # :using must include axiom + symbols from :bind values
+            # the axiom and the symbols in :bind values are sources already
             ";; Mode 2: Instantiation — axiom name + :bind\n"
             "(derive three-plus-zero add-identity\n"
-            "    :bind ((?n (succ (succ (succ zero)))))\n"
-            "    :using (add-identity succ zero))",
+            "    :bind ((?n (succ (succ (succ zero))))))",
             # Instantiation via :bind — multiple variables (apples demo)
             ";; Mode 2: Multiple :bind variables\n"
             "(derive morning-commutes add-commutative\n"
-            "    :bind ((?a eve-morning) (?b adam-morning))\n"
-            "    :using (add-commutative eve-morning adam-morning))",
+            "    :bind ((?a eve-morning) (?b adam-morning)))",
+            # :using adds what the form does not name
+            ";; Mode 2: :using lists only sources the form does not name\n"
+            "(derive revenue-flagged above-threshold\n"
+            "    :bind ((?x revenue-q3-growth))\n"
+            "    :using (growth-target))",
             # Derivation showing fabrication propagation (revenue demo)
             ";; Fabrication propagation — unverified source taints the theorem\n"
             "(derive uses-fake\n    (> fake-metric 0)\n    :using (fake-metric))",
@@ -850,7 +855,9 @@ LANG_DOCS = {
         "category": "keyword",
         "description": "List of source names (axioms, facts, terms, or "
         "theorems) that a derivation depends on.  Required "
-        "in derive directives.  Dependencies are expanded "
+        "in a direct derive.  In a :bind derive the axiom and "
+        "every node a :bind value names are sources already, "
+        ":using adds the rest and may be omitted.  Dependencies are expanded "
         "transitively — symbols referenced in axiom WFFs "
         "and term definitions are automatically included.  "
         "If any source has unverified evidence, the derived "
