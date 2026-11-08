@@ -506,7 +506,7 @@
 
 (fact fact-calls-resolve-origin true
     :evidence (evidence "dsl_loader.py"
-        :quotes ("engine.set_fact(str(expr[1]), expr[2], self.resolve_origin(expr))")
+        :quotes ("engine.set_fact(name, value, self.resolve_origin(expr))")
         :explanation "fact directive calls resolve_origin"))
 
 (fact axiom-calls-resolve-origin true

@@ -204,6 +204,7 @@ class AbstractSystem(Rewriter, Interpreter):
         clone.engine.diffs = dict(self.engine.diffs)
         clone.engine.diff_refs = {k: set(v) for k, v in self.engine.diff_refs.items()}
         clone.engine.documents = dict(self.engine.documents)
+        clone.engine.dsl.typing = self.engine.dsl.typing.copy()
         # Rebind effects to the clone, not the original
         clone._effects = dict(self._effects)
         clone.effects_used = dict(self.effects_used) if self.effects_used is not None else None
@@ -343,6 +344,7 @@ class AbstractSystem(Rewriter, Interpreter):
             "documents": dict(self.engine.documents),
             "verifier_index": self.engine._verifier.index.to_dict(),
             "effects_used": dict(self.effects_used) if self.effects_used is not None else None,
+            "typing": self.engine.dsl.typing.to_dict(),
         }
 
     @classmethod
@@ -371,6 +373,10 @@ class AbstractSystem(Rewriter, Interpreter):
         used = data.get("effects_used")
         system.effects_used = dict(used) if isinstance(used, dict) else None
         system._unresolved = system._rebuild_env()
+        if "typing" in data:
+            from .types import TypeState
+
+            system.engine.dsl.restore_typing(TypeState.from_dict(data["typing"]))
         return system
 
     def _rebuild_env(self) -> set[str]:

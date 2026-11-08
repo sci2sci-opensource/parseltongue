@@ -14,11 +14,16 @@
 (verify-manual (quote counting.sum-values) "V")
 (verify-manual (quote counting.sum-values-base) "V")
 (verify-manual (quote counting.sum-values-step) "V")
+(verify-manual (quote counting.count-where) "V")
+(verify-manual (quote counting.count-where-base) "V")
+(verify-manual (quote counting.count-where-step) "V")
 
 ; --- epistemics.pltg ---
 (verify-manual (quote epistemics.exemplifiable) "V")
 (verify-manual (quote epistemics.hallucinated) "V")
 (verify-manual (quote epistemics.unknown) "V")
+(verify-manual (quote epistemics.Status) "V")
+(verify-manual (quote epistemics.Observation) "V")
 (verify-manual (quote epistemics.witness) "V")
 (verify-manual (quote epistemics.witness-base) "V")
 (verify-manual (quote epistemics.russell-teapot) "V")

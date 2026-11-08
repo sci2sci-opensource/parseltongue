@@ -82,6 +82,7 @@ from .grammar import atom, read_tokens, to_sexp, tokenize  # noqa: F401, E402
 from .lang import (  # noqa: F401, E402
     AXIOM,
     DEFTERM,
+    DEFTYPE,
     DERIVE,
     DIFF,
     DSL_KEYWORDS,

@@ -45,6 +45,7 @@ LOADER_EFFECTS = (
     "consistency",
     "verify-manual",
     "dangerously-eval",
+    "py-ast",
 )
 
 
@@ -544,6 +545,16 @@ class Loader:
             system.verify_manual(str(name), signature=str(signature))
             return True
 
+        def py_ast_effect(system: System, document, kind, *name) -> list[str]:
+            """Effect: (py-ast "document" "kind" "NAME") — the structure of a registered
+            Python document, by Python's own parser (``py_structure``)."""
+            from ..py_structure import py_structure
+
+            text = system.engine.documents.get(str(document))
+            if text is None:
+                raise ValueError(f"py-ast: no registered document {document!r}")
+            return py_structure(text, str(kind), str(name[0]) if name else None)
+
         def dangerously_eval_effect(system: System, *args):
             """Effect: (dangerously-eval code) — execute arbitrary Python string.
 
@@ -569,6 +580,7 @@ class Loader:
             "consistency": consistency_effect,
             "verify-manual": verify_manual_effect,
             "dangerously-eval": dangerously_eval_effect,
+            "py-ast": py_ast_effect,
         }
         return {name: effect for name, effect in effects.items() if name in self.builtin_effects}
 

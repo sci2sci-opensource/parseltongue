@@ -1,9 +1,12 @@
 ; counting.pltg — Variadic existence counter via ?... splats
 ;
-; count-exists counts how many of its boolean arguments are truthy.
+; count-exists counts how many of its arguments are truthy: an existence
+; counter over values of any type. To count by a predicate — how many rules
+; fired, how many values are positive — use count-where, which is typed by
+; the predicate it applies.
 ; Replaces all nested (+ (+ ... (if x 1 0) ...)) patterns.
 
-(defterm count-exists :origin "variadic existence counter")
+(defterm count-exists :type (-> (Rest Any) Num) :origin "variadic existence counter")
 
 (axiom count-exists-base (= (count-exists ?x) (+ (if ?x 1 0) 0))
     :origin "base: single argument")
@@ -14,7 +17,7 @@
     :origin "step: peel first, count rest")
 
 ; sum-values — variadic numeric sum via ?... splats
-(defterm sum-values :origin "variadic numeric sum")
+(defterm sum-values :type (-> (Rest Num) Num) :origin "variadic numeric sum")
 
 (axiom sum-values-base (= (sum-values ?x) (+ ?x 0))
     :origin "base: single value")
@@ -23,6 +26,18 @@
     (= (sum-values ?x ?y ?...rest)
        (+ ?x (sum-values ?y ?...rest)))
     :origin "step: peel first, sum rest")
+
+; count-where — variadic count of the arguments a predicate holds for.
+; The predicate is an axiom-backed term, applied by ?-var head dispatch.
+(defterm count-where :type (-> (-> ?T Bool) (Rest ?T) Num) :origin "variadic count by predicate")
+
+(axiom count-where-base (= (count-where ?p ?x) (+ (if (?p ?x) 1 0) 0))
+    :origin "base: single argument")
+
+(axiom count-where-step
+    (= (count-where ?p ?x ?y ?...rest)
+       (+ (if (?p ?x) 1 0) (count-where ?p ?y ?...rest)))
+    :origin "step: test first, count rest")
 
 ; Self-proof: this module exists and works
 (import (quote util))

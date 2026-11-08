@@ -35,7 +35,7 @@
 ; (compose f g x) applies g first, then f to the result.
 ; Both f and g must be axiom-backed terms.
 
-(defterm compose :origin "function composition — apply g then f")
+(defterm compose :type (-> (-> ?B ?C) (-> ?A ?B) ?A ?C) :origin "function composition — apply g then f")
 
 (axiom compose-rule (= (compose ?f ?g ?x) (?f (?g ?x)))
     :origin "(compose f g x) → (f (g x))")

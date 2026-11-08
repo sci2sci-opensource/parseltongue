@@ -22,6 +22,7 @@ Directives:
              to instantiate parameterised templates.
   diff     — Lazy comparison: what changes if one symbol is swapped for another.
   evidence — Structured evidence block with verifiable :quotes and :explanation.
+  deftype  — Nominal type: an enumeration, a refinement or a wrapper of a base type.
 
 Evidence can be attached to fact, axiom, and defterm via :origin (plain
 string) or :evidence (structured block with verifiable :quotes and
@@ -295,9 +296,10 @@ FACT = Symbol("fact")
 DERIVE = Symbol("derive")
 DIFF = Symbol("diff")
 EVIDENCE = Symbol("evidence")
+DEFTYPE = Symbol("deftype")
 
 SPECIAL_FORMS = (IF, LET, QUOTE, STRICT, SCOPE, SELF, PROJECT, DELEGATE)
-DSL_KEYWORDS = (AXIOM, DEFTERM, FACT, DERIVE, DIFF, EVIDENCE)
+DSL_KEYWORDS = (AXIOM, DEFTERM, FACT, DERIVE, DIFF, EVIDENCE, DEFTYPE)
 
 # Pattern variable prefixes — used in axiom ?-variables and splat patterns
 VAR_PREFIX = "?"
@@ -316,6 +318,13 @@ KW_ABSENT = ":absent"
 KW_FORALL = ":forall"
 KW_SATISFIES = ":satisfies"
 KW_EXCEPT = ":except"
+KW_TYPE = ":type"
+KW_TYPES = ":types"
+KW_EXPECT = ":expect"
+KW_WHERE = ":where"
+KW_ORDER = ":order"
+KW_OF = ":of"
+ONE_OF = Symbol("one-of")
 
 # ============================================================
 # Language Documentation
@@ -703,6 +712,19 @@ LANG_DOCS = {
             "    :with calprotectin-specificity-optimistic)",
         ],
     },
+    DEFTYPE: {
+        "category": "directive",
+        "description": "Define a nominal type: an enumeration (one-of …), "
+        "optionally ordered with :order; a refinement of a base "
+        "type with a :where predicate over ?x; or a wrapper, a "
+        "base type with a different meaning.  A type carries "
+        "evidence like any node; nodes take it with :type.",
+        "example": "(deftype Severity (one-of note warning error) :order (note < warning < error) :origin \"…\")",
+        "patterns": [
+            '(deftype Count Num :where (>= ?x 0) :origin "a non-negative count")',
+            '(deftype CodeProperty Bool :origin "a fact stating what the implementation does")',
+        ],
+    },
     EVIDENCE: {
         "category": "structural",
         "description": "Structured evidence block with verifiable quotes "
@@ -858,6 +880,38 @@ LANG_DOCS = {
             # Multiple variable bindings
             ":bind ((?a eve-morning) (?b adam-morning))",
         ],
+    },
+    KW_TYPE: {
+        "category": "keyword",
+        "description": "Declare the type of a fact or term.  A declared type is "
+        "nominal: the node is assignable to that type and its "
+        "supertypes only.",
+        "example": ":type CodeProperty",
+    },
+    KW_TYPES: {
+        "category": "keyword",
+        "description": "Declare the types of an axiom's ?-variables, as "
+        "(?var Type) pairs.  A :bind that binds a value of "
+        "another type is a type error.",
+        "example": ":types ((?result-a DiffSide) (?result-b DiffSide))",
+    },
+    KW_EXPECT: {
+        "category": "keyword",
+        "description": "Require the outcome of a rule application in a derive: "
+        "fired, vacuous or violated.  Another outcome is an "
+        "unmet expectation (an error); without :expect, a "
+        "vacuous rule is a warning.",
+        "example": ":expect fired",
+    },
+    KW_WHERE: {
+        "category": "keyword",
+        "description": "A refinement type's predicate over ?x.",
+        "example": ":where (>= ?x 0)",
+    },
+    KW_ORDER: {
+        "category": "keyword",
+        "description": "The ascending order of an enumeration's members.",
+        "example": ":order (note < warning < error)",
     },
 }
 

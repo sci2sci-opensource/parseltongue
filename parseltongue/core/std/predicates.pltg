@@ -17,7 +17,7 @@
 ; True iff every element of the list is truthy.
 ; Short-circuits on the first falsy element.
 
-(defterm all :origin "universal predicate — true iff all elements truthy")
+(defterm all :type (-> (List Bool) Bool) :origin "universal predicate — true iff all elements truthy")
 
 (axiom all-base (= (all (?x)) ?x)
     :origin "base: single element is its own truth value")
@@ -30,7 +30,7 @@
 ; True iff at least one element is truthy.
 ; Short-circuits on the first truthy element.
 
-(defterm any-true :origin "existential predicate — true iff any element truthy")
+(defterm any-true :type (-> (List Bool) Bool) :origin "existential predicate — true iff any element truthy")
 
 (axiom any-true-base (= (any-true (?x)) ?x)
     :origin "base: single element is its own truth value")
@@ -42,7 +42,7 @@
 ;
 ; True iff no elements are truthy. Variadic args (not a list).
 
-(defterm none :origin "negated existential — true iff no elements truthy")
+(defterm none :type (-> (Rest Bool) Bool) :origin "negated existential — true iff no elements truthy")
 
 (axiom none-rule (= (none ?x ?...rest) (not (any-true (?x ?...rest))))
     :origin "none is negated any-true")
@@ -56,7 +56,7 @@
 ; IMPORTANT: (member (+ 2 3) (5 3)) will NOT match because
 ; (+ 2 3) and 5 are structurally different. Evaluate first.
 
-(defterm member :origin "structural list membership test")
+(defterm member :type (-> ?T (List ?T) Bool) :origin "structural list membership test")
 
 (axiom member-base (= (member ?x (?y)) (= ?x ?y))
     :origin "base: single-element list — compare directly")

@@ -31,6 +31,7 @@ from ..engine import (
     _corpus_reasons,
     _eval_diffs,
     _evidence_quote_provenance,
+    _typing_findings,
     reverify_evidence,
 )
 from ..engine import Engine as EngineProtocol
@@ -1402,6 +1403,7 @@ class Engine(EngineProtocol):
         else:
             result = self.evaluate(wff)
         does_not_hold = result is False or result is None
+        self.dsl.derived(name, result)
 
         if does_not_hold:
             log.warning("Derivation '%s' does not hold: %s evaluated to False", name, to_sexp(wff))
@@ -1643,6 +1645,7 @@ class Engine(EngineProtocol):
             del self.env[Symbol(name)]
         if not removed:
             raise KeyError(f"Unknown: {name}")
+        self.dsl.typing.forget(name)
         log.debug("'%s' retracted from system", name)
 
     def rederive(self, name: str):
@@ -1821,6 +1824,9 @@ class Engine(EngineProtocol):
         diff_issues, diff_warnings = self._check_diffs()
         issues.extend(diff_issues)
         warnings.extend(diff_warnings)
+        type_issues, type_warnings = _typing_findings(self.dsl)
+        issues.extend(type_issues)
+        warnings.extend(type_warnings)
 
         report = ConsistencyReport(
             consistent=len(issues) == 0,

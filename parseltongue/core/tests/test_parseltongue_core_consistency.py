@@ -71,11 +71,15 @@ class TestParseltongueCoreConsistency(unittest.TestCase):
                 return result
             return set()
 
+        type_refs = engine.dsl.typing.references()
+
         def _follow_terms(name, visited):
             """Recursively follow term definitions to collect all referenced symbols."""
             if name in visited:
                 return
             visited.add(name)
+            for type_name in type_refs.get(name, ()):
+                _follow_terms(type_name, visited)
             if name in engine.terms:
                 term = engine.terms[name]
                 if term.definition is not None:
@@ -180,6 +184,8 @@ class TestParseltongueCoreConsistency(unittest.TestCase):
                 return result
             return set()
 
+        type_refs = engine.dsl.typing.references()
+
         # Recursively collect all definitions reachable from a name
         def _reachable(name, visited=None):
             if visited is None:
@@ -187,6 +193,10 @@ class TestParseltongueCoreConsistency(unittest.TestCase):
             if name in visited:
                 return visited
             visited.add(name)
+
+            # A declared type is reachable from every node that declares it
+            for type_name in type_refs.get(name, ()):
+                _reachable(type_name, visited)
 
             # If it's a theorem, follow its derivation list
             if name in engine.theorems:
@@ -339,6 +349,11 @@ class TestParseltongueCoreConsistency(unittest.TestCase):
                 if sym in engine.terms or sym in engine.facts or sym in engine.axioms or sym in engine.theorems:
                     referenced_by.setdefault(ax_name, set()).add(sym)
 
+        # A declared type is referenced by every node that declares it
+        for referrer, type_names in engine.dsl.typing.references().items():
+            for type_name in type_names:
+                referenced_by.setdefault(type_name, set()).add(referrer)
+
         # Top-level danglings: no one references them AND they are not diffs
         diff_names = set(engine.diffs.keys())
         all_names = set(engine.facts) | set(engine.axioms) | set(engine.terms) | set(engine.theorems)
@@ -397,10 +412,14 @@ class TestParseltongueCoreConsistency(unittest.TestCase):
                 return result
             return set()
 
+        type_refs = engine.dsl.typing.references()
+
         def _follow_terms(name, visited):
             if name in visited:
                 return
             visited.add(name)
+            for type_name in type_refs.get(name, ()):
+                _follow_terms(type_name, visited)
             if name in engine.terms:
                 term = engine.terms[name]
                 if term.definition is not None:

@@ -75,6 +75,8 @@ class IssueType(StrEnum):
     DIFF_VALUE_DIVERGENCE = "diff_value_divergence"
     ABSENCE_VIOLATED = "absence_violated"
     OBLIGATION_VIOLATED = "obligation_violated"
+    TYPE_ERROR = "type_error"
+    UNMET_EXPECTATION = "unmet_expectation"
 
 
 class WarningType(StrEnum):
@@ -83,6 +85,7 @@ class WarningType(StrEnum):
     MANUALLY_VERIFIED = "manually_verified"
     DIFF_CONTAMINATION = "diff_contamination"
     CONFOUNDED_EVIDENCE = "confounded_evidence"
+    VACUOUS_RULE = "vacuous_rule"
 
 
 def _evidence_quote_provenance(engine, root: str) -> dict[tuple[str, str], set[str]]:
@@ -339,6 +342,8 @@ class ConsistencyIssue:
             IssueType.DIFF_VALUE_DIVERGENCE: "Diff value divergence",
             IssueType.ABSENCE_VIOLATED: "Absence violated",
             IssueType.OBLIGATION_VIOLATED: "Obligation violated",
+            IssueType.TYPE_ERROR: "Type error",
+            IssueType.UNMET_EXPECTATION: "Unmet expectation",
         }
         label = labels.get(self.type, self.type)
         parts = [f"{label}:"]
@@ -461,6 +466,36 @@ class ConsistencyReport:
                 for line in w.verbose().splitlines():
                     lines.append(f"    {line}")
         return "\n".join(lines)
+
+
+def _typing_findings(dsl) -> "tuple[list[ConsistencyIssue], list[ConsistencyWarning]]":
+    """What the DSL loader's typing found: type errors and unmet expectations
+    (issues), and rule applications that were vacuous with no :expect (warnings)."""
+    typing = getattr(dsl, "typing", None)
+    if typing is None:
+        return [], []
+    issues: list[ConsistencyIssue] = []
+    warnings: list[ConsistencyWarning] = []
+    type_errors = [(name, message) for name in sorted(typing.errors) for message in typing.errors[name]]
+    if type_errors:
+        issues.append(ConsistencyIssue(IssueType.TYPE_ERROR, type_errors))
+    unmet = [
+        (name, f"expected {expected}, {typing.outcomes[name]}")
+        for name, expected in sorted(typing.expectations.items())
+        if name in typing.outcomes and typing.outcomes[name] != expected
+    ]
+    if unmet:
+        issues.append(ConsistencyIssue(IssueType.UNMET_EXPECTATION, unmet))
+    vacuous = sorted(n for n, o in typing.outcomes.items() if o == "vacuous" and n not in typing.expectations)
+    if vacuous:
+        warnings.append(
+            ConsistencyWarning(
+                WarningType.VACUOUS_RULE,
+                vacuous,
+                {n: "the rule's antecedent is false: it held without being exercised" for n in vacuous},
+            )
+        )
+    return issues, warnings
 
 
 # ============================================================
@@ -1364,6 +1399,7 @@ class EngineImpl(Engine):
         else:
             result = self.evaluate(wff)
         does_not_hold = result is False or result is None
+        self.dsl.derived(name, result)
 
         if does_not_hold:
             log.warning("Derivation '%s' does not hold: %s evaluated to False", name, to_sexp(wff))
@@ -1605,6 +1641,7 @@ class EngineImpl(Engine):
             del self.env[Symbol(name)]
         if not removed:
             raise KeyError(f"Unknown: {name}")
+        self.dsl.typing.forget(name)
         log.debug("'%s' retracted from system", name)
 
     def rederive(self, name: str):
@@ -1782,6 +1819,9 @@ class EngineImpl(Engine):
         diff_issues, diff_warnings = self._check_diffs()
         issues.extend(diff_issues)
         warnings.extend(diff_warnings)
+        type_issues, type_warnings = _typing_findings(self.dsl)
+        issues.extend(type_issues)
+        warnings.extend(type_warnings)
 
         report = ConsistencyReport(
             consistent=len(issues) == 0,

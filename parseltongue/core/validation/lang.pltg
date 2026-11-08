@@ -96,10 +96,15 @@
         :quotes ("EVIDENCE = Symbol(\"evidence\")")
         :explanation "evidence structural symbol"))
 
-(fact dsl-keywords-tuple-size 6
+(fact deftype-symbol "deftype"
     :evidence (evidence "lang.py"
-        :quotes ("DSL_KEYWORDS = (AXIOM, DEFTERM, FACT, DERIVE, DIFF, EVIDENCE)")
-        :explanation "DSL_KEYWORDS has 6 members"))
+        :quotes ("DEFTYPE = Symbol(\"deftype\")")
+        :explanation "deftype directive"))
+
+(fact dsl-keywords-tuple-size 7
+    :evidence (evidence "lang.py"
+        :quotes ("DSL_KEYWORDS = (AXIOM, DEFTERM, FACT, DERIVE, DIFF, EVIDENCE, DEFTYPE)")
+        :explanation "DSL_KEYWORDS has 7 members"))
 
 ; =====================================================================
 ; Pattern variable prefixes
@@ -255,12 +260,17 @@ SPLAT_PREFIX = \"?...\"")
         :quotes ("  evidence — Structured evidence block with verifiable :quotes and :explanation.")
         :explanation "Docstring lists evidence directive"))
 
+(fact doc-directive-deftype true
+    :evidence (evidence "lang.py"
+        :quotes ("  deftype  — Nominal type: an enumeration, a refinement or a wrapper of a base type.")
+        :explanation "Docstring lists deftype directive"))
+
 (derive module-doc-directive-count
     (count-exists doc-directive-fact doc-directive-axiom doc-directive-defterm
-                  doc-directive-derive doc-directive-diff doc-directive-evidence)
+                  doc-directive-derive doc-directive-diff doc-directive-evidence doc-directive-deftype)
     :using (count-exists counting.count-exists-base counting.count-exists-step
             doc-directive-fact doc-directive-axiom doc-directive-defterm
-            doc-directive-derive doc-directive-diff doc-directive-evidence))
+            doc-directive-derive doc-directive-diff doc-directive-evidence doc-directive-deftype))
 
 ; Axiom: keywords are plain strings, not Symbols
 (axiom keywords-are-strings (= ?kw ?string-value)
@@ -328,9 +338,9 @@ SPLAT_PREFIX = \"?...\"")
 ; --- 1. DSL keyword symbols ---
 
 (derive dsl-symbols-doc-count
-    (count-exists fact-symbol axiom-symbol defterm-symbol derive-symbol diff-symbol evidence-symbol)
+    (count-exists fact-symbol axiom-symbol defterm-symbol derive-symbol diff-symbol evidence-symbol deftype-symbol)
     :using (count-exists counting.count-exists-base counting.count-exists-step
-            fact-symbol axiom-symbol defterm-symbol derive-symbol diff-symbol evidence-symbol))
+            fact-symbol axiom-symbol defterm-symbol derive-symbol diff-symbol evidence-symbol deftype-symbol))
 
 (diff dsl-keywords-coverage
     :replace dsl-symbols-doc-count

@@ -57,7 +57,16 @@
 ;   (derive grounded-status (witness exemplifiable) :using (witness ...))
 ;   (derive unverified-status (witness hallucinated) :using (witness ...))
 ;   (derive manual-status (witness unknown) :using (witness ...))
-(defterm witness :origin "epistemic status labeling — witness a claim's classification")
+; --- The epistemic status: an ordered enumeration ---
+;
+; Hallucination is contagious, so the order runs from the best status to the
+; worst; joint-status of a group is its maximum.
+
+(deftype Status (one-of exemplifiable unknown hallucinated)
+    :order (exemplifiable < unknown < hallucinated)
+    :origin "the epistemic lattice: exemplifiable < unknown < hallucinated")
+
+(defterm witness :type (-> Status Status) :origin "epistemic status labeling — witness a claim's classification")
 
 (axiom witness-base (= (witness ?x) ?x)
     :origin "rewrite: (witness status) returns the status — labels a claim as witnessed")
@@ -101,7 +110,7 @@
 ;   (joint-status exemplifiable unknown)       => unknown
 ;   (joint-status h e u h)                     => hallucinated
 ;   (joint-status <unrecognized> <anything>)   => unknown
-(defterm joint-status :origin "epistemic status of a group — hallucination is contagious")
+(defterm joint-status :type (-> (Rest Status) Status) :origin "epistemic status of a group — hallucination is contagious")
 
 (axiom joint-status-base (= (joint-status ?a) ?a)
     :origin "base: single status passes through")
@@ -146,7 +155,10 @@
 (defterm refuted :origin "observation: system found counter-evidence against the claim")
 (defterm hypothesised :origin "observation: claim proposed but system cannot check either way")
 
-(defterm collapse :origin "collapse a superposed status via observation into a definite status")
+(deftype Observation (one-of witnessed refuted hypothesised)
+    :origin "what an observation found: a witness, counter-evidence, or neither")
+
+(defterm collapse :type (-> Any Observation Status) :origin "collapse a superposed status via observation into a definite status")
 
 (axiom collapse-witnessed (= (collapse (superpose ?...xs) witnessed) exemplifiable)
     :origin "witnessed observation collapses superpose to exemplifiable")
@@ -186,7 +198,7 @@
 ;   (count-hallucinated hallucinated exemplifiable hallucinated) => 2
 ;   (count-hallucinated exemplifiable unknown exemplifiable) => 0
 ;   (count-hallucinated hallucinated) => 1
-(defterm count-hallucinated :origin "variadic count of hallucinated statuses")
+(defterm count-hallucinated :type (-> (Rest Status) Num) :origin "variadic count of hallucinated statuses")
 
 (axiom count-hallucinated-base (= (count-hallucinated ?x) (+ (if (= ?x hallucinated) 1 0) 0))
     :origin "base: single status")

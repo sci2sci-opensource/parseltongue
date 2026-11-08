@@ -29,12 +29,16 @@ from .grammar import Grammar
 from .lang import (
     AXIOM,
     DEFTERM,
+    DEFTYPE,
     DERIVE,
     DIFF,
     FACT,
     KW_BIND,
     KW_REPLACE,
+    KW_TYPE,
+    KW_TYPES,
     KW_USING,
+    KW_WHERE,
     KW_WITH,
     AnnotatedSentence,
     SentenceMorphism,
@@ -172,6 +176,21 @@ def parse_directive(expr: Any, order: int = 0) -> DirectiveNode:
 
     head = expr[0]
     deps: set[str] = set()
+    # A declared type is a dependency of the node that declares it
+    type_ref = get_keyword(expr, KW_TYPE, None)
+    if isinstance(type_ref, Symbol):
+        deps.add(str(type_ref))
+    for pair in get_keyword(expr, KW_TYPES, None) or []:
+        if isinstance(pair, (list, tuple)) and len(pair) == 2:
+            deps.add(str(pair[1]))
+
+    if head == DEFTYPE:
+        # Registered as a term (with its enumeration's members); its base type and predicate are its deps
+        name = str(expr[1])
+        if len(expr) > 2 and isinstance(expr[2], Symbol) and not str(expr[2]).startswith(":"):
+            deps.add(str(expr[2]))
+        extract_symbols(get_keyword(expr, KW_WHERE, None), deps)
+        return DirectiveNode(name=name, expr=expr, dep_names=deps, kind=DirectiveKind.DEFTERM, source_order=order)
 
     if head == FACT:
         name = str(expr[1])
