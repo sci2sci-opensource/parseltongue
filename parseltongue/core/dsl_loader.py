@@ -61,8 +61,10 @@ from .types import (
     NodeType,
     Type,
     TypeState,
+    _keyword_list,
     _show,
     assignable,
+    element,
     fn,
     infer,
     infer_signature,
@@ -73,6 +75,13 @@ IMPLIES = Symbol("implies")
 OUTCOMES = (FIRED, VACUOUS, VIOLATED)
 
 log = logging.getLogger("parseltongue")
+
+
+def _shown(value: object) -> str:
+    """A part of a value as written: a string quoted, so it is told from a symbol."""
+    if isinstance(value, str) and not isinstance(value, Symbol):
+        return f'"{value}"'
+    return _show(value)
 
 
 def _parse_bindings(bind_raw):
@@ -295,20 +304,59 @@ class DslLoader:
     def _check_member(self, name: str, value: object, inferred: NodeType, declared: Type) -> None:
         """Whether a declared node's value belongs to its type: assignable (or of the
         base a refinement or subset narrows), a member of every enumeration on its
-        chain, and satisfying every refinement's predicate on its chain."""
+        chain, and satisfying every refinement's predicate on its chain; and so is
+        every field of a record and every element of a list in it, however deep."""
         if not assignable(inferred, declared) and not self._narrows(inferred, declared):
             self.typing.error(name, f"value {_show(value)} is {inferred}, declared {declared}")
             return
+        self._check_chain(name, value, declared, "")
+        self._check_parts(name, value, declared, "")
+
+    def _check_chain(self, name: str, value: object, declared: Type, at: str) -> None:
+        """A value is a member of every enumeration on its type's chain and satisfies every
+        refinement's predicate on it; ``at`` names the field it is, when it is one."""
+        prefix = f"field {at}: " if at else ""
         resolved = self._holds(value) if isinstance(value, Symbol) else value
         t: "Type | None" = declared
         while t is not None:
             if t.members is not None and str(resolved) not in t.members:
-                self.typing.error(name, f"value {value} is not a member of {t} ({', '.join(t.members)})")
+                self.typing.error(name, f"{prefix}value {value} is not a member of {t} ({', '.join(t.members)})")
             if t.where is not None:
                 holds = self._holds(substitute(t.where, {Symbol("?x"): value}))
                 if holds is not True:
-                    self.typing.error(name, f"value {value} does not satisfy {t}'s :where")
+                    self.typing.error(name, f"{prefix}value {value} does not satisfy {t}'s :where")
             t = t.base
+
+    def _check_parts(self, name: str, value: object, declared: Type, at: str) -> None:
+        """A record's fields, each by its field's type, and a list's elements, each by the element type."""
+        rep = declared.representation
+        if rep.is_record and isinstance(value, (list, tuple)) and _keyword_list(value):
+            fields = {str(value[i])[1:]: value[i + 1] for i in range(0, len(value), 2)}
+            for label, field_type in zip(rep.labels, rep.args):
+                if label in fields:
+                    self._check_part(name, fields[label], field_type, f"{at} :{label}".strip())
+        elif rep.is_list and isinstance(value, (list, tuple)) and not _keyword_list(value):
+            for i, item in enumerate(value):
+                self._check_part(name, item, element(rep), f"{at}[{i}]")
+
+    def _check_part(self, name: str, value: object, declared: Type, at: str) -> None:
+        """A field or an element, checked as a value of its own; a record or a list in it is
+        checked part by part, so what is wrong is named where it is."""
+        rep = declared.representation
+        if rep.is_record and isinstance(value, (list, tuple)) and _keyword_list(value):
+            present = {str(value[i])[1:] for i in range(0, len(value), 2)}
+            for label in rep.labels:
+                if label not in present:
+                    self.typing.error(name, f"field {at}: has no :{label}, declared {declared}")
+        elif not (rep.is_list and isinstance(value, (list, tuple)) and not _keyword_list(value)):
+            # A member names its enumeration; any other part is the data it is
+            known = self.typing.nodes.get(str(value)) if isinstance(value, Symbol) else None
+            inferred = known or NodeType(type_of_value(value))
+            if not assignable(inferred, declared) and not self._narrows(inferred, declared):
+                self.typing.error(name, f"field {at}: value {_shown(value)} is {inferred.type}, declared {declared}")
+                return
+        self._check_chain(name, value, declared, at)
+        self._check_parts(name, value, declared, at)
 
     def _holds(self, expr: object) -> object:
         try:

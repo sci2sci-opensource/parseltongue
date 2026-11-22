@@ -401,7 +401,7 @@ Every node has a type before it is evaluated. The built-in types are `Bool`, `Nu
   :origin "...")
 ```
 
-Type expressions compose: `(List T)`, function types `(-> A B R)` with `(Rest T)` as the last parameter of a variadic function, `(union A B)`, type variables `?T` unified at each call site, and records `(Record :name Sym :value Num)`, whose values are keyword lists read with `(get r :value)`. Declared types are nominal: two declared types with the same representation are distinct. Members of an ordered enumeration compare with `<`, `>`, `<=` and `>=`; members of different enumerations do not compare.
+Type expressions compose: `(List T)`, function types `(-> A B R)` with `(Rest T)` as the last parameter of a variadic function, `(union A B)`, type variables `?T` unified at each call site, and records `(Record :name Sym :value Num)`, whose values are keyword lists read with `(get r :value)`. Declared types are nominal: two declared types with the same representation are distinct. Members of an ordered enumeration compare with `<`, `>`, `<=` and `>=`; members of different enumerations do not compare. A declared value is checked through every field of its records and every element of its lists, however deep: each is of its type, a member of its enumerations and satisfies its refinements, and a type error names the field it is in (`field :items[0] :n: …`).
 
 A mismatch is a `type_error` in the consistency report, with the node and both types; the file still loads. A derive whose value is a `Bool` is a theorem; any other value makes it a computation, which carries no truth claim.
 

@@ -356,5 +356,58 @@ class TestRecords(unittest.TestCase):
         self.assertEqual(str(restored.engine.dsl.typing.types["Side"].base), "(Record :name Sym :value Num)")
 
 
+class TestRecordFields(unittest.TestCase):
+    """A record's fields, and the elements of its lists, are checked as a top-level value is: of their type,
+    members of its enumerations and satisfying its refinements, however deep they are."""
+
+    TYPES = (
+        '(deftype Lvl (one-of a b) :origin "t")'
+        '(deftype Inner (Record :n Num) :origin "t")'
+        '(deftype Outer (Record :level Lvl :items (List Inner)) :origin "t")'
+        '(deftype Rec (Record :level Lvl :n Num) :origin "t")'
+        '(deftype Count Num :where (>= ?x 0) :origin "t")'
+        '(deftype Tally (Record :count Count) :origin "t")'
+    )
+
+    def test_a_field_outside_its_enumeration_is_an_error(self):
+        s = _system(self.TYPES + '(fact bad-member (:level zzz :n 1) :type Rec :origin "t")')
+        self.assertEqual(_errors(s, "bad-member"), ["field :level: value zzz is not a member of Lvl (a, b)"])
+
+    def test_a_field_of_a_record_in_a_list_is_checked(self):
+        s = _system(self.TYPES + '(fact nested-bad-num (:level a :items ((:n "x"))) :type Outer :origin "t")')
+        self.assertEqual(_errors(s, "nested-bad-num"), ['field :items[0] :n: value "x" is Str, declared Num'])
+
+    def test_a_member_in_a_record_in_a_list_is_checked(self):
+        s = _system(
+            self.TYPES
+            + '(deftype Tagged (Record :level Lvl) :origin "t") (deftype Bag (Record :tags (List Tagged)) :origin "t")'
+            '(fact bag (:tags ((:level a) (:level q))) :type Bag :origin "t")'
+        )
+        self.assertEqual(_errors(s, "bag"), ["field :tags[1] :level: value q is not a member of Lvl (a, b)"])
+
+    def test_a_field_failing_its_refinement_is_an_error(self):
+        s = _system(self.TYPES + '(fact t (:count -1) :type Tally :origin "t")')
+        self.assertEqual(_errors(s, "t"), ["field :count: value -1 does not satisfy Count's :where"])
+
+    def test_well_formed_records_have_no_errors(self):
+        s = _system(
+            self.TYPES + '(fact good (:level a :items ((:n 1) (:n 2))) :type Outer :origin "t")'
+            '(fact ok (:level b :n 3) :type Rec :origin "t") (fact t (:count 0) :type Tally :origin "t")'
+        )
+        for name in ("good", "ok", "t"):
+            self.assertEqual(_errors(s, name), [], name)
+
+    def test_top_level_checks_are_as_before(self):
+        s = _system(
+            self.TYPES
+            + '(fact bad-num (:level a :n "x") :type Rec :origin "t") (fact bad-plain zzz :type Lvl :origin "t")'
+        )
+        self.assertEqual(
+            _errors(s, "bad-num"),
+            ['value (":level" a ":n" "x") is (Record :level Lvl :n Str) (inferred), declared Rec'],
+        )
+        self.assertEqual(_errors(s, "bad-plain"), ["value zzz is not a member of Lvl (a, b)"])
+
+
 if __name__ == "__main__":
     unittest.main()
