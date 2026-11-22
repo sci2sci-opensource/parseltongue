@@ -115,9 +115,9 @@ def _fmt_value(val_str: str) -> str:
     """Format a value for display. No guessing — just clean up the raw encoding."""
     if not val_str:
         return ""
-    # S-expression — already encoded by ParseltongueGrammar.enc
+    # S-expression — already encoded by ParseltongueGrammar.enc; its keywords as the source writes them
     if val_str.startswith("(") and val_str.endswith(")") and val_str != "()":
-        return val_str
+        return _bare_keywords(val_str)
     # Silence
     if val_str == "()":
         return ""
@@ -145,6 +145,61 @@ def _fmt_value(val_str: str) -> str:
         if len(val_str) >= 2 and val_str[0] == '"' and val_str[-1] == '"':
             return val_str[1:-1]
         return val_str
+
+
+def _display_sexp(value: Any) -> str:
+    """A value as an s-expression, a keyword bare (``:level``) where the encoder quotes it as a string."""
+    from parseltongue.core.atoms import Symbol
+    from parseltongue.core.grammar import ParseltongueGrammar
+
+    if isinstance(value, (list, tuple)):
+        return "(" + " ".join(_display_sexp(v) for v in value) + ")"
+    if isinstance(value, str) and not isinstance(value, Symbol) and value.startswith(":") and len(value) > 1:
+        return value
+    return ParseltongueGrammar.enc(value)
+
+
+def _bare_keywords(val_str: str) -> str:
+    """An encoded s-expression with its keywords bare; as encoded when it does not read back."""
+    from parseltongue.core.grammar import ParseltongueGrammar
+
+    try:
+        return _display_sexp(ParseltongueGrammar.dec(val_str))
+    except Exception:
+        return val_str
+
+
+def _record_display(val_str: str) -> "str | None":
+    """A record value (a keyword list) as its fields, ``(:level primary ...)``; None for any other value."""
+    from parseltongue.core.grammar import ParseltongueGrammar
+    from parseltongue.core.types import _keyword_list
+
+    try:
+        value = ParseltongueGrammar.dec(val_str)
+    except Exception:
+        return None
+    return _display_sexp(value) if _keyword_list(value) else None
+
+
+def _type_label(node_type: object) -> str:
+    """A node's type as a reader names it: a declared type by its name, any record type as ``Record``."""
+    t = getattr(node_type, "type", None)
+    if t is None:
+        return ""
+    if t.is_record:
+        return "Record"
+    return str(t)
+
+
+def _attach_types(node_index: dict, engine: object) -> None:
+    """Each item's type, as the engine's typing knows it, beside its value (``type``)."""
+    typing = getattr(getattr(engine, "dsl", None), "typing", None)
+    if typing is None:
+        return
+    for item in node_index.values():
+        node_type = typing.nodes.get(item["id"])
+        if node_type is not None:
+            item["type"] = _type_label(node_type)
 
 
 # ── Markdown → HTML with footnote-style refs ──
@@ -457,6 +512,9 @@ def _render_pgmd_ref(
     node_id = node["id"]
     color = _KIND_COLORS.get(node["kind"], "subtext")
     val = _fmt_value(node["value"])
+    # A record reads as what it is: its name, its type and its fields
+    record = _record_display(node["value"])
+    typed = f"{ref_name}: {node.get('type') or 'Record'} {record}" if record else None
     is_tainted = node_id in _t
     is_source = node_id in _ts
 
@@ -475,6 +533,7 @@ def _render_pgmd_ref(
             "node_id": node_id,
             "kind": node["kind"],
             "value": val,
+            "typed": typed,
             "silent": silent,
             "tainted": is_tainted,
             "taint_source": is_source,
@@ -502,7 +561,7 @@ def _render_pgmd_ref(
             f'<sup class="text-[0.65em] font-bold" style="{ts_sec}">[{fn_num}{taint_icon}]</sup></span>{suffix}'
         )
 
-    val_display = html_mod.escape(val) if val else html_mod.escape(ref_name)
+    val_display = html_mod.escape(typed or val or ref_name)
     return (
         f'<span class="nb-fn font-semibold cursor-pointer '
         f'hover:underline decoration-dotted{taint_cls}" style="{ts_pri}" '
@@ -560,7 +619,11 @@ def _render_footnote_list(refs: list[dict]) -> str:
         _node = r.get("node")
         ts_sec = _text_style_secondary(c, _node)
         ts_pri = _text_style(c, _node)
-        val_html = f' = {html_mod.escape(r["value"])}' if r["value"] else ''
+        if r.get("typed"):
+            # The row names the ref; the rest of the typed form follows it
+            val_html = html_mod.escape(r["typed"][len(r["name"]) :])
+        else:
+            val_html = f' = {html_mod.escape(r["value"])}' if r["value"] else ''
         rows.append(
             f'<div class="nb-fn-row flex items-center gap-1.5 py-0.5 cursor-pointer hover:bg-surface0 rounded px-1" '
             f'data-node="{html_mod.escape(r["node_id"])}" data-fn="{r["num"]}">'
@@ -642,6 +705,7 @@ def build_notebook_html(
     _footnote_counter = 0
     _footnote_map = {}
     _ref_warnings = []
+    _attach_types(node_index, engine)
 
     # Build taint sets for pill styling
     taint_sources: set[str] = set(taint_result.sources) if taint_result else set()
@@ -1088,6 +1152,7 @@ document.addEventListener('DOMContentLoaded', function() {
         edges=layers_data.get("edges", []),
         structure_items=structure_items,
         logbook=logbook,
+        health=_health_index(screen),
     )
 
     from parseltongue.core.theme import VIZ_TYPOGRAPHY, css_variables
