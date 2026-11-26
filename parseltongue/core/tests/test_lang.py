@@ -5,6 +5,7 @@ import unittest
 from .. import (
     AXIOM,
     DEFTERM,
+    DEFTYPE,
     DERIVE,
     DIFF,
     DSL_KEYWORDS,
@@ -74,7 +75,7 @@ class TestDSLKeywordConstants(unittest.TestCase):
         self.assertIsInstance(EVIDENCE, Symbol)
 
     def test_dsl_keywords_tuple(self):
-        self.assertEqual(DSL_KEYWORDS, (AXIOM, DEFTERM, FACT, DERIVE, DIFF, EVIDENCE))
+        self.assertEqual(DSL_KEYWORDS, (AXIOM, DEFTERM, FACT, DERIVE, DIFF, EVIDENCE, DEFTYPE))
 
 
 class TestKeywordArgConstants(unittest.TestCase):

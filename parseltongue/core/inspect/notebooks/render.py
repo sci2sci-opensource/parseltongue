@@ -104,6 +104,7 @@ def render_result(result: NotebookResult, title: str, include_diffs: bool = True
             print(f"Warning: screen failed: {e}", file=sys.stderr)
 
     # Compute taints (shared with all viz views)
+    from parseltongue.core.inspect.perspectives.visualisation.renderer import health_index
     from parseltongue.core.inspect.perspectives.visualisation.taints import compute_taints
 
     logbook = bench.logbook if bench is not None else []
@@ -112,6 +113,7 @@ def render_result(result: NotebookResult, title: str, include_diffs: bool = True
         edges=layers_data.get("edges", []),
         structure_items=items,
         logbook=logbook,
+        health=health_index(screen_obj),
     )
 
     coverage = []

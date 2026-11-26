@@ -365,6 +365,144 @@ class TestBindDirective(unittest.TestCase):
         quiet(load_source, s, "(derive d1 gt-zero :bind ((?x rev)) :using (rev gt-zero))")
         self.assertIn("d1", s.theorems)
 
+    def test_derive_with_bind_names_its_own_sources(self):
+        """The rule and every node a :bind value names are sources without a :using."""
+        s = make_system()
+        quiet(load_source, s, '(fact x 5 :origin "t")\n(fact y 2 :origin "t")\n(axiom gt (> ?a ?b) :origin "t")')
+        quiet(load_source, s, "(derive d1 gt :bind ((?a (+ x 1)) (?b y)))")
+        self.assertEqual(s.theorems["d1"].derivation, ["gt", "x", "y"])
+        self.assertIs(s.engine.dsl._derived["d1"], True)
+
+    def test_using_adds_to_the_sources_the_form_names(self):
+        """Listed sources keep their place; the form's own sources follow, once each."""
+        s = make_system()
+        quiet(load_source, s, '(fact x 5 :origin "t")\n(fact k 0 :origin "t")\n(axiom gt-k (> ?a k) :origin "t")')
+        quiet(load_source, s, "(derive d1 gt-k :bind ((?a x)) :using (k x))")
+        self.assertEqual(s.theorems["d1"].derivation, ["k", "x", "gt-k"])
+
+    def test_derive_with_bind_inherits_the_rules_taint_unlisted(self):
+        """A rule left out of :using is still a source: its fabrication reaches the theorem."""
+        s = make_system()
+        quiet(s.register_document, "Doc", SAMPLE_DOC)
+        quiet(
+            load_source,
+            s,
+            '(fact rev 15 :origin "t")\n'
+            '(axiom gt-zero (> ?x 0) :evidence (evidence "Doc" :quotes ("not in the document") :explanation "e"))\n'
+            "(derive d1 gt-zero :bind ((?x rev)) :using (rev))",
+        )
+        self.assertEqual(s.theorems["d1"].derivation, ["rev", "gt-zero"])
+        self.assertIn("potential fabrication", s.theorems["d1"].origin)
+
+    def test_derive_formula_names_its_own_sources(self):
+        """The facts a direct derive's formula names are sources without a :using."""
+        s = make_system()
+        quiet(load_source, s, '(fact x 5 :origin "t")\n(fact y 2 :origin "t")')
+        quiet(load_source, s, "(derive d1 (> x y))")
+        self.assertEqual(s.theorems["d1"].derivation, ["x", "y"])
+        self.assertIs(s.engine.dsl._derived["d1"], True)
+
+    def test_formula_source_carries_its_taint(self):
+        """A fact the formula names, unlisted, still passes its fabrication on."""
+        s = make_system()
+        quiet(s.register_document, "Doc", SAMPLE_DOC)
+        quiet(
+            load_source,
+            s,
+            '(fact rev 15 :evidence (evidence "Doc" :quotes ("not in the document") :explanation "e"))\n'
+            "(derive d1 (> rev 0))",
+        )
+        self.assertIn("potential fabrication", s.theorems["d1"].origin)
+
+    _DOUBLE = (
+        '(fact a 3 :origin "t")\n(defterm double :origin "t")\n'
+        '(axiom double-two (= (double ?x) (* 2 ?x)) :origin "t")\n'
+        '(axiom double-three (= (double ?x) (* 3 ?x)) :origin "t")'
+    )
+
+    def test_naming_a_term_does_not_bring_its_rules(self):
+        """A rewrite rule applies only when :using lists it."""
+        s = make_system()
+        quiet(load_source, s, self._DOUBLE)
+        quiet(load_source, s, "(derive unlisted (= (double a) 6))")
+        quiet(load_source, s, "(derive listed (= (double a) 6) :using (double-two))")
+        self.assertIs(s.engine.dsl._derived["unlisted"], False)
+        self.assertIs(s.engine.dsl._derived["listed"], True)
+
+    def test_a_theorem_the_formula_names_is_not_a_rule(self):
+        """A rewrite-shaped theorem named in the formula is a value, never applied as a rule."""
+        s = make_system()
+        quiet(load_source, s, self._DOUBLE)
+        quiet(load_source, s, "(derive lemma (= (double a) 9) :using (double-three))")
+        quiet(load_source, s, "(derive named (and (= lemma lemma) (= (double a) 9)))")
+        quiet(load_source, s, "(derive listed (= (double a) 9) :using (lemma))")
+        self.assertIn("lemma", s.theorems["named"].derivation)
+        self.assertIs(s.engine.dsl._derived["named"], False)
+        self.assertIs(s.engine.dsl._derived["listed"], True)
+
+    def test_listed_rules_apply_in_the_order_listed(self):
+        """Two rules for one head: the first listed applies, whichever the interpreter hashes first."""
+        s = make_system()
+        quiet(load_source, s, self._DOUBLE)
+        quiet(load_source, s, "(derive two-first (= (double a) 6) :using (a double-two double-three))")
+        quiet(load_source, s, "(derive three-first (= (double a) 9) :using (a double-three double-two))")
+        self.assertIs(s.engine.dsl._derived["two-first"], True)
+        self.assertIs(s.engine.dsl._derived["three-first"], True)
+
+    _QUADRUPLE = (
+        _DOUBLE + "\n(defterm quadruple :origin \"t\")\n"
+        '(axiom quadruple-rule (= (quadruple ?x) (double (double ?x))) :using (double-two) :origin "t")'
+    )
+
+    def test_a_listed_rule_brings_the_rules_it_declares(self):
+        """An axiom's own :using comes with it, right after it, into the derive that lists it."""
+        s = make_system()
+        quiet(load_source, s, self._QUADRUPLE)
+        quiet(load_source, s, "(derive q (= (quadruple a) 12) :using (quadruple-rule))")
+        self.assertEqual(s.theorems["q"].derivation, ["quadruple-rule", "double-two", "quadruple", "a"])
+        self.assertIs(s.engine.dsl._derived["q"], True)
+
+    def test_a_declared_rule_comes_before_the_next_listed_one(self):
+        """The rule an axiom declares is tried before a later listed rule for the same head."""
+        s = make_system()
+        quiet(load_source, s, self._QUADRUPLE)
+        quiet(load_source, s, "(derive q (= (quadruple a) 12) :using (quadruple-rule double-three))")
+        self.assertIs(s.engine.dsl._derived["q"], True)
+
+    def test_a_declared_rule_carries_its_taint(self):
+        """An unverified rule an axiom declares reaches the theorem of a derive listing only the axiom."""
+        s = make_system()
+        quiet(s.register_document, "Doc", SAMPLE_DOC)
+        quiet(
+            load_source,
+            s,
+            '(fact a 3 :origin "t")\n(defterm double :origin "t")\n(defterm quadruple :origin "t")\n'
+            "(axiom double-two (= (double ?x) (* 2 ?x))"
+            ' :evidence (evidence "Doc" :quotes ("not in the document") :explanation "e"))\n'
+            '(axiom quadruple-rule (= (quadruple ?x) (double (double ?x))) :using (double-two) :origin "t")\n'
+            "(derive q (= (quadruple a) 12) :using (quadruple-rule))",
+        )
+        self.assertIn("double-two", s.theorems["q"].origin)
+
+    def test_axiom_using_an_unknown_rule_is_refused(self):
+        s = make_system()
+        quiet(load_source, s, '(defterm quadruple :origin "t")')
+        with self.assertRaises(Exception) as raised:
+            quiet(
+                load_source,
+                s,
+                '(axiom quadruple-rule (= (quadruple ?x) (double (double ?x))) :using (no-such-rule) :origin "t")',
+            )
+        self.assertIn("no-such-rule", str(raised.exception))
+
+    def test_axiom_using_survives_serialization(self):
+        from ..serialization.serializers import deserialize_axiom, serialize_axiom
+
+        s = make_system()
+        quiet(load_source, s, self._QUADRUPLE)
+        axiom = s.engine.axioms["quadruple-rule"]
+        self.assertEqual(deserialize_axiom(axiom.name, serialize_axiom(axiom)).using, ("double-two",))
+
     def test_derive_inline_wff_with_bind_crashes(self):
         """Inline WFF + :bind is invalid syntax — :bind requires an axiom name, not a WFF."""
         s = make_system()

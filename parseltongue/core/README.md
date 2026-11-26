@@ -131,7 +131,7 @@ Parseltongue inverts this. Every axiom, every fact, every primitive term must ci
 
 ## Directive Types
 
-Six directive types — `fact`, `axiom`, `defterm`, `derive`, `diff`, and `evidence` — split into two categories.
+Seven directive types — `fact`, `axiom`, `defterm`, `deftype`, `derive`, `diff`, and `evidence` — split into two categories.
 
 In addition to primary directives, the language is extensible with [custom operators](#custom-environments) and [effects](#built-in-effects).
 
@@ -162,13 +162,28 @@ Symbols are the core entity of the language. Symbolic directives introduce named
 ;; Splat axiom — ?...items collects all trailing arguments
 (axiom count-exists (> (+ ?...items) 0)
   :origin "All items exist if their sum is positive")
+
+;; A rule built on other rules names them in its own :using
+(axiom quadruple-rule (= (quadruple ?x) (double (double ?x)))
+  :using (double-rule)
+  :origin "Twice the double")
 ```
+
+An axiom's `:using` names the rules its right-hand side resolves with. A derive that lists the axiom gets those rules with it, right after it, and theirs in turn, so a rule built on other rules is listed by its own name alone. Only what the rule's author named comes along: nothing is found by a term's name.
 
 **`defterm`** (forward declaration) — introduces a primitive symbol with no body (like `zero` in Peano arithmetic). These are the building blocks — named concepts that exist before any computation.
 
 ```scheme
 ;; Primitive symbol (no body) — forward declaration
 (defterm growth-target :origin "Board-set target")
+```
+
+**`deftype`** — a named, nominal type. It is an enumeration of member symbols, optionally ordered; a refinement of a base type by a `:where` predicate over `?x`; or a wrapper that gives a base type a distinct name. The type is registered as a term with its evidence, grounded and checked like any other term, and every node that names it with `:type` depends on it. See [Types](#types).
+
+```scheme
+(deftype Status (one-of exemplifiable unknown hallucinated)
+  :order (exemplifiable < unknown < hallucinated)
+  :origin "the epistemic lattice")
 ```
 
 #### Special Technique: Rewrite Axioms as Reusable Functions
@@ -204,7 +219,7 @@ The same pattern powers the validation system's `count-exists` (how many boolean
 
 ### Computable Directives
 
-Computable directives produce results from the symbolic base. Computed terms are evaluated on reference. Derives are evaluated at definition time — the WFF is checked against symbols in `:using`.
+Computable directives produce results from the symbolic base. Computed terms are evaluated on reference. Derives are evaluated at definition time — the WFF is checked against the derive's sources.
 
 **`defterm`** (computed) — an expression evaluated when referenced. Use it for derived quantities like totals or growth rates. A **conditional term** uses `if` to branch.
 
@@ -222,18 +237,17 @@ Computable directives produce results from the symbolic base. Computed terms are
   :origin "Bonus calculation")
 ```
 
-**`derive`** — a theorem proved by evaluating a WFF against existing facts, terms, and axioms. Evaluation is restricted to symbols listed in `:using`; rewrite axioms fire automatically, non-rewrite axioms require `:bind` to substitute `?`-variables. If any source has unverified evidence, the derivation inherits the fabrication taint.
+**`derive`** — a theorem proved by evaluating a WFF against existing facts, terms, and axioms. Evaluation is restricted to the derive's sources; rewrite axioms fire automatically, non-rewrite axioms require `:bind` to substitute `?`-variables. A derive's own form names sources: every fact, term and theorem its formula or a `:bind` value names, and the axiom a `:bind` derive applies, are sources without being listed, and `:using` adds whatever else it needs (a node only the axiom's body mentions, a rewrite rule) or is left out. Listing them again changes nothing. A rewrite rule is a source only when `:using` lists it or a listed axiom's own `:using` names it: naming a term never brings in its rules, so two modules' rules for one head meet only in a derive that lists both, and a derive tries its rules in the order it lists them. If any source has unverified evidence, the derivation inherits the fabrication taint.
 
 ```scheme
-;; Direct — evaluates a WFF against facts listed in :using
+;; Direct — the facts the WFF names are its sources
 (derive target-exceeded
-  (> revenue-q3-growth growth-target)
-  :using (revenue-q3-growth growth-target))
+  (> revenue-q3-growth growth-target))
 
-;; Instantiation — :bind substitutes ?-variables, then evaluates
+;; Instantiation — :bind substitutes ?-variables, then evaluates;
+;; add-identity, succ and zero are sources without a :using
 (derive three-plus-zero add-identity
-  :bind ((?n (succ (succ (succ zero)))))
-  :using (add-identity succ zero))
+  :bind ((?n (succ (succ (succ zero))))))
 
 ;; Rewrite axiom in :using — fires automatically, no :bind needed
 (derive morning-commutes add-commutative
@@ -331,7 +345,7 @@ If someone adds a feature flag to the config but forgets to document it or accep
 
 Evidence is a first-class citizen and is directly used by the engine and grammar.
 
-**`evidence`** is a structured provenance attached to symbolic directives. Evidence links a claim to a verbatim quote from a registered source document. Unlike the other five directive types, evidence does not participate in direct computation — it primarily exists for evaluation by the consistency checker, which verifies quotes and propagates fabrication flags.
+**`evidence`** is a structured provenance attached to symbolic directives. Evidence links a claim to a verbatim quote from a registered source document. Unlike the other six directive types, evidence does not participate in direct computation — it primarily exists for evaluation by the consistency checker, which verifies quotes and propagates fabrication flags.
 
 ```scheme
 ;; Structured evidence with verifiable quotes
@@ -381,6 +395,33 @@ The system's own [`validation/verify_manual.pltg`](validation/verify_manual.pltg
 
 The hypothetical values are manually verified because they represent scenarios implied by the code but not literally quoted from it. The `quote_verifier` validation module ([`validation/quote_verifier.pltg`](validation/quote_verifier.pltg)) uses this technique for 7 axioms — empty quotes, single-stopword quotes, normalized-to-empty quotes, score clamping, and config flag gating.
 
+### Types
+
+Every node has a type before it is evaluated. The built-in types are `Bool`, `Num`, `Sym`, `Str`, `List`, `Outcome` and `Any`; `Bool` and `Num` are disjoint, so `true` is not `1`. A fact's type is inferred from its literal, a computed term's from its body, a derive's from its formula, and a term that heads rewrite rules gets a signature inferred from them. `:type` narrows a node to a declared type, and `:types` gives an axiom's `?`-variables their types:
+
+```scheme
+(deftype Channel (one-of consistency-error consistency-warning) :origin "the two report channels")
+(fact unverified-channel consistency-error :type Channel :origin "...")
+(axiom error-on-unverified (implies ?is-unverified (= ?channel consistency-error))
+  :types ((?is-unverified Bool) (?channel Channel))
+  :origin "...")
+```
+
+Type expressions compose: `(List T)`, function types `(-> A B R)` with `(Rest T)` as the last parameter of a variadic function, `(union A B)`, type variables `?T` unified at each call site, and records `(Record :name Sym :value Num)`, whose values are keyword lists read with `(get r :value)`. Declared types are nominal: two declared types with the same representation are distinct. Members of an ordered enumeration compare with `<`, `>`, `<=` and `>=`; members of different enumerations do not compare. A declared value is checked through every field of its records and every element of its lists, however deep: each is of its type, a member of its enumerations and satisfies its refinements, and a type error names the field it is in (`field :items[0] :n: …`).
+
+A mismatch is a `type_error` in the consistency report, with the node and both types; the file still loads. A derive whose value is a `Bool` is a theorem; any other value makes it a computation, which carries no truth claim.
+
+Applying an implication axiom with `:bind` has an outcome: `fired` (the antecedent holds and the consequent holds), `vacuous` (the antecedent is false) or `violated` (the antecedent holds and the consequent does not). `:expect` states the outcome the author intends; an outcome other than the expected one is an `unmet_expectation`, and a vacuous application without `:expect` is a `vacuous_rule` warning.
+
+```scheme
+(derive unverified-causes-error error-on-unverified
+  :bind ((?is-unverified unverified-is-unverified) (?channel unverified-channel))
+  :using (consistency-error)
+  :expect fired)
+```
+
+`(count-where fired? (quote r1) (quote r2))` from `std.counting` counts the rule applications that fired, and `(py-ast "engine.py" "members" "IssueType")` reads a registered Python document with Python's own parser, so a count derived from it follows the code instead of a quoted number.
+
 ## Execution Engine
 
 The engine evaluates s-expressions left-to-right, applying rewrite axioms up to a depth limit of 100, with an `=`-rewrite fallback for structural equality. Eight special forms are handled directly by the engine:
@@ -398,7 +439,7 @@ The engine evaluates s-expressions left-to-right, applying rewrite axioms up to 
 
 The `Engine` constructor accepts two behavioral flags:
 
-- **`strict_derive`** (default `True`) — when enabled, `derive` evaluation is restricted to symbols listed in `:using`. Only those facts, terms, and axioms are visible during evaluation. When disabled, all symbols in the environment are accessible (legacy mode).
+- **`strict_derive`** (default `True`) — when enabled, `derive` evaluation is restricted to the derive's sources. Only the facts, terms and axioms its form names or its `:using` lists are visible during evaluation. When disabled, all symbols in the environment are accessible (legacy mode).
 - **`overridable`** (default `False`) — when disabled, redefining an existing fact raises an error. Enable to allow fact redefinition without calling `retract()` first.
 
 ### Evidence Grounding
@@ -463,14 +504,19 @@ The quote verifier is extensible: custom normalizers, fuzzy matchers, and custom
 | `potential_fabrication` | Theorem depends on unverified evidence |
 | `diff_divergence` | Downstream terms diverge when swapping one value for another |
 | `diff_value_divergence` | The two values in a diff disagree directly |
+| `absence_violated` | A claimed absence has counter-example lines in the registered documents |
+| `obligation_violated` | A universal obligation has counter-example lines in the registered documents |
+| `type_error` | A value is not of the type its position requires |
+| `unmet_expectation` | A rule application's outcome is not the one its `:expect` states |
 
 | Warning Type | Meaning |
 |---|---|
 | `manually_verified` | Evidence was manually verified by a human, not by the system |
 | `diff_contamination` | Diff divergence caused by a sibling diff, not a real disagreement |
 | `confounded_evidence` | Both sides of a diff depend on the same document quote, weakening their independence |
+| `vacuous_rule` | A rule application held only because its antecedent was false, and states no `:expect` |
 
-Diffs are the primary mechanism for cross-validation. Register a diff, and the system automatically checks whether swapping one value for another causes dependent terms to change.
+Diffs are the primary mechanism for cross-validation. Register a diff, and the system automatically checks whether swapping one value for another causes dependent terms to change. Each diff is reported once: a diff whose two values disagree is a `diff_value_divergence` even when sibling diffs contaminate it, and `diff_contamination` is reserved for a diff whose values agree.
 The consistency check also traces evidence transitively through each side. If both sides reach the same quote in the same document, or one side's quote fully contains the other's, it reports `confounded_evidence`; identical text in different documents remains independent.
 
 ```python
@@ -604,7 +650,7 @@ system = loader.load_main("path/to/main.pltg", effects=custom_effects)
 
 ### Built-in Effects
 
-The loader provides 8 built-in effects available in any `.pltg` file:
+The loader provides 14 built-in effects available in any `.pltg` file:
 
 | Effect | Syntax | Description |
 |---|---|---|
@@ -616,6 +662,10 @@ The loader provides 8 built-in effects available in any `.pltg` file:
 | `consistency` | `(consistency)` | With no arguments, prints the report and returns True. Optional modes: `(consistency :raise)` prints and raises on inconsistency, `(consistency :bool)` returns boolean without printing, `(consistency :report)` returns the ConsistencyReport object |
 | `verify-manual` | `(verify-manual name)` | Manually verify a fact, term, or axiom |
 | `dangerously-eval` | `(dangerously-eval "python code")` | Execute arbitrary Python with `system` and `_ctx` in scope. Used by self_test.pltg to run the test suite from within the formal system |
+| `load-documents` | `(load-documents "prefix" "glob" :except (...))` | Register every file a glob matches as a source document, named under a prefix |
+| `py-ast` | `(py-ast "document" "members" "NAME")` | Read the structure of a registered Python document with Python's parser: `members`, `fields`, `methods`, `functions`, `classes`, `keys` or `items`, as a `(List Str)` |
+| `outcome` | `(outcome (quote rule))` | The outcome of a rule application: `fired`, `vacuous` or `violated` |
+| `fired?` / `vacuous?` / `violated?` | `(fired? (quote rule))` | Whether a rule application had that outcome; three effects, one per outcome |
 
 ### Imports and Namespacing
 

@@ -191,6 +191,11 @@ class LocatedConsistencyReport:
                 if sym in engine.terms or sym in engine.facts or sym in engine.axioms or sym in engine.theorems:
                     referenced_by.setdefault(ax_name, set()).add(sym)
 
+        # A declared type is referenced by every node that declares it
+        for referrer, type_names in engine.dsl.typing.references().items():
+            for type_name in type_names:
+                referenced_by.setdefault(type_name, set()).add(referrer)
+
         diff_names = set(engine.diffs.keys())
         all_names = set(engine.facts) | set(engine.axioms) | set(engine.terms) | set(engine.theorems)
         dangling = {name for name in all_names if not referenced_by.get(name) and name not in diff_names}

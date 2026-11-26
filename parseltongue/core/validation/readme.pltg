@@ -183,10 +183,20 @@
 ; Directive types
 ; =====================================================================
 
-(fact readme-directive-count 6
+(fact readme-directive-count 7
     :evidence (evidence "README"
-        :quotes ("Six directive types" "fact, axiom, defterm, derive, diff, and evidence")
-        :explanation "README lists 6 directives"))
+        :quotes ("Seven directive types" "fact, axiom, defterm, deftype, derive, diff, and evidence")
+        :explanation "README lists 7 directives"))
+
+(fact readme-has-deftype-directive true
+    :evidence (evidence "README"
+        :quotes ("**`deftype`** — a named, nominal type.")
+        :explanation "deftype listed as directive"))
+
+(fact readme-deftype-description true
+    :evidence (evidence "README"
+        :quotes ("It is an enumeration of member symbols, optionally ordered; a refinement of a base type by a `:where` predicate over `?x`; or a wrapper that gives a base type a distinct name.")
+        :explanation "README describes the three forms of deftype"))
 
 (fact readme-has-fact-directive true
     :evidence (evidence "README"
@@ -246,8 +256,10 @@
 
 (fact readme-derive-restricted-eval true
     :evidence (evidence "README"
-        :quotes ("Evaluation is restricted to symbols listed in :using; rewrite axioms fire automatically, non-rewrite axioms require :bind")
-        :explanation "README documents :using restriction and bind/auto-bind distinction"))
+        :quotes ("Evaluation is restricted to the derive's sources; rewrite axioms fire automatically, non-rewrite axioms require `:bind`"
+                 "A rewrite rule is a source only when `:using` lists it or a listed axiom's own `:using` names it: naming a term never brings in its rules"
+                 "An axiom's `:using` names the rules its right-hand side resolves with")
+        :explanation "README documents the source restriction, bind/auto-bind distinction, and that rewrite rules come only from :using, a derive's or a listed axiom's own"))
 
 (fact readme-documents-symbolic-directives true
     :evidence (evidence "README"
@@ -366,7 +378,8 @@
            (?participates-in-direct-computation evidence-computes))
     :using (evidence-excludes-direct-computation readme-has-evidence-directive evidence-computes))
 
-; Computable directive count: all 6 directives, evidence counted as false → 5
+; Computable directive count: the five directives that own a definition store, evidence counted as false → 5.
+; deftype registers its type in the terms store, which defterm owns.
 (derive readme-computable-directive-count
     (count-exists readme-has-fact-directive readme-has-axiom-directive
                   readme-has-defterm-directive readme-has-derive-directive
@@ -613,7 +626,27 @@
         :quotes ("diff_value_divergence" "The two values in a diff disagree directly")
         :explanation "Issue type with description"))
 
-; --- Warning types (3) ---
+(fact readme-issue-type-6 "absence_violated"
+    :evidence (evidence "README"
+        :quotes ("absence_violated" "A claimed absence has counter-example lines in the registered documents")
+        :explanation "Issue type with description"))
+
+(fact readme-issue-type-7 "obligation_violated"
+    :evidence (evidence "README"
+        :quotes ("obligation_violated" "A universal obligation has counter-example lines in the registered documents")
+        :explanation "Issue type with description"))
+
+(fact readme-issue-type-8 "type_error"
+    :evidence (evidence "README"
+        :quotes ("type_error" "A value is not of the type its position requires")
+        :explanation "Issue type with description"))
+
+(fact readme-issue-type-9 "unmet_expectation"
+    :evidence (evidence "README"
+        :quotes ("unmet_expectation" "A rule application's outcome is not the one its `:expect` states")
+        :explanation "Issue type with description"))
+
+; --- Warning types (4) ---
 
 (fact readme-warning-type-1 "manually_verified"
     :evidence (evidence "README"
@@ -628,6 +661,11 @@
 (fact readme-warning-type-3 "confounded_evidence"
     :evidence (evidence "README"
         :quotes ("confounded_evidence" "Both sides of a diff depend on the same document quote, weakening their independence")
+        :explanation "Warning type with description"))
+
+(fact readme-warning-type-4 "vacuous_rule"
+    :evidence (evidence "README"
+        :quotes ("vacuous_rule" "A rule application held only because its antecedent was false, and states no `:expect`")
         :explanation "Warning type with description"))
 
 ; =====================================================================
@@ -850,10 +888,31 @@
         :quotes ("(verify-manual name)" "Manually verify a fact, term, or axiom")
         :explanation "README documents verify-manual effect"))
 
-(fact readme-loader-effect-count 8
+(fact readme-loader-effect-count 14
     :evidence (evidence "README"
-        :quotes ("The loader provides 8 built-in effects")
-        :explanation "README claims 8 built-in effects"))
+        :quotes ("The loader provides 14 built-in effects")
+        :explanation "README claims 14 built-in effects"))
+
+(fact readme-loader-load-documents-effect true
+    :evidence (evidence "README"
+        :quotes ("(load-documents \"prefix\" \"glob\" :except (...))" "Register every file a glob matches as a source document, named under a prefix")
+        :explanation "README documents load-documents effect"))
+
+(fact readme-loader-py-ast-effect true
+    :evidence (evidence "README"
+        :quotes ("(py-ast \"document\" \"members\" \"NAME\")" "Read the structure of a registered Python document with Python's parser")
+        :explanation "README documents py-ast effect"))
+
+(fact readme-loader-outcome-effect true
+    :evidence (evidence "README"
+        :quotes ("(outcome (quote rule))" "The outcome of a rule application: `fired`, `vacuous` or `violated`")
+        :explanation "README documents outcome effect"))
+
+; One README row documents fired?, vacuous? and violated?, and says they are three effects
+(fact readme-loader-outcome-is-effects 3
+    :evidence (evidence "README"
+        :quotes ("`fired?` / `vacuous?` / `violated?`" "Whether a rule application had that outcome; three effects, one per outcome")
+        :explanation "README documents the three outcome predicate effects in one row"))
 
 (fact readme-loader-dangerously-eval-effect true
     :evidence (evidence "README"
@@ -1764,15 +1823,16 @@
         :quotes ("diff agreement")
         :explanation "README names diff agreement as consistency layer 3"))
 
-(fact readme-documents-engine-issue-count 5
+(fact readme-documents-engine-issue-count 9
     :evidence (evidence "README"
-        :quotes ("unverified_evidence" "no_evidence" "potential_fabrication" "diff_divergence" "diff_value_divergence")
-        :explanation "README lists 5 issue types in the consistency table"))
+        :quotes ("unverified_evidence" "no_evidence" "potential_fabrication" "diff_divergence" "diff_value_divergence"
+                 "absence_violated" "obligation_violated" "type_error" "unmet_expectation")
+        :explanation "README lists 9 issue types in the consistency table"))
 
-(fact readme-documents-engine-warning-count 3
+(fact readme-documents-engine-warning-count 4
     :evidence (evidence "README"
-        :quotes ("manually_verified" "diff_contamination" "confounded_evidence")
-        :explanation "README lists 3 warning types in the consistency table"))
+        :quotes ("manually_verified" "diff_contamination" "confounded_evidence" "vacuous_rule")
+        :explanation "README lists 4 warning types in the consistency table"))
 
 (fact readme-documents-engine-diffs-cross-validation true
     :evidence (evidence "README"
@@ -1852,7 +1912,7 @@
 
 (fact readme-documents-engine-strict-derive true
     :evidence (evidence "README"
-        :quotes ("**`strict_derive`** (default `True`) — when enabled, `derive` evaluation is restricted to symbols listed in `:using`.")
+        :quotes ("**`strict_derive`** (default `True`) — when enabled, `derive` evaluation is restricted to the derive's sources.")
         :explanation "README documents strict_derive flag"))
 
 (fact readme-documents-engine-overridable true
@@ -2090,14 +2150,14 @@
 ; Most readme facts are correctly dangling — they're consumed externally.
 
 ; --- 1. Directive count vs listing ---
-; README says "6 directive types" and lists them individually.
+; README says "Seven directive types" and lists them individually.
 
 (derive readme-directive-listing-count
     (count-exists readme-has-fact-directive readme-has-axiom-directive
-                  readme-has-defterm-directive readme-has-derive-directive readme-has-diff-directive
+                  readme-has-defterm-directive readme-has-deftype-directive readme-has-derive-directive readme-has-diff-directive
                   readme-has-evidence-directive)
     :using (count-exists readme-has-fact-directive readme-has-axiom-directive
-                         readme-has-defterm-directive readme-has-derive-directive readme-has-diff-directive
+                         readme-has-defterm-directive readme-has-deftype-directive readme-has-derive-directive readme-has-diff-directive
                          readme-has-evidence-directive))
 
 (diff readme-directive-listing-vs-stated :replace readme-directive-listing-count :with readme-directive-count)
@@ -2109,6 +2169,7 @@
     (count-exists (and readme-has-fact-directive readme-fact-description)
                   (and readme-has-axiom-directive readme-axiom-description)
                   (and readme-has-defterm-directive readme-defterm-forward-decl readme-defterm-computed)
+                  (and readme-has-deftype-directive readme-deftype-description)
                   (and readme-has-derive-directive readme-derive-restricted-eval)
                   (and readme-has-diff-directive readme-diff-lazy readme-documents-diffs-section)
                   (and readme-has-evidence-directive readme-has-evidence-directive))
@@ -2116,6 +2177,7 @@
             readme-has-fact-directive readme-fact-description
             readme-has-axiom-directive readme-axiom-description
             readme-has-defterm-directive readme-defterm-forward-decl readme-defterm-computed
+            readme-has-deftype-directive readme-deftype-description
             readme-has-derive-directive readme-derive-restricted-eval
             readme-has-diff-directive readme-diff-lazy readme-documents-diffs-section
             readme-has-evidence-directive))
@@ -2138,17 +2200,23 @@
 (diff readme-demo-listing-vs-count :replace readme-demo-listing-count :with readme-demo-count)
 
 ; --- 4. Loader effect count vs listing ---
-; README says "7 built-in effects" and lists them individually.
+; README says "14 built-in effects" and lists them; one row lists the three outcome predicates.
+
+(derive readme-loader-effect-rows
+    (count-exists readme-loader-import-effect readme-loader-run-on-entry-effect
+                  readme-loader-load-document-effect readme-loader-load-documents-effect readme-loader-context-effect
+                  readme-loader-print-effect readme-loader-consistency-effect
+                  readme-loader-verify-manual-effect readme-loader-dangerously-eval-effect
+                  readme-loader-py-ast-effect readme-loader-outcome-effect)
+    :using (count-exists readme-loader-import-effect readme-loader-run-on-entry-effect
+                         readme-loader-load-document-effect readme-loader-load-documents-effect readme-loader-context-effect
+                         readme-loader-print-effect readme-loader-consistency-effect
+                         readme-loader-verify-manual-effect readme-loader-dangerously-eval-effect
+                         readme-loader-py-ast-effect readme-loader-outcome-effect))
 
 (derive readme-loader-effects-listing-count
-    (count-exists readme-loader-import-effect readme-loader-run-on-entry-effect
-                  readme-loader-load-document-effect readme-loader-context-effect
-                  readme-loader-print-effect readme-loader-consistency-effect
-                  readme-loader-verify-manual-effect readme-loader-dangerously-eval-effect)
-    :using (count-exists readme-loader-import-effect readme-loader-run-on-entry-effect
-                         readme-loader-load-document-effect readme-loader-context-effect
-                         readme-loader-print-effect readme-loader-consistency-effect
-                         readme-loader-verify-manual-effect readme-loader-dangerously-eval-effect))
+    (+ readme-loader-effect-rows readme-loader-outcome-is-effects)
+    :using (readme-loader-effect-rows readme-loader-outcome-is-effects))
 
 (diff readme-loader-effects-vs-count :replace readme-loader-effects-listing-count :with readme-loader-effect-count)
 
@@ -2178,17 +2246,19 @@
 
 (derive readme-issue-types-listing-count
     (count-exists readme-issue-type-1 readme-issue-type-2 readme-issue-type-3
-                  readme-issue-type-4 readme-issue-type-5)
+                  readme-issue-type-4 readme-issue-type-5 readme-issue-type-6
+                  readme-issue-type-7 readme-issue-type-8 readme-issue-type-9)
     :using (count-exists readme-issue-type-1 readme-issue-type-2 readme-issue-type-3
-                         readme-issue-type-4 readme-issue-type-5))
+                         readme-issue-type-4 readme-issue-type-5 readme-issue-type-6
+                         readme-issue-type-7 readme-issue-type-8 readme-issue-type-9))
 
 (diff readme-issue-types-vs-stated :replace readme-issue-types-listing-count :with readme-documents-engine-issue-count)
 
 ; --- 6b. Consistency warning types: stated count vs listing ---
 
 (derive readme-warning-types-listing-count
-    (count-exists readme-warning-type-1 readme-warning-type-2 readme-warning-type-3)
-    :using (count-exists readme-warning-type-1 readme-warning-type-2 readme-warning-type-3))
+    (count-exists readme-warning-type-1 readme-warning-type-2 readme-warning-type-3 readme-warning-type-4)
+    :using (count-exists readme-warning-type-1 readme-warning-type-2 readme-warning-type-3 readme-warning-type-4))
 
 (diff readme-warning-types-vs-stated :replace readme-warning-types-listing-count :with readme-documents-engine-warning-count)
 
@@ -2452,10 +2522,10 @@
     (util.export readme-demo-paired-count)
     :using (util.export readme-demo-paired-count))
 
-; Directive count confirmed as boolean
+; Directive count confirmed as boolean: the stated count is the listed count
 (derive readme-directive-count-confirmed
-    (= readme-directive-count 6)
-    :using (readme-directive-count))
+    (= readme-directive-count readme-directive-listing-count)
+    :using (readme-directive-count readme-directive-listing-count))
 
 (derive export-directive-count-confirmed
     (util.export readme-directive-count-confirmed)

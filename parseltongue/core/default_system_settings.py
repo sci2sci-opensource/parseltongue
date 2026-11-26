@@ -32,9 +32,13 @@ OR = Symbol("or")
 NOT = Symbol("not")
 IMPLIES = Symbol("implies")
 
+# Records
+GET = Symbol("get")
+
 ARITHMETIC_OPS = (ADD, SUB, MUL, DIV, MOD)
 COMPARISON_OPS = (GT, LT, GE, LE, EQ, NE)
 LOGIC_OPS = (AND, OR, NOT, IMPLIES)
+RECORD_OPS = (GET,)
 
 
 # ============================================================
@@ -142,6 +146,15 @@ ENGINE_DOCS = {
         "example": "(implies true false)",
         "expected": False,
     },
+    # Records
+    GET: {
+        "category": "record",
+        "description": "The value of a record's field.  A record is a keyword list, "
+        "(:x 1 :y 2); (get r :x) is the value after :x.  Typed by the "
+        "record's type: an unknown field is a type error.",
+        "example": "(get (quote (:x 1 :y 2)) :y)",
+        "expected": 2,
+    },
 }
 
 
@@ -149,9 +162,39 @@ ENGINE_DOCS = {
 # Default Operator Mapping
 # ============================================================
 
+
+def typed_equal(a: Any, b: Any) -> bool:
+    """Equality that keeps Bool and Num apart: true is not 1."""
+    return isinstance(a, bool) == isinstance(b, bool) and a == b
+
+
+def typed_order(compare: Any) -> Any:
+    """An order comparison that orders two members of one enumeration by rank and
+    refuses to order members of different enumerations, or a member and a non-member."""
+
+    def ordered(a: Any, b: Any) -> bool:
+        ra, rb = getattr(a, "rank", None), getattr(b, "rank", None)
+        if ra is None and rb is None:
+            return bool(compare(a, b))
+        if ra is None or rb is None or getattr(a, "enum", None) != getattr(b, "enum", None):
+            raise TypeError(f"{a} and {b} are not members of one ordered enumeration")
+        return bool(compare(ra, rb))
+
+    return ordered
+
+
+def record_get(record: Any, field: Any) -> Any:
+    """The value after ``field`` in a keyword list ``(:k v :k v …)``."""
+    items = list(record)
+    for i in range(0, len(items) - 1, 2):
+        if items[i] == field:
+            return items[i + 1]
+    raise KeyError(f"record has no field {field}")
+
+
 DEFAULT_OPERATORS: dict[Symbol, Any] = {
     # Special case, eq from lang can act as operator (variadic: all args equal)
-    EQ: lambda *args: all(a == args[0] for a in args[1:]),
+    EQ: lambda *args: all(typed_equal(a, args[0]) for a in args[1:]),
     # Arithmetic
     ADD: operator.add,
     SUB: operator.sub,
@@ -159,14 +202,16 @@ DEFAULT_OPERATORS: dict[Symbol, Any] = {
     DIV: operator.truediv,
     MOD: operator.mod,
     # Comparison
-    GT: operator.gt,
-    LT: operator.lt,
-    GE: operator.ge,
-    LE: operator.le,
-    NE: operator.ne,
+    GT: typed_order(operator.gt),
+    LT: typed_order(operator.lt),
+    GE: typed_order(operator.ge),
+    LE: typed_order(operator.le),
+    NE: lambda a, b: not typed_equal(a, b),
     # Logic
     AND: lambda *args: all(args),
     OR: lambda *args: any(args),
     NOT: lambda a: not a,
-    IMPLIES: lambda a, b: (not a) or b,
+    IMPLIES: lambda a, b: bool((not a) or b),
+    # Records
+    GET: record_get,
 }

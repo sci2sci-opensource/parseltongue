@@ -207,12 +207,13 @@
         :quotes ("self.assertEqual(to_sexp([Symbol(\"+\"), 2, 3]), \"(+ 2 3)\")")
         :explanation "behavior test checks a concrete serialized expression"))
 
+; A reader is paired when its docstring is present, its implementation exists, and a test exercises it
 (derive reader-paired-count
     (count-exists
-        (and tokenize-doc tokenize-impl tokenize-behavior)
-        (and read-tokens-doc read-tokens-impl read-tokens-behavior)
-        (and atom-doc atom-impl atom-behavior)
-        (and to-sexp-doc to-sexp-impl to-sexp-behavior)
+        (and (!= tokenize-doc "") tokenize-impl tokenize-behavior)
+        (and (!= read-tokens-doc "") read-tokens-impl read-tokens-behavior)
+        (and (!= atom-doc "") atom-impl atom-behavior)
+        (and (!= to-sexp-doc "") to-sexp-impl to-sexp-behavior)
         (and comments-doc comment-char comments-behavior))
     :using (count-exists
             tokenize-doc tokenize-impl tokenize-behavior

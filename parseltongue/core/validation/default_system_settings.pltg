@@ -225,33 +225,33 @@
 ; --- Comparison ---
 (fact gt-impl true
     :evidence (evidence "default_system_settings.py"
-        :quotes ("GT: operator.gt,")
-        :explanation "GT maps to operator.gt"))
+        :quotes ("GT: typed_order(operator.gt),")
+        :explanation "GT is operator.gt, ordering enumeration members by rank"))
 
 (fact lt-impl true
     :evidence (evidence "default_system_settings.py"
-        :quotes ("LT: operator.lt,")
-        :explanation "LT maps to operator.lt"))
+        :quotes ("LT: typed_order(operator.lt),")
+        :explanation "LT is operator.lt, ordering enumeration members by rank"))
 
 (fact ge-impl true
     :evidence (evidence "default_system_settings.py"
-        :quotes ("GE: operator.ge,")
-        :explanation "GE maps to operator.ge"))
+        :quotes ("GE: typed_order(operator.ge),")
+        :explanation "GE is operator.ge, ordering enumeration members by rank"))
 
 (fact le-impl true
     :evidence (evidence "default_system_settings.py"
-        :quotes ("LE: operator.le,")
-        :explanation "LE maps to operator.le"))
+        :quotes ("LE: typed_order(operator.le),")
+        :explanation "LE is operator.le, ordering enumeration members by rank"))
 
 (fact eq-impl true
     :evidence (evidence "default_system_settings.py"
-        :quotes ("EQ: lambda *args: all(a == args[0] for a in args[1:]),")
-        :explanation "EQ is variadic: all args must be equal"))
+        :quotes ("EQ: lambda *args: all(typed_equal(a, args[0]) for a in args[1:]),")
+        :explanation "EQ is variadic: all args must be equal, a Bool never equal to a Num"))
 
 (fact ne-impl true
     :evidence (evidence "default_system_settings.py"
-        :quotes ("NE: operator.ne,")
-        :explanation "NE maps to operator.ne"))
+        :quotes ("NE: lambda a, b: not typed_equal(a, b),")
+        :explanation "NE is the negation of typed equality"))
 
 ; --- Logic ---
 (fact and-impl true
@@ -271,8 +271,8 @@
 
 (fact implies-impl true
     :evidence (evidence "default_system_settings.py"
-        :quotes ("IMPLIES: lambda a, b: (not a) or b,")
-        :explanation "IMPLIES is material conditional"))
+        :quotes ("IMPLIES: lambda a, b: bool((not a) or b),")
+        :explanation "IMPLIES is material conditional, returning a Bool"))
 
 ; =====================================================================
 ; Per-category layer counts

@@ -904,6 +904,7 @@ def _render_app(
         edges=layers_data.get("edges", []),
         structure_items=structure_items,
         logbook=logbook,
+        health=health,
     )
 
     from parseltongue.core.theme import VIZ_TYPOGRAPHY, css_variables

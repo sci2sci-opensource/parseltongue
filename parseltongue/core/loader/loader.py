@@ -45,6 +45,11 @@ LOADER_EFFECTS = (
     "consistency",
     "verify-manual",
     "dangerously-eval",
+    "py-ast",
+    "outcome",
+    "fired?",
+    "vacuous?",
+    "violated?",
 )
 
 
@@ -544,6 +549,31 @@ class Loader:
             system.verify_manual(str(name), signature=str(signature))
             return True
 
+        def py_ast_effect(system: System, document, kind, *name) -> list[str]:
+            """Effect: (py-ast "document" "kind" "NAME") — the structure of a registered
+            Python document, by Python's own parser (``py_structure``)."""
+            from ..py_structure import py_structure
+
+            text = system.engine.documents.get(str(document))
+            if text is None:
+                raise ValueError(f"py-ast: no registered document {document!r}")
+            return py_structure(text, str(kind), str(name[0]) if name else None)
+
+        def outcome_effect(system: System, rule) -> Symbol:
+            """Effect: (outcome (quote rule)) — the outcome of a derive that applies an
+            implication rule: fired, vacuous or violated."""
+            found = system.engine.dsl.typing.outcomes.get(str(rule))
+            if found is None:
+                raise ValueError(f"outcome: {rule} is not a derive that applies an implication rule")
+            return Symbol(found)
+
+        def outcome_is(expected: str):
+            def effect(system: System, rule) -> bool:
+                return system.engine.dsl.typing.outcomes.get(str(rule)) == expected
+
+            effect.__doc__ = f"Effect: ({expected}? (quote rule)) — whether a rule application {expected}."
+            return effect
+
         def dangerously_eval_effect(system: System, *args):
             """Effect: (dangerously-eval code) — execute arbitrary Python string.
 
@@ -569,6 +599,11 @@ class Loader:
             "consistency": consistency_effect,
             "verify-manual": verify_manual_effect,
             "dangerously-eval": dangerously_eval_effect,
+            "py-ast": py_ast_effect,
+            "outcome": outcome_effect,
+            "fired?": outcome_is("fired"),
+            "vacuous?": outcome_is("vacuous"),
+            "violated?": outcome_is("violated"),
         }
         return {name: effect for name, effect in effects.items() if name in self.builtin_effects}
 

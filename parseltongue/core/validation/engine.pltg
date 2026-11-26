@@ -155,8 +155,16 @@
 
 (fact derive-restricted-eval true
     :evidence (evidence "engine.py"
-        :quotes ("Evaluation is restricted to facts/terms listed in :using.")
-        :explanation "Derivation uses restricted environment"))
+        :quotes ("Evaluation is restricted to the derive's sources: what :using lists and what its own")
+        :explanation "Derivation uses restricted environment: the listed sources and those its form names"))
+
+(fact derive-rules-listed-only true
+    :evidence (evidence "engine.py"
+        :quotes ("Rewrite rules are scoped to the axioms/theorems in :using alone"
+                 "rules its own :using declares, right after it: its author chose them where it is written."
+                 "using = self._with_declared_rules(using)"
+                 "axiom_scope = self._collect_using_rules(rules_from)")
+        :explanation "A derive applies only the rewrite rules :using lists and those a listed axiom declares; a node its form names is never a rule"))
 
 (fact derive-fabrication-propagation true
     :evidence (evidence "engine.py"
@@ -228,6 +236,38 @@
     :evidence (evidence "engine.py"
         :quotes ("DIFF_VALUE_DIVERGENCE = \"diff_value_divergence\"" "ConsistencyIssue(IssueType.DIFF_VALUE_DIVERGENCE")
         :explanation "Issue type for diff value divergence"))
+
+(fact issue-type-absence "absence_violated"
+    :evidence (evidence "engine.py"
+        :quotes ("ABSENCE_VIOLATED = \"absence_violated\"" "ConsistencyIssue(IssueType.ABSENCE_VIOLATED")
+        :explanation "Issue type for a claimed absence that has a counter-example"))
+
+(fact issue-type-obligation "obligation_violated"
+    :evidence (evidence "engine.py"
+        :quotes ("OBLIGATION_VIOLATED = \"obligation_violated\"" "ConsistencyIssue(IssueType.OBLIGATION_VIOLATED")
+        :explanation "Issue type for a claimed obligation that has a counter-example"))
+
+(fact issue-type-type-error "type_error"
+    :evidence (evidence "engine.py"
+        :quotes ("TYPE_ERROR = \"type_error\"" "ConsistencyIssue(IssueType.TYPE_ERROR")
+        :explanation "Issue type for a value not of the type its position requires"))
+
+(fact issue-type-unmet-expectation "unmet_expectation"
+    :evidence (evidence "engine.py"
+        :quotes ("UNMET_EXPECTATION = \"unmet_expectation\"" "ConsistencyIssue(IssueType.UNMET_EXPECTATION")
+        :explanation "Issue type for a rule application whose outcome is not the expected one"))
+
+; The members of IssueType, as Python's parser reads them
+(defterm issue-type-members (py-ast "engine.py" "members" "IssueType")
+    :evidence (evidence "engine.py"
+        :quotes ("class IssueType(StrEnum):")
+        :explanation "IssueType is the enumeration of consistency issues"))
+
+; The members of WarningType, as Python's parser reads them
+(defterm warning-type-members (py-ast "engine.py" "members" "WarningType")
+    :evidence (evidence "engine.py"
+        :quotes ("class WarningType(StrEnum):")
+        :explanation "WarningType is the enumeration of consistency warnings"))
 
 ; =====================================================================
 ; Retract / rederive
@@ -326,15 +366,26 @@
         :quotes ("elif head == DIFF:")
         :explanation "Loader handles diff directive"))
 
+(fact load-source-handles-deftype true
+    :evidence (evidence "dsl_loader.py"
+        :quotes ("elif head == DEFTYPE:")
+        :explanation "Loader handles deftype directive"))
+
+; deftype owns no store of its own: it registers its type in the terms store
+(fact deftype-registers-term true
+    :evidence (evidence "dsl_loader.py"
+        :quotes ("self._engine.introduce_term(name, None, origin)")
+        :explanation "a deftype is introduced as a term, with its origin"))
+
 ; Fallback: unknown directives are evaluated as expressions
 (fact load-source-fallback-evaluates true
     :evidence (evidence "dsl_loader.py"
         :quotes ("engine.evaluate(expr)")
         :explanation "Unknown directives fall through to evaluate"))
 
-; The computable directive set is exactly the five dispatch branches.
-; Evidence never dispatches — it enters directives only through
-; resolve_origin, as origin data.
+; The computable directive set is exactly the five dispatch branches that own a store.
+; deftype dispatches too, into the terms store; evidence never dispatches — it
+; enters directives only through resolve_origin, as origin data.
 (derive computable-directives-impl-count
     (count-exists load-source-handles-fact load-source-handles-axiom load-source-handles-defterm load-source-handles-derive load-source-handles-diff)
     :using (count-exists counting.count-exists-base counting.count-exists-step
@@ -373,14 +424,14 @@
 ; --- 2. Issue types ---
 
 (derive issue-types-doc-count
-    (count-exists issue-type-unverified issue-type-no-evidence issue-type-fabrication issue-type-diff-divergence issue-type-diff-value)
+    (count-exists issue-type-unverified issue-type-no-evidence issue-type-fabrication issue-type-diff-divergence issue-type-diff-value
+                  issue-type-absence issue-type-obligation issue-type-type-error issue-type-unmet-expectation)
     :using (count-exists counting.count-exists-base counting.count-exists-step
-            issue-type-unverified issue-type-no-evidence issue-type-fabrication issue-type-diff-divergence issue-type-diff-value))
+            issue-type-unverified issue-type-no-evidence issue-type-fabrication issue-type-diff-divergence issue-type-diff-value
+            issue-type-absence issue-type-obligation issue-type-type-error issue-type-unmet-expectation))
 
-(defterm issue-types-impl-count 5
-    :evidence (evidence "engine.py"
-        :quotes ("UNVERIFIED_EVIDENCE = \"unverified_evidence\"" "NO_EVIDENCE = \"no_evidence\"" "POTENTIAL_FABRICATION = \"potential_fabrication\"" "DIFF_DIVERGENCE = \"diff_divergence\"" "DIFF_VALUE_DIVERGENCE = \"diff_value_divergence\"")
-        :explanation "5 issue types in source"))
+(derive issue-types-impl-count (lists.length issue-type-members)
+    :using (lists.length lists.length-base lists.length-step issue-type-members))
 
 (diff issue-types-coverage
     :replace issue-types-doc-count
@@ -389,14 +440,17 @@
 ; --- 3. Directive loader ---
 
 (derive directive-loader-doc-count
-    (count-exists load-source-handles-axiom load-source-handles-defterm load-source-handles-fact load-source-handles-derive load-source-handles-diff load-source-fallback-evaluates)
+    (count-exists load-source-handles-axiom load-source-handles-defterm load-source-handles-fact
+                  (and load-source-handles-deftype deftype-registers-term)
+                  load-source-handles-derive load-source-handles-diff load-source-fallback-evaluates)
     :using (count-exists counting.count-exists-base counting.count-exists-step
-            load-source-handles-axiom load-source-handles-defterm load-source-handles-fact load-source-handles-derive load-source-handles-diff load-source-fallback-evaluates))
+            load-source-handles-axiom load-source-handles-defterm load-source-handles-fact load-source-handles-deftype
+            deftype-registers-term load-source-handles-derive load-source-handles-diff load-source-fallback-evaluates))
 
-(defterm directive-loader-impl-count 6
+(defterm directive-loader-impl-count 7
     :evidence (evidence "dsl_loader.py"
-        :quotes ("if head == AXIOM:" "elif head == DEFTERM:" "elif head == FACT:" "elif head == DERIVE:" "elif head == DIFF:" "engine.evaluate(expr)")
-        :explanation "6 directive handler branches in source"))
+        :quotes ("if head == AXIOM:" "elif head == DEFTERM:" "elif head == FACT:" "elif head == DEFTYPE:" "elif head == DERIVE:" "elif head == DIFF:" "engine.evaluate(expr)")
+        :explanation "7 directive handler branches in source"))
 
 (diff directive-loader-coverage
     :replace directive-loader-doc-count
@@ -421,14 +475,14 @@
 ; --- 5. Derivation mechanism ---
 
 (derive derivation-doc-count
-    (count-exists derive-doc derive-restricted-eval derive-fabrication-propagation axiom-requires-free-vars axiom-rejection-message)
+    (count-exists derive-doc derive-restricted-eval derive-rules-listed-only derive-fabrication-propagation axiom-requires-free-vars axiom-rejection-message)
     :using (count-exists counting.count-exists-base counting.count-exists-step
-            derive-doc derive-restricted-eval derive-fabrication-propagation axiom-requires-free-vars axiom-rejection-message))
+            derive-doc derive-restricted-eval derive-rules-listed-only derive-fabrication-propagation axiom-requires-free-vars axiom-rejection-message))
 
-(defterm derivation-impl-count 5
+(defterm derivation-impl-count 6
     :evidence (evidence "engine.py"
-        :quotes ("def derive(" "Evaluation is restricted to facts/terms listed in :using." "If any source has unverified evidence, the theorem is" "if not free_vars(wff):" "has no ?-variables")
-        :explanation "5 derivation features in source"))
+        :quotes ("def derive(" "Evaluation is restricted to the derive's sources" "Rewrite rules are scoped to the axioms/theorems in :using alone" "If any source has unverified evidence, the theorem is" "if not free_vars(wff):" "has no ?-variables")
+        :explanation "6 derivation features in source"))
 
 (diff derivation-mechanism-coverage
     :replace derivation-doc-count
@@ -506,7 +560,7 @@
 
 (fact fact-calls-resolve-origin true
     :evidence (evidence "dsl_loader.py"
-        :quotes ("engine.set_fact(str(expr[1]), expr[2], self.resolve_origin(expr))")
+        :quotes ("engine.set_fact(name, value, self.resolve_origin(expr))")
         :explanation "fact directive calls resolve_origin"))
 
 (fact axiom-calls-resolve-origin true
@@ -574,7 +628,7 @@
 
 (fact diff-evaluated-structurally true
     :evidence (evidence "engine.py"
-        :quotes ("all_diffs = _eval_diffs(self, names)" "results.append(engine.eval_diff(name))" "downstream_divergent = [d for d in all_diffs if not d.empty and not d.diff_contamination_only]" "value_divergent = [d for d in all_diffs if d.values_diverge and d.empty]")
+        :quotes ("all_diffs = _eval_diffs(self, names)" "results.append(engine.eval_diff(name))" "downstream_divergent = [d for d in all_diffs if not d.empty and not d.diff_contamination_only]" "value_divergent = [d for d in all_diffs if d.values_diverge and (d.empty or d.diff_contamination_only)]")
         :explanation "Consistency evaluates diffs structurally — divergence is a system issue"))
 
 (defterm diff-calls-resolve-origin false
@@ -821,6 +875,13 @@
         :quotes ("report = ConsistencyReport(\n            consistent=len(issues) == 0,\n            issues=issues,\n            warnings=warnings,\n        )")
         :explanation "warnings list is stored but consistent depends only on issues; warnings don't break consistency"))
 
+; The channel a consistency branch appends to: one of the two the report carries.
+; Each rule below concludes which channel its branch reaches, from a fact quoting the append.
+(deftype Channel (one-of consistency-error consistency-warning)
+    :evidence (evidence "engine.py"
+        :quotes ("issues=issues,\n            warnings=warnings,")
+        :explanation "ConsistencyReport carries exactly two channels, issues (errors) and warnings"))
+
 ; The two outcome kinds mirror the two channels ConsistencyReport carries.
 (defterm consistency-outcome-channels 2
     :evidence (evidence "engine.py"
@@ -838,8 +899,9 @@
 
 ; Evidence → epistemic status → consistency outcome
 ; Isomorphism: three independent counts align for errors and warnings.
-;   errors:   collapsed-error-cross-check = issue-type-count = adjusted-issue-count  (all 5)
-;   warnings: warning-cross-check = warning-type-count = unknown-count-from-witnesses (all 3)
+;   errors:   collapsed-error-cross-check = issue-type-count = adjusted-issue-count
+;   warnings: warning-cross-check = warning-type-count = unknown-count-from-witnesses
+; issue-type-count and warning-type-count are the enumerations' members as Python's parser reads them.
 ; These are derived at the end of this section after all three layers are built.
 
 ; Evidence → epistemic status axioms
@@ -977,7 +1039,7 @@
 
 (fact diff-value-divergence-detected true
     :evidence (evidence "engine.py"
-        :quotes ("value_divergent = [d for d in all_diffs if d.values_diverge and d.empty]")
+        :quotes ("value_divergent = [d for d in all_diffs if d.values_diverge and (d.empty or d.diff_contamination_only)]")
         :explanation "value-divergent diffs detected"))
 
 (defterm value-divergence-replace (epistemics.superpose epistemics.hallucinated epistemics.unknown epistemics.exemplifiable)
@@ -1005,12 +1067,12 @@
 
 (fact diff-contamination-detected true
     :evidence (evidence "engine.py"
-        :quotes ("diff_contamination = [d for d in all_diffs if d.diff_contamination_only]")
-        :explanation "contamination-only diffs detected"))
+        :quotes ("diff_contamination = [d for d in all_diffs if d.diff_contamination_only and not d.values_diverge]")
+        :explanation "contamination-only diffs whose two values agree detected"))
 
 (defterm contamination-status (epistemics.superpose epistemics.hallucinated epistemics.unknown epistemics.exemplifiable)
     :evidence (evidence "engine.py"
-        :quotes ("diff_contamination = [d for d in all_diffs if d.diff_contamination_only]")
+        :quotes ("diff_contamination = [d for d in all_diffs if d.diff_contamination_only and not d.values_diverge]")
         :explanation "contaminated diff — superposed until observed"))
 
 (derive witness-diff-contamination-unknown
@@ -1035,6 +1097,88 @@
     (epistemics.collapse (strict confounded-evidence-status) epistemics.hypothesised)
     :using (epistemics.collapse epistemics.hypothesised confounded-evidence-status))
 
+; --- ABSENCE_VIOLATED, OBLIGATION_VIOLATED → hallucinated ---
+; A corpus-quantified claim whose query found counter-example lines: the
+; observation refutes the claim, and it collapses to hallucinated.
+
+(fact absence-violation-detected true
+    :evidence (evidence "engine.py"
+        :quotes ("violated = _corpus_counter_examples(origin)" "absence_violated.append((name, violated))")
+        :explanation "an absence claim whose corpus query found counter-example lines"))
+
+(defterm absence-claim-status (epistemics.superpose epistemics.hallucinated epistemics.unknown epistemics.exemplifiable)
+    :evidence (evidence "engine.py"
+        :quotes ("absence_violated.append((name, violated))")
+        :explanation "an absence claim — superposed until its corpus query observes it"))
+
+(derive witness-absence-hallucinated
+    (epistemics.collapse (strict absence-claim-status) epistemics.refuted)
+    :using (epistemics.collapse epistemics.refuted absence-claim-status))
+
+(fact obligation-violation-detected true
+    :evidence (evidence "engine.py"
+        :quotes ("violated = _corpus_counter_examples(origin)" "obligation_violated.append((name, violated))")
+        :explanation "a universal obligation whose corpus query found counter-example lines"))
+
+(defterm obligation-claim-status (epistemics.superpose epistemics.hallucinated epistemics.unknown epistemics.exemplifiable)
+    :evidence (evidence "engine.py"
+        :quotes ("obligation_violated.append((name, violated))")
+        :explanation "an obligation claim — superposed until its corpus query observes it"))
+
+(derive witness-obligation-hallucinated
+    (epistemics.collapse (strict obligation-claim-status) epistemics.refuted)
+    :using (epistemics.collapse epistemics.refuted obligation-claim-status))
+
+; --- TYPE_ERROR, UNMET_EXPECTATION → hallucinated ---
+; The typing pass observed a value that is not of the type its position needs,
+; or a rule application whose outcome is not the one its author stated: refuted.
+
+(fact type-error-detected true
+    :evidence (evidence "engine.py"
+        :quotes ("type_errors = [(name, message) for name in sorted(typing.errors) for message in typing.errors[name]]")
+        :explanation "the typing pass recorded type errors for some nodes"))
+
+(defterm type-error-status (epistemics.superpose epistemics.hallucinated epistemics.unknown epistemics.exemplifiable)
+    :evidence (evidence "engine.py"
+        :quotes ("type_errors = [(name, message) for name in sorted(typing.errors) for message in typing.errors[name]]")
+        :explanation "a typed node — superposed until the typing pass observes it"))
+
+(derive witness-type-error-hallucinated
+    (epistemics.collapse (strict type-error-status) epistemics.refuted)
+    :using (epistemics.collapse epistemics.refuted type-error-status))
+
+(fact unmet-expectation-detected true
+    :evidence (evidence "engine.py"
+        :quotes ("if name in typing.outcomes and typing.outcomes[name] != expected")
+        :explanation "a rule application whose outcome differs from its :expect"))
+
+(defterm unmet-expectation-status (epistemics.superpose epistemics.hallucinated epistemics.unknown epistemics.exemplifiable)
+    :evidence (evidence "engine.py"
+        :quotes ("for name, expected in sorted(typing.expectations.items())")
+        :explanation "an expected outcome — superposed until the rule application observes it"))
+
+(derive witness-unmet-expectation-hallucinated
+    (epistemics.collapse (strict unmet-expectation-status) epistemics.refuted)
+    :using (epistemics.collapse epistemics.refuted unmet-expectation-status))
+
+; --- VACUOUS_RULE → unknown ---
+; A rule whose antecedent is false held without being exercised: the system
+; has no witness either way, the observation is hypothesised.
+
+(fact vacuous-rule-detected true
+    :evidence (evidence "engine.py"
+        :quotes ("vacuous = sorted(n for n, o in typing.outcomes.items() if o == \"vacuous\" and n not in typing.expectations)")
+        :explanation "rule applications that were vacuous and stated no expectation"))
+
+(defterm vacuous-rule-status (epistemics.superpose epistemics.hallucinated epistemics.unknown epistemics.exemplifiable)
+    :evidence (evidence "engine.py"
+        :quotes ("the rule's antecedent is false: it held without being exercised")
+        :explanation "a vacuous rule application — superposed, the antecedent never tested the consequent"))
+
+(derive witness-vacuous-rule-unknown
+    (epistemics.collapse (strict vacuous-rule-status) epistemics.hypothesised)
+    :using (epistemics.collapse epistemics.hypothesised vacuous-rule-status))
+
 ; --- Diff-observation detectors: three partitions of all_diffs in check() ---
 ; Each detection fact above records one partition; the code carves all_diffs
 ; into exactly three kinds, so the fact count must equal the partition count.
@@ -1042,9 +1186,9 @@
 (defterm diff-detection-kind-count 3
     :evidence (evidence "engine.py"
         :quotes ("downstream_divergent = [d for d in all_diffs if not d.empty and not d.diff_contamination_only]"
-                 "value_divergent = [d for d in all_diffs if d.values_diverge and d.empty]"
-                 "diff_contamination = [d for d in all_diffs if d.diff_contamination_only]")
-        :explanation "check() partitions all_diffs into three detection kinds: downstream divergence, value divergence, contamination-only"))
+                 "value_divergent = [d for d in all_diffs if d.values_diverge and (d.empty or d.diff_contamination_only)]"
+                 "diff_contamination = [d for d in all_diffs if d.diff_contamination_only and not d.values_diverge]")
+        :explanation "check() partitions all_diffs into three detection kinds: downstream divergence, value divergence, contamination-only with agreeing values"))
 
 (derive diff-detection-count
     (count-exists diff-divergence-detected diff-value-divergence-detected diff-contamination-detected)
@@ -1056,11 +1200,15 @@
     :with diff-detection-kind-count)
 
 ; --- Consistency outcome: condition → error or warning ---
-; Each axiom models one if-branch in consistency(). Facts describe code behavior.
+; Each axiom models one if-branch in consistency(): when the code properties
+; its facts quote hold, the branch reaches the channel its append quotes.
+; Every application expects to fire: a rule whose conditions the facts do not
+; meet is an unmet expectation, not a theorem that holds vacuously.
 
 ; UNVERIFIED_EVIDENCE → error
 (axiom error-on-unverified
-    (implies (and ?has-evidence ?is-unverified) consistency-error)
+    (implies (and ?has-evidence ?is-unverified) (= ?channel consistency-error))
+    :types ((?has-evidence Bool) (?is-unverified Bool) (?channel Channel))
     :evidence (evidence "engine.py"
         :quotes ("if unverified:\n            issues.append(ConsistencyIssue(IssueType.UNVERIFIED_EVIDENCE, sorted(unverified)))")
         :explanation "evidence present but unverified → appended to issues"))
@@ -1075,13 +1223,20 @@
         :quotes ("elif not origin.is_grounded:" "unverified.append((name, origin.quotes + _corpus_reasons(origin)))")
         :explanation "evidence is not grounded → appended to unverified list"))
 
+(fact unverified-channel consistency-error :type Channel
+    :evidence (evidence "engine.py"
+        :quotes ("issues.append(ConsistencyIssue(IssueType.UNVERIFIED_EVIDENCE")
+        :explanation "unverified evidence is appended to issues"))
+
 (derive unverified-causes-error error-on-unverified
-    :bind ((?has-evidence unverified-has-evidence) (?is-unverified unverified-is-unverified))
-    :using (error-on-unverified unverified-has-evidence unverified-is-unverified))
+    :bind ((?has-evidence unverified-has-evidence) (?is-unverified unverified-is-unverified) (?channel unverified-channel))
+    :using (error-on-unverified unverified-has-evidence unverified-is-unverified unverified-channel consistency-error)
+    :expect fired)
 
 ; NO_EVIDENCE → error
 (axiom error-on-no-evidence
-    (implies (and ?is-string-origin (not ?is-sentinel)) consistency-error)
+    (implies (and ?is-string-origin (not ?is-sentinel)) (= ?channel consistency-error))
+    :types ((?is-string-origin Bool) (?is-sentinel Bool) (?channel Channel))
     :evidence (evidence "engine.py"
         :quotes ("if no_evidence:\n            issues.append(ConsistencyIssue(IssueType.NO_EVIDENCE, sorted(no_evidence, key=lambda x: x[0])))")
         :explanation "string origin that isn't a sentinel → appended to issues"))
@@ -1096,13 +1251,20 @@
         :quotes ("origin not in (\"unknown\", \"derived\")\n                        and not origin.startswith(\"diff \")\n                        and \"potential fabrication\" not in origin")
         :explanation "filtered out known sentinels — remaining strings have no evidence"))
 
+(fact no-evidence-channel consistency-error :type Channel
+    :evidence (evidence "engine.py"
+        :quotes ("issues.append(ConsistencyIssue(IssueType.NO_EVIDENCE")
+        :explanation "a string origin that is no sentinel is appended to issues"))
+
 (derive no-evidence-causes-error error-on-no-evidence
-    :bind ((?is-string-origin no-evidence-is-string-origin) (?is-sentinel no-evidence-is-not-sentinel))
-    :using (error-on-no-evidence no-evidence-is-string-origin no-evidence-is-not-sentinel))
+    :bind ((?is-string-origin no-evidence-is-string-origin) (?is-sentinel no-evidence-is-not-sentinel) (?channel no-evidence-channel))
+    :using (error-on-no-evidence no-evidence-is-string-origin no-evidence-is-not-sentinel no-evidence-channel consistency-error)
+    :expect fired)
 
 ; POTENTIAL_FABRICATION → error (does not hold)
 (axiom error-on-fabrication-does-not-hold
-    (implies (not ?wff-holds) consistency-error)
+    (implies (not ?wff-holds) (= ?channel consistency-error))
+    :types ((?wff-holds Bool) (?channel Channel))
     :evidence (evidence "engine.py"
         :quotes ("if does_not_hold:\n            issues.append(\"does not hold (evaluated to False)\")")
         :explanation "WFF evaluated to False → marked as potential fabrication"))
@@ -1112,13 +1274,20 @@
         :quotes ("does_not_hold = result is False or result is None")
         :explanation "derive checks if WFF result is False or None"))
 
+(fact fabrication-channel consistency-error :type Channel
+    :evidence (evidence "engine.py"
+        :quotes ("issues.append(ConsistencyIssue(IssueType.POTENTIAL_FABRICATION, fabrications))")
+        :explanation "every potential fabrication, whichever its reason, is appended to issues"))
+
 (derive fabrication-does-not-hold-causes-error error-on-fabrication-does-not-hold
-    :bind ((?wff-holds fabrication-wff-does-not-hold))
-    :using (error-on-fabrication-does-not-hold fabrication-wff-does-not-hold))
+    :bind ((?wff-holds fabrication-wff-does-not-hold) (?channel fabrication-channel))
+    :using (error-on-fabrication-does-not-hold fabrication-wff-does-not-hold fabrication-channel consistency-error)
+    :expect fired)
 
 ; POTENTIAL_FABRICATION → error (ungrounded source)
 (axiom error-on-fabrication-ungrounded
-    (implies (and ?has-ungrounded-source ?source-in-using) consistency-error)
+    (implies (and ?has-ungrounded-source ?source-in-using) (= ?channel consistency-error))
+    :types ((?has-ungrounded-source Bool) (?source-in-using Bool) (?channel Channel))
     :evidence (evidence "engine.py"
         :quotes ("if ungrounded:\n            issues.append(f\"derived from unverified: {', '.join(ungrounded)}\")")
         :explanation "ungrounded source in :using → marked as potential fabrication"))
@@ -1134,12 +1303,16 @@
         :explanation "issues non-empty → origin set to potential fabrication"))
 
 (derive fabrication-ungrounded-causes-error error-on-fabrication-ungrounded
-    :bind ((?has-ungrounded-source fabrication-has-ungrounded-source) (?source-in-using fabrication-source-in-using))
-    :using (error-on-fabrication-ungrounded fabrication-has-ungrounded-source fabrication-source-in-using))
+    :bind ((?has-ungrounded-source fabrication-has-ungrounded-source) (?source-in-using fabrication-source-in-using) (?channel fabrication-channel))
+    :using (error-on-fabrication-ungrounded fabrication-has-ungrounded-source fabrication-source-in-using fabrication-channel consistency-error)
+    :expect fired)
 
 ; DIFF_DIVERGENCE → error
+; The code evaluates both sides, records a divergence where the results differ,
+; and keeps for this branch only the divergences that are not contamination-only.
 (axiom error-on-diff-divergence
-    (implies (and (!= ?result-a ?result-b) (not ?contamination-only)) consistency-error)
+    (implies (and ?evaluates-both ?compares-results ?excludes-contamination-only) (= ?channel consistency-error))
+    :types ((?evaluates-both Bool) (?compares-results Bool) (?excludes-contamination-only Bool) (?channel Channel))
     :evidence (evidence "engine.py"
         :quotes ("if downstream_divergent:\n            issues.append(ConsistencyIssue(IssueType.DIFF_DIVERGENCE, downstream_divergent))")
         :explanation "original and substitute evaluate differently, not contamination-only → error"))
@@ -1159,16 +1332,27 @@
         :quotes ("downstream_divergent = [d for d in all_diffs if not d.empty and not d.diff_contamination_only]")
         :explanation "downstream divergent excludes contamination-only diffs"))
 
+(fact divergence-channel consistency-error :type Channel
+    :evidence (evidence "engine.py"
+        :quotes ("issues.append(ConsistencyIssue(IssueType.DIFF_DIVERGENCE, downstream_divergent))")
+        :explanation "downstream divergences are appended to issues"))
+
 (derive divergence-causes-error error-on-diff-divergence
-    :bind ((?result-a divergence-evaluates-both) (?result-b divergence-compares-results) (?contamination-only divergence-filters-contamination))
-    :using (error-on-diff-divergence divergence-evaluates-both divergence-compares-results divergence-filters-contamination))
+    :bind ((?evaluates-both divergence-evaluates-both) (?compares-results divergence-compares-results)
+           (?excludes-contamination-only divergence-filters-contamination) (?channel divergence-channel))
+    :using (error-on-diff-divergence divergence-evaluates-both divergence-compares-results divergence-filters-contamination
+            divergence-channel consistency-error)
+    :expect fired)
 
 ; DIFF_VALUE_DIVERGENCE → error
+; The code compares the two sides' values and keeps for this branch the diffs
+; no real downstream divergence reports: none at all, or contamination only.
 (axiom error-on-value-divergence
-    (implies (and (!= ?value-a ?value-b) ?no-downstream) consistency-error)
+    (implies (and ?compares-values ?no-real-downstream) (= ?channel consistency-error))
+    :types ((?compares-values Bool) (?no-real-downstream Bool) (?channel Channel))
     :evidence (evidence "engine.py"
         :quotes ("if value_divergent:\n            issues.append(ConsistencyIssue(IssueType.DIFF_VALUE_DIVERGENCE, value_divergent))")
-        :explanation "replace and with resolve to different values, no downstream divergences → error"))
+        :explanation "replace and with resolve to different values, no real downstream divergence → error"))
 
 (fact value-divergence-values-differ true
     :evidence (evidence "engine.py"
@@ -1177,16 +1361,25 @@
 
 (fact value-divergence-no-downstream true
     :evidence (evidence "engine.py"
-        :quotes ("value_divergent = [d for d in all_diffs if d.values_diverge and d.empty]")
-        :explanation "value divergence requires d.empty — no downstream dependents affected"))
+        :quotes ("value_divergent = [d for d in all_diffs if d.values_diverge and (d.empty or d.diff_contamination_only)]")
+        :explanation "value divergence takes the diffs with no downstream divergence or only sibling-diff contamination"))
+
+(fact value-divergence-channel consistency-error :type Channel
+    :evidence (evidence "engine.py"
+        :quotes ("issues.append(ConsistencyIssue(IssueType.DIFF_VALUE_DIVERGENCE, value_divergent))")
+        :explanation "value divergences are appended to issues"))
 
 (derive value-divergence-causes-error error-on-value-divergence
-    :bind ((?value-a value-divergence-values-differ) (?value-b value-divergence-no-downstream) (?no-downstream value-divergence-no-downstream))
-    :using (error-on-value-divergence value-divergence-values-differ value-divergence-no-downstream))
+    :bind ((?compares-values value-divergence-values-differ) (?no-real-downstream value-divergence-no-downstream)
+           (?channel value-divergence-channel))
+    :using (error-on-value-divergence value-divergence-values-differ value-divergence-no-downstream
+            value-divergence-channel consistency-error)
+    :expect fired)
 
 ; MANUALLY_VERIFIED → warning
 (axiom warning-on-manual
-    (implies (and ?has-evidence (not ?is-verified) ?is-verify-manual) consistency-warning)
+    (implies (and ?has-evidence (not ?is-verified) ?is-verify-manual) (= ?channel consistency-warning))
+    :types ((?has-evidence Bool) (?is-verified Bool) (?is-verify-manual Bool) (?channel Channel))
     :evidence (evidence "engine.py"
         :quotes ("if manually_verified:\n            manual_details = {}")
         :explanation "evidence present, not verified, but verify_manual set → warning"))
@@ -1206,18 +1399,34 @@
         :quotes ("if not origin.verified and origin.verify_manual:\n                        manually_verified.append(name)")
         :explanation "verify_manual flag is set — human marked it"))
 
+(fact manual-channel consistency-warning :type Channel
+    :evidence (evidence "engine.py"
+        :quotes ("ConsistencyWarning(WarningType.MANUALLY_VERIFIED, sorted(manually_verified), manual_details)")
+        :explanation "manually verified evidence is appended to warnings"))
+
 (derive manual-causes-warning warning-on-manual
-    :bind ((?has-evidence manual-has-evidence) (?is-verified manual-is-verified) (?is-verify-manual manual-has-verify-manual-flag))
-    :using (warning-on-manual manual-has-evidence manual-is-verified manual-has-verify-manual-flag))
+    :bind ((?has-evidence manual-has-evidence) (?is-verified manual-is-verified) (?is-verify-manual manual-has-verify-manual-flag)
+           (?channel manual-channel))
+    :using (warning-on-manual manual-has-evidence manual-is-verified manual-has-verify-manual-flag
+            manual-channel consistency-warning)
+    :expect fired)
 
 ; DIFF_CONTAMINATION → warning
-; Code: diff_contamination_only checks (1) not empty, (2) all divergences are diff() refs
-; When both hold, it's a warning not an error — sibling diffs contaminate but don't break consistency
+; Code: diff_contamination_only checks (1) not empty, (2) all divergences are diff() refs,
+; and the partition adds (3) the two values agree. When all three hold, it's a warning
+; not an error — sibling diffs contaminate but don't break consistency. A diff whose
+; values disagree is a value divergence instead: contamination never masks it.
 (axiom warning-on-contamination
-    (implies (and (not ?is-empty) ?all-are-diff-refs) consistency-warning)
+    (implies (and (not ?is-empty) ?all-are-diff-refs (not ?values-diverge)) (= ?channel consistency-warning))
+    :types ((?is-empty Bool) (?all-are-diff-refs Bool) (?values-diverge Bool) (?channel Channel))
     :evidence (evidence "engine.py"
         :quotes ("warnings.append(\n                ConsistencyWarning(WarningType.DIFF_CONTAMINATION, [d.name for d in diff_contamination], contam_details)\n            )")
-        :explanation "contaminated diffs (not empty + all divergences are diff refs) appended to warnings"))
+        :explanation "contaminated diffs (not empty + all divergences are diff refs + values agree) appended to warnings"))
+
+(fact contamination-values-diverge false
+    :evidence (evidence "engine.py"
+        :quotes ("diff_contamination = [d for d in all_diffs if d.diff_contamination_only and not d.values_diverge]")
+        :explanation "a contamination warning is only for a diff whose two values agree"))
 
 (fact contamination-is-empty false
     :evidence (evidence "engine.py"
@@ -1229,20 +1438,157 @@
         :quotes ("return all(isinstance(v[0], str) and v[0].startswith(\"diff(\") for v in self.divergences.values())")
         :explanation "all divergence sources must be sibling-diff references (start with 'diff(')"))
 
+(fact contamination-channel consistency-warning :type Channel
+    :evidence (evidence "engine.py"
+        :quotes ("ConsistencyWarning(WarningType.DIFF_CONTAMINATION, [d.name for d in diff_contamination], contam_details)")
+        :explanation "contamination-only diffs are appended to warnings"))
+
 (derive contamination-causes-warning warning-on-contamination
-    :bind ((?is-empty contamination-is-empty) (?all-are-diff-refs contamination-all-are-diff-refs))
-    :using (warning-on-contamination contamination-is-empty contamination-all-are-diff-refs))
+    :bind ((?is-empty contamination-is-empty) (?all-are-diff-refs contamination-all-are-diff-refs)
+           (?values-diverge contamination-values-diverge) (?channel contamination-channel))
+    :using (warning-on-contamination contamination-is-empty contamination-all-are-diff-refs contamination-values-diverge
+            contamination-channel consistency-warning)
+    :expect fired)
 
 ; CONFOUNDED_EVIDENCE → warning
 (axiom warning-on-confounded-evidence
-    (implies ?has-shared-quote consistency-warning)
+    (implies ?has-shared-quote (= ?channel consistency-warning))
+    :types ((?has-shared-quote Bool) (?channel Channel))
     :evidence (evidence "engine.py"
         :quotes ("if confounded_details:\n            warnings.append(\n                ConsistencyWarning(\n                    WarningType.CONFOUNDED_EVIDENCE,")
         :explanation "a diff with shared quote provenance is appended to warnings"))
 
+(fact confounded-evidence-channel consistency-warning :type Channel
+    :evidence (evidence "engine.py"
+        :quotes ("WarningType.CONFOUNDED_EVIDENCE,")
+        :explanation "a diff with shared quote provenance is appended to warnings"))
+
 (derive confounded-evidence-causes-warning warning-on-confounded-evidence
-    :bind ((?has-shared-quote confounded-evidence-detected))
-    :using (warning-on-confounded-evidence confounded-evidence-detected))
+    :bind ((?has-shared-quote confounded-evidence-detected) (?channel confounded-evidence-channel))
+    :using (warning-on-confounded-evidence confounded-evidence-detected confounded-evidence-channel consistency-warning)
+    :expect fired)
+
+; ABSENCE_VIOLATED / OBLIGATION_VIOLATED → error
+; Code: ungrounded evidence whose corpus query found counter-examples; the
+; claim's polarity picks the list — forall is an obligation, otherwise an absence.
+(axiom error-on-absence-violated
+    (implies (and ?has-evidence ?has-counter-examples (not ?is-forall)) (= ?channel consistency-error))
+    :types ((?has-evidence Bool) (?has-counter-examples Bool) (?is-forall Bool) (?channel Channel))
+    :evidence (evidence "engine.py"
+        :quotes ("if violated is not None:\n                            if _corpus_polarity(origin) == \"forall\":\n                                obligation_violated.append((name, violated))\n                            else:\n                                absence_violated.append((name, violated))"
+                 "if absence_violated:\n            issues.append(ConsistencyIssue(IssueType.ABSENCE_VIOLATED, sorted(absence_violated, key=lambda x: x[0])))")
+        :explanation "a corpus claim with counter-examples whose polarity is not forall is a violated absence, appended to issues"))
+
+(axiom error-on-obligation-violated
+    (implies (and ?has-evidence ?has-counter-examples ?is-forall) (= ?channel consistency-error))
+    :types ((?has-evidence Bool) (?has-counter-examples Bool) (?is-forall Bool) (?channel Channel))
+    :evidence (evidence "engine.py"
+        :quotes ("if violated is not None:\n                            if _corpus_polarity(origin) == \"forall\":\n                                obligation_violated.append((name, violated))"
+                 "if obligation_violated:\n            issues.append(\n                ConsistencyIssue(IssueType.OBLIGATION_VIOLATED, sorted(obligation_violated, key=lambda x: x[0]))\n            )")
+        :explanation "a corpus claim with counter-examples whose polarity is forall is a violated obligation, appended to issues"))
+
+(fact corpus-violation-has-evidence true
+    :evidence (evidence "engine.py"
+        :quotes ("if isinstance(origin, Evidence):")
+        :explanation "a corpus claim's origin is Evidence"))
+
+(fact absence-polarity-forall false
+    :evidence (evidence "engine.py"
+        :quotes ("else:\n                                absence_violated.append((name, violated))")
+        :explanation "an absence claim is the branch whose polarity is not forall"))
+
+(fact obligation-polarity-forall true
+    :evidence (evidence "engine.py"
+        :quotes ("if _corpus_polarity(origin) == \"forall\":\n                                obligation_violated.append((name, violated))")
+        :explanation "an obligation claim is the branch whose polarity is forall"))
+
+(fact absence-channel consistency-error :type Channel
+    :evidence (evidence "engine.py"
+        :quotes ("issues.append(ConsistencyIssue(IssueType.ABSENCE_VIOLATED")
+        :explanation "violated absences are appended to issues"))
+
+(fact obligation-channel consistency-error :type Channel
+    :evidence (evidence "engine.py"
+        :quotes ("ConsistencyIssue(IssueType.OBLIGATION_VIOLATED, sorted(obligation_violated, key=lambda x: x[0]))")
+        :explanation "violated obligations are appended to issues"))
+
+(derive absence-causes-error error-on-absence-violated
+    :bind ((?has-evidence corpus-violation-has-evidence) (?has-counter-examples absence-violation-detected)
+           (?is-forall absence-polarity-forall) (?channel absence-channel))
+    :using (error-on-absence-violated corpus-violation-has-evidence absence-violation-detected
+            absence-polarity-forall absence-channel consistency-error)
+    :expect fired)
+
+(derive obligation-causes-error error-on-obligation-violated
+    :bind ((?has-evidence corpus-violation-has-evidence) (?has-counter-examples obligation-violation-detected)
+           (?is-forall obligation-polarity-forall) (?channel obligation-channel))
+    :using (error-on-obligation-violated corpus-violation-has-evidence obligation-violation-detected
+            obligation-polarity-forall obligation-channel consistency-error)
+    :expect fired)
+
+; TYPE_ERROR → error
+(axiom error-on-type-error
+    (implies ?has-type-errors (= ?channel consistency-error))
+    :types ((?has-type-errors Bool) (?channel Channel))
+    :evidence (evidence "engine.py"
+        :quotes ("if type_errors:\n        issues.append(ConsistencyIssue(IssueType.TYPE_ERROR, type_errors))")
+        :explanation "type errors recorded by the typing pass are appended to issues"))
+
+(fact type-error-channel consistency-error :type Channel
+    :evidence (evidence "engine.py"
+        :quotes ("issues.append(ConsistencyIssue(IssueType.TYPE_ERROR, type_errors))")
+        :explanation "type errors are appended to issues"))
+
+(derive type-error-causes-error error-on-type-error
+    :bind ((?has-type-errors type-error-detected) (?channel type-error-channel))
+    :using (error-on-type-error type-error-detected type-error-channel consistency-error)
+    :expect fired)
+
+; UNMET_EXPECTATION → error
+(axiom error-on-unmet-expectation
+    (implies (and ?has-expectation ?outcome-differs) (= ?channel consistency-error))
+    :types ((?has-expectation Bool) (?outcome-differs Bool) (?channel Channel))
+    :evidence (evidence "engine.py"
+        :quotes ("if unmet:\n        issues.append(ConsistencyIssue(IssueType.UNMET_EXPECTATION, unmet))")
+        :explanation "rule applications whose outcome is not the expected one are appended to issues"))
+
+(fact unmet-has-expectation true
+    :evidence (evidence "engine.py"
+        :quotes ("for name, expected in sorted(typing.expectations.items())")
+        :explanation "only rule applications that state an :expect are checked"))
+
+(fact unmet-expectation-channel consistency-error :type Channel
+    :evidence (evidence "engine.py"
+        :quotes ("issues.append(ConsistencyIssue(IssueType.UNMET_EXPECTATION, unmet))")
+        :explanation "unmet expectations are appended to issues"))
+
+(derive unmet-expectation-causes-error error-on-unmet-expectation
+    :bind ((?has-expectation unmet-has-expectation) (?outcome-differs unmet-expectation-detected) (?channel unmet-expectation-channel))
+    :using (error-on-unmet-expectation unmet-has-expectation unmet-expectation-detected unmet-expectation-channel consistency-error)
+    :expect fired)
+
+; VACUOUS_RULE → warning
+(axiom warning-on-vacuous-rule
+    (implies (and ?is-vacuous (not ?has-expectation)) (= ?channel consistency-warning))
+    :types ((?is-vacuous Bool) (?has-expectation Bool) (?channel Channel))
+    :evidence (evidence "engine.py"
+        :quotes ("if vacuous:\n        warnings.append(\n            ConsistencyWarning(\n                WarningType.VACUOUS_RULE,")
+        :explanation "vacuous rule applications that state no expectation are appended to warnings"))
+
+(fact vacuous-has-expectation false
+    :evidence (evidence "engine.py"
+        :quotes ("n not in typing.expectations")
+        :explanation "a vacuous application with an :expect is judged by its expectation, not warned"))
+
+(fact vacuous-rule-channel consistency-warning :type Channel
+    :evidence (evidence "engine.py"
+        :quotes ("ConsistencyWarning(\n                WarningType.VACUOUS_RULE,")
+        :explanation "vacuous rule applications are appended to warnings"))
+
+(derive vacuous-rule-causes-warning warning-on-vacuous-rule
+    :bind ((?is-vacuous vacuous-rule-detected) (?has-expectation vacuous-has-expectation) (?channel vacuous-rule-channel))
+    :using (warning-on-vacuous-rule vacuous-rule-detected vacuous-has-expectation vacuous-rule-channel consistency-warning)
+    :expect fired)
 
 ; =====================================================================
 ; Classification enum — every IssueType and WarningType member as a fact
@@ -1274,6 +1620,26 @@
         :quotes ("DIFF_VALUE_DIVERGENCE = \"diff_value_divergence\"")
         :explanation "IssueType enum member"))
 
+(fact issue-absence-violated true
+    :evidence (evidence "engine.py"
+        :quotes ("ABSENCE_VIOLATED = \"absence_violated\"")
+        :explanation "IssueType enum member"))
+
+(fact issue-obligation-violated true
+    :evidence (evidence "engine.py"
+        :quotes ("OBLIGATION_VIOLATED = \"obligation_violated\"")
+        :explanation "IssueType enum member"))
+
+(fact issue-type-error true
+    :evidence (evidence "engine.py"
+        :quotes ("TYPE_ERROR = \"type_error\"")
+        :explanation "IssueType enum member"))
+
+(fact issue-unmet-expectation true
+    :evidence (evidence "engine.py"
+        :quotes ("UNMET_EXPECTATION = \"unmet_expectation\"")
+        :explanation "IssueType enum member"))
+
 ; WarningType members (noted but don't break consistency)
 (fact warning-manually-verified true
     :evidence (evidence "engine.py"
@@ -1290,25 +1656,35 @@
         :quotes ("CONFOUNDED_EVIDENCE = \"confounded_evidence\"")
         :explanation "WarningType enum member"))
 
-; --- Items × Layers: epistemic status of all 9 witnesses ---
+(fact warning-vacuous-rule true
+    :evidence (evidence "engine.py"
+        :quotes ("VACUOUS_RULE = \"vacuous_rule\"")
+        :explanation "WarningType enum member"))
+
+; --- Items × Layers: epistemic status of all 14 witnesses ---
 ;
 ; Each witness evaluates to an epistemic status (hallucinated/unknown/exemplifiable).
 ; We count how many are hallucinated and how many are unknown, then cross-check
-; against the classification enum counts (5 IssueTypes + 3 WarningTypes).
+; against the classification enums' members, as Python's parser reads them.
 ;
 ; Witnesses → status:
-;   witness-evidence-hallucinated         → hallucinated  (UNVERIFIED_EVIDENCE)
-;   witness-no-evidence-hallucinated      → hallucinated  (NO_EVIDENCE)
-;   witness-fabrication-does-not-hold     → hallucinated  (POTENTIAL_FABRICATION branch 1)
-;   witness-fabrication-ungrounded-source → hallucinated  (POTENTIAL_FABRICATION branch 2)
-;   witness-diff-divergence-hallucinated  → hallucinated  (DIFF_DIVERGENCE)
-;   witness-diff-value-hallucinated       → hallucinated  (DIFF_VALUE_DIVERGENCE)
-;   witness-evidence-unknown              → unknown       (MANUALLY_VERIFIED)
-;   witness-diff-contamination-unknown    → unknown       (DIFF_CONTAMINATION)
-;   witness-confounded-evidence-unknown   → unknown       (CONFOUNDED_EVIDENCE)
+;   witness-evidence-hallucinated          → hallucinated  (UNVERIFIED_EVIDENCE)
+;   witness-no-evidence-hallucinated       → hallucinated  (NO_EVIDENCE)
+;   witness-fabrication-does-not-hold      → hallucinated  (POTENTIAL_FABRICATION branch 1)
+;   witness-fabrication-ungrounded-source  → hallucinated  (POTENTIAL_FABRICATION branch 2)
+;   witness-diff-divergence-hallucinated   → hallucinated  (DIFF_DIVERGENCE)
+;   witness-diff-value-hallucinated        → hallucinated  (DIFF_VALUE_DIVERGENCE)
+;   witness-absence-hallucinated           → hallucinated  (ABSENCE_VIOLATED)
+;   witness-obligation-hallucinated        → hallucinated  (OBLIGATION_VIOLATED)
+;   witness-type-error-hallucinated        → hallucinated  (TYPE_ERROR)
+;   witness-unmet-expectation-hallucinated → hallucinated  (UNMET_EXPECTATION)
+;   witness-evidence-unknown               → unknown       (MANUALLY_VERIFIED)
+;   witness-diff-contamination-unknown     → unknown       (DIFF_CONTAMINATION)
+;   witness-confounded-evidence-unknown    → unknown       (CONFOUNDED_EVIDENCE)
+;   witness-vacuous-rule-unknown           → unknown       (VACUOUS_RULE)
 ;
-; Hallucinated count = 6 (not 5) because POTENTIAL_FABRICATION has 2 branches.
-; Unknown count = 3, matching 3 WarningType members.
+; The hallucinated count is one more than the IssueType members because
+; POTENTIAL_FABRICATION has 2 branches; the unknown count equals the WarningType members.
 
 (derive hallucinated-count
     (epistemics.count-hallucinated
@@ -1318,9 +1694,14 @@
         (strict witness-fabrication-ungrounded-source)
         (strict witness-diff-divergence-hallucinated)
         (strict witness-diff-value-hallucinated)
+        (strict witness-absence-hallucinated)
+        (strict witness-obligation-hallucinated)
+        (strict witness-type-error-hallucinated)
+        (strict witness-unmet-expectation-hallucinated)
         (strict witness-evidence-unknown)
         (strict witness-diff-contamination-unknown)
-        (strict witness-confounded-evidence-unknown))
+        (strict witness-confounded-evidence-unknown)
+        (strict witness-vacuous-rule-unknown))
     :using (epistemics.count-hallucinated
             witness-evidence-hallucinated
             witness-no-evidence-hallucinated
@@ -1328,25 +1709,34 @@
             witness-fabrication-ungrounded-source
             witness-diff-divergence-hallucinated
             witness-diff-value-hallucinated
+            witness-absence-hallucinated
+            witness-obligation-hallucinated
+            witness-type-error-hallucinated
+            witness-unmet-expectation-hallucinated
             witness-evidence-unknown
             witness-diff-contamination-unknown
-            witness-confounded-evidence-unknown))
+            witness-confounded-evidence-unknown
+            witness-vacuous-rule-unknown))
 
-; Issue types that map to hallucinated witnesses (5 types, 6 witnesses)
-(derive issue-type-count
-    (count-exists issue-unverified-evidence
-                  issue-no-evidence
-                  issue-potential-fabrication
-                  issue-diff-divergence
-                  issue-diff-value-divergence)
+; The IssueType members, as Python's parser reads them
+(derive issue-type-count (lists.length issue-type-members)
+    :using (lists.length lists.length-base lists.length-step issue-type-members))
+
+; The classification facts above cover every IssueType member
+(derive issue-member-fact-count
+    (count-exists issue-unverified-evidence issue-no-evidence issue-potential-fabrication
+                  issue-diff-divergence issue-diff-value-divergence
+                  issue-absence-violated issue-obligation-violated issue-type-error issue-unmet-expectation)
     :using (count-exists
-            issue-unverified-evidence
-            issue-no-evidence
-            issue-potential-fabrication
-            issue-diff-divergence
-            issue-diff-value-divergence))
+            issue-unverified-evidence issue-no-evidence issue-potential-fabrication
+            issue-diff-divergence issue-diff-value-divergence
+            issue-absence-violated issue-obligation-violated issue-type-error issue-unmet-expectation))
 
-; Cross-check: hallucinated-count (6) vs issue-type-count (5)
+(diff issue-member-facts-vs-enum
+    :replace issue-member-fact-count
+    :with issue-type-count)
+
+; Cross-check: hallucinated-count vs issue-type-count
 ; They differ because POTENTIAL_FABRICATION covers 2 independent paths to hallucination
 (defterm fabrication-branch-count 2
     :evidence (evidence "engine.py"
@@ -1361,42 +1751,54 @@
     :replace hallucinated-count
     :with adjusted-issue-count)
 
-; Warning types that map to unknown witnesses (3 types, 3 witnesses)
-(derive warning-type-count
-    (count-exists warning-manually-verified
-                  warning-diff-contamination
-                  warning-confounded-evidence)
-    :using (count-exists
-            warning-manually-verified
-            warning-diff-contamination
-            warning-confounded-evidence))
+; The WarningType members, as Python's parser reads them
+(derive warning-type-count (lists.length warning-type-members)
+    :using (lists.length lists.length-base lists.length-step warning-type-members))
 
-; Count unknowns from all 9 witnesses using joint-status trick:
-; unknown if status = unknown, else not-unknown
-; We use count-exists on (= witness unknown) checks
+; The classification facts above cover every WarningType member
+(derive warning-member-fact-count
+    (count-exists warning-manually-verified warning-diff-contamination warning-confounded-evidence warning-vacuous-rule)
+    :using (count-exists
+            warning-manually-verified warning-diff-contamination warning-confounded-evidence warning-vacuous-rule))
+
+(diff warning-member-facts-vs-enum
+    :replace warning-member-fact-count
+    :with warning-type-count)
+
+; Count unknowns from all 14 witnesses: count-exists over (= witness unknown) checks, a false check counts nothing
 (derive unknown-count-from-witnesses
     (count-exists
         (= (strict witness-evidence-unknown) epistemics.unknown)
         (= (strict witness-diff-contamination-unknown) epistemics.unknown)
         (= (strict witness-confounded-evidence-unknown) epistemics.unknown)
+        (= (strict witness-vacuous-rule-unknown) epistemics.unknown)
         (= (strict witness-evidence-hallucinated) epistemics.unknown)
         (= (strict witness-no-evidence-hallucinated) epistemics.unknown)
         (= (strict witness-fabrication-does-not-hold) epistemics.unknown)
         (= (strict witness-fabrication-ungrounded-source) epistemics.unknown)
         (= (strict witness-diff-divergence-hallucinated) epistemics.unknown)
-        (= (strict witness-diff-value-hallucinated) epistemics.unknown))
+        (= (strict witness-diff-value-hallucinated) epistemics.unknown)
+        (= (strict witness-absence-hallucinated) epistemics.unknown)
+        (= (strict witness-obligation-hallucinated) epistemics.unknown)
+        (= (strict witness-type-error-hallucinated) epistemics.unknown)
+        (= (strict witness-unmet-expectation-hallucinated) epistemics.unknown))
     :using (count-exists
             witness-evidence-unknown
             witness-diff-contamination-unknown
             witness-confounded-evidence-unknown
+            witness-vacuous-rule-unknown
             witness-evidence-hallucinated
             witness-no-evidence-hallucinated
             witness-fabrication-does-not-hold
             witness-fabrication-ungrounded-source
             witness-diff-divergence-hallucinated
-            witness-diff-value-hallucinated))
+            witness-diff-value-hallucinated
+            witness-absence-hallucinated
+            witness-obligation-hallucinated
+            witness-type-error-hallucinated
+            witness-unmet-expectation-hallucinated))
 
-; Cross-check: unknown-count (3) vs warning-type-count (3)
+; Cross-check: unknown-count vs warning-type-count
 (diff unknown-vs-warnings
     :replace unknown-count-from-witnesses
     :with warning-type-count)
@@ -1408,7 +1810,7 @@
 ;   2. Consequence: the derive proving this causes error/warning
 ;   3. Classification: the enum entry exists as a fact
 ;
-; All 9 witnesses appear in both cross-checks.
+; All 14 witnesses appear in both cross-checks.
 ; Booleans do the filtering: hallucinated witnesses score true in error check,
 ; unknown witnesses score true in warning check.
 
@@ -1427,12 +1829,22 @@
              divergence-causes-error issue-diff-divergence)
         (and (= (strict witness-diff-value-hallucinated) epistemics.hallucinated)
              value-divergence-causes-error issue-diff-value-divergence)
+        (and (= (strict witness-absence-hallucinated) epistemics.hallucinated)
+             absence-causes-error issue-absence-violated)
+        (and (= (strict witness-obligation-hallucinated) epistemics.hallucinated)
+             obligation-causes-error issue-obligation-violated)
+        (and (= (strict witness-type-error-hallucinated) epistemics.hallucinated)
+             type-error-causes-error issue-type-error)
+        (and (= (strict witness-unmet-expectation-hallucinated) epistemics.hallucinated)
+             unmet-expectation-causes-error issue-unmet-expectation)
         (and (= (strict witness-evidence-unknown) epistemics.hallucinated)
              manual-causes-warning warning-manually-verified)
         (and (= (strict witness-diff-contamination-unknown) epistemics.hallucinated)
              contamination-causes-warning warning-diff-contamination)
         (and (= (strict witness-confounded-evidence-unknown) epistemics.hallucinated)
-             confounded-evidence-causes-warning warning-confounded-evidence))
+             confounded-evidence-causes-warning warning-confounded-evidence)
+        (and (= (strict witness-vacuous-rule-unknown) epistemics.hallucinated)
+             vacuous-rule-causes-warning warning-vacuous-rule))
     :using (count-exists
             witness-evidence-hallucinated unverified-causes-error issue-unverified-evidence
             witness-no-evidence-hallucinated no-evidence-causes-error issue-no-evidence
@@ -1440,9 +1852,14 @@
             witness-fabrication-ungrounded-source fabrication-ungrounded-causes-error
             witness-diff-divergence-hallucinated divergence-causes-error issue-diff-divergence
             witness-diff-value-hallucinated value-divergence-causes-error issue-diff-value-divergence
+            witness-absence-hallucinated absence-causes-error issue-absence-violated
+            witness-obligation-hallucinated obligation-causes-error issue-obligation-violated
+            witness-type-error-hallucinated type-error-causes-error issue-type-error
+            witness-unmet-expectation-hallucinated unmet-expectation-causes-error issue-unmet-expectation
             witness-evidence-unknown manual-causes-warning warning-manually-verified
             witness-diff-contamination-unknown contamination-causes-warning warning-diff-contamination
-            witness-confounded-evidence-unknown confounded-evidence-causes-warning warning-confounded-evidence))
+            witness-confounded-evidence-unknown confounded-evidence-causes-warning warning-confounded-evidence
+            witness-vacuous-rule-unknown vacuous-rule-causes-warning warning-vacuous-rule))
 
 ; Warning cross-check: unknown × causes-warning × warning-type-exists
 (derive warning-cross-check
@@ -1459,12 +1876,22 @@
              divergence-causes-error issue-diff-divergence)
         (and (= (strict witness-diff-value-hallucinated) epistemics.unknown)
              value-divergence-causes-error issue-diff-value-divergence)
+        (and (= (strict witness-absence-hallucinated) epistemics.unknown)
+             absence-causes-error issue-absence-violated)
+        (and (= (strict witness-obligation-hallucinated) epistemics.unknown)
+             obligation-causes-error issue-obligation-violated)
+        (and (= (strict witness-type-error-hallucinated) epistemics.unknown)
+             type-error-causes-error issue-type-error)
+        (and (= (strict witness-unmet-expectation-hallucinated) epistemics.unknown)
+             unmet-expectation-causes-error issue-unmet-expectation)
         (and (= (strict witness-evidence-unknown) epistemics.unknown)
              manual-causes-warning warning-manually-verified)
         (and (= (strict witness-diff-contamination-unknown) epistemics.unknown)
              contamination-causes-warning warning-diff-contamination)
         (and (= (strict witness-confounded-evidence-unknown) epistemics.unknown)
-             confounded-evidence-causes-warning warning-confounded-evidence))
+             confounded-evidence-causes-warning warning-confounded-evidence)
+        (and (= (strict witness-vacuous-rule-unknown) epistemics.unknown)
+             vacuous-rule-causes-warning warning-vacuous-rule))
     :using (count-exists
             witness-evidence-hallucinated unverified-causes-error issue-unverified-evidence
             witness-no-evidence-hallucinated no-evidence-causes-error issue-no-evidence
@@ -1472,9 +1899,14 @@
             witness-fabrication-ungrounded-source fabrication-ungrounded-causes-error
             witness-diff-divergence-hallucinated divergence-causes-error issue-diff-divergence
             witness-diff-value-hallucinated value-divergence-causes-error issue-diff-value-divergence
+            witness-absence-hallucinated absence-causes-error issue-absence-violated
+            witness-obligation-hallucinated obligation-causes-error issue-obligation-violated
+            witness-type-error-hallucinated type-error-causes-error issue-type-error
+            witness-unmet-expectation-hallucinated unmet-expectation-causes-error issue-unmet-expectation
             witness-evidence-unknown manual-causes-warning warning-manually-verified
             witness-diff-contamination-unknown contamination-causes-warning warning-diff-contamination
-            witness-confounded-evidence-unknown confounded-evidence-causes-warning warning-confounded-evidence))
+            witness-confounded-evidence-unknown confounded-evidence-causes-warning warning-confounded-evidence
+            witness-vacuous-rule-unknown vacuous-rule-causes-warning warning-vacuous-rule))
 
 ; Cross-check diffs
 (diff error-layers-consistent
@@ -1488,7 +1920,7 @@
 ; Collapsed error cross-check: fabrication's 2 branches collapse via joint-status.
 ; Both witness-fabrication-does-not-hold and witness-fabrication-ungrounded-source
 ; are hallucinated → joint-status(hallucinated, hallucinated) = hallucinated → 1 row.
-; So 6 uncollapsed rows become 5 after joining the fabrication pair.
+; So the uncollapsed rows become one fewer after joining the fabrication pair.
 (derive collapsed-error-cross-check
     (count-exists
         (and (= (strict witness-evidence-hallucinated) epistemics.hallucinated)
@@ -1503,12 +1935,22 @@
              divergence-causes-error issue-diff-divergence)
         (and (= (strict witness-diff-value-hallucinated) epistemics.hallucinated)
              value-divergence-causes-error issue-diff-value-divergence)
+        (and (= (strict witness-absence-hallucinated) epistemics.hallucinated)
+             absence-causes-error issue-absence-violated)
+        (and (= (strict witness-obligation-hallucinated) epistemics.hallucinated)
+             obligation-causes-error issue-obligation-violated)
+        (and (= (strict witness-type-error-hallucinated) epistemics.hallucinated)
+             type-error-causes-error issue-type-error)
+        (and (= (strict witness-unmet-expectation-hallucinated) epistemics.hallucinated)
+             unmet-expectation-causes-error issue-unmet-expectation)
         (and (= (strict witness-evidence-unknown) epistemics.hallucinated)
              manual-causes-warning warning-manually-verified)
         (and (= (strict witness-diff-contamination-unknown) epistemics.hallucinated)
              contamination-causes-warning warning-diff-contamination)
         (and (= (strict witness-confounded-evidence-unknown) epistemics.hallucinated)
-             confounded-evidence-causes-warning warning-confounded-evidence))
+             confounded-evidence-causes-warning warning-confounded-evidence)
+        (and (= (strict witness-vacuous-rule-unknown) epistemics.hallucinated)
+             vacuous-rule-causes-warning warning-vacuous-rule))
     :using (count-exists epistemics.joint-status
             witness-evidence-hallucinated unverified-causes-error issue-unverified-evidence
             witness-no-evidence-hallucinated no-evidence-causes-error issue-no-evidence
@@ -1516,19 +1958,24 @@
             witness-fabrication-ungrounded-source fabrication-ungrounded-causes-error issue-potential-fabrication
             witness-diff-divergence-hallucinated divergence-causes-error issue-diff-divergence
             witness-diff-value-hallucinated value-divergence-causes-error issue-diff-value-divergence
+            witness-absence-hallucinated absence-causes-error issue-absence-violated
+            witness-obligation-hallucinated obligation-causes-error issue-obligation-violated
+            witness-type-error-hallucinated type-error-causes-error issue-type-error
+            witness-unmet-expectation-hallucinated unmet-expectation-causes-error issue-unmet-expectation
             witness-evidence-unknown manual-causes-warning warning-manually-verified
             witness-diff-contamination-unknown contamination-causes-warning warning-diff-contamination
-            witness-confounded-evidence-unknown confounded-evidence-causes-warning warning-confounded-evidence))
+            witness-confounded-evidence-unknown confounded-evidence-causes-warning warning-confounded-evidence
+            witness-vacuous-rule-unknown vacuous-rule-causes-warning warning-vacuous-rule))
 
-; collapsed-error-cross-check (5) = issue-type-count (5) — fully connected
+; collapsed-error-cross-check = issue-type-count — fully connected
 (diff collapsed-error-layers-consistent
     :replace collapsed-error-cross-check
     :with issue-type-count)
 
 ; --- Isomorphism: hallucinated ≅ errors, unknown ≅ warnings ---
-; Four independent counts must all be 5:
+; Four independent counts must all equal the IssueType members:
 ;   1. collapsed-error-cross-check: mega (hallucinated × causes-error × enum)
-;   2. issue-type-count: IssueType enum members
+;   2. issue-type-count: IssueType enum members, as Python's parser reads them
 ;   3. collapsed-hallucinated-count: count-hallucinated with fab pair joint-status'd
 ;   4. causes-error-count: count-exists of all causes-error derives (fab collapsed)
 
@@ -1541,15 +1988,22 @@
             (strict witness-fabrication-ungrounded-source)))
         (strict witness-diff-divergence-hallucinated)
         (strict witness-diff-value-hallucinated)
+        (strict witness-absence-hallucinated)
+        (strict witness-obligation-hallucinated)
+        (strict witness-type-error-hallucinated)
+        (strict witness-unmet-expectation-hallucinated)
         (strict witness-evidence-unknown)
         (strict witness-diff-contamination-unknown)
-        (strict witness-confounded-evidence-unknown))
+        (strict witness-confounded-evidence-unknown)
+        (strict witness-vacuous-rule-unknown))
     :using (epistemics.count-hallucinated epistemics.joint-status
             witness-evidence-hallucinated witness-no-evidence-hallucinated
             witness-fabrication-does-not-hold witness-fabrication-ungrounded-source
             witness-diff-divergence-hallucinated witness-diff-value-hallucinated
+            witness-absence-hallucinated witness-obligation-hallucinated
+            witness-type-error-hallucinated witness-unmet-expectation-hallucinated
             witness-evidence-unknown witness-diff-contamination-unknown
-            witness-confounded-evidence-unknown))
+            witness-confounded-evidence-unknown witness-vacuous-rule-unknown))
 
 (derive causes-error-count
     (count-exists
@@ -1557,13 +2011,21 @@
         (and no-evidence-causes-error issue-no-evidence)
         (and fabrication-does-not-hold-causes-error fabrication-ungrounded-causes-error issue-potential-fabrication)
         (and divergence-causes-error issue-diff-divergence)
-        (and value-divergence-causes-error issue-diff-value-divergence))
+        (and value-divergence-causes-error issue-diff-value-divergence)
+        (and absence-causes-error issue-absence-violated)
+        (and obligation-causes-error issue-obligation-violated)
+        (and type-error-causes-error issue-type-error)
+        (and unmet-expectation-causes-error issue-unmet-expectation))
     :using (count-exists
             unverified-causes-error issue-unverified-evidence
             no-evidence-causes-error issue-no-evidence
             fabrication-does-not-hold-causes-error fabrication-ungrounded-causes-error issue-potential-fabrication
             divergence-causes-error issue-diff-divergence
-            value-divergence-causes-error issue-diff-value-divergence))
+            value-divergence-causes-error issue-diff-value-divergence
+            absence-causes-error issue-absence-violated
+            obligation-causes-error issue-obligation-violated
+            type-error-causes-error issue-type-error
+            unmet-expectation-causes-error issue-unmet-expectation))
 
 (derive hallucinated-is-error
     (= collapsed-error-cross-check issue-type-count collapsed-hallucinated-count causes-error-count)
@@ -1573,11 +2035,13 @@
     (count-exists
         (and manual-causes-warning warning-manually-verified)
         (and contamination-causes-warning warning-diff-contamination)
-        (and confounded-evidence-causes-warning warning-confounded-evidence))
+        (and confounded-evidence-causes-warning warning-confounded-evidence)
+        (and vacuous-rule-causes-warning warning-vacuous-rule))
     :using (count-exists
             manual-causes-warning warning-manually-verified
             contamination-causes-warning warning-diff-contamination
-            confounded-evidence-causes-warning warning-confounded-evidence))
+            confounded-evidence-causes-warning warning-confounded-evidence
+            vacuous-rule-causes-warning warning-vacuous-rule))
 
 (derive unknown-is-warning
     (= warning-cross-check warning-type-count unknown-count-from-witnesses causes-warning-count)

@@ -100,12 +100,36 @@ def default_predicate(item: dict) -> tuple[bool, str | None]:
     return False, None
 
 
+def type_errors(health: dict | None) -> dict[str, str]:
+    """name → its first type error, from a page's health index (``health_index``: name → findings)."""
+    found: dict[str, str] = {}
+    for name, findings in (health or {}).items():
+        for f in findings:
+            if f.get("type") == "type_error" and name not in found:
+                found[name] = _type_error_message(f.get("detail", ""))
+    return found
+
+
+def _type_error_message(detail: str) -> str:
+    """A finding's message, without the node name its detail carries as ``('name', 'message')``."""
+    import ast
+
+    try:
+        parsed = ast.literal_eval(detail)
+    except (ValueError, SyntaxError):
+        return detail
+    if isinstance(parsed, tuple) and len(parsed) == 2:
+        return str(parsed[1])
+    return detail
+
+
 def compute_taints(
     items: list[dict],
     edges: list[dict],
     predicate: TaintPredicate | None = None,
     structure_items: list[dict] | None = None,
     logbook: list[dict] | None = None,
+    health: dict | None = None,
 ) -> TaintResult:
     """Compute taint sources and propagation.
 
@@ -119,6 +143,8 @@ def compute_taints(
         logbook: Session log entries from the bench logbook. Passed to
             the predicate via ``item["_logbook"]`` so custom predicates
             can use session history for taint decisions.
+        health: The page's health index (name → findings). A node with a
+            type error is a taint source whatever its evidence says.
 
     Returns:
         TaintResult with sources, full tainted set, and per-node reasons.
@@ -144,11 +170,17 @@ def compute_taints(
     # Find taint sources
     sources: set[str] = set()
     reasons: dict[str, str] = {}
+    mistyped = type_errors(health)
 
     for it in items:
         name = it["id"]
         # std nodes are trusted — never taint sources
         if name.startswith("std."):
+            continue
+        # A value of the wrong type taints what uses it, however well it is evidenced
+        if name in mistyped:
+            sources.add(name)
+            reasons[name] = f"type error: {mistyped[name]}"
             continue
         if name not in struct_ids and structure_items:
             continue

@@ -19,7 +19,7 @@
 ; position, so f's axioms fire on the next rewrite pass.
 ; Fixed-arity variants cover common cases.
 
-(defterm apply :origin "higher-order function application — ?-var head dispatch")
+(defterm apply :type (-> (-> (Rest ?A) ?B) (Rest ?A) ?B) :origin "higher-order function application — ?-var head dispatch")
 
 (axiom apply-1 (= (apply ?f ?x) (?f ?x))
     :origin "unary: (apply f x) → (f x)")
@@ -35,7 +35,7 @@
 ; (compose f g x) applies g first, then f to the result.
 ; Both f and g must be axiom-backed terms.
 
-(defterm compose :origin "function composition — apply g then f")
+(defterm compose :type (-> (-> ?B ?C) (-> ?A ?B) ?A ?C) :origin "function composition — apply g then f")
 
 (axiom compose-rule (= (compose ?f ?g ?x) (?f (?g ?x)))
     :origin "(compose f g x) → (f (g x))")
@@ -46,7 +46,7 @@
 ; Variadic via splat peel — each step applies the first
 ; function and recurses on the rest.
 
-(defterm pipe :origin "left-to-right pipeline — data-first composition")
+(defterm pipe :type (-> ?A (Rest (-> Any Any)) Any) :origin "left-to-right pipeline — data-first composition")
 
 (axiom pipe-base (= (pipe ?x ?f) (?f ?x))
     :origin "base: single function application")

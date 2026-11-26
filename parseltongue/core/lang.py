@@ -22,6 +22,7 @@ Directives:
              to instantiate parameterised templates.
   diff     — Lazy comparison: what changes if one symbol is swapped for another.
   evidence — Structured evidence block with verifiable :quotes and :explanation.
+  deftype  — Nominal type: an enumeration, a refinement or a wrapper of a base type.
 
 Evidence can be attached to fact, axiom, and defterm via :origin (plain
 string) or :evidence (structured block with verifiable :quotes and
@@ -123,7 +124,8 @@ def _clause_to_sexp(clause: Clause) -> Sentence:
             _origin_to_sexp(clause.origin),
         ]  # type: ignore[return-value]
     if isinstance(clause, Axiom):
-        return [Symbol(clause.__class__.__name__.lower()), clause.name, clause.wff, _origin_to_sexp(clause.origin)]
+        base = [Symbol(clause.__class__.__name__.lower()), clause.name, clause.wff, _origin_to_sexp(clause.origin)]
+        return base + [list(clause.using)] if clause.using else base
     return clause
 
 
@@ -189,6 +191,7 @@ def _sexp_to_clause(sentence: Sentence) -> "Clause | Sentence":
             name=str(sentence[1]),
             wff=sentence[2],  # type: ignore[arg-type]
             origin=_inv(sentence[3]),  # type: ignore[arg-type]
+            using=tuple(str(s) for s in sentence[4]) if len(sentence) > 4 else (),  # type: ignore[union-attr]
         )
     return sentence
 
@@ -295,9 +298,10 @@ FACT = Symbol("fact")
 DERIVE = Symbol("derive")
 DIFF = Symbol("diff")
 EVIDENCE = Symbol("evidence")
+DEFTYPE = Symbol("deftype")
 
 SPECIAL_FORMS = (IF, LET, QUOTE, STRICT, SCOPE, SELF, PROJECT, DELEGATE)
-DSL_KEYWORDS = (AXIOM, DEFTERM, FACT, DERIVE, DIFF, EVIDENCE)
+DSL_KEYWORDS = (AXIOM, DEFTERM, FACT, DERIVE, DIFF, EVIDENCE, DEFTYPE)
 
 # Pattern variable prefixes — used in axiom ?-variables and splat patterns
 VAR_PREFIX = "?"
@@ -316,6 +320,13 @@ KW_ABSENT = ":absent"
 KW_FORALL = ":forall"
 KW_SATISFIES = ":satisfies"
 KW_EXCEPT = ":except"
+KW_TYPE = ":type"
+KW_TYPES = ":types"
+KW_EXPECT = ":expect"
+KW_WHERE = ":where"
+KW_ORDER = ":order"
+KW_OF = ":of"
+ONE_OF = Symbol("one-of")
 
 # ============================================================
 # Language Documentation
@@ -554,7 +565,9 @@ LANG_DOCS = {
         "ground statements (no ?-variables) are rejected; "
         "use (fact ...) for values or (derive ...) for "
         "provable claims.  Axioms are instantiated later "
-        "via :bind in a derive directive.",
+        "via :bind in a derive directive.  :using names the "
+        "rules the axiom's right-hand side resolves with; a "
+        "derive that lists the axiom gets them with it.",
         "example": '(axiom pos-rule (> ?x 0) :origin "manual")',
         "patterns": [
             # Simple parametric axiom with :origin
@@ -639,19 +652,26 @@ LANG_DOCS = {
     DERIVE: {
         "category": "directive",
         "description": "Derive a theorem from existing axioms, facts, or "
-        "terms listed in :using.  Evaluation is restricted to "
-        ":using sources; dependencies of axioms and terms are "
-        "expanded transitively.  Two modes:\n\n"
+        "terms.  Evaluation is restricted to the derive's sources: "
+        "every fact, term and theorem its form names, and what "
+        ":using lists; dependencies of axioms and terms are "
+        "expanded transitively.  A rewrite rule applies only when "
+        ":using lists it (in the order listed): naming a term never "
+        "brings in its rules.  Two modes:\n\n"
         "  1. Direct — provide an expression (WFF) to prove:\n"
-        "     (derive name (expression) :using (sources...))\n"
-        "     The second element is the WFF expression.\n\n"
+        "     (derive name (expression) :using (rewrite-rules...))\n"
+        "     The second element is the WFF expression. The nodes it\n"
+        "     names are sources on their own; :using lists the rewrite\n"
+        "     rules it needs and may be omitted.\n\n"
         "  2. Instantiation — name a parameterised axiom and\n"
         "     supply :bind to substitute ?-variables:\n"
         "     (derive name axiom-name :bind ((?var val)...) :using (sources...))\n"
         "     The second element MUST be an axiom name (a symbol),\n"
         "     NOT an expression. :bind substitutes ?-variables in\n"
-        "     the axiom's template. :using must include the axiom\n"
-        "     name and all symbols referenced in :bind values.\n\n"
+        "     the axiom's template. The axiom and every node a :bind\n"
+        "     value names are sources on their own; :using lists any\n"
+        "     further sources and may be omitted. Listing them again\n"
+        "     is allowed.\n\n"
         "  IMPORTANT: Do NOT combine an inline expression with :bind.\n"
         "  If the expression is already ground (no ?-variables), use\n"
         "  mode 1 (direct) without :bind. :bind is ONLY for\n"
@@ -666,16 +686,19 @@ LANG_DOCS = {
             "    (> revenue-q3-growth growth-target)\n"
             "    :using (revenue-q3-growth growth-target))",
             # Instantiation via :bind — single variable (apples demo)
-            # :using must include axiom + symbols from :bind values
+            # the axiom and the symbols in :bind values are sources already
             ";; Mode 2: Instantiation — axiom name + :bind\n"
             "(derive three-plus-zero add-identity\n"
-            "    :bind ((?n (succ (succ (succ zero)))))\n"
-            "    :using (add-identity succ zero))",
+            "    :bind ((?n (succ (succ (succ zero))))))",
             # Instantiation via :bind — multiple variables (apples demo)
             ";; Mode 2: Multiple :bind variables\n"
             "(derive morning-commutes add-commutative\n"
-            "    :bind ((?a eve-morning) (?b adam-morning))\n"
-            "    :using (add-commutative eve-morning adam-morning))",
+            "    :bind ((?a eve-morning) (?b adam-morning)))",
+            # :using adds what the form does not name
+            ";; Mode 2: :using lists only sources the form does not name\n"
+            "(derive revenue-flagged above-threshold\n"
+            "    :bind ((?x revenue-q3-growth))\n"
+            "    :using (growth-target))",
             # Derivation showing fabrication propagation (revenue demo)
             ";; Fabrication propagation — unverified source taints the theorem\n"
             "(derive uses-fake\n    (> fake-metric 0)\n    :using (fake-metric))",
@@ -701,6 +724,19 @@ LANG_DOCS = {
             "(diff specificity-check\n"
             "    :replace calprotectin-specificity\n"
             "    :with calprotectin-specificity-optimistic)",
+        ],
+    },
+    DEFTYPE: {
+        "category": "directive",
+        "description": "Define a nominal type: an enumeration (one-of …), "
+        "optionally ordered with :order; a refinement of a base "
+        "type with a :where predicate over ?x; or a wrapper, a "
+        "base type with a different meaning.  A type carries "
+        "evidence like any node; nodes take it with :type.",
+        "example": "(deftype Severity (one-of note warning error) :order (note < warning < error) :origin \"…\")",
+        "patterns": [
+            '(deftype Count Num :where (>= ?x 0) :origin "a non-negative count")',
+            '(deftype CodeProperty Bool :origin "a fact stating what the implementation does")',
         ],
     },
     EVIDENCE: {
@@ -827,8 +863,13 @@ LANG_DOCS = {
     KW_USING: {
         "category": "keyword",
         "description": "List of source names (axioms, facts, terms, or "
-        "theorems) that a derivation depends on.  Required "
-        "in derive directives.  Dependencies are expanded "
+        "theorems) that a derivation depends on.  The facts, "
+        "terms and theorems a derive's formula or :bind values "
+        "name, and the axiom a :bind applies, are sources already; "
+        ":using adds the rest — the rewrite rules it needs — and "
+        "may be omitted.  On an axiom, :using names the rules its "
+        "own right-hand side resolves with: a derive that lists "
+        "the axiom gets them with it.  Dependencies are expanded "
         "transitively — symbols referenced in axiom WFFs "
         "and term definitions are automatically included.  "
         "If any source has unverified evidence, the derived "
@@ -858,6 +899,38 @@ LANG_DOCS = {
             # Multiple variable bindings
             ":bind ((?a eve-morning) (?b adam-morning))",
         ],
+    },
+    KW_TYPE: {
+        "category": "keyword",
+        "description": "Declare the type of a fact or term.  A declared type is "
+        "nominal: the node is assignable to that type and its "
+        "supertypes only.",
+        "example": ":type CodeProperty",
+    },
+    KW_TYPES: {
+        "category": "keyword",
+        "description": "Declare the types of an axiom's ?-variables, as "
+        "(?var Type) pairs.  A :bind that binds a value of "
+        "another type is a type error.",
+        "example": ":types ((?result-a DiffSide) (?result-b DiffSide))",
+    },
+    KW_EXPECT: {
+        "category": "keyword",
+        "description": "Require the outcome of a rule application in a derive: "
+        "fired, vacuous or violated.  Another outcome is an "
+        "unmet expectation (an error); without :expect, a "
+        "vacuous rule is a warning.",
+        "example": ":expect fired",
+    },
+    KW_WHERE: {
+        "category": "keyword",
+        "description": "A refinement type's predicate over ?x.",
+        "example": ":where (>= ?x 0)",
+    },
+    KW_ORDER: {
+        "category": "keyword",
+        "description": "The ascending order of an enumeration's members.",
+        "example": ":order (note < warning < error)",
     },
 }
 

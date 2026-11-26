@@ -618,8 +618,9 @@ class TestForwardReferences(_TmpDirTestCase):
         self.assertEqual(lazy.outcome, Outcome.OK)
 
     def test_forward_ref_in_derive(self):
-        """derive using a fact defined later — forward refs fail because
-        _patch_symbols only namespaces symbols already registered."""
+        """derive naming facts defined later, with no :using — the facts its formula
+        names are its sources, so the lazy loader resolves it once they exist, as it
+        does a diff's forward refs (and, before, a derive listing them in :using)."""
         _write_tree(
             self.tmpdir,
             {
@@ -631,9 +632,8 @@ class TestForwardReferences(_TmpDirTestCase):
                 ),
             },
         )
-        # Forward refs in derive fail: symbols not registered when derive is processed
         lazy = _classify_lazy(self._main())
-        self.assertEqual(lazy.outcome, Outcome.EFFECT_ERR)
+        self.assertEqual(lazy.outcome, Outcome.OK)
 
 
 class TestRunOnEntry(_TmpDirTestCase):

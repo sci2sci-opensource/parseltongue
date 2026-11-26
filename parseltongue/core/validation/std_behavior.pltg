@@ -315,3 +315,65 @@
 (diff std-module-exports-check
     :replace std-module-exports-count
     :with std-length-of-three)
+
+; =====================================================================
+; counting.count-where — (count-where sb-positive? 3 -2 5) = 2
+; Cross-route: count-exists over the same comparisons written out.
+; =====================================================================
+
+(defterm sb-positive? :type (-> Num Bool) :origin "behavior-test helper: is a number positive")
+(axiom sb-positive-rule (= (sb-positive? ?x) (> ?x 0))
+    :origin "helper rewrite: (sb-positive? x) → x > 0")
+(verify-manual (quote sb-positive?) "V")
+(verify-manual (quote sb-positive-rule) "V")
+
+(derive std-count-where-positives
+    (counting.count-where sb-positive? 3 -2 5)
+    :using (counting.count-where counting.count-where-base counting.count-where-step
+            sb-positive? sb-positive-rule))
+
+(derive std-count-where-expected
+    (count-exists (> 3 0) (> -2 0) (> 5 0))
+    :using (count-exists counting.count-exists-base counting.count-exists-step))
+
+(diff std-count-where-check
+    :replace std-count-where-positives
+    :with std-count-where-expected)
+
+; =====================================================================
+; epistemics.joint-status — a group's status is its worst member's,
+; by the Status order (exemplifiable < unknown < hallucinated).
+; Cross-route: the maximum of the two by the order comparison.
+; =====================================================================
+
+(derive std-joint-status-of-two
+    (epistemics.joint-status epistemics.exemplifiable epistemics.unknown)
+    :using (epistemics.joint-status epistemics.joint-status-base epistemics.joint-status-step
+            epistemics.exemplifiable epistemics.unknown epistemics.hallucinated))
+
+(derive std-joint-status-by-order
+    (if (> epistemics.unknown epistemics.exemplifiable) epistemics.unknown epistemics.exemplifiable)
+    :using (epistemics.exemplifiable epistemics.unknown))
+
+(diff std-joint-status-check
+    :replace std-joint-status-of-two
+    :with std-joint-status-by-order)
+
+; =====================================================================
+; epistemics.collapse — a witnessed observation collapses a superposed
+; status to exemplifiable.
+; Cross-route: witness applied to exemplifiable.
+; =====================================================================
+
+(derive std-collapse-witnessed
+    (epistemics.collapse (epistemics.superpose epistemics.exemplifiable epistemics.hallucinated) epistemics.witnessed)
+    :using (epistemics.collapse epistemics.collapse-witnessed epistemics.superpose
+            epistemics.witnessed epistemics.exemplifiable epistemics.hallucinated))
+
+(derive std-collapse-expected
+    (epistemics.witness epistemics.exemplifiable)
+    :using (epistemics.witness epistemics.witness-base epistemics.exemplifiable))
+
+(diff std-collapse-check
+    :replace std-collapse-witnessed
+    :with std-collapse-expected)

@@ -14,6 +14,7 @@ fix for grammar returning tuples. Should instantiate lang-level rewriters
 from __future__ import annotations
 
 import logging
+from collections import deque
 from dataclasses import dataclass, field, replace
 from enum import StrEnum
 from typing import Callable, Protocol, runtime_checkable
@@ -75,6 +76,8 @@ class IssueType(StrEnum):
     DIFF_VALUE_DIVERGENCE = "diff_value_divergence"
     ABSENCE_VIOLATED = "absence_violated"
     OBLIGATION_VIOLATED = "obligation_violated"
+    TYPE_ERROR = "type_error"
+    UNMET_EXPECTATION = "unmet_expectation"
 
 
 class WarningType(StrEnum):
@@ -83,6 +86,7 @@ class WarningType(StrEnum):
     MANUALLY_VERIFIED = "manually_verified"
     DIFF_CONTAMINATION = "diff_contamination"
     CONFOUNDED_EVIDENCE = "confounded_evidence"
+    VACUOUS_RULE = "vacuous_rule"
 
 
 def _evidence_quote_provenance(engine, root: str) -> dict[tuple[str, str], set[str]]:
@@ -117,6 +121,8 @@ def _evidence_quote_provenance(engine, root: str) -> dict[tuple[str, str], set[s
                 expr = item.wff
             if store_name == "theorems":
                 dependencies.extend(str(dep) for dep in item.derivation)
+            if store_name == "axioms":
+                dependencies.extend(item.using)
             break
 
         if item is not None:
@@ -339,6 +345,8 @@ class ConsistencyIssue:
             IssueType.DIFF_VALUE_DIVERGENCE: "Diff value divergence",
             IssueType.ABSENCE_VIOLATED: "Absence violated",
             IssueType.OBLIGATION_VIOLATED: "Obligation violated",
+            IssueType.TYPE_ERROR: "Type error",
+            IssueType.UNMET_EXPECTATION: "Unmet expectation",
         }
         label = labels.get(self.type, self.type)
         parts = [f"{label}:"]
@@ -463,6 +471,36 @@ class ConsistencyReport:
         return "\n".join(lines)
 
 
+def _typing_findings(dsl) -> "tuple[list[ConsistencyIssue], list[ConsistencyWarning]]":
+    """What the DSL loader's typing found: type errors and unmet expectations
+    (issues), and rule applications that were vacuous with no :expect (warnings)."""
+    typing = getattr(dsl, "typing", None)
+    if typing is None:
+        return [], []
+    issues: list[ConsistencyIssue] = []
+    warnings: list[ConsistencyWarning] = []
+    type_errors = [(name, message) for name in sorted(typing.errors) for message in typing.errors[name]]
+    if type_errors:
+        issues.append(ConsistencyIssue(IssueType.TYPE_ERROR, type_errors))
+    unmet = [
+        (name, f"expected {expected}, {typing.outcomes[name]}")
+        for name, expected in sorted(typing.expectations.items())
+        if name in typing.outcomes and typing.outcomes[name] != expected
+    ]
+    if unmet:
+        issues.append(ConsistencyIssue(IssueType.UNMET_EXPECTATION, unmet))
+    vacuous = sorted(n for n, o in typing.outcomes.items() if o == "vacuous" and n not in typing.expectations)
+    if vacuous:
+        warnings.append(
+            ConsistencyWarning(
+                WarningType.VACUOUS_RULE,
+                vacuous,
+                {n: "the rule's antecedent is false: it held without being exercised" for n in vacuous},
+            )
+        )
+    return issues, warnings
+
+
 # ============================================================
 # Delegate helpers
 # ============================================================
@@ -499,9 +537,9 @@ class Engine(Rewriter, Executor, Protocol):
     def register_entity_alias(self, alias: str, canonical: str) -> None: ...
     def load_document(self, name: str, path: str) -> None: ...
     def set_fact(self, name: str, value: WFF, origin: object) -> None: ...
-    def introduce_axiom(self, name: str, wff: object, origin: object) -> Axiom: ...
+    def introduce_axiom(self, name: str, wff: object, origin: object, using: list[str] | None = None) -> Axiom: ...
     def introduce_term(self, name: str, definition: object, origin: object) -> Term: ...
-    def derive(self, name: str, wff: object, using: list[str]) -> Theorem: ...
+    def derive(self, name: str, wff: object, using: list[str], written: list[str] | None = None) -> Theorem: ...
     def register_diff(self, name: str, replace: str, with_: str) -> None: ...
     def eval_diff(self, name: str) -> DiffResult: ...
     def consistency(self, suppress_log: bool = True) -> ConsistencyReport: ...
@@ -1259,38 +1297,43 @@ class EngineImpl(Engine):
         return ungrounded
 
     @staticmethod
-    def _expr_symbols(expr) -> set[str]:
-        """Extract all non-?-prefixed symbol names from an expression."""
-        if isinstance(expr, Symbol) and not str(expr).startswith("?"):
-            return {str(expr)}
-        if isinstance(expr, (list, tuple)):
-            result: set[str] = set()
-            for sub in expr:
-                result |= EngineImpl._expr_symbols(sub)
-            return result
-        return set()
+    def _expr_symbols(expr) -> list[str]:
+        """The non-?-prefixed symbol names of an expression, once each, in the order written."""
+        names: dict[str, None] = {}
+
+        def walk(sub):
+            if isinstance(sub, Symbol) and not str(sub).startswith("?"):
+                names.setdefault(str(sub))
+            elif isinstance(sub, (list, tuple)):
+                for item in sub:
+                    walk(item)
+
+        walk(expr)
+        return list(names)
 
     def _expand_using(self, using: list[str]) -> list[str]:
-        """Transitively expand :using by pulling in symbols referenced by axioms/terms."""
-        resolved: set[str] = set()
-        pending = set(using)
+        """Transitively expand :using by pulling in symbols referenced by axioms/terms.
+
+        The expansion is ordered: the listed names as listed, then what each references, in
+        the order written, breadth first. A derive tries its rewrite rules in this order, so
+        which of two matching rules applies follows the derive, never the interpreter's hashing.
+        """
+        expanded: dict[str, None] = {}
+        pending = deque(using)
         while pending:
-            name = pending.pop()
-            if name in resolved:
+            name = pending.popleft()
+            if name in expanded:
                 continue
-            resolved.add(name)
+            expanded[name] = None
             # Collect symbols from axiom/theorem WFFs
             if name in self.axioms:
-                deps = self._expr_symbols(self.axioms[name].wff)
-                pending |= deps - resolved
+                pending.extend(self._expr_symbols(self.axioms[name].wff))
             if name in self.theorems:
-                deps = self._expr_symbols(self.theorems[name].wff)
-                pending |= deps - resolved
+                pending.extend(self._expr_symbols(self.theorems[name].wff))
             # Collect symbols from term definitions
             if name in self.terms and self.terms[name].definition is not None:
-                deps = self._expr_symbols(self.terms[name].definition)
-                pending |= deps - resolved
-        return list(resolved)
+                pending.extend(self._expr_symbols(self.terms[name].definition))
+        return list(expanded)
 
     def _build_restricted_env(self, using: list[str]) -> dict:
         """Build an evaluation environment restricted to :using sources.
@@ -1316,11 +1359,33 @@ class EngineImpl(Engine):
                     except (NameError, TypeError):
                         env[Symbol(src_name)] = Symbol(src_name)
                 else:
-                    # Forward-declared: resolve to own symbol for rewriting
-                    env[Symbol(src_name)] = Symbol(src_name)
+                    # Forward-declared: resolve to own symbol for rewriting — to the value the
+                    # system holds for it when that is the symbol itself (an enumeration's
+                    # member, which carries its enumeration and rank)
+                    held = self.env.get(Symbol(src_name))
+                    is_itself = isinstance(held, Symbol) and held == src_name
+                    env[Symbol(src_name)] = held if is_itself else Symbol(src_name)
             elif src_name in self.theorems:
                 env[Symbol(src_name)] = self.evaluate(self.theorems[src_name].wff)
         return env
+
+    def _with_declared_rules(self, using: list[str]) -> list[str]:
+        """*using* with the rules each listed axiom declares (its own :using) spliced in right
+        after it, and theirs after them, once each. Only what a rule's author named comes along:
+        nothing is found by a term's name."""
+        names: dict[str, None] = {}
+
+        def add(name: str) -> None:
+            if name in names:
+                return
+            names[name] = None
+            axiom = self.axioms.get(name)
+            for declared in axiom.using if axiom is not None else ():
+                add(declared)
+
+        for name in using:
+            add(name)
+        return list(names)
 
     def _collect_using_rules(self, using: list[str]) -> list[Axiom | Theorem]:
         """Collect axiom/theorem objects from :using (expanded transitively)."""
@@ -1333,16 +1398,23 @@ class EngineImpl(Engine):
                 rules.append(self.theorems[src_name])
         return rules
 
-    def derive(self, name: str, wff, using: list[str]) -> Theorem:
+    def derive(self, name: str, wff, using: list[str], written: list[str] | None = None) -> Theorem:
         """Derive a theorem from existing axioms/terms.
 
-        Evaluation is restricted to facts/terms listed in :using.
-        Axiom rewrite rules are scoped to axioms/theorems in :using.
+        Evaluation is restricted to the derive's sources: what :using lists and what its own
+        form names (*written*: the facts, terms and theorems its formula and :bind values
+        mention). Rewrite rules are scoped to the axioms/theorems in :using alone: a node the
+        form names is evaluated and grounded, never applied as a rule, so the rules of two
+        worlds for one head meet only in a derive that lists both. A listed axiom brings the
+        rules its own :using declares, right after it: its author chose them where it is written.
         If any source has unverified evidence, the theorem is
         marked as 'potential fabrication' with a trace to the unverified sources.
         """
         if isinstance(wff, str):
             wff = PGStringParser.translate(wff)
+        using = self._with_declared_rules(using)
+        rules_from = using
+        using = using + [s for s in written or () if s not in using]
 
         for ax_name in using:
             if (
@@ -1356,7 +1428,7 @@ class EngineImpl(Engine):
         # Evaluate: restricted (strict) or global (legacy) mode
         if self.strict_derive:
             restricted_env = self._build_restricted_env(using)
-            axiom_scope = self._collect_using_rules(using)
+            axiom_scope = self._collect_using_rules(rules_from)
             try:
                 result = self._eval(wff, restricted_env, axiom_scope=axiom_scope, restricted=True)
             except NameError as e:
@@ -1364,6 +1436,7 @@ class EngineImpl(Engine):
         else:
             result = self.evaluate(wff)
         does_not_hold = result is False or result is None
+        self.dsl.derived(name, result)
 
         if does_not_hold:
             log.warning("Derivation '%s' does not hold: %s evaluated to False", name, to_sexp(wff))
@@ -1605,6 +1678,7 @@ class EngineImpl(Engine):
             del self.env[Symbol(name)]
         if not removed:
             raise KeyError(f"Unknown: {name}")
+        self.dsl.typing.forget(name)
         log.debug("'%s' retracted from system", name)
 
     def rederive(self, name: str):
@@ -1726,9 +1800,11 @@ class EngineImpl(Engine):
 
         names = diff_names if diff_names is not None else set(self.diffs)
         all_diffs = _eval_diffs(self, names)
+        # Each diff lands in exactly one class. Sibling-diff contamination is a warning
+        # only when the two values agree: it never masks a direct disagreement.
         downstream_divergent = [d for d in all_diffs if not d.empty and not d.diff_contamination_only]
-        diff_contamination = [d for d in all_diffs if d.diff_contamination_only]
-        value_divergent = [d for d in all_diffs if d.values_diverge and d.empty]
+        value_divergent = [d for d in all_diffs if d.values_diverge and (d.empty or d.diff_contamination_only)]
+        diff_contamination = [d for d in all_diffs if d.diff_contamination_only and not d.values_diverge]
         if downstream_divergent:
             issues.append(ConsistencyIssue(IssueType.DIFF_DIVERGENCE, downstream_divergent))
         if value_divergent:
@@ -1782,6 +1858,9 @@ class EngineImpl(Engine):
         diff_issues, diff_warnings = self._check_diffs()
         issues.extend(diff_issues)
         warnings.extend(diff_warnings)
+        type_issues, type_warnings = _typing_findings(self.dsl)
+        issues.extend(type_issues)
+        warnings.extend(type_warnings)
 
         report = ConsistencyReport(
             consistent=len(issues) == 0,
@@ -1797,10 +1876,16 @@ class EngineImpl(Engine):
     # Axiom / Term / Fact introduction (engine-level)
     # ----------------------------------------------------------
 
-    def introduce_axiom(self, name: str, wff, origin) -> Axiom:
-        """Introduce a new axiom. Validates WFF and checks consistency."""
+    def introduce_axiom(self, name: str, wff, origin, using: list[str] | None = None) -> Axiom:
+        """Introduce a new axiom. Validates WFF and checks consistency.
+
+        *using* names the rules the axiom's right-hand side resolves with (axioms or theorems
+        already introduced); a derive that lists the axiom gets them with it."""
         if isinstance(wff, str):
             wff = PGStringParser.translate(wff)
+        for rule in using or ():
+            if rule not in self.axioms and rule not in self.theorems:
+                raise ValueError(f"Axiom '{name}' :using names an unknown axiom or theorem: {rule}")
 
         if isinstance(origin, Evidence):
             origin = self._verify_evidence(origin, caller=name)
@@ -1813,7 +1898,7 @@ class EngineImpl(Engine):
 
         self._check_wff(wff)
 
-        ax = Axiom(name=name, wff=wff, origin=origin)
+        ax = Axiom(name=name, wff=wff, origin=origin, using=tuple(using or ()))
         self.axioms[name] = ax
         self._register_if_definition(name, wff)
         return ax
