@@ -23,3 +23,4 @@
 | [Absence Evidence](completed/absence-evidence.md) | done | feature/evidence-family-coverage-health | |
 | [Universal Obligations](completed/universal-obligations.md) | done | feature/evidence-family-coverage-health | |
 | [Compact Index — array-backed postings](completed/compact-index-arrays.md) | done | feature/compact-index-arrays | |
+| [Rewrite Rule Conflicts](pending/rewrite-rule-conflicts.md) | pending | | |
