@@ -151,6 +151,31 @@ class TestDeftype(unittest.TestCase):
         with self.assertRaises(TypeError):
             s.evaluate([Symbol("<"), Symbol("note"), Symbol("large")])
 
+    _DECLARED_FIRST = (
+        '(defterm note :origin "n") (defterm warning :origin "w") (defterm error :origin "e")'
+        '(deftype Severity (one-of note warning error) :order (note < warning < error) :origin "s")'
+    )
+
+    def test_a_derive_orders_members_declared_as_terms_by_rank(self):
+        """Members declared as terms before their enumeration (as std's Status is) order by
+        rank inside a derive too, where their names' alphabetical order says otherwise."""
+        s = _system(
+            self._DECLARED_FIRST
+            + "(derive rises (< note error)) (derive falls (< error note)) (derive tops (<= error warning))"
+        )
+        self.assertIs(s.engine.dsl._derived["rises"], True)
+        self.assertIs(s.engine.dsl._derived["falls"], False)
+        self.assertIs(s.engine.dsl._derived["tops"], False)
+
+    def test_a_derive_refuses_to_order_a_declared_member_across_enumerations(self):
+        s = _system(
+            self._DECLARED_FIRST
+            + '(defterm small :origin "s") (defterm large :origin "l")'
+            + '(deftype Size (one-of small large) :order (small < large) :origin "z")'
+        )
+        with self.assertRaises(TypeError):
+            load_source(s, "(derive mixed (< note large))")
+
     def test_a_type_is_a_node_carrying_its_evidence(self):
         s = _system('(deftype Count Num :where (>= ?x 0) :origin "a count")')
         self.assertIn("Count", s.engine.terms)

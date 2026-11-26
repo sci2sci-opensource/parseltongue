@@ -1359,8 +1359,12 @@ class EngineImpl(Engine):
                     except (NameError, TypeError):
                         env[Symbol(src_name)] = Symbol(src_name)
                 else:
-                    # Forward-declared: resolve to own symbol for rewriting
-                    env[Symbol(src_name)] = Symbol(src_name)
+                    # Forward-declared: resolve to own symbol for rewriting — to the value the
+                    # system holds for it when that is the symbol itself (an enumeration's
+                    # member, which carries its enumeration and rank)
+                    held = self.env.get(Symbol(src_name))
+                    is_itself = isinstance(held, Symbol) and held == src_name
+                    env[Symbol(src_name)] = held if is_itself else Symbol(src_name)
             elif src_name in self.theorems:
                 env[Symbol(src_name)] = self.evaluate(self.theorems[src_name].wff)
         return env
