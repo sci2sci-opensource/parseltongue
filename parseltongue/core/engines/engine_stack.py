@@ -12,6 +12,7 @@ fix for grammar returning tuples. Should instantiate lang-level rewriters
 """
 
 import logging
+from collections import deque
 from dataclasses import replace
 from typing import Callable, TypeVar
 
@@ -1298,38 +1299,43 @@ class Engine(EngineProtocol):
         return ungrounded
 
     @staticmethod
-    def _expr_symbols(expr) -> set[str]:
-        """Extract all non-?-prefixed symbol names from an expression."""
-        if isinstance(expr, Symbol) and not str(expr).startswith("?"):
-            return {str(expr)}
-        if isinstance(expr, (list, tuple)):
-            result: set[str] = set()
-            for sub in expr:
-                result |= Engine._expr_symbols(sub)
-            return result
-        return set()
+    def _expr_symbols(expr) -> list[str]:
+        """The non-?-prefixed symbol names of an expression, once each, in the order written."""
+        names: dict[str, None] = {}
+
+        def walk(sub):
+            if isinstance(sub, Symbol) and not str(sub).startswith("?"):
+                names.setdefault(str(sub))
+            elif isinstance(sub, (list, tuple)):
+                for item in sub:
+                    walk(item)
+
+        walk(expr)
+        return list(names)
 
     def _expand_using(self, using: list[str]) -> list[str]:
-        """Transitively expand :using by pulling in symbols referenced by axioms/terms."""
-        resolved: set[str] = set()
-        pending = set(using)
+        """Transitively expand :using by pulling in symbols referenced by axioms/terms.
+
+        The expansion is ordered: the listed names as listed, then what each references, in
+        the order written, breadth first. A derive tries its rewrite rules in this order, so
+        which of two matching rules applies follows the derive, never the interpreter's hashing.
+        """
+        expanded: dict[str, None] = {}
+        pending = deque(using)
         while pending:
-            name = pending.pop()
-            if name in resolved:
+            name = pending.popleft()
+            if name in expanded:
                 continue
-            resolved.add(name)
+            expanded[name] = None
             # Collect symbols from axiom/theorem WFFs
             if name in self.axioms:
-                deps = self._expr_symbols(self.axioms[name].wff)
-                pending |= deps - resolved
+                pending.extend(self._expr_symbols(self.axioms[name].wff))
             if name in self.theorems:
-                deps = self._expr_symbols(self.theorems[name].wff)
-                pending |= deps - resolved
+                pending.extend(self._expr_symbols(self.theorems[name].wff))
             # Collect symbols from term definitions
             if name in self.terms and self.terms[name].definition is not None:
-                deps = self._expr_symbols(self.terms[name].definition)
-                pending |= deps - resolved
-        return list(resolved)
+                pending.extend(self._expr_symbols(self.terms[name].definition))
+        return list(expanded)
 
     def _build_restricted_env(self, using: list[str]) -> dict:
         """Build an evaluation environment restricted to :using sources.
@@ -1372,16 +1378,21 @@ class Engine(EngineProtocol):
                 rules.append(self.theorems[src_name])
         return rules
 
-    def derive(self, name: str, wff, using: list[str]) -> Theorem:
+    def derive(self, name: str, wff, using: list[str], written: list[str] | None = None) -> Theorem:
         """Derive a theorem from existing axioms/terms.
 
-        Evaluation is restricted to facts/terms listed in :using.
-        Axiom rewrite rules are scoped to axioms/theorems in :using.
+        Evaluation is restricted to the derive's sources: what :using lists and what its own
+        form names (*written*: the facts, terms and theorems its formula and :bind values
+        mention). Rewrite rules are scoped to the axioms/theorems in :using alone: a node the
+        form names is evaluated and grounded, never applied as a rule, so the rules of two
+        worlds for one head meet only in a derive that lists both.
         If any source has unverified evidence, the theorem is
         marked as 'potential fabrication' with a trace to the unverified sources.
         """
         if isinstance(wff, str):
             wff = PGStringParser.translate(wff)
+        rules_from = using
+        using = using + [s for s in written or () if s not in using]
 
         for ax_name in using:
             if (
@@ -1395,7 +1406,7 @@ class Engine(EngineProtocol):
         # Evaluate: restricted (strict) or global (legacy) mode
         if self.strict_derive:
             restricted_env = self._build_restricted_env(using)
-            axiom_scope = self._collect_using_rules(using)
+            axiom_scope = self._collect_using_rules(rules_from)
             try:
                 result = self._eval(wff, restricted_env, axiom_scope=axiom_scope, restricted=True)
             except NameError as e:

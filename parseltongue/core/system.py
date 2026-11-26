@@ -211,8 +211,8 @@ class AbstractSystem(Rewriter, Interpreter):
         clone._bind_effects()
         return clone
 
-    def derive(self, name, wff, using):
-        return self.engine.derive(name, wff, using)
+    def derive(self, name, wff, using, written=None):
+        return self.engine.derive(name, wff, using, written)
 
     def instantiate(self, name, bindings):
         return self.engine.instantiate(name, bindings)

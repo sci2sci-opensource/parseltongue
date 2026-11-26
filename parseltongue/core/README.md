@@ -212,7 +212,7 @@ The same pattern powers the validation system's `count-exists` (how many boolean
 
 ### Computable Directives
 
-Computable directives produce results from the symbolic base. Computed terms are evaluated on reference. Derives are evaluated at definition time — the WFF is checked against symbols in `:using`.
+Computable directives produce results from the symbolic base. Computed terms are evaluated on reference. Derives are evaluated at definition time — the WFF is checked against the derive's sources.
 
 **`defterm`** (computed) — an expression evaluated when referenced. Use it for derived quantities like totals or growth rates. A **conditional term** uses `if` to branch.
 
@@ -230,13 +230,12 @@ Computable directives produce results from the symbolic base. Computed terms are
   :origin "Bonus calculation")
 ```
 
-**`derive`** — a theorem proved by evaluating a WFF against existing facts, terms, and axioms. Evaluation is restricted to symbols listed in `:using`; rewrite axioms fire automatically, non-rewrite axioms require `:bind` to substitute `?`-variables. A `:bind` derive's own form names sources too: the axiom it applies and every node a `:bind` value names are sources without being listed, and `:using` adds whatever else it needs (a node only the axiom's body mentions, a rewrite rule) or is left out. Listing them again changes nothing. If any source has unverified evidence, the derivation inherits the fabrication taint.
+**`derive`** — a theorem proved by evaluating a WFF against existing facts, terms, and axioms. Evaluation is restricted to the derive's sources; rewrite axioms fire automatically, non-rewrite axioms require `:bind` to substitute `?`-variables. A derive's own form names sources: every fact, term and theorem its formula or a `:bind` value names, and the axiom a `:bind` derive applies, are sources without being listed, and `:using` adds whatever else it needs (a node only the axiom's body mentions, a rewrite rule) or is left out. Listing them again changes nothing. A rewrite rule is a source only when `:using` lists it: naming a term never brings in its rules, so two modules' rules for one head meet only in a derive that lists both, and a derive tries its rules in the order it lists them. If any source has unverified evidence, the derivation inherits the fabrication taint.
 
 ```scheme
-;; Direct — evaluates a WFF against facts listed in :using
+;; Direct — the facts the WFF names are its sources
 (derive target-exceeded
-  (> revenue-q3-growth growth-target)
-  :using (revenue-q3-growth growth-target))
+  (> revenue-q3-growth growth-target))
 
 ;; Instantiation — :bind substitutes ?-variables, then evaluates;
 ;; add-identity, succ and zero are sources without a :using
@@ -433,7 +432,7 @@ The engine evaluates s-expressions left-to-right, applying rewrite axioms up to 
 
 The `Engine` constructor accepts two behavioral flags:
 
-- **`strict_derive`** (default `True`) — when enabled, `derive` evaluation is restricted to symbols listed in `:using`. Only those facts, terms, and axioms are visible during evaluation. When disabled, all symbols in the environment are accessible (legacy mode).
+- **`strict_derive`** (default `True`) — when enabled, `derive` evaluation is restricted to the derive's sources. Only the facts, terms and axioms its form names or its `:using` lists are visible during evaluation. When disabled, all symbols in the environment are accessible (legacy mode).
 - **`overridable`** (default `False`) — when disabled, redefining an existing fact raises an error. Enable to allow fact redefinition without calling `retract()` first.
 
 ### Evidence Grounding

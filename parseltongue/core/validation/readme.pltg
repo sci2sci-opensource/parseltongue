@@ -256,8 +256,9 @@
 
 (fact readme-derive-restricted-eval true
     :evidence (evidence "README"
-        :quotes ("Evaluation is restricted to symbols listed in :using; rewrite axioms fire automatically, non-rewrite axioms require :bind")
-        :explanation "README documents :using restriction and bind/auto-bind distinction"))
+        :quotes ("Evaluation is restricted to the derive's sources; rewrite axioms fire automatically, non-rewrite axioms require `:bind`"
+                 "A rewrite rule is a source only when `:using` lists it: naming a term never brings in its rules")
+        :explanation "README documents the source restriction, bind/auto-bind distinction, and that rewrite rules come only from :using"))
 
 (fact readme-documents-symbolic-directives true
     :evidence (evidence "README"
@@ -1910,7 +1911,7 @@
 
 (fact readme-documents-engine-strict-derive true
     :evidence (evidence "README"
-        :quotes ("**`strict_derive`** (default `True`) — when enabled, `derive` evaluation is restricted to symbols listed in `:using`.")
+        :quotes ("**`strict_derive`** (default `True`) — when enabled, `derive` evaluation is restricted to the derive's sources.")
         :explanation "README documents strict_derive flag"))
 
 (fact readme-documents-engine-overridable true

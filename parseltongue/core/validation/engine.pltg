@@ -155,8 +155,14 @@
 
 (fact derive-restricted-eval true
     :evidence (evidence "engine.py"
-        :quotes ("Evaluation is restricted to facts/terms listed in :using.")
-        :explanation "Derivation uses restricted environment"))
+        :quotes ("Evaluation is restricted to the derive's sources: what :using lists and what its own")
+        :explanation "Derivation uses restricted environment: the listed sources and those its form names"))
+
+(fact derive-rules-listed-only true
+    :evidence (evidence "engine.py"
+        :quotes ("Rewrite rules are scoped to the axioms/theorems in :using alone"
+                 "axiom_scope = self._collect_using_rules(rules_from)")
+        :explanation "A derive applies only the rewrite rules :using lists; a node its form names is never a rule"))
 
 (fact derive-fabrication-propagation true
     :evidence (evidence "engine.py"
@@ -467,14 +473,14 @@
 ; --- 5. Derivation mechanism ---
 
 (derive derivation-doc-count
-    (count-exists derive-doc derive-restricted-eval derive-fabrication-propagation axiom-requires-free-vars axiom-rejection-message)
+    (count-exists derive-doc derive-restricted-eval derive-rules-listed-only derive-fabrication-propagation axiom-requires-free-vars axiom-rejection-message)
     :using (count-exists counting.count-exists-base counting.count-exists-step
-            derive-doc derive-restricted-eval derive-fabrication-propagation axiom-requires-free-vars axiom-rejection-message))
+            derive-doc derive-restricted-eval derive-rules-listed-only derive-fabrication-propagation axiom-requires-free-vars axiom-rejection-message))
 
-(defterm derivation-impl-count 5
+(defterm derivation-impl-count 6
     :evidence (evidence "engine.py"
-        :quotes ("def derive(" "Evaluation is restricted to facts/terms listed in :using." "If any source has unverified evidence, the theorem is" "if not free_vars(wff):" "has no ?-variables")
-        :explanation "5 derivation features in source"))
+        :quotes ("def derive(" "Evaluation is restricted to the derive's sources" "Rewrite rules are scoped to the axioms/theorems in :using alone" "If any source has unverified evidence, the theorem is" "if not free_vars(wff):" "has no ?-variables")
+        :explanation "6 derivation features in source"))
 
 (diff derivation-mechanism-coverage
     :replace derivation-doc-count

@@ -136,6 +136,8 @@ The corpus under the types:
 
 - Contamination no longer masks a value disagreement. A diff whose two values disagreed was filed as a `diff_contamination` warning when its downstream divergences all referenced sibling diffs (`value_divergent` required `d.empty`, and `diff_contamination_only` took the rest), so `a = 10` diffed against `b = 20` with a sibling diff on `a` reported the system consistent. The stale README counts reached that state during this work. Each diff now lands in exactly one class: a downstream divergence, a value divergence (values disagree, no real downstream divergence), or contamination (contamination only, values agree). The self-proof's contamination rule carries the third condition.
 
+- A derive's formula names its sources, as its `:bind` values already did: the facts, terms and theorems it mentions need no `:using`. A rewrite rule is the exception: it applies only when `:using` lists it, so naming a term never brings in its rules, and two modules' rules for one head meet only in a derive that lists both. A derive tries its rules in the order it lists them; the scope was a `set`, so which of two matching rules applied followed the interpreter's string hashing, and one file could prove a theorem on one run and refute it on the next. Reporting two such rules in one scope is [its own task](../pending/rewrite-rule-conflicts.md).
+
 ## Decisions
 
 - `?var` annotations are optional; untyped positions are `Any` and their boundaries are reported.

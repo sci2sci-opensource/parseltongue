@@ -127,10 +127,10 @@ IMPORTANT: You can see fact NAMES and TYPES but NOT their values. Reason about s
 
 DERIVATION EXAMPLES:
 
-;; Direct derivation — prove a statement from existing facts
+;; Direct derivation — prove a statement from existing facts;
+;; the facts it names are sources, :using lists only rewrite rules
 (derive target-exceeded
-  (> revenue-q3-growth growth-target)
-  :using (revenue-q3-growth growth-target))
+  (> revenue-q3-growth growth-target))
 
 ;; Instantiate a parameterised axiom via :bind
 ;; the axiom and the symbols in :bind values are sources already;

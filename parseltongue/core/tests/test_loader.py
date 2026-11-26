@@ -394,6 +394,61 @@ class TestBindDirective(unittest.TestCase):
         self.assertEqual(s.theorems["d1"].derivation, ["rev", "gt-zero"])
         self.assertIn("potential fabrication", s.theorems["d1"].origin)
 
+    def test_derive_formula_names_its_own_sources(self):
+        """The facts a direct derive's formula names are sources without a :using."""
+        s = make_system()
+        quiet(load_source, s, '(fact x 5 :origin "t")\n(fact y 2 :origin "t")')
+        quiet(load_source, s, "(derive d1 (> x y))")
+        self.assertEqual(s.theorems["d1"].derivation, ["x", "y"])
+        self.assertIs(s.engine.dsl._derived["d1"], True)
+
+    def test_formula_source_carries_its_taint(self):
+        """A fact the formula names, unlisted, still passes its fabrication on."""
+        s = make_system()
+        quiet(s.register_document, "Doc", SAMPLE_DOC)
+        quiet(
+            load_source,
+            s,
+            '(fact rev 15 :evidence (evidence "Doc" :quotes ("not in the document") :explanation "e"))\n'
+            "(derive d1 (> rev 0))",
+        )
+        self.assertIn("potential fabrication", s.theorems["d1"].origin)
+
+    _DOUBLE = (
+        '(fact a 3 :origin "t")\n(defterm double :origin "t")\n'
+        '(axiom double-two (= (double ?x) (* 2 ?x)) :origin "t")\n'
+        '(axiom double-three (= (double ?x) (* 3 ?x)) :origin "t")'
+    )
+
+    def test_naming_a_term_does_not_bring_its_rules(self):
+        """A rewrite rule applies only when :using lists it."""
+        s = make_system()
+        quiet(load_source, s, self._DOUBLE)
+        quiet(load_source, s, "(derive unlisted (= (double a) 6))")
+        quiet(load_source, s, "(derive listed (= (double a) 6) :using (double-two))")
+        self.assertIs(s.engine.dsl._derived["unlisted"], False)
+        self.assertIs(s.engine.dsl._derived["listed"], True)
+
+    def test_a_theorem_the_formula_names_is_not_a_rule(self):
+        """A rewrite-shaped theorem named in the formula is a value, never applied as a rule."""
+        s = make_system()
+        quiet(load_source, s, self._DOUBLE)
+        quiet(load_source, s, "(derive lemma (= (double a) 9) :using (double-three))")
+        quiet(load_source, s, "(derive named (and (= lemma lemma) (= (double a) 9)))")
+        quiet(load_source, s, "(derive listed (= (double a) 9) :using (lemma))")
+        self.assertIn("lemma", s.theorems["named"].derivation)
+        self.assertIs(s.engine.dsl._derived["named"], False)
+        self.assertIs(s.engine.dsl._derived["listed"], True)
+
+    def test_listed_rules_apply_in_the_order_listed(self):
+        """Two rules for one head: the first listed applies, whichever the interpreter hashes first."""
+        s = make_system()
+        quiet(load_source, s, self._DOUBLE)
+        quiet(load_source, s, "(derive two-first (= (double a) 6) :using (a double-two double-three))")
+        quiet(load_source, s, "(derive three-first (= (double a) 9) :using (a double-three double-two))")
+        self.assertIs(s.engine.dsl._derived["two-first"], True)
+        self.assertIs(s.engine.dsl._derived["three-first"], True)
+
     def test_derive_inline_wff_with_bind_crashes(self):
         """Inline WFF + :bind is invalid syntax — :bind requires an axiom name, not a WFF."""
         s = make_system()

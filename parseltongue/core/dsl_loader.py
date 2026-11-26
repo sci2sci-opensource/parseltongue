@@ -94,24 +94,26 @@ def _parse_bindings(bind_raw):
     return bindings
 
 
-def _written_sources(engine, ref: str, bindings: dict) -> list[str]:
-    """The sources a rule-applying derive names in its own form: the rule, then every
-    node a :bind value mentions. They join :using on their own; :using lists the rest
-    (what only the rule's body mentions, the rewrite rules evaluation leans on)."""
-    known = (engine.axioms, engine.facts, engine.terms, engine.theorems)
-    names = [ref] if any(ref in table for table in known) else []
+def _written_sources(engine, *forms) -> list[str]:
+    """The sources a derive names in its own form: every fact, term and theorem its formula
+    or a :bind value mentions, once each, in the order written. They are sources without
+    being listed; :using lists the rest (what only a rule's body mentions, the rewrite rules
+    evaluation leans on). A written name is never a rewrite rule: the engine applies only the
+    rules :using lists, so naming a node never brings another world's rules into scope."""
+    known = (engine.facts, engine.terms, engine.theorems)
+    names: dict[str, None] = {}
 
     def walk(value):
         if isinstance(value, Symbol):
-            if str(value) not in names and any(str(value) in table for table in known):
-                names.append(str(value))
+            if any(str(value) in table for table in known):
+                names.setdefault(str(value))
         elif isinstance(value, (list, tuple)):
             for item in value:
                 walk(item)
 
-    for value in bindings.values():
-        walk(value)
-    return names
+    for form in forms:
+        walk(form)
+    return list(names)
 
 
 class DslLoader:
@@ -205,8 +207,11 @@ class DslLoader:
             if bind_raw is not None:
                 ref = str(expr[2])
                 bindings = _parse_bindings(bind_raw)
-                if isinstance(using, list):
-                    using += [s for s in _written_sources(engine, ref, bindings) if s not in using]
+                # The applied axiom is the derive's own rule: a source as if listed
+                known = (engine.axioms, engine.facts, engine.terms, engine.theorems)
+                if isinstance(using, list) and ref not in using and any(ref in table for table in known):
+                    using.append(ref)
+                written = _written_sources(engine, *bindings.values())
                 if ref in engine.axioms:
                     rule = ref
                     self._check_bindings(name, ref, bindings)
@@ -217,6 +222,7 @@ class DslLoader:
                     wff = engine.instantiate(ref, bindings)
             else:
                 wff = expr[2]
+                written = _written_sources(engine, wff)
                 if isinstance(wff, Symbol) and str(wff) in engine.axioms:
                     axiom_name = str(wff)
                     log.warning("Derive '%s' used axiom name '%s' as WFF — auto-expanding", name, axiom_name)
@@ -245,7 +251,7 @@ class DslLoader:
                                 f"in :using without :bind.)"
                             )
             self._derived.pop(name, None)
-            engine.derive(name, wff, using)
+            engine.derive(name, wff, using, written)
             self._type_derive(name, wff, rule, get_keyword(expr, KW_TYPE, None), get_keyword(expr, KW_EXPECT, None))
 
         elif head == DIFF:
