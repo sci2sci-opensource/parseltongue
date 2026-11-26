@@ -121,6 +121,8 @@ def _evidence_quote_provenance(engine, root: str) -> dict[tuple[str, str], set[s
                 expr = item.wff
             if store_name == "theorems":
                 dependencies.extend(str(dep) for dep in item.derivation)
+            if store_name == "axioms":
+                dependencies.extend(item.using)
             break
 
         if item is not None:
@@ -535,7 +537,7 @@ class Engine(Rewriter, Executor, Protocol):
     def register_entity_alias(self, alias: str, canonical: str) -> None: ...
     def load_document(self, name: str, path: str) -> None: ...
     def set_fact(self, name: str, value: WFF, origin: object) -> None: ...
-    def introduce_axiom(self, name: str, wff: object, origin: object) -> Axiom: ...
+    def introduce_axiom(self, name: str, wff: object, origin: object, using: list[str] | None = None) -> Axiom: ...
     def introduce_term(self, name: str, definition: object, origin: object) -> Term: ...
     def derive(self, name: str, wff: object, using: list[str], written: list[str] | None = None) -> Theorem: ...
     def register_diff(self, name: str, replace: str, with_: str) -> None: ...
@@ -1363,6 +1365,24 @@ class EngineImpl(Engine):
                 env[Symbol(src_name)] = self.evaluate(self.theorems[src_name].wff)
         return env
 
+    def _with_declared_rules(self, using: list[str]) -> list[str]:
+        """*using* with the rules each listed axiom declares (its own :using) spliced in right
+        after it, and theirs after them, once each. Only what a rule's author named comes along:
+        nothing is found by a term's name."""
+        names: dict[str, None] = {}
+
+        def add(name: str) -> None:
+            if name in names:
+                return
+            names[name] = None
+            axiom = self.axioms.get(name)
+            for declared in axiom.using if axiom is not None else ():
+                add(declared)
+
+        for name in using:
+            add(name)
+        return list(names)
+
     def _collect_using_rules(self, using: list[str]) -> list[Axiom | Theorem]:
         """Collect axiom/theorem objects from :using (expanded transitively)."""
         expanded = self._expand_using(using)
@@ -1381,12 +1401,14 @@ class EngineImpl(Engine):
         form names (*written*: the facts, terms and theorems its formula and :bind values
         mention). Rewrite rules are scoped to the axioms/theorems in :using alone: a node the
         form names is evaluated and grounded, never applied as a rule, so the rules of two
-        worlds for one head meet only in a derive that lists both.
+        worlds for one head meet only in a derive that lists both. A listed axiom brings the
+        rules its own :using declares, right after it: its author chose them where it is written.
         If any source has unverified evidence, the theorem is
         marked as 'potential fabrication' with a trace to the unverified sources.
         """
         if isinstance(wff, str):
             wff = PGStringParser.translate(wff)
+        using = self._with_declared_rules(using)
         rules_from = using
         using = using + [s for s in written or () if s not in using]
 
@@ -1850,10 +1872,16 @@ class EngineImpl(Engine):
     # Axiom / Term / Fact introduction (engine-level)
     # ----------------------------------------------------------
 
-    def introduce_axiom(self, name: str, wff, origin) -> Axiom:
-        """Introduce a new axiom. Validates WFF and checks consistency."""
+    def introduce_axiom(self, name: str, wff, origin, using: list[str] | None = None) -> Axiom:
+        """Introduce a new axiom. Validates WFF and checks consistency.
+
+        *using* names the rules the axiom's right-hand side resolves with (axioms or theorems
+        already introduced); a derive that lists the axiom gets them with it."""
         if isinstance(wff, str):
             wff = PGStringParser.translate(wff)
+        for rule in using or ():
+            if rule not in self.axioms and rule not in self.theorems:
+                raise ValueError(f"Axiom '{name}' :using names an unknown axiom or theorem: {rule}")
 
         if isinstance(origin, Evidence):
             origin = self._verify_evidence(origin, caller=name)
@@ -1866,7 +1894,7 @@ class EngineImpl(Engine):
 
         self._check_wff(wff)
 
-        ax = Axiom(name=name, wff=wff, origin=origin)
+        ax = Axiom(name=name, wff=wff, origin=origin, using=tuple(using or ()))
         self.axioms[name] = ax
         self._register_if_definition(name, wff)
         return ax

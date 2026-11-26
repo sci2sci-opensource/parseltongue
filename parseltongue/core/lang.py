@@ -124,7 +124,8 @@ def _clause_to_sexp(clause: Clause) -> Sentence:
             _origin_to_sexp(clause.origin),
         ]  # type: ignore[return-value]
     if isinstance(clause, Axiom):
-        return [Symbol(clause.__class__.__name__.lower()), clause.name, clause.wff, _origin_to_sexp(clause.origin)]
+        base = [Symbol(clause.__class__.__name__.lower()), clause.name, clause.wff, _origin_to_sexp(clause.origin)]
+        return base + [list(clause.using)] if clause.using else base
     return clause
 
 
@@ -190,6 +191,7 @@ def _sexp_to_clause(sentence: Sentence) -> "Clause | Sentence":
             name=str(sentence[1]),
             wff=sentence[2],  # type: ignore[arg-type]
             origin=_inv(sentence[3]),  # type: ignore[arg-type]
+            using=tuple(str(s) for s in sentence[4]) if len(sentence) > 4 else (),  # type: ignore[union-attr]
         )
     return sentence
 
@@ -563,7 +565,9 @@ LANG_DOCS = {
         "ground statements (no ?-variables) are rejected; "
         "use (fact ...) for values or (derive ...) for "
         "provable claims.  Axioms are instantiated later "
-        "via :bind in a derive directive.",
+        "via :bind in a derive directive.  :using names the "
+        "rules the axiom's right-hand side resolves with; a "
+        "derive that lists the axiom gets them with it.",
         "example": '(axiom pos-rule (> ?x 0) :origin "manual")',
         "patterns": [
             # Simple parametric axiom with :origin
@@ -859,10 +863,13 @@ LANG_DOCS = {
     KW_USING: {
         "category": "keyword",
         "description": "List of source names (axioms, facts, terms, or "
-        "theorems) that a derivation depends on.  Required "
-        "in a direct derive.  In a :bind derive the axiom and "
-        "every node a :bind value names are sources already, "
-        ":using adds the rest and may be omitted.  Dependencies are expanded "
+        "theorems) that a derivation depends on.  The facts, "
+        "terms and theorems a derive's formula or :bind values "
+        "name, and the axiom a :bind applies, are sources already; "
+        ":using adds the rest — the rewrite rules it needs — and "
+        "may be omitted.  On an axiom, :using names the rules its "
+        "own right-hand side resolves with: a derive that lists "
+        "the axiom gets them with it.  Dependencies are expanded "
         "transitively — symbols referenced in axiom WFFs "
         "and term definitions are automatically included.  "
         "If any source has unverified evidence, the derived "

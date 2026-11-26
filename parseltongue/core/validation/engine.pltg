@@ -161,8 +161,10 @@
 (fact derive-rules-listed-only true
     :evidence (evidence "engine.py"
         :quotes ("Rewrite rules are scoped to the axioms/theorems in :using alone"
+                 "rules its own :using declares, right after it: its author chose them where it is written."
+                 "using = self._with_declared_rules(using)"
                  "axiom_scope = self._collect_using_rules(rules_from)")
-        :explanation "A derive applies only the rewrite rules :using lists; a node its form names is never a rule"))
+        :explanation "A derive applies only the rewrite rules :using lists and those a listed axiom declares; a node its form names is never a rule"))
 
 (fact derive-fabrication-propagation true
     :evidence (evidence "engine.py"

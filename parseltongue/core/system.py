@@ -172,8 +172,8 @@ class AbstractSystem(Rewriter, Interpreter):
     def load_document(self, name, path):
         self.engine.load_document(name, path)
 
-    def introduce_axiom(self, name, wff, origin):
-        return self.engine.introduce_axiom(name, wff, origin)
+    def introduce_axiom(self, name, wff, origin, using=None):
+        return self.engine.introduce_axiom(name, wff, origin, using)
 
     def introduce_term(self, name, definition, origin):
         return self.engine.introduce_term(name, definition, origin)

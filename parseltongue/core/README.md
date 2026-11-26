@@ -162,7 +162,14 @@ Symbols are the core entity of the language. Symbolic directives introduce named
 ;; Splat axiom — ?...items collects all trailing arguments
 (axiom count-exists (> (+ ?...items) 0)
   :origin "All items exist if their sum is positive")
+
+;; A rule built on other rules names them in its own :using
+(axiom quadruple-rule (= (quadruple ?x) (double (double ?x)))
+  :using (double-rule)
+  :origin "Twice the double")
 ```
+
+An axiom's `:using` names the rules its right-hand side resolves with. A derive that lists the axiom gets those rules with it, right after it, and theirs in turn, so a rule built on other rules is listed by its own name alone. Only what the rule's author named comes along: nothing is found by a term's name.
 
 **`defterm`** (forward declaration) — introduces a primitive symbol with no body (like `zero` in Peano arithmetic). These are the building blocks — named concepts that exist before any computation.
 
@@ -230,7 +237,7 @@ Computable directives produce results from the symbolic base. Computed terms are
   :origin "Bonus calculation")
 ```
 
-**`derive`** — a theorem proved by evaluating a WFF against existing facts, terms, and axioms. Evaluation is restricted to the derive's sources; rewrite axioms fire automatically, non-rewrite axioms require `:bind` to substitute `?`-variables. A derive's own form names sources: every fact, term and theorem its formula or a `:bind` value names, and the axiom a `:bind` derive applies, are sources without being listed, and `:using` adds whatever else it needs (a node only the axiom's body mentions, a rewrite rule) or is left out. Listing them again changes nothing. A rewrite rule is a source only when `:using` lists it: naming a term never brings in its rules, so two modules' rules for one head meet only in a derive that lists both, and a derive tries its rules in the order it lists them. If any source has unverified evidence, the derivation inherits the fabrication taint.
+**`derive`** — a theorem proved by evaluating a WFF against existing facts, terms, and axioms. Evaluation is restricted to the derive's sources; rewrite axioms fire automatically, non-rewrite axioms require `:bind` to substitute `?`-variables. A derive's own form names sources: every fact, term and theorem its formula or a `:bind` value names, and the axiom a `:bind` derive applies, are sources without being listed, and `:using` adds whatever else it needs (a node only the axiom's body mentions, a rewrite rule) or is left out. Listing them again changes nothing. A rewrite rule is a source only when `:using` lists it or a listed axiom's own `:using` names it: naming a term never brings in its rules, so two modules' rules for one head meet only in a derive that lists both, and a derive tries its rules in the order it lists them. If any source has unverified evidence, the derivation inherits the fabrication taint.
 
 ```scheme
 ;; Direct — the facts the WFF names are its sources

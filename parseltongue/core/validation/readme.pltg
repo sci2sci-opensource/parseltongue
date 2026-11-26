@@ -257,8 +257,9 @@
 (fact readme-derive-restricted-eval true
     :evidence (evidence "README"
         :quotes ("Evaluation is restricted to the derive's sources; rewrite axioms fire automatically, non-rewrite axioms require `:bind`"
-                 "A rewrite rule is a source only when `:using` lists it: naming a term never brings in its rules")
-        :explanation "README documents the source restriction, bind/auto-bind distinction, and that rewrite rules come only from :using"))
+                 "A rewrite rule is a source only when `:using` lists it or a listed axiom's own `:using` names it: naming a term never brings in its rules"
+                 "An axiom's `:using` names the rules its right-hand side resolves with")
+        :explanation "README documents the source restriction, bind/auto-bind distinction, and that rewrite rules come only from :using, a derive's or a listed axiom's own"))
 
 (fact readme-documents-symbolic-directives true
     :evidence (evidence "README"

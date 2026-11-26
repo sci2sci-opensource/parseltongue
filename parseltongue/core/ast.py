@@ -204,6 +204,9 @@ def parse_directive(expr: Any, order: int = 0) -> DirectiveNode:
             extract_symbols(expr[2], deps)
         if get_keyword(expr, KW_BIND, None) is not None:
             deps.add(str(expr[2]))
+        declared = get_keyword(expr, KW_USING, None)  # the rules its right-hand side resolves with
+        if isinstance(declared, (list, tuple)):
+            deps.update(str(s) for s in declared)
         return DirectiveNode(name=name, expr=expr, dep_names=deps, kind=DirectiveKind.AXIOM, source_order=order)
 
     elif head == DEFTERM:

@@ -168,7 +168,8 @@ class DslLoader:
                 wff = engine.instantiate(ref, bindings)
             else:
                 wff = expr[2]
-            engine.introduce_axiom(name, wff, self.resolve_origin(expr))
+            declared = get_keyword(expr, KW_USING, None)  # the rules its right-hand side resolves with
+            engine.introduce_axiom(name, wff, self.resolve_origin(expr), [str(s) for s in declared or ()])
             self._infer_function(wff)  # the rule joins its head's signature before its own body is checked
             self._type_axiom(name, wff, get_keyword(expr, KW_TYPES, None))
 

@@ -1367,6 +1367,24 @@ class Engine(EngineProtocol):
                 env[Symbol(src_name)] = self.evaluate(self.theorems[src_name].wff)
         return env
 
+    def _with_declared_rules(self, using: list[str]) -> list[str]:
+        """*using* with the rules each listed axiom declares (its own :using) spliced in right
+        after it, and theirs after them, once each. Only what a rule's author named comes along:
+        nothing is found by a term's name."""
+        names: dict[str, None] = {}
+
+        def add(name: str) -> None:
+            if name in names:
+                return
+            names[name] = None
+            axiom = self.axioms.get(name)
+            for declared in axiom.using if axiom is not None else ():
+                add(declared)
+
+        for name in using:
+            add(name)
+        return list(names)
+
     def _collect_using_rules(self, using: list[str]) -> list[Axiom | Theorem]:
         """Collect axiom/theorem objects from :using (expanded transitively)."""
         expanded = self._expand_using(using)
@@ -1385,12 +1403,14 @@ class Engine(EngineProtocol):
         form names (*written*: the facts, terms and theorems its formula and :bind values
         mention). Rewrite rules are scoped to the axioms/theorems in :using alone: a node the
         form names is evaluated and grounded, never applied as a rule, so the rules of two
-        worlds for one head meet only in a derive that lists both.
+        worlds for one head meet only in a derive that lists both. A listed axiom brings the
+        rules its own :using declares, right after it: its author chose them where it is written.
         If any source has unverified evidence, the theorem is
         marked as 'potential fabrication' with a trace to the unverified sources.
         """
         if isinstance(wff, str):
             wff = PGStringParser.translate(wff)
+        using = self._with_declared_rules(using)
         rules_from = using
         using = using + [s for s in written or () if s not in using]
 
@@ -1855,10 +1875,16 @@ class Engine(EngineProtocol):
     # Axiom / Term / Fact introduction (engine-level)
     # ----------------------------------------------------------
 
-    def introduce_axiom(self, name: str, wff, origin) -> Axiom:
-        """Introduce a new axiom. Validates WFF and checks consistency."""
+    def introduce_axiom(self, name: str, wff, origin, using: list[str] | None = None) -> Axiom:
+        """Introduce a new axiom. Validates WFF and checks consistency.
+
+        *using* names the rules the axiom's right-hand side resolves with (axioms or theorems
+        already introduced); a derive that lists the axiom gets them with it."""
         if isinstance(wff, str):
             wff = PGStringParser.translate(wff)
+        for rule in using or ():
+            if rule not in self.axioms and rule not in self.theorems:
+                raise ValueError(f"Axiom '{name}' :using names an unknown axiom or theorem: {rule}")
 
         if isinstance(origin, Evidence):
             origin = self._verify_evidence(origin, caller=name)
@@ -1871,7 +1897,7 @@ class Engine(EngineProtocol):
 
         self._check_wff(wff)
 
-        ax = Axiom(name=name, wff=wff, origin=origin)
+        ax = Axiom(name=name, wff=wff, origin=origin, using=tuple(using or ()))
         self.axioms[name] = ax
         self._register_if_definition(name, wff)
         return ax

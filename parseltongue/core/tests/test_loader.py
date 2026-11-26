@@ -449,6 +449,60 @@ class TestBindDirective(unittest.TestCase):
         self.assertIs(s.engine.dsl._derived["two-first"], True)
         self.assertIs(s.engine.dsl._derived["three-first"], True)
 
+    _QUADRUPLE = (
+        _DOUBLE + "\n(defterm quadruple :origin \"t\")\n"
+        '(axiom quadruple-rule (= (quadruple ?x) (double (double ?x))) :using (double-two) :origin "t")'
+    )
+
+    def test_a_listed_rule_brings_the_rules_it_declares(self):
+        """An axiom's own :using comes with it, right after it, into the derive that lists it."""
+        s = make_system()
+        quiet(load_source, s, self._QUADRUPLE)
+        quiet(load_source, s, "(derive q (= (quadruple a) 12) :using (quadruple-rule))")
+        self.assertEqual(s.theorems["q"].derivation, ["quadruple-rule", "double-two", "quadruple", "a"])
+        self.assertIs(s.engine.dsl._derived["q"], True)
+
+    def test_a_declared_rule_comes_before_the_next_listed_one(self):
+        """The rule an axiom declares is tried before a later listed rule for the same head."""
+        s = make_system()
+        quiet(load_source, s, self._QUADRUPLE)
+        quiet(load_source, s, "(derive q (= (quadruple a) 12) :using (quadruple-rule double-three))")
+        self.assertIs(s.engine.dsl._derived["q"], True)
+
+    def test_a_declared_rule_carries_its_taint(self):
+        """An unverified rule an axiom declares reaches the theorem of a derive listing only the axiom."""
+        s = make_system()
+        quiet(s.register_document, "Doc", SAMPLE_DOC)
+        quiet(
+            load_source,
+            s,
+            '(fact a 3 :origin "t")\n(defterm double :origin "t")\n(defterm quadruple :origin "t")\n'
+            "(axiom double-two (= (double ?x) (* 2 ?x))"
+            ' :evidence (evidence "Doc" :quotes ("not in the document") :explanation "e"))\n'
+            '(axiom quadruple-rule (= (quadruple ?x) (double (double ?x))) :using (double-two) :origin "t")\n'
+            "(derive q (= (quadruple a) 12) :using (quadruple-rule))",
+        )
+        self.assertIn("double-two", s.theorems["q"].origin)
+
+    def test_axiom_using_an_unknown_rule_is_refused(self):
+        s = make_system()
+        quiet(load_source, s, '(defterm quadruple :origin "t")')
+        with self.assertRaises(Exception) as raised:
+            quiet(
+                load_source,
+                s,
+                '(axiom quadruple-rule (= (quadruple ?x) (double (double ?x))) :using (no-such-rule) :origin "t")',
+            )
+        self.assertIn("no-such-rule", str(raised.exception))
+
+    def test_axiom_using_survives_serialization(self):
+        from ..serialization.serializers import deserialize_axiom, serialize_axiom
+
+        s = make_system()
+        quiet(load_source, s, self._QUADRUPLE)
+        axiom = s.engine.axioms["quadruple-rule"]
+        self.assertEqual(deserialize_axiom(axiom.name, serialize_axiom(axiom)).using, ("double-two",))
+
     def test_derive_inline_wff_with_bind_crashes(self):
         """Inline WFF + :bind is invalid syntax — :bind requires an axiom name, not a WFF."""
         s = make_system()

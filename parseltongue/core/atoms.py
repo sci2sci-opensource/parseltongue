@@ -210,6 +210,8 @@ class Axiom:
     name: str
     wff: WFF
     origin: "str | Evidence"
+    # The rules its own right-hand side resolves with: a derive that lists the axiom gets them too
+    using: tuple = ()
 
     def __str__(self):
         # TODO: __str__ couples atoms to grammar — rethink display layer

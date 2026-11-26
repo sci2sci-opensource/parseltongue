@@ -138,6 +138,8 @@ The corpus under the types:
 
 - A derive's formula names its sources, as its `:bind` values already did: the facts, terms and theorems it mentions need no `:using`. A rewrite rule is the exception: it applies only when `:using` lists it, so naming a term never brings in its rules, and two modules' rules for one head meet only in a derive that lists both. A derive tries its rules in the order it lists them; the scope was a `set`, so which of two matching rules applied followed the interpreter's string hashing, and one file could prove a theorem on one run and refute it on the next. Reporting two such rules in one scope is [its own task](../pending/rewrite-rule-conflicts.md).
 
+- An axiom takes its own `:using`: the rules its right-hand side resolves with. A derive that lists the axiom gets them right after it, and theirs in turn, so a rule built on other rules is listed by its own name alone. Each hop is a rule its author named; nothing is found by a term's name.
+
 ## Decisions
 
 - `?var` annotations are optional; untyped positions are `Any` and their boundaries are reported.

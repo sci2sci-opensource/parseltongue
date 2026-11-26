@@ -142,6 +142,7 @@ def serialize_axiom(axiom: Axiom) -> dict:
     return {
         "wff": serialize_sexp(axiom.wff),
         "origin": serialize_origin(axiom.origin),
+        **({"using": list(axiom.using)} if axiom.using else {}),
     }
 
 
@@ -150,6 +151,7 @@ def deserialize_axiom(name: str, d: dict) -> Axiom:
         name=name,
         wff=deserialize_sexp(d["wff"]),
         origin=deserialize_origin(d["origin"]),
+        using=tuple(d.get("using", ())),
     )
 
 
